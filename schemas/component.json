@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "component.json",
+  "title": "COMPONENT card frontmatter",
+  "description": "Reusable UI component.",
+  "type": "object",
+  "properties": {
+    "framework": {
+      "type": "string",
+      "description": "e.g. svelte, react, web-component"
+    },
+    "props": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "required": { "type": "boolean" }
+        },
+        "required": ["name"]
+      }
+    },
+    "slots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "accepts": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["name"]
+      }
+    },
+    "variants": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

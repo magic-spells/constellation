@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "db.json",
+  "title": "DB card frontmatter",
+  "description": "Database table or collection. Suggested kinds: sql-table, document-collection, kv, time-series, graph.",
+  "type": "object",
+  "properties": {
+    "table_name": {
+      "type": "string",
+      "description": "Physical table/collection name, e.g. tickets"
+    },
+    "columns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "sql_type": { "type": "string" },
+          "primary_key": { "type": "boolean" },
+          "not_null": { "type": "boolean" },
+          "unique": { "type": "boolean" },
+          "default": { "type": "string" }
+        },
+        "required": ["name"]
+      }
+    },
+    "indexes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "columns": { "type": "array", "items": { "type": "string" } },
+          "unique": { "type": "boolean" }
+        }
+      }
+    },
+    "foreign_keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "columns": { "type": "array", "items": { "type": "string" } },
+          "references_table": { "type": "string" },
+          "references_columns": { "type": "array", "items": { "type": "string" } },
+          "on_delete": { "type": "string" }
+        }
+      }
+    }
+  }
+}

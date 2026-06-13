@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "event.json",
+  "title": "EVENT card frontmatter",
+  "description": "Domain event or signal. References are handles.",
+  "type": "object",
+  "properties": {
+    "emitter": {
+      "$ref": "card.json#/$defs/handle",
+      "description": "Handle of the card that emits this event."
+    },
+    "payload_schema": {
+      "$ref": "card.json#/$defs/handle",
+      "description": "Handle of the DATATYPE card describing the payload."
+    },
+    "delivery_semantics": {
+      "enum": ["at-least-once", "at-most-once", "exactly-once"]
+    },
+    "ordering": {
+      "enum": ["per-aggregate", "total", "none"]
+    },
+    "idempotency_key_field": {
+      "type": "string",
+      "description": "Payload field consumers dedupe on, e.g. event_id."
+    },
+    "version": { "type": "integer", "minimum": 1 }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "name": "@magic-spells/constellation",
+  "version": "0.1.0",
+  "description": "Files-first architecture planning for AI-assisted development. Your project plan as markdown cards in the repo — typed, connected, queryable, and diffable with git.",
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "author": "Cory Schulz <coryschulz@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/magic-spells/constellation.git"
+  },
+  "homepage": "https://github.com/magic-spells/constellation#readme",
+  "bugs": "https://github.com/magic-spells/constellation/issues",
+  "files": [
+    "dist",
+    "schemas",
+    "skill",
+    "docs",
+    "examples",
+    "viewer/dist",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "constellation": "./dist/cli/index.js"
+  },
+  "main": "./dist/core/index.js",
+  "types": "./dist/core/index.d.ts",
+  "keywords": [
+    "architecture",
+    "planning",
+    "documentation",
+    "markdown",
+    "diagram",
+    "knowledge-graph",
+    "mcp",
+    "cli",
+    "ai",
+    "llm"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build && npm run build:viewer",
+    "dev": "tsx src/cli/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint:examples": "tsx src/cli/index.ts lint examples",
+    "build:viewer": "vite build viewer",
+    "demo": "tsx scripts/demo.ts",
+    "dev:viewer": "vite viewer",
+    "serve:examples": "tsx src/cli/index.ts serve examples --no-open"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ajv": "^8.17.1",
+    "commander": "^15.0.0",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.2.0",
+    "picocolors": "^1.1.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@tailwindcss/vite": "^4.3.1",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.9.3",
+    "marked": "^18.0.5",
+    "mermaid": "^11.15.0",
+    "svelte": "^5.56.3",
+    "tailwindcss": "^4.3.1",
+    "tsx": "^4.22.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.0",
+    "vitest": "^4.1.8"
+  }
+}

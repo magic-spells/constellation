@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "role.json",
+  "title": "ROLE card frontmatter",
+  "description": "User role or permission group.",
+  "type": "object",
+  "properties": {
+    "permissions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Permission strings, conventionally resource:action (e.g. tickets:read)."
+    },
+    "issued_by": {
+      "type": "string",
+      "description": "Who grants this role, e.g. app, org, tenant, os."
+    }
+  }
+}

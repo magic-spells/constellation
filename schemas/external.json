@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "external.json",
+  "title": "EXTERNAL card frontmatter",
+  "description": "External service or integration. Suggested kinds: saas-vendor, cloud-infra, external-microservice, hardware-peripheral.",
+  "type": "object",
+  "properties": {
+    "vendor": {
+      "type": "string",
+      "description": "Vendor or platform name, e.g. Stripe."
+    },
+    "purpose": {
+      "type": "string",
+      "description": "What this service is used for."
+    },
+    "docs_url": { "type": "string" },
+    "status_url": { "type": "string" },
+    "credentials_envs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Environment variable NAMES holding credentials. Never values."
+    }
+  }
+}

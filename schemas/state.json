@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "state.json",
+  "title": "STATE card frontmatter",
+  "description": "State machine. Prefer a ```mermaid stateDiagram-v2 block in the body; structured states/transitions are optional for tooling that needs them.",
+  "type": "object",
+  "properties": {
+    "states": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "initial": { "type": "boolean" },
+          "terminal": { "type": "boolean" }
+        },
+        "required": ["name"]
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "event": { "$ref": "card.json#/$defs/handle" },
+          "guard": { "type": "string" },
+          "action": { "type": "string" }
+        },
+        "required": ["from", "to"]
+      }
+    }
+  }
+}

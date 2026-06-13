@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "api.json",
+  "title": "API card frontmatter",
+  "description": "HTTP/RPC endpoint. Schema references are handles of DATATYPE cards.",
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "URL pattern, e.g. /api/v1/tickets/:id"
+    },
+    "path_params": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/param" }
+    },
+    "methods": {
+      "type": "object",
+      "propertyNames": {
+        "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "query_params": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/param" }
+          },
+          "request_schema": { "$ref": "card.json#/$defs/handle" },
+          "response_schema": { "$ref": "card.json#/$defs/handle" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "param": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "required": { "type": "boolean" },
+        "default": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["name"]
+    }
+  }
+}

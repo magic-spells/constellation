@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "card.json",
+  "title": "Constellation card — reserved frontmatter keys",
+  "description": "The four reserved keys every card may use. All other frontmatter keys are type-specific fields defined in the per-type schemas.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "Display name. The handle (filename) is the identity; this is the human label."
+    },
+    "kind": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "maxLength": 64,
+      "description": "Subtype discriminator, lowercase slug (e.g. sql-table, e2e, decision)."
+    },
+    "status": {
+      "enum": ["planned", "building", "built", "verified"],
+      "description": "Lifecycle state. Orthogonal to git history: 'what changed' comes from git, not from this field."
+    },
+    "connections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/handle" },
+      "description": "Plain list of handles this card is connected to. Undirected; declare on whichever card you are editing."
+    }
+  },
+  "$defs": {
+    "handle": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*-[A-Z0-9][A-Z0-9-]*$",
+      "minLength": 3,
+      "maxLength": 135
+    }
+  }
+}

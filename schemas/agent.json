@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent.json",
+  "title": "AGENT card frontmatter",
+  "description": "AI agent instructions/policy. The instruction text lives in the body.",
+  "type": "object",
+  "properties": {
+    "scope": {
+      "type": "string",
+      "description": "Glob or directory the instructions apply to, e.g. src/api/**"
+    },
+    "applies_to": {
+      "type": "string",
+      "description": "Which agents this binds, e.g. all-agents or a specific role."
+    },
+    "priority": {
+      "type": "integer",
+      "description": "Higher priority instructions are loaded first."
+    }
+  }
+}

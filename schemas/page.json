@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "page.json",
+  "title": "PAGE card frontmatter",
+  "description": "Frontend route/screen. Route fields are flat (no nested route object).",
+  "type": "object",
+  "properties": {
+    "route": {
+      "type": "string",
+      "description": "URL pattern, e.g. /inbox/:ticket_id"
+    },
+    "parent": {
+      "$ref": "card.json#/$defs/handle",
+      "description": "Handle of the parent PAGE (layout/shell) this page nests under."
+    },
+    "path_params": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/param" }
+    },
+    "query_params": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/param" }
+    }
+  },
+  "$defs": {
+    "param": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "required": { "type": "boolean" }
+      },
+      "required": ["name"]
+    }
+  }
+}

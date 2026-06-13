@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "file.json",
+  "title": "FILE card frontmatter",
+  "description": "Source file reference. The only card type with a required field: a file reference without a path refers to nothing.",
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Path relative to the repo root, e.g. src/api/tickets.ts"
+    },
+    "language": {
+      "type": "string",
+      "description": "e.g. typescript, python, go"
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-line description of what the file does."
+    }
+  },
+  "required": ["path"]
+}

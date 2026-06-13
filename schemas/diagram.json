@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagram.json",
+  "title": "DIAGRAM card frontmatter",
+  "description": "Architecture diagram. Default: a ```mermaid block in the body (handles as node IDs). These structured fields are the pinned-layout escape hatch for curated diagrams where positions carry meaning.",
+  "type": "object",
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "maxItems": 300,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "$ref": "#/$defs/slug" },
+          "label": { "type": "string", "maxLength": 200 },
+          "shape": {
+            "enum": [
+              "rounded_rectangle", "rectangle", "pill", "cylinder", "queue",
+              "hexagon", "cloud", "actor", "diamond", "circle", "note"
+            ]
+          },
+          "group": {
+            "enum": [
+              "client", "service", "middleware", "gateway",
+              "datastore", "queue", "external", "infra"
+            ]
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" }
+            },
+            "required": ["x", "y"]
+          },
+          "size": {
+            "type": "object",
+            "properties": {
+              "w": { "type": "number", "exclusiveMinimum": 0 },
+              "h": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          },
+          "phase": { "$ref": "#/$defs/slug" },
+          "description": { "type": "string", "maxLength": 2000 },
+          "refs": {
+            "type": "array",
+            "maxItems": 50,
+            "items": { "$ref": "card.json#/$defs/handle" },
+            "description": "Handles of the cards this diagram node depicts."
+          }
+        },
+        "required": ["id", "label", "position"]
+      }
+    },
+    "edges": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": { "$ref": "#/$defs/slug" },
+          "to": { "$ref": "#/$defs/slug" },
+          "label": { "type": "string", "maxLength": 200 },
+          "direction": { "enum": ["from_to", "to_from", "both", "none"] },
+          "style": { "enum": ["solid", "dashed"] },
+          "from_side": { "enum": ["top", "right", "bottom", "left"] },
+          "to_side": { "enum": ["top", "right", "bottom", "left"] },
+          "phase": { "$ref": "#/$defs/slug" }
+        },
+        "required": ["from", "to"]
+      }
+    },
+    "phases": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "$ref": "#/$defs/slug" },
+          "label": { "type": "string", "maxLength": 120 },
+          "order": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["id", "label", "order"]
+      }
+    }
+  },
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$",
+      "minLength": 1,
+      "maxLength": 64
+    }
+  }
+}

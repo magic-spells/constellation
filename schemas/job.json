@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "job.json",
+  "title": "JOB card frontmatter",
+  "description": "Background, scheduled, or queue-triggered work.",
+  "type": "object",
+  "properties": {
+    "trigger": {
+      "enum": ["cron", "queue", "event", "manual"]
+    },
+    "schedule": {
+      "type": "string",
+      "description": "Cron expression when trigger is cron, e.g. */15 * * * *"
+    },
+    "flow": {
+      "$ref": "card.json#/$defs/handle",
+      "description": "Handle of the FLOW this job executes, if any."
+    },
+    "max_retries": { "type": "integer", "minimum": 0 },
+    "idempotency_key": {
+      "type": "string",
+      "description": "Field or expression that makes runs idempotent."
+    }
+  }
+}

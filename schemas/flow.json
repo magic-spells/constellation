@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "flow.json",
+  "title": "FLOW card frontmatter",
+  "description": "Multi-step sequenced process. Steps live in the BODY as a numbered markdown list (with nested items for edge cases), not in frontmatter.",
+  "type": "object",
+  "properties": {
+    "triggers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": { "enum": ["cron", "event", "manual"] },
+          "schedule": { "type": "string" },
+          "event": { "$ref": "card.json#/$defs/handle" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "datatype.json",
+  "title": "DATATYPE card frontmatter",
+  "description": "Data type schema. No structured fields: the type declaration lives in the body as a fenced code block (```ts, ```sql, etc.).",
+  "type": "object",
+  "properties": {}
+}

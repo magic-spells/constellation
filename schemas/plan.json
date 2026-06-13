@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plan.json",
+  "title": "PLAN card frontmatter",
+  "description": "Plan document. constellation/plan.md is PLAN-PROJECT; scoped plans (PLAN-FRONTEND) live in plan/. Keep plans short — decisions belong in DOC cards (kind: decision), status on the cards themselves.",
+  "type": "object",
+  "properties": {
+    "scope": {
+      "type": "string",
+      "description": "Area this plan covers, e.g. frontend. Omit for the project plan."
+    }
+  }
+}

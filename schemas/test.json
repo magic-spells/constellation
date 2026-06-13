@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "test.json",
+  "title": "TEST card frontmatter",
+  "description": "Test spec. Use the reserved kind for the category (unit, integration, e2e). Connect to the cards the test covers.",
+  "type": "object",
+  "properties": {
+    "framework": {
+      "type": "string",
+      "description": "Test runner, e.g. vitest, jest, pytest, playwright."
+    }
+  }
+}
