@@ -190,23 +190,23 @@
   --t-PLAN: #ebcb8b;
 }
 
-:root[data-theme='conifer'] {
+:root[data-theme='dim'] {
   --sans: 'Avenir Next', Seravek, 'Gill Sans', 'Segoe UI', sans-serif;
   --display: var(--sans);
   --body-font: var(--sans);
-  --bg: #0c1510;            /* deep pine */
-  --bg-panel: #11201a;
-  --bg-inset: #16271f;
-  --text: #e4ece5;          /* soft needle-white */
-  --text-muted: #8fa394;
-  --text-faint: #5c7064;
-  --accent: #7fb069;        /* sage / new growth */
-  --border: #1d3028;
-  --border-strong: #2c4537;
-  --shadow: 0 12px 32px rgb(0 0 0 / 0.5);
+  --bg: #22272e;            /* github dim canvas — mid grey */
+  --bg-panel: #2d333b;
+  --bg-inset: #343b44;
+  --text: #adbac7;          /* dimmed default */
+  --text-muted: #768390;
+  --text-faint: #545d68;
+  --accent: #539bf5;        /* dim blue */
+  --border: #373e47;
+  --border-strong: #444c56;
+  --shadow: 0 12px 32px rgb(0 0 0 / 0.4);
   --sky:
-    radial-gradient(900px 500px at 75% -10%, #2f5e3f55, transparent 70%),
-    radial-gradient(700px 600px at -5% 100%, #1d3a2899, transparent 70%);
+    radial-gradient(900px 500px at 70% -10%, #30373f99, transparent 70%),
+    radial-gradient(700px 600px at 0% 100%, #2a313899, transparent 70%);
 }
 
 :root[data-theme='ember'] {
@@ -296,7 +296,7 @@ pre.code {
 .topbar {
   flex: none;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 1rem;
   padding: 0.8rem 1.2rem;
   border-bottom: 1px solid var(--border);
@@ -305,17 +305,26 @@ pre.code {
 
 .brand {
   font-family: var(--display);
-  font-size: 1.05rem;
-  font-weight: 650;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
   color: var(--text);
   letter-spacing: 0.01em;
 }
 .brand:hover { text-decoration: none; }
-.brand .star { color: var(--accent); margin-right: 0.45rem; }
-
-.topbar .plan-name {
-  color: var(--text-muted);
+.brand .wordmark {
   font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-faint);
+  letter-spacing: 0.02em;
+}
+.brand .star { color: var(--accent); font-size: 0.95rem; }
+.brand .project {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -554,7 +563,7 @@ nav.sidenav {
 .swatch[data-swatch='sumi'] { background: linear-gradient(135deg, #e8e6df 50%, #5c6b52 50%); }
 .swatch[data-swatch='daylight'] { background: linear-gradient(135deg, #fbfcfd 50%, #2f6fed 50%); }
 .swatch[data-swatch='nord'] { background: linear-gradient(135deg, #2e3440 50%, #88c0d0 50%); }
-.swatch[data-swatch='conifer'] { background: linear-gradient(135deg, #0c1510 50%, #7fb069 50%); }
+.swatch[data-swatch='dim'] { background: linear-gradient(135deg, #22272e 50%, #539bf5 50%); }
 .swatch[data-swatch='ember'] { background: linear-gradient(135deg, #1c1815 50%, #fe8019 50%); }
 
 .theme-backdrop {

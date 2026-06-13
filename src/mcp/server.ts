@@ -37,10 +37,23 @@ Writes are validated: every write tool lints and returns issues for the file it 
 update_card patch.fields deep-merges (arrays replace, null deletes); body replaces.
 Body-only updates never reformat frontmatter.
 
-Change tracking is git: diff_plan reports per-card changes since the sync marker (or
-HEAD); traverse the changed handles for blast radius; set_sync_point after reconciling
-code (commit the plan first — it warns if the plan is uncommitted). Never stamp dirty
-flags into cards.
+Change tracking is git: diff_plan reports per-card changes since the sync marker (or HEAD).
+Never stamp dirty flags into cards.
+
+"Sync the plan" / "sync the plan to the code" = bring the CODE up to match the plan (the
+plan is the source of truth — behavior changes in the plan FIRST, then in code, never the
+reverse). It is NOT merely stamping the marker. The loop: diff_plan (base = marker) for what
+changed → traverse the changed handles (detail: "full") for blast radius → update the
+application code to match those cards → run the build/tests and bump card status → commit,
+then set_sync_point to advance the marker (commit the plan first — it warns if the plan is
+uncommitted). When the diff is large and the affected areas don't share files, act as the
+ORCHESTRATOR rather than editing it all yourself: partition the blast radius into
+independent, non-overlapping neighborhoods (split on file boundaries so no two agents touch
+the same file) and fan out a sub-agent per neighborhood in parallel; use one agent when the
+change is small or files overlap. Delegating keeps your context clean and lets you hold the
+macro view. ALWAYS verify the sub-agents' work yourself after they have all finished — re-read
+each change against its cards and run the build/tests; never trust their reports alone — then
+set the sync point once.
 
 For migrations or large scaffolds, use create_cards and add_connections (batched, one
 lint pass) instead of many single calls — connections between cards in the same batch

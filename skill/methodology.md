@@ -199,3 +199,8 @@ the smallest set of changes that most improves the plan — not the most cards.
 - After reconciling the plan with code, commit the plan, then `set_sync_point` to mark the
   reconciliation. Change history is git (`diff_plan`, `plan_log`) — never stamp dirty
   flags, changelogs, or timestamps into cards.
+- The opposite direction — bringing **code** up to a changed **plan** ("sync the plan to
+  the code") — is its own loop, documented in *Syncing the plan to code* in `SKILL.md`:
+  `diff_plan` → `traverse` the blast radius → update code → verify → `set_sync_point`. For a
+  large diff, orchestrate it (a sub-agent per non-overlapping area) and always verify the
+  agents' work yourself before setting the marker.

@@ -38,8 +38,16 @@
 
 <div class="app">
   <header class="topbar">
-    <a class="brand" href="#/"><span class="star">✦</span>Constellation</a>
-    {#if planCard?.name}<span class="plan-name">{planCard.name}</span>{/if}
+    <a class="brand" href="#/">
+      {#if planCard?.name}
+        <span class="wordmark">Constellation</span>
+        <span class="star">✦</span>
+        <span class="project">{planCard.name}</span>
+      {:else}
+        <span class="star">✦</span>
+        <span class="project">Constellation</span>
+      {/if}
+    </a>
     <span class="spacer"></span>
     <ThemePicker />
   </header>

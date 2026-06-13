@@ -66,6 +66,7 @@ The pipeline is one direction: **files → index → (lint | serve | MCP)**.
 - **Plan resolution never crosses a repo boundary.** `findPlanUp` stops at the first ancestor containing `.git` and returns null rather than adopting a sibling repo's plan.
 - **Four frontmatter keys are reserved:** `name`, `kind`, `status`, `connections`. Type-specific `fields` may not use them; writer/MCP reject reserved keys in `fields`.
 - **`plan.md` at the plan root is the one special file** — its handle is `PLAN-PROJECT`, and it's the only card not named after its handle / not in a type folder.
+- **Agent guidance lives in two unshared copies — update both.** The MCP server embeds its own `INSTRUCTIONS` string (`src/mcp/server.ts`) and never reads the skill; the skill (`skill/SKILL.md`, `skill/methodology.md`) is loaded only by the agent harness. Neither imports the other. Any change to *how an agent should use the plan* — workflows, commands, terminology, the plan↔code sync loop — must land in **both**, and stay consistent with the spec in `docs/`.
 
 ### Lint codes (keep in sync with `docs/001-file-format.md`)
 

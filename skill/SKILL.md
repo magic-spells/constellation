@@ -119,6 +119,35 @@ how to find gaps and recommend tastefully — is in [`methodology.md`](./methodo
 which also backs the `bootstrap_plan` / `audit_plan` MCP prompts.** Read it before a large
 pass.
 
+## Syncing the plan to code
+
+The plan is the source of truth: you change behavior by editing the **plan first**, then
+bringing the code up to match — never the reverse. When the user says "sync the plan" or
+"sync the plan to the code," they mean this loop (not merely stamping the sync marker):
+
+1. **Diff the plan** — `diff_plan` (base = the `.sync.json` marker, else `HEAD`) lists the
+   cards added / modified / removed since code was last reconciled, with the changed
+   frontmatter keys and bodies.
+2. **Find the blast radius** — `traverse` the changed handles (`detail: "full"`) to pull in
+   every connected card the change touches: the `API` a `DATATYPE` feeds, the `PAGE`s a
+   `FLOW` crosses, the `DB` a migration implies.
+3. **Update the code** to match those cards — contracts, schemas, routes, states, flows.
+4. **Verify and mark** — run the project's build/tests, bump card `status` as code lands
+   (`planned → building → built`), then commit and `set_sync_point` to advance the marker.
+
+**Orchestrate large syncs.** When the diff is large and the affected areas don't share
+files, act as the **orchestrator** instead of editing everything yourself: partition the
+blast radius into independent neighborhoods and hand each to a sub-agent working in
+parallel, each given its hydrated cards and the files it owns. Split only along clean file
+boundaries so two agents never edit the same file; keep it to a single agent when the change
+is small or the areas overlap. Delegating this way keeps your own context clean and lets you
+hold the macro view of the whole change rather than drowning in file-level edits.
+
+**Always verify the agents' work yourself once they have all finished** — re-read each
+change against the cards it was meant to satisfy and run the project's build/tests; never
+trust the sub-agents' reports alone. Only after that whole-plan verification passes do you
+commit and `set_sync_point` (once, as the orchestrator).
+
 ## Workflow
 
 1. Before creating a card, check it doesn't exist: the filename is deterministic,

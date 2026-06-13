@@ -1,5 +1,5 @@
 ---
-name: Ticketing example — project plan
+name: Ticketing Example
 ---
 
 # Project Plan
