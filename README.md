@@ -1,4 +1,4 @@
-# Constellation (v2 — files-first)
+# Constellation
 
 Your project's architecture plan as markdown files in the repo: typed cards,
 connected into a graph, validated by lint, diffed by git, readable by humans on
@@ -79,6 +79,30 @@ npm run build            # tsc → dist/
   Body-only updates never reformat frontmatter.
 - **Git-powered change tracking**: `diff_plan` (per-card changes since the sync
   marker), `plan_log`, `set_sync_point`, `check_integrity`.
+- **Visual viewer**: `start_viewer` / `stop_viewer` open and close the local web
+  viewer from inside an agent session, returning a clickable URL.
+
+### Add to Claude Code
+
+Run from your repo root, so the server starts there and finds the plan:
+
+```sh
+# Run straight from npm — no install needed:
+claude mcp add constellation -- npx -y @magic-spells/constellation mcp
+
+# Or, if installed globally (npm i -g @magic-spells/constellation):
+claude mcp add constellation -- constellation mcp
+
+# Share with everyone who clones the repo (writes .mcp.json):
+claude mcp add --scope project constellation -- npx -y @magic-spells/constellation mcp
+```
+
+Manage it with `claude mcp list`, `claude mcp get constellation`, and
+`claude mcp remove constellation`.
+
+### Other MCP clients
+
+Hand-edit the client's config (Claude Desktop, a project `.mcp.json`, etc.):
 
 ```json
 {
@@ -108,10 +132,16 @@ render in-browser, `[[HANDLE]]` links navigate, and the page live-reloads when p
 files change on disk.
 
 ```sh
-npm run build:viewer    # build the static viewer assets (once)
-constellation serve     # http://localhost:4747
+constellation serve     # http://localhost:4747 (assets ship prebuilt with the package)
+npm run build:viewer    # only when developing from source
 ```
 
-## Roadmap
+In an agent session you don't need the CLI — ask Claude to open the viewer and it
+calls the `start_viewer` MCP tool, which returns the URL (`stop_viewer` closes it).
 
-- Migration script for v1 (server-based) Constellation projects.
+---
+
+<p align="center">
+  Made by <a href="https://github.com/coryschulz">Cory Schulz</a>
+</p>
+
