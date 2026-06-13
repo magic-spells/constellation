@@ -7,8 +7,6 @@
     createSimulation,
     clusterAnchors,
     focusRadii,
-    focusTargets,
-    focusTargetRadius,
     fitToBounds,
     fitToCircle,
     type GraphNode,
@@ -27,6 +25,7 @@
   let focused = $state<string | null>(null);
   let hovered = $state<string | null>(null);
   let query = $state('');
+  let activeResult = $state(-1); // keyboard-highlighted search result (-1 = none)
   let reduceMotion = $state(false);
   let width = $state(0);
   let height = $state(0);
@@ -58,6 +57,11 @@
   const EGO_CAP = 90;
   const SETTLE_INITIAL = 260;
   const SETTLE_RESEED = 70;
+  // Focus rings: innermost radius (floor for sparse rings), gap to the next hop ring,
+  // and the breathing room each card reserves around itself (so cards never touch).
+  const BASE_RING = 240;
+  const RING_STEP = 300;
+  const CARD_GAP = 36;
 
   const colors = {
     edge: '#888',
@@ -130,6 +134,63 @@
     return ego;
   }
 
+  // Focus layout: one concentric ring per hop. Within a ring, each type's cards form an
+  // arc centred on the type's own direction (so the colour groups stay separated), and
+  // every card reserves a slice of circumference sized to itself — so they never touch.
+  // The ring radius grows to fit the densest type's arc within its angular slot.
+  function cardArc(n: VNode): number {
+    return Math.hypot(n.w, n.h) + CARD_GAP;
+  }
+  function layoutFocus(
+    focusedHandle: string,
+    ego: Set<string>,
+    hops: Map<string, number>,
+    types: string[],
+  ): { targets: Map<string, Point>; radius: number } {
+    const targets = new Map<string, Point>();
+    const typeIndex = new Map(types.map((t, i) => [t, i]));
+    const cx = graphCenter.x;
+    const cy = graphCenter.y;
+
+    const byHop = new Map<number, VNode[]>();
+    for (const h of ego) {
+      if (h === focusedHandle) continue;
+      const n = node(h);
+      if (!n) continue;
+      const d = hops.get(h) ?? 1;
+      const arr = byHop.get(d);
+      if (arr) arr.push(n);
+      else byHop.set(d, [n]);
+    }
+
+    let ringR = BASE_RING;
+    let maxR = BASE_RING;
+    for (const hop of [...byHop.keys()].sort((a, b) => a - b)) {
+      // One ring per hop. Order by type so same-type cards form a contiguous arc
+      // (grouping preserved); size the radius so every card fits ONCE around the full
+      // circle, each reserving its own footprint of circumference → compact, no overlap.
+      const members = byHop.get(hop)!.slice().sort((a, b) =>
+        a.type === b.type
+          ? a.handle < b.handle
+            ? -1
+            : 1
+          : (typeIndex.get(a.type) ?? 0) - (typeIndex.get(b.type) ?? 0),
+      );
+      const total = members.reduce((s, n) => s + cardArc(n), 0);
+      const r = Math.max(ringR, total / (2 * Math.PI));
+      let acc = 0;
+      for (const n of members) {
+        const a = cardArc(n);
+        const angle = -Math.PI / 2 + ((acc + a / 2) / total) * 2 * Math.PI;
+        acc += a;
+        targets.set(n.handle, { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+      }
+      maxR = Math.max(maxR, r);
+      ringR = r + RING_STEP;
+    }
+    return { targets, radius: maxR };
+  }
+
   // ── Reseed: the ONLY effect that touches the graph. Tracks plan.cards/connections
   //    and nothing else; component-local reads are untracked.
   $effect(() => {
@@ -191,13 +252,14 @@
       // Re-apply a still-valid focus across the reload.
       const f = node(focused)!;
       const hops = focusRadii(focused, plan.neighbors);
-      const targets = focusTargets(built.nodes, f, hops, types, graphCenter);
-      egoSet = computeEgo(focused, hops);
+      const ego = computeEgo(focused, hops);
+      const { targets } = layoutFocus(focused, ego, hops, types);
+      egoSet = ego;
       f.x = graphCenter.x;
       f.y = graphCenter.y;
       for (const n of built.nodes) {
         if (n.handle === focused) continue;
-        if (egoSet.has(n.handle)) {
+        if (ego.has(n.handle)) {
           const t = targets.get(n.handle);
           if (t) {
             n.x = t.x;
@@ -205,7 +267,7 @@
           }
         }
       }
-      after = egoSet;
+      after = ego;
     } else {
       focused = null;
       egoSet = null;
@@ -301,17 +363,32 @@
     return out;
   });
 
+  // Reset the keyboard highlight whenever the result list changes.
+  $effect(() => {
+    results;
+    activeResult = -1;
+  });
+
   function selectResult(handle: string): void {
     query = '';
+    activeResult = -1;
     focusNode(handle);
   }
 
   function onSearchKey(e: KeyboardEvent): void {
-    if (e.key === 'Enter' && results.length) {
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
-      selectResult(results[0].handle);
+      if (results.length) activeResult = Math.min(activeResult + 1, results.length - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeResult = Math.max(activeResult - 1, -1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const pick = activeResult >= 0 ? results[activeResult] : results[0];
+      if (pick) selectResult(pick.handle);
     } else if (e.key === 'Escape') {
       query = '';
+      activeResult = -1;
       (e.currentTarget as HTMLInputElement).blur();
     }
   }
@@ -331,8 +408,8 @@
     if (!f) return;
     const before = currentVisible();
     const hops = focusRadii(handle, plan.neighbors);
-    const targets = focusTargets(nodes, f, hops, orderedTypes(nodes), graphCenter);
     const ego = computeEgo(handle, hops);
+    const { targets, radius } = layoutFocus(handle, ego, hops, orderedTypes(nodes));
     focused = handle;
     egoSet = ego;
 
@@ -349,15 +426,8 @@
       }
     });
 
-    // Frame only the ego neighbourhood (zoom IN), not the hidden remainder.
-    const egoTargets = new Map<string, Point>();
-    for (const h of ego) {
-      if (h === handle) continue;
-      const t = targets.get(h);
-      if (t) egoTargets.set(h, t);
-    }
-    const r = focusTargetRadius(nodes, egoTargets, graphCenter);
-    tweenTo(fitToCircle(graphCenter, r + 90, { width: width || 800, height: height || 600 }));
+    // Frame the ego neighbourhood (zoom IN), not the hidden remainder.
+    tweenTo(fitToCircle(graphCenter, radius + 160, { width: width || 800, height: height || 600 }));
   }
 
   function clearFocus(): void {
@@ -816,12 +886,18 @@
       />
       {#if results.length}
         <ul class="cn-search-results">
-          {#each results as r (r.handle)}
+          {#each results as r, i (r.handle)}
             <li>
-              <button onclick={() => selectResult(r.handle)}>
+              <button
+                class:active={i === activeResult}
+                onclick={() => selectResult(r.handle)}
+                onmouseenter={() => (activeResult = i)}
+              >
                 <span class="cn-swatch" style="background: var(--t-{r.type})"></span>
-                <span class="cn-r-handle">{r.handle}</span>
-                {#if r.name}<span class="cn-r-name">{r.name}</span>{/if}
+                <span class="cn-r-text">
+                  <span class="cn-r-handle">{r.handle}</span>
+                  {#if r.name && r.name !== r.handle}<span class="cn-r-name">{r.name}</span>{/if}
+                </span>
               </button>
             </li>
           {/each}
