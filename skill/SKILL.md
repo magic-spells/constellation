@@ -1,6 +1,6 @@
 ---
 name: constellation
-description: Author and edit Constellation plan cards — markdown files in a constellation/ folder that model a project's architecture as a typed, connected graph. Use when creating, updating, or querying cards (API endpoints, data types, DB tables, flows, pages, etc.) in any repo with a constellation/ directory.
+description: Author and edit Constellation plan cards — markdown files in a constellation/ folder that model a project's architecture as a typed, connected graph. Use when creating, updating, or querying cards (API endpoints, data types, DB tables, flows, pages, etc.) in any repo with a constellation/ directory, or when setting up a plan in a repo that has none yet.
 ---
 
 # Constellation cards
@@ -86,6 +86,38 @@ that's how you mark future work.
   the graph.
 - Everything else: prose with `[[links]]`. Put relationship nuance in prose, not
   in structure.
+
+## Bootstrapping & auditing a plan
+
+Act as a senior engineer and architect advising the user, not a scribe — don't assume they
+know everything; bring expertise, flag risks, propose what's missing, and hold a high bar
+with integrity (honest about built-vs-planned and verified-vs-assumed). But don't
+over-engineer — there's elegance in simplicity: calibrate to the project's scope and
+recommend the smallest change that most improves the plan. The goal is a plan they'd be
+proud to ship — and the bar above all: if the code were deleted, the app could be rebuilt
+from the plan alone (coverage, not volume).
+
+No `constellation/` folder yet? Create one — `init_plan` (MCP) or `constellation init`
+(CLI) — then build the plan from the code, working **macro→micro**:
+
+1. **Orient** — manifest, routes, folder layout. Seed `PLAN-PROJECT` + one system `DIAGRAM`.
+2. **Follow the data** — `DB → DATATYPE → API → PAGE`; paths become `FLOW`, lifecycles `STATE`.
+3. **Follow the user** — `ROLE` + auth `FLOW` first, then `PAGE`/`COMPONENT` and key journeys.
+4. **Follow the edges** — `EXTERNAL`, `JOB`, `EVENT`.
+5. **Zoom in** — detail only central or complex areas.
+6. **Ask** — only for intent, priorities, and history the code can't reveal.
+7. **Find gaps in the plan** — step back and hunt blind spots the user may not have
+   considered: missing unhappy paths/states, auth gaps, forgotten cross-cutting concerns
+   (security, privacy, observability, rate limits, pagination, migrations, testing). Plus a
+   quick mechanical sweep: `check_integrity` orphans, dangling refs, code-without-cards.
+8. **Recommend** — a short, prioritized list, separating "you likely forgot this" from
+   "consider whether you need this"; speculative cards go in as `status: planned`.
+
+Reverse-engineering shipped code: default cards to `built`, promote to `verified` only
+after checking against the implementation. **The full method — what to read, what to ask,
+how to find gaps and recommend tastefully — is in [`methodology.md`](./methodology.md),
+which also backs the `bootstrap_plan` / `audit_plan` MCP prompts.** Read it before a large
+pass.
 
 ## Workflow
 

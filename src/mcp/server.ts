@@ -1,5 +1,6 @@
-import { rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -51,11 +52,67 @@ The plan folder is found by walking up from the working directory, BOUNDED by th
 root (it never adopts another repo's plan). If no plan exists in this repo (tools return
 NO_PLAN_FOUND), call init_plan once — create_card works immediately after.
 
+When building or auditing a plan, act as a senior engineer and architect advising the user,
+not a scribe taking dictation: don't assume they know everything — bring expertise, name
+trade-offs and risks, propose what's missing, and explain the why so they can decide. Hold
+the bar high and with integrity: do it right, be honest about built-vs-planned and
+verified-vs-assumed, and surface uncertainty rather than papering over it. But don't
+over-engineer — there's elegance in simplicity: calibrate to the project's scope, recommend
+the smallest change that most improves the plan, and don't manufacture gaps to look thorough.
+The aim is a plan the user would be proud to ship. Hold it to one bar above all: if every
+line of code were deleted, the app could be rebuilt from the plan alone — aim for that
+coverage (not volume), and whatever you couldn't rebuild is the gap.
+
+Work macro→micro: orient (manifest, routes, folder
+layout) and seed PLAN-PROJECT + a system DIAGRAM; then follow the DATA (DB → DATATYPE →
+API → PAGE, with FLOW/STATE for paths and lifecycles) and the USER (ROLE + auth FLOW
+first, then PAGE/COMPONENT and key journeys) and the EDGES (EXTERNAL/JOB/EVENT); then zoom
+into central or complex areas. Read before you ask — ask the user only for intent,
+priorities, and history the code can't reveal. Then find gaps IN THE PLAN: step back and
+hunt blind spots the user may not have considered — missing unhappy paths and lifecycle
+states, auth/permission gaps, and cross-cutting concerns plans forget (security, privacy,
+observability, rate limits, pagination, migrations, testing). The mechanical checks
+(check_integrity orphans, dangling refs, code-without-cards) are just hygiene. Give a
+short, prioritized list of recommendations and ask about the judgment calls. For the full
+method use the bootstrap_plan or audit_plan prompt. Status is planned → building → built →
+verified; verify only against real code.
+
 To let the user browse the plan visually, start_viewer launches a local web server that
 renders the plan as an editable site and returns its URL (it scans forward from port 4747
 for a free port, so always read the actual port from the response). ALWAYS post that URL
 back to the user as a clickable link, e.g. http://localhost:4747/, and tell them the port.
 The viewer runs until stop_viewer or until this server process exits.`;
+
+// The full plan-from-code playbook lives in one file (skill/methodology.md), shared by the
+// skill and the MCP prompts so the two can't drift. Resolve it relative to this module:
+// from dist/mcp/server.js (or src/mcp/server.ts) '../..' is the package/repo root.
+const METHODOLOGY_PATH = path.join(
+  fileURLToPath(new URL('../..', import.meta.url)),
+  'skill',
+  'methodology.md',
+);
+
+let methodologyCache: string | null = null;
+
+async function methodologyText(): Promise<string> {
+  if (methodologyCache === null) {
+    methodologyCache = await readFile(METHODOLOGY_PATH, 'utf8');
+  }
+  return methodologyCache;
+}
+
+/** A prompt body = a one-line mode intro followed by the shared methodology. */
+async function planPromptBody(intro: string): Promise<string> {
+  try {
+    return `${intro}\n\n${await methodologyText()}`;
+  } catch {
+    return (
+      `${intro}\n\n(Could not read the methodology file; follow the macro→micro summary ` +
+      `in the server instructions: orient, follow the data, follow the user/auth, follow ` +
+      `the edges, zoom in, ask only what the code can't answer, find gaps, recommend.)`
+    );
+  }
+}
 
 type ToolResult = {
   content: Array<{ type: 'text'; text: string }>;
@@ -113,8 +170,52 @@ export interface ServerOptions {
 
 export function buildServer(options: ServerOptions = {}): McpServer {
   const server = new McpServer(
-    { name: 'constellation', version: '0.1.0' },
+    { name: 'constellation', version: '0.1.1' },
     { instructions: INSTRUCTIONS },
+  );
+
+  server.registerPrompt(
+    'bootstrap_plan',
+    {
+      title: 'Bootstrap a plan from the codebase',
+      description:
+        'Analyze this repository macro→micro and build (or extend) the Constellation plan: follow the data and the user/auth journeys, capture flows, diagrams, and state machines, ask the user what the code cannot answer, and flag gaps.',
+    },
+    async () => ({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: await planPromptBody(
+              'Bootstrap (or extend) the Constellation plan for THIS repository by analyzing its code. If no plan exists, call init_plan first. Work the method below end to end, then report the gaps you found and a short, prioritized list of recommendations.',
+            ),
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
+    'audit_plan',
+    {
+      title: 'Audit the plan against the code',
+      description:
+        'Reconcile the existing plan with the codebase: find gaps, orphans, stale or missing cards, and dangling refs; verify card statuses against the real code; and make tasteful recommendations.',
+    },
+    async () => ({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: await planPromptBody(
+              'Audit the existing Constellation plan for THIS repository against its code. Lean on Steps 7–8 (find gaps, recommend) and on verifying statuses against real code, but use the whole method as a checklist. Report what is missing, stale, or orphaned, then a short, prioritized list of recommendations.',
+            ),
+          },
+        },
+      ],
+    }),
   );
 
   async function planRoot(): Promise<string | null> {

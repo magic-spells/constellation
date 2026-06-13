@@ -1,6 +1,6 @@
 {
   "name": "@magic-spells/constellation",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Files-first architecture planning for AI-assisted development. Your project plan as markdown cards in the repo — typed, connected, queryable, and diffable with git.",
   "type": "module",
   "license": "GPL-3.0-or-later",

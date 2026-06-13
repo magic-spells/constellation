@@ -49,6 +49,20 @@ describe('bootstrap', () => {
   });
 });
 
+describe('planning prompts', () => {
+  it('exposes bootstrap_plan and audit_plan, each carrying the shared methodology', async () => {
+    const { prompts } = await client.listPrompts();
+    const names = prompts.map((p) => p.name);
+    expect(names).toContain('bootstrap_plan');
+    expect(names).toContain('audit_plan');
+
+    const res = await client.getPrompt({ name: 'bootstrap_plan' });
+    const text = (res.messages[0].content as { type: string; text: string }).text;
+    expect(text).toContain('macro first, then micro'); // from skill/methodology.md
+    expect(text).toContain('Follow the data');
+  });
+});
+
 describe('hydrated retrieval', () => {
   it('one get_card call returns an API card plus the FULL content of every connected card', async () => {
     const { data } = await call('get_card', {

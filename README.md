@@ -100,6 +100,13 @@ claude mcp add --scope project constellation -- npx -y @magic-spells/constellati
 Manage it with `claude mcp list`, `claude mcp get constellation`, and
 `claude mcp remove constellation`.
 
+To build a plan from an existing codebase (or audit one), ask the agent to bootstrap or
+audit — the server ships **`bootstrap_plan`** and **`audit_plan`** prompts (slash commands
+in Claude Code) that walk the code macro→micro: follow the data, follow the user/auth, then
+step back and pressure-test the plan for blind spots (missing unhappy paths, auth gaps,
+forgotten cross-cutting concerns) and recommend. The full method is in
+[`skill/methodology.md`](skill/methodology.md).
+
 ### Other MCP clients
 
 Hand-edit the client's config (Claude Desktop, a project `.mcp.json`, etc.):
