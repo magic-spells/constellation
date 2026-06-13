@@ -4,7 +4,7 @@
   let open = $state(false);
   const current = $derived(THEMES.find((t) => t.id === theme.current) ?? THEMES[0]);
 
-  function pick(id: string) {
+  function pick(id: (typeof THEMES)[number]['id']) {
     theme.set(id);
     open = false;
   }

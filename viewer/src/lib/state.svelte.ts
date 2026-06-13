@@ -86,19 +86,32 @@ export const THEMES = [
   { id: 'ember', label: 'Ember' },
 ] as const;
 
-const THEME_IDS = THEMES.map((t) => t.id) as readonly string[];
+export type ThemeId = (typeof THEMES)[number]['id'];
+
+export const THEME_IDS = THEMES.map((t) => t.id) as readonly ThemeId[];
+
+const THEME_STORAGE_KEY = 'constellation-theme';
+
+function isThemeId(id: string | null): id is ThemeId {
+  return id !== null && THEME_IDS.includes(id as ThemeId);
+}
+
+function readStoredTheme(): ThemeId {
+  const saved = localStorage.getItem(THEME_STORAGE_KEY);
+  return isThemeId(saved) ? saved : 'observatory';
+}
 
 class ThemeState {
-  current = $state(
-    THEME_IDS.includes(localStorage.getItem('constellation-theme') ?? '')
-      ? (localStorage.getItem('constellation-theme') as string)
-      : 'observatory',
-  );
+  current = $state<ThemeId>(readStoredTheme());
 
-  set(id: string): void {
+  constructor() {
+    document.documentElement.dataset.theme = this.current;
+  }
+
+  set(id: ThemeId): void {
     this.current = id;
     document.documentElement.dataset.theme = id;
-    localStorage.setItem('constellation-theme', id);
+    localStorage.setItem(THEME_STORAGE_KEY, id);
   }
 }
 
