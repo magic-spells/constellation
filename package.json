@@ -66,6 +66,8 @@
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tailwindcss/vite": "^4.3.1",
+    "d3-force": "^3.0.0",
+    "@types/d3-force": "^3.0.10",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.9.3",
     "marked": "^18.0.5",

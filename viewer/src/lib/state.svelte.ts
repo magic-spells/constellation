@@ -77,13 +77,12 @@ export const route = new RouteState();
 
 export const THEMES = [
   { id: 'observatory', label: 'Observatory' },
-  { id: 'dim', label: 'Dim' },
   { id: 'claw', label: 'Claw' },
   { id: 'black', label: 'Black' },
   { id: 'synthwave', label: 'Synthwave' },
   { id: 'sumi', label: 'Sumi' },
   { id: 'daylight', label: 'Daylight' },
-  { id: 'nord', label: 'Nord' },
+  { id: 'frost', label: 'Frost' },
   { id: 'ember', label: 'Ember' },
 ] as const;
 

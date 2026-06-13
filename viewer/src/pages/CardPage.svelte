@@ -266,7 +266,7 @@
 
     {#if constellationSrc}
       <div class="section">
-        <h3>Constellation</h3>
+        <h3>Neighborhood</h3>
         <div bind:this={diagramHost}></div>
       </div>
     {/if}

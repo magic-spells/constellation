@@ -23,6 +23,13 @@
   <a class="nav-home" class:active={route.path === '/'} href="#/">
     <span class="star">✦</span> Overview
   </a>
+  <a
+    class="nav-home"
+    class:active={route.path === '/constellation'}
+    href="#/constellation"
+  >
+    <span class="star">⁂</span> Constellation
+  </a>
   {#each groups as { group, types }}
     <div class="nav-group">
       <h4>{group}</h4>
