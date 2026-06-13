@@ -197,6 +197,8 @@ describe('writes', () => {
       to: 'EXTERNAL-EMAIL-PROVIDER',
     });
     expect(added.data.connected).toEqual(['ROLE-SUPPORT-AGENT', 'EXTERNAL-EMAIL-PROVIDER']);
+    // Honors the "every write lints and returns issues" contract — clean here.
+    expect(added.data.issues).toEqual([]);
 
     const again = await call('add_connection', {
       from: 'EXTERNAL-EMAIL-PROVIDER',
@@ -210,6 +212,7 @@ describe('writes', () => {
     });
     expect(removed.data.removed_from).toEqual(['ROLE-SUPPORT-AGENT']);
     expect(removed.data.still_connected).toBe(false);
+    expect(removed.data.issues).toEqual([]);
   });
 
   it('remove_connection reports connections that persist via other sources', async () => {

@@ -84,6 +84,7 @@ export const THEMES = [
   { id: 'daylight', label: 'Daylight' },
   { id: 'frost', label: 'Frost' },
   { id: 'ember', label: 'Ember' },
+  { id: 'corona', label: 'Corona' },
 ] as const;
 
 export type ThemeId = (typeof THEMES)[number]['id'];

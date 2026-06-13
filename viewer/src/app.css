@@ -209,6 +209,26 @@
     radial-gradient(800px 600px at -8% 105%, #cc5c0018, transparent 70%);
 }
 
+:root[data-theme='corona'] {
+  --sans: 'Avenir Next', Seravek, 'Gill Sans', 'Segoe UI', sans-serif;
+  --display: var(--sans);
+  --body-font: var(--sans);
+  --bg: #15131d;            /* deep plum-grey twilight */
+  --bg-panel: #1d1a28;      /* lifted surface */
+  --bg-inset: #262232;      /* secondary inset */
+  --text: #ece7f0;          /* moonlit off-white, faint lavender */
+  --text-muted: #9b92ab;    /* muted mauve-grey */
+  --text-faint: #635a74;
+  --accent: #e8a83e;        /* warm gold — sunset on glass */
+  --border: #2a2536;
+  --border-strong: #3b3349;
+  --shadow: 0 12px 32px rgb(0 0 0 / 0.6);
+  --sky:
+    radial-gradient(1000px 540px at 80% -12%, #e8a83e26, transparent 64%),  /* gold light-leak, top-right */
+    radial-gradient(900px 640px at -6% 4%, #5b3f8c30, transparent 62%),     /* violet glow, upper-left */
+    radial-gradient(1100px 760px at 50% 120%, #3a2d5522, transparent 72%);  /* indigo pool, bottom */
+}
+
 /* card-type hues (shared; chips tint them against the theme bg) */
 :root {
   --t-API: #e0635d; --t-DB: #d9a23c; --t-DATATYPE: #3fb8a0; --t-ROLE: #c47fd1;
@@ -711,6 +731,7 @@ nav.sidenav {
 .swatch[data-swatch='daylight'] { background: linear-gradient(135deg, #fbfcfd 50%, #2f6fed 50%); }
 .swatch[data-swatch='frost'] { background: linear-gradient(135deg, #1d232e 50%, #6fb0f0 50%); }
 .swatch[data-swatch='ember'] { background: linear-gradient(135deg, #1c1815 50%, #fe8019 50%); }
+.swatch[data-swatch='corona'] { background: linear-gradient(135deg, #15131d 50%, #e8a83e 50%); }
 
 .theme-backdrop {
   position: fixed;
@@ -913,10 +934,10 @@ a.wiki:hover { text-decoration: none; border-color: var(--accent); }
 .section { margin: 2.2rem 0; }
 
 .section > h3 {
-  font: 600 0.7rem var(--mono);
+  font: 600 0.76rem var(--mono);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--text-faint);
+  letter-spacing: 0.1em;
+  color: color-mix(in oklab, var(--text) 62%, var(--text-muted));
   margin: 0 0 0.8rem;
   padding-bottom: 0.45rem;
   border-bottom: 1px solid var(--border);

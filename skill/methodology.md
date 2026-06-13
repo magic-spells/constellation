@@ -205,5 +205,7 @@ the smallest set of changes that most improves the plan — not the most cards.
 - The opposite direction — bringing **code** up to a changed **plan** ("sync the plan to
   the code") — is its own loop, documented in *Syncing the plan to code* in `SKILL.md`:
   `diff_plan` → `traverse` the blast radius → update code → verify → `set_sync_point`. For a
-  large diff, orchestrate it (a sub-agent per non-overlapping area) and always verify the
-  agents' work yourself before setting the marker.
+  large diff, orchestrate it (a sub-agent per non-overlapping area — split on file boundaries
+  so no two agents edit the same file, and give each card to exactly one agent so concurrent
+  `update_card`s can't clobber each other) and always verify the agents' work yourself before
+  setting the marker.

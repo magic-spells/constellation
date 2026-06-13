@@ -70,16 +70,36 @@
     panel: '#111',
     text: '#aaa',
     textStrong: '#fff',
-    type: {} as Record<string, string>,
-    fill: {} as Record<string, string>,
+    light: false,
+    type: {} as Record<string, string>, // border = full type colour
+    fill: {} as Record<string, string>, // card background
+    label: {} as Record<string, string>, // handle text
+    sub: {} as Record<string, string>, // name text
   };
 
-  function darkenHex(color: string, factor = 0.28, fallback = '#111'): string {
+  function parseHex(color: string): [number, number, number] | null {
     const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
-    if (!m) return fallback;
+    if (!m) return null;
     const hex = m[1].length === 3 ? m[1].split('').map((c) => c + c).join('') : m[1];
-    const ch = (i: number) => Math.round(parseInt(hex.slice(i, i + 2), 16) * factor).toString(16).padStart(2, '0');
-    return `#${ch(0)}${ch(2)}${ch(4)}`;
+    return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+  }
+  const toHex = (rgb: number[]): string =>
+    `#${rgb.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')}`;
+
+  function darkenHex(color: string, factor = 0.28, fallback = '#111'): string {
+    const p = parseHex(color);
+    return p ? toHex(p.map((v) => v * factor)) : fallback;
+  }
+  // Blend two hex colours; t is the weight of b (0 = a, 1 = b).
+  function mixHex(a: string, b: string, t: number, fallback = '#888'): string {
+    const pa = parseHex(a);
+    const pb = parseHex(b);
+    return pa && pb ? toHex(pa.map((v, i) => v + (pb[i] - v) * t)) : fallback;
+  }
+  // Perceived luminance 0–1, used to decide light vs dark theme.
+  function relLum(color: string): number {
+    const p = parseHex(color);
+    return p ? (0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2]) / 255 : 0;
   }
 
   function refreshColors(): void {
@@ -91,14 +111,30 @@
     colors.panel = get('--bg-panel', '#111');
     colors.text = get('--text-muted', '#aaa');
     colors.textStrong = get('--text', '#fff');
+    const light = relLum(colors.bg) > 0.5;
+    colors.light = light;
     const type: Record<string, string> = {};
     const fill: Record<string, string> = {};
+    const label: Record<string, string> = {};
+    const sub: Record<string, string> = {};
     for (const t of new Set(nodes.map((n) => n.type))) {
-      type[t] = get('--t-' + t, colors.accent);
-      fill[t] = darkenHex(type[t], 0.28, colors.panel);
+      const base = get('--t-' + t, colors.accent);
+      type[t] = base;
+      if (light) {
+        // Light theme: pale type-tinted card + a deep, type-coloured handle.
+        fill[t] = mixHex(base, '#ffffff', 0.82, colors.panel);
+        label[t] = darkenHex(base, 0.46, colors.textStrong);
+      } else {
+        // Dark theme: vivid darkened card + near-white handle (unchanged look).
+        fill[t] = darkenHex(base, 0.28, colors.panel);
+        label[t] = colors.textStrong;
+      }
+      sub[t] = colors.text;
     }
     colors.type = type;
     colors.fill = fill;
+    colors.label = label;
+    colors.sub = sub;
   }
 
   const empty = $derived(plan.loaded && plan.cards.length === 0);
@@ -695,11 +731,11 @@
         const textX = sx + padX + Math.max(3, 5 * scale);
         const maxText = sw - padX * 2 - Math.max(6, 8 * scale);
         c.font = `600 ${handleSize}px ui-monospace, Menlo, monospace`;
-        c.fillStyle = colors.textStrong;
+        c.fillStyle = colors.label[n.type] ?? colors.textStrong;
         c.fillText(fitText(c, n.handle, maxText), textX, sy + topPad);
         if (!compact && n.name && n.name !== n.handle && sh >= 42) {
           c.font = '10px Avenir Next, Seravek, Segoe UI, sans-serif';
-          c.fillStyle = colors.text;
+          c.fillStyle = colors.sub[n.type] ?? colors.text;
           c.fillText(fitText(c, n.name, maxText), textX, sy + topPad + 18);
         }
         c.restore();

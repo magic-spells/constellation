@@ -130,9 +130,10 @@ may not be your project — in which case tools return `NO_PLAN_FOUND`.
 ## Viewer
 
 `constellation serve` renders the plan as a local website, **editable in place**
-(pass `--readonly` to disable writes). Five themes toggle in the header:
+(pass `--readonly` to disable writes). Eight themes toggle in the header:
 **observatory** (dark, star-field), **claw** (cream paper, serif, coral accents),
-**black**, **synthwave**, and **sumi**. Card pages show structured fields, the
+**black**, **synthwave**, **sumi**, **daylight**, **frost**, and **ember**.
+Card pages show structured fields, the
 markdown body, connection chips in both directions, and a small constellation
 diagram of the card's neighborhood — its nodes tinted by card type. Mermaid blocks
 render in-browser, `[[HANDLE]]` links navigate, and the page live-reloads when plan
@@ -151,4 +152,3 @@ calls the `start_viewer` MCP tool, which returns the URL (`stop_viewer` closes i
 <p align="center">
   Made by <a href="https://github.com/coryschulz">Cory Schulz</a>
 </p>
-

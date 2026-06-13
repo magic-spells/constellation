@@ -49,8 +49,10 @@ then set_sync_point to advance the marker (commit the plan first — it warns if
 uncommitted). When the diff is large and the affected areas don't share files, act as the
 ORCHESTRATOR rather than editing it all yourself: partition the blast radius into
 independent, non-overlapping neighborhoods (split on file boundaries so no two agents touch
-the same file) and fan out a sub-agent per neighborhood in parallel; use one agent when the
-change is small or files overlap. Delegating keeps your context clean and lets you hold the
+the same file, AND assign each plan card to exactly one agent — two agents calling
+update_card on the same card race, and the later write silently clobbers the earlier) and
+fan out a sub-agent per neighborhood in parallel; use one agent when the change is small or
+files overlap. Delegating keeps your context clean and lets you hold the
 macro view. ALWAYS verify the sub-agents' work yourself after they have all finished — re-read
 each change against its cards and run the build/tests; never trust their reports alone — then
 set the sync point once.
@@ -632,6 +634,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       }
 
       let added = 0;
+      const touched = new Set<string>();
       for (const [src, targets] of additions) {
         const card = index.cards.get(src)!;
         const existingList = Array.isArray(card.frontmatter.connections)
@@ -640,11 +643,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         const merged = [...new Set([...existingList, ...targets])];
         const frontmatter = applyCardPatch(card.frontmatter, { connections: merged });
         await updateCardFile(card.filePath, { frontmatter });
+        touched.add(card.relPath);
         added += targets.size;
       }
 
       const lint = await lintPlan(root);
-      return ok({ added, failed, errors: lint.errors });
+      return ok({ added, failed, issues: lint.issues.filter((i) => touched.has(i.file)) });
     }),
   );
 
@@ -745,7 +749,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         connections: [...existing, to.handle],
       });
       await updateCardFile(from.filePath, { frontmatter });
-      return ok({ connected: [from.handle, to.handle], declared_on: from.handle });
+      const lint = await lintPlan(root);
+      return ok({
+        connected: [from.handle, to.handle],
+        declared_on: from.handle,
+        issues: issuesForFile(lint.issues, from.relPath),
+      });
     }),
   );
 
@@ -782,7 +791,8 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         }
       }
 
-      const after = await loadPlan(root);
+      const lint = await lintPlan(root);
+      const after = lint.index;
       const stillConnected =
         after.connectedHandles.get(cardA.handle)?.has(cardB.handle) ?? false;
       const remainingSources: string[] = [];
@@ -799,10 +809,16 @@ export function buildServer(options: ServerOptions = {}): McpServer {
             remainingSources.push(`mermaid block in ${card.handle}`);
         }
       }
+      const touched = new Set(
+        removedFrom
+          .map((h) => after.cards.get(h)?.relPath)
+          .filter((p): p is string => Boolean(p)),
+      );
       return ok({
         removed_from: removedFrom,
         still_connected: stillConnected,
         remaining_sources: remainingSources,
+        issues: lint.issues.filter((i) => touched.has(i.file)),
       });
     }),
   );

@@ -11,7 +11,10 @@ export async function resolvePlanDir(target?: string): Promise<string | null> {
     const abs = path.resolve(target);
     const nested = path.join(abs, 'constellation');
     if (await isDirectory(nested)) return nested;
-    if (await isDirectory(abs)) return abs;
+    // Only adopt the target itself when it actually looks like a plan root —
+    // otherwise an explicit path to an unrelated directory would be linted or
+    // served as if its markdown files were cards.
+    if ((await isDirectory(abs)) && (await looksLikePlanRoot(abs))) return abs;
     return null;
   }
   return findPlanUp(process.cwd());
@@ -33,6 +36,12 @@ export async function findPlanUp(startDir: string): Promise<string | null> {
     if (parent === dir) return null;
     dir = parent;
   }
+}
+
+/** A directory is a plan root if it's named `constellation` or contains a plan.md. */
+async function looksLikePlanRoot(dir: string): Promise<boolean> {
+  if (path.basename(dir) === 'constellation') return true;
+  return exists(path.join(dir, 'plan.md'));
 }
 
 export async function exists(p: string): Promise<boolean> {

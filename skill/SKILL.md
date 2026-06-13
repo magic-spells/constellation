@@ -141,8 +141,10 @@ bringing the code up to match — never the reverse. When the user says "sync th
 files, act as the **orchestrator** instead of editing everything yourself: partition the
 blast radius into independent neighborhoods and hand each to a sub-agent working in
 parallel, each given its hydrated cards and the files it owns. Split only along clean file
-boundaries so two agents never edit the same file; keep it to a single agent when the change
-is small or the areas overlap. Delegating this way keeps your own context clean and lets you
+boundaries so two agents never edit the same file, **and assign each card to exactly one
+agent** — two agents writing the same card (e.g. a shared `DATATYPE` both neighborhoods
+touch) race, and the later `update_card` silently clobbers the earlier. Keep it to a single
+agent when the change is small or the areas overlap. Delegating this way keeps your own context clean and lets you
 hold the macro view of the whole change rather than drowning in file-level edits.
 
 **Always verify the agents' work yourself once they have all finished** — re-read each

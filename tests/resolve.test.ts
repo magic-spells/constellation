@@ -17,6 +17,9 @@ beforeAll(async () => {
   await mkdir(path.join(root, 'repoB', '.git'), { recursive: true });
   await mkdir(path.join(root, 'repoB', 'constellation'), { recursive: true });
   await mkdir(path.join(root, 'repoB', 'sub', 'deep'), { recursive: true });
+  // A non-repo directory that is a plan root only by virtue of containing plan.md.
+  await mkdir(path.join(root, 'loose-plan'), { recursive: true });
+  await writeFile(path.join(root, 'loose-plan', 'plan.md'), 'name: Loose\n');
 });
 
 afterAll(async () => {
@@ -48,5 +51,29 @@ describe('resolvePlanDir', () => {
     const file = path.join(root, 'package.json');
     await writeFile(file, '{}\n');
     expect(await resolvePlanDir(file)).toBeNull();
+  });
+
+  it('resolves an explicit target by its constellation/ child', async () => {
+    expect(await resolvePlanDir(path.join(root, 'repoB'))).toBe(
+      path.join(root, 'repoB', 'constellation'),
+    );
+  });
+
+  it('resolves an explicit path that is itself a plan root', async () => {
+    // Named `constellation`...
+    expect(await resolvePlanDir(path.join(root, 'constellation'))).toBe(
+      path.join(root, 'constellation'),
+    );
+    // ...or any directory that contains plan.md.
+    expect(await resolvePlanDir(path.join(root, 'loose-plan'))).toBe(
+      path.join(root, 'loose-plan'),
+    );
+  });
+
+  it('returns null for an explicit directory that does not look like a plan', async () => {
+    // repoA exists but has no constellation/ child, is not named constellation,
+    // and has no plan.md — it must not be adopted and linted as if it were a plan.
+    expect(await resolvePlanDir(path.join(root, 'repoA'))).toBeNull();
+    expect(await resolvePlanDir(path.join(root, 'repoA', 'sub'))).toBeNull();
   });
 });
