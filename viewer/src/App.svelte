@@ -14,6 +14,12 @@
   const segments = $derived(route.path.split('/').filter(Boolean));
   const planCard = $derived(plan.byHandle.get('PLAN-PROJECT'));
 
+  // The project name (plan.md's `name:`) drives the browser tab title too, not just
+  // the header — falling back to the product name when the plan is unnamed.
+  $effect(() => {
+    document.title = planCard?.name ? `${planCard.name} · Constellation` : 'Constellation';
+  });
+
   // The active type folder and card are derived from the URL. A /card/HANDLE
   // route still resolves its folder, so col2 shows the card's siblings.
   const activeHandle = $derived(

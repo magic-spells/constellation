@@ -77,7 +77,9 @@ line of code were deleted, the app could be rebuilt from the plan alone — aim 
 coverage (not volume), and whatever you couldn't rebuild is the gap.
 
 Work macro→micro: orient (manifest, routes, folder
-layout) and seed PLAN-PROJECT + a system DIAGRAM; then follow the DATA (DB → DATATYPE →
+layout) and seed PLAN-PROJECT + a system DIAGRAM — propose a human-readable project name
+and confirm it with the user (it's plan.md's name: and the viewer's title; change it
+anytime via update_card on PLAN-PROJECT); then follow the DATA (DB → DATATYPE →
 API → PAGE, with FLOW/STATE for paths and lifecycles) and the USER (ROLE + auth FLOW
 first, then PAGE/COMPONENT and key journeys) and the EDGES (EXTERNAL/JOB/EVENT); then zoom
 into central or complex areas. Read before you ask — ask the user only for intent,
@@ -265,21 +267,29 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'init_plan',
     {
       description:
-        'Bootstrap a new plan: create a constellation/ folder with a starter plan.md. Use only when no plan exists yet (other tools return NO_PLAN_FOUND). After this, create_card works immediately.',
+        'Bootstrap a new plan: create a constellation/ folder with a starter plan.md. Use only when no plan exists yet (other tools return NO_PLAN_FOUND). Pass name to set the project name (shown as the viewer title); if omitted it defaults to a title-cased folder name (pyramid-server → "Pyramid Server"). Propose a name, confirm it with the user, and change it anytime via update_card on PLAN-PROJECT. After this, create_card works immediately.',
       inputSchema: {
         path: z
           .string()
           .optional()
           .describe('directory to create constellation/ in (default: cwd)'),
+        name: z
+          .string()
+          .optional()
+          .describe('project name for plan.md (default: a title-cased folder name)'),
       },
     },
-    async ({ path: target }: { path?: string }) => {
+    async ({ path: target, name }: { path?: string; name?: string }) => {
       try {
         const { initPlan } = await import('../core/scaffold.js');
-        const created = await initPlan(target ?? process.cwd());
+        const { root: created, name: projectName } = await initPlan(
+          target ?? process.cwd(),
+          { name },
+        );
         return ok({
           created,
-          next: 'Add cards with create_card; update plan.md via update_card on PLAN-PROJECT.',
+          name: projectName,
+          next: `Plan created with project name "${projectName}" (the viewer title). Confirm the name with the user — change it anytime via update_card on PLAN-PROJECT (patch.name). Then add cards with create_card.`,
         });
       } catch (err) {
         return fail(

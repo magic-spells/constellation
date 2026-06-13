@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { mkdir, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
 import { Command } from 'commander';
@@ -7,12 +8,20 @@ import pc from 'picocolors';
 import { lintPlan } from '../core/lint.js';
 import { exists, resolvePlanDir } from '../core/resolve.js';
 import type { Issue } from '../core/types.js';
+import { notifyUpdate } from './update-check.js';
+
+const require = createRequire(import.meta.url);
+const { name, version } = require('../../package.json') as { name: string; version: string };
 
 const program = new Command();
 
 program
   .name('constellation')
-  .description('Files-first architecture planning for AI-assisted development');
+  .description('Files-first architecture planning for AI-assisted development')
+  .version(version);
+
+// Update notice on every human command, but never for `mcp` (its stdout is JSON-RPC).
+if (process.argv[2] !== 'mcp') notifyUpdate(name, version);
 
 program
   .command('lint')
@@ -68,12 +77,19 @@ program
 program
   .command('init')
   .argument('[path]', 'directory to create the plan in (default: cwd)', '.')
+  .option(
+    '-n, --name <name>',
+    'project name shown as the viewer title (default: a title-cased folder name)',
+  )
   .description('Scaffold a constellation/ folder with a starter plan.md')
-  .action(async (target: string) => {
+  .action(async (target: string, opts: { name?: string }) => {
     const { initPlan } = await import('../core/scaffold.js');
     try {
-      const root = await initPlan(target);
+      const { root, name: projectName } = await initPlan(target, { name: opts.name });
       console.log(pc.green('✓') + ` Created ${path.relative(process.cwd(), root)}/plan.md`);
+      console.log(
+        `  Project name: ${pc.bold(projectName)} ${pc.dim('— edit the name: field in plan.md to change it')}`,
+      );
       console.log(
         '\nAdd cards as <type>/<HANDLE>.md (e.g. api/API-LIST-USERS.md),\nthen run `constellation lint` to validate.',
       );

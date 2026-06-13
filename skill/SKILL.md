@@ -101,6 +101,8 @@ No `constellation/` folder yet? Create one — `init_plan` (MCP) or `constellati
 (CLI) — then build the plan from the code, working **macro→micro**:
 
 1. **Orient** — manifest, routes, folder layout. Seed `PLAN-PROJECT` + one system `DIAGRAM`.
+   Propose a human-readable project name (folder `pyramid-server` → `Pyramid Server`) and
+   confirm it with the user — it's `plan.md`'s `name:` and the viewer's title; editable anytime.
 2. **Follow the data** — `DB → DATATYPE → API → PAGE`; paths become `FLOW`, lifecycles `STATE`.
 3. **Follow the user** — `ROLE` + auth `FLOW` first, then `PAGE`/`COMPONENT` and key journeys.
 4. **Follow the edges** — `EXTERNAL`, `JOB`, `EVENT`.

@@ -71,6 +71,9 @@ files and trace the data paths; never judge a system from filenames or folder st
   Write these into `PLAN-PROJECT` (`plan.md`) — *Current state* and *Conventions* — and
   draft one system-level `DIAGRAM` whose mermaid node IDs are real handles so it joins
   the graph.
+- Give `PLAN-PROJECT` a human-readable `name:` (folder `pyramid-server` → `Pyramid Server`).
+  `init_plan` seeds a title-cased default; propose it, confirm with the user, and refine it.
+  It's the viewer's title and is editable anytime (`update_card` on `PLAN-PROJECT`).
 
 ## Step 1 — Macro pass (zoom out)
 
