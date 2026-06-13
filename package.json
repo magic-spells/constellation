@@ -17,8 +17,7 @@
     "skill",
     "docs",
     "examples",
-    "viewer/dist",
-    "CHANGELOG.md"
+    "viewer/dist"
   ],
   "publishConfig": {
     "access": "public"
