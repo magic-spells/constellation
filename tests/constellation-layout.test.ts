@@ -7,7 +7,10 @@ import {
   enterFocus,
   fitToBounds,
   focusRadii,
+  focusTargetRadius,
   focusTargets,
+  LAYOUT,
+  nodeDimensions,
   nodeRadius,
   ringRadius,
   seedFocusTargets,
@@ -31,12 +34,18 @@ function card(handle: string): Card {
 
 const conn = (a: string, b: string): Connection => ({ a, b });
 
-describe('nodeRadius', () => {
-  it('grows with degree but is capped', () => {
-    expect(nodeRadius(0)).toBe(8);
-    expect(nodeRadius(4)).toBeGreaterThan(nodeRadius(0));
-    expect(nodeRadius(1000)).toBe(21); // 8 + min(13, …) = 8 + 13
-    expect(nodeRadius(1000)).toBeLessThanOrEqual(21);
+describe('nodeDimensions', () => {
+  it('sizes readable cards deterministically and caps long handles', () => {
+    const compact = nodeDimensions('API-A', null, 0);
+    const detailed = nodeDimensions('DOC-WORKFLOW', 'Workflow documentation', 4);
+    const long = nodeDimensions('DATATYPE-A-VERY-LONG-HANDLE-THAT-WILL-NOT-FIT', null, 0);
+
+    expect(compact.w).toBe(LAYOUT.cardMinWidth);
+    expect(compact.h).toBe(LAYOUT.cardHandleHeight);
+    expect(detailed.w).toBeGreaterThan(compact.w);
+    expect(detailed.h).toBe(LAYOUT.cardDetailHeight);
+    expect(long.w).toBe(LAYOUT.cardMaxWidth);
+    expect(nodeRadius(4, detailed.w, detailed.h)).toBeGreaterThan(nodeRadius(0, detailed.w, detailed.h));
   });
 });
 
@@ -53,6 +62,9 @@ describe('buildGraph', () => {
     expect(byHandle.get('DB-B')!.degree).toBe(1);
     expect(byHandle.get('DOC-C')!.degree).toBe(1);
     expect(byHandle.get('API-A')!.type).toBe('API');
+    expect(byHandle.get('API-A')!.w).toBeGreaterThanOrEqual(LAYOUT.cardMinWidth);
+    expect(byHandle.get('API-A')!.h).toBeGreaterThan(0);
+    expect(byHandle.get('API-A')!.r).toBeGreaterThan(byHandle.get('API-A')!.w / 2);
   });
 
   it('drops connections whose endpoints are not cards (and ignores them for degree)', () => {
@@ -116,12 +128,13 @@ describe('focusRadii', () => {
 });
 
 describe('ringRadius', () => {
-  it('scales with hop-distance and sends unreachable nodes to the periphery', () => {
+  it('scales with hop-distance and keeps deep or unreachable nodes bounded', () => {
     expect(ringRadius(0, 100)).toBe(0);
     expect(ringRadius(1, 100)).toBe(100);
     expect(ringRadius(3, 100)).toBe(300);
-    expect(ringRadius(undefined, 100)).toBe(600); // peripheryRings (6) * gap
-    expect(ringRadius(Infinity, 100)).toBe(600);
+    expect(ringRadius(99, 100)).toBe(300); // maxFocusHop (3) * gap
+    expect(ringRadius(undefined, 100)).toBe(400); // peripheryRings (4) * gap
+    expect(ringRadius(Infinity, 100)).toBe(400);
   });
 });
 
@@ -132,8 +145,8 @@ describe('fitToBounds', () => {
 
   it('centres the bounding box of the nodes in the viewport', () => {
     const nodes: GraphNode[] = [
-      { handle: 'A', type: 'API', name: null, status: null, degree: 0, r: 0, x: 0, y: 0 },
-      { handle: 'B', type: 'API', name: null, status: null, degree: 0, r: 0, x: 100, y: 100 },
+      { handle: 'A', type: 'API', name: null, status: null, degree: 0, w: 10, h: 20, r: 0, x: 0, y: 0 },
+      { handle: 'B', type: 'API', name: null, status: null, degree: 0, w: 10, h: 20, r: 0, x: 100, y: 100 },
     ];
     const { tx, ty, scale } = fitToBounds(nodes, { width: 800, height: 600, padding: 0, maxScale: 10 });
     // bbox centre (50,50) must map to viewport centre (400,300): screen = t + s*world
@@ -150,10 +163,10 @@ describe('focusTargets', () => {
     name: null,
     status: null,
     degree: 0,
-    r: 8,
+    ...nodeDimensions(handle, null, 0),
   });
 
-  it('places nodes by type (angle) and hop-distance (radius)', () => {
+  it('places nodes by type sector and hop-distance lane', () => {
     const focused = mk('API-F', 'API');
     const nodes = [focused, mk('DB-A', 'DB'), mk('DB-B', 'DB'), mk('DOC-C', 'DOC'), mk('DB-D', 'DB')];
     const hops = new Map<string, number>([
@@ -164,21 +177,24 @@ describe('focusTargets', () => {
       ['DB-D', 2],
     ]);
     const targets = focusTargets(nodes, focused, hops, ['API', 'DB', 'DOC'], { x: 0, y: 0 }, 100);
-    const rad = (h: string) => Math.hypot(targets.get(h)!.x, targets.get(h)!.y);
     const ang = (h: string) => Math.atan2(targets.get(h)!.y, targets.get(h)!.x);
+    const dbBase = (1 / 3) * Math.PI * 2 - Math.PI / 2;
+    const dbLane = (h: string) => targets.get(h)!.x * Math.cos(dbBase) + targets.get(h)!.y * Math.sin(dbBase);
 
-    // radius encodes hop-distance: connected (hop 1) nodes sit on the inner ring
-    expect(rad('DB-A')).toBeCloseTo(100, 5);
-    expect(rad('DOC-C')).toBeCloseTo(100, 5);
-    expect(rad('DB-D')).toBeCloseTo(200, 5);
+    // radial lane encodes hop-distance: connected nodes sit on the inner lane
+    expect(dbLane('DB-A')).toBeCloseTo(100, 5);
+    expect(dbLane('DB-B')).toBeGreaterThan(100);
+    expect(dbLane('DB-B')).toBeLessThan(200);
+    expect(dbLane('DB-D')).toBeCloseTo(200, 5);
+    expect(Math.hypot(targets.get('DOC-C')!.x, targets.get('DOC-C')!.y)).toBeCloseTo(100, 5);
 
     // the focused node gets no target — enterFocus pins it to the centre
     expect(targets.has('API-F')).toBe(false);
 
-    // same type+hop fans out to distinct angles, centred on the type's wedge (where the
-    // lone hop-2 DB node sits)
-    expect(Math.abs(ang('DB-A') - ang('DB-B'))).toBeGreaterThan(0.1);
-    expect((ang('DB-A') + ang('DB-B')) / 2).toBeCloseTo(ang('DB-D'), 5);
+    // same type+lane packs into distinct positions inside the same sector.
+    expect(Math.hypot(targets.get('DB-A')!.x - targets.get('DB-B')!.x, targets.get('DB-A')!.y - targets.get('DB-B')!.y)).toBeGreaterThan(50);
+    expect(Math.abs(ang('DB-A') - ang('DB-D'))).toBeLessThan(0.8);
+    expect(Math.abs(ang('DB-B') - ang('DB-D'))).toBeLessThan(0.8);
 
     // a different type lands in a different angular wedge
     expect(Math.abs(ang('DOC-C') - ang('DB-D'))).toBeGreaterThan(0.5);
@@ -192,15 +208,23 @@ describe('focusTargets', () => {
       ['DB-Y', 1],
     ]); // DB-X is unreachable (absent from hops)
     const targets = focusTargets(nodes, focused, hops, ['API', 'DB'], { x: 0, y: 0 }, 100);
-    expect(Math.hypot(targets.get('DB-X')!.x, targets.get('DB-X')!.y)).toBeCloseTo(600, 5); // 6 * gap
+    expect(Math.hypot(targets.get('DB-X')!.x, targets.get('DB-X')!.y)).toBeCloseTo(400, 5); // 4 * gap
     expect(Math.hypot(targets.get('DB-Y')!.x, targets.get('DB-Y')!.y)).toBeCloseTo(100, 5);
+  });
+
+  it('computes a framing radius from card footprints and target positions', () => {
+    const focused = mk('API-F', 'API');
+    const far = mk('DB-X', 'DB');
+    const targets = new Map([['DB-X', { x: 400, y: 0 }]]);
+    expect(focusTargetRadius([focused, far], targets, { x: 0, y: 0 })).toBeGreaterThan(400);
+    expect(focusTargetRadius([focused, far], new Map(), { x: 0, y: 0 })).toBe(LAYOUT.ringGap);
   });
 });
 
 describe('seedFocusTargets', () => {
   it('writes target positions onto nodes and zeroes velocity', () => {
     const nodes: GraphNode[] = [
-      { handle: 'A', type: 'API', name: null, status: null, degree: 0, r: 8, vx: 9, vy: 9 },
+      { handle: 'A', type: 'API', name: null, status: null, degree: 0, ...nodeDimensions('A', null, 0), vx: 9, vy: 9 },
     ];
     seedFocusTargets(nodes, new Map([['A', { x: 12, y: 34 }]]));
     expect(nodes[0].x).toBe(12);

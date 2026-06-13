@@ -3,7 +3,7 @@
 // This module owns the *physics* (d3-force configuration) and the geometry math
 // (cluster anchors, BFS hop-distance, viewport fitting). It imports nothing from
 // Svelte and touches no DOM, so every function here is unit-testable in plain Node.
-// The component drives the simulation and renders the SVG; it never re-implements
+// The component drives the simulation and renders the canvas; it never re-implements
 // any of this math.
 
 import {
@@ -27,7 +27,10 @@ export interface GraphNode extends SimulationNodeDatum {
   status: string | null;
   /** Number of connections this card has — drives radius and hub handling. */
   degree: number;
-  /** Render + collision radius. */
+  /** Rendered card size, in graph-space pixels. */
+  w: number;
+  h: number;
+  /** Collision radius derived from the card diagonal, with a small hub bonus. */
   r: number;
 }
 
@@ -45,29 +48,62 @@ export interface Point {
 
 /** Tunables shared by the layout module and the component so the two stay in sync. */
 export const LAYOUT = {
-  linkDistance: 70,
-  linkStrength: 0.5,
+  cardMinWidth: 136,
+  cardMaxWidth: 220,
+  cardHandleHeight: 46,
+  cardDetailHeight: 56,
+  linkDistance: 110,
+  // Weak: in a densely cross-linked plan, strong links overpower type clustering and
+  // smear the colours together. Keep links a gentle nudge; the type anchors do the work.
+  linkStrength: 0.05,
   /** In focus mode links are slackened so they don't drag nodes off their ring. */
   focusLinkStrength: 0.05,
   /** Repulsion = -(chargeBase + chargeK·√degree): hubs push harder so dense rings spread. */
-  chargeBase: 120,
+  chargeBase: 200,
   chargeK: 70,
-  collidePad: 6,
-  clusterStrength: 0.06,
-  ringGap: 130,
-  /** Multiplier on ringGap for nodes unreachable from the focused node. */
-  peripheryRings: 6,
+  collidePad: 18,
+  /** Strong: the type anchors must win over links so same-type cards pool into clusters. */
+  clusterStrength: 0.32,
+  ringGap: 220,
+  /** Farthest explicit hop lane; deeper reachable nodes share this lane. */
+  maxFocusHop: 3,
+  /** Bounded outside lane for nodes unreachable from the focused card. */
+  peripheryRings: 4,
   /** Focus mode: pull toward each node's (type-angle, hop-radius) target. */
-  focusTargetStrength: 0.35,
-  /** Focus mode: light, degree-independent repulsion so wedges don't overlap-stack. */
-  focusCharge: 30,
+  focusTargetStrength: 0.42,
+  /** Focus mode: light, degree-independent repulsion so grouped cards don't overlap-stack. */
+  focusCharge: 160,
   /** Fraction of each type's angular slot the wedge fills (rest is the gap between groups). */
-  wedgeFill: 0.8,
+  wedgeFill: 0.74,
+  focusColumnGap: 42,
+  focusRowGap: 60,
 } as const;
 
-/** Bigger circles for higher-degree hubs, with a hard cap so a mega-hub can't dominate. */
-export function nodeRadius(degree: number): number {
-  return 8 + Math.min(13, Math.sqrt(degree) * 3);
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * Deterministic card dimensions for a graph node. The canvas renderer draws a
+ * readable card, while d3-force still gets one simple radius for collision.
+ */
+export function nodeDimensions(
+  handle: string,
+  name: string | null,
+  degree = 0,
+): { w: number; h: number; r: number } {
+  const hasDetail = !!name && name !== handle;
+  const handleWidth = handle.length * 7.4 + 34;
+  const nameWidth = hasDetail ? Math.min(name.length, 32) * 5.8 + 34 : 0;
+  const w = clamp(Math.max(LAYOUT.cardMinWidth, handleWidth, nameWidth), LAYOUT.cardMinWidth, LAYOUT.cardMaxWidth);
+  const h = hasDetail ? LAYOUT.cardDetailHeight : LAYOUT.cardHandleHeight;
+  const hubBonus = Math.min(18, Math.sqrt(degree) * 4);
+  return { w, h, r: Math.hypot(w, h) / 2 + hubBonus };
+}
+
+/** Collision radius for a rendered node card. Kept as a named export for tests. */
+export function nodeRadius(degree: number, width = LAYOUT.cardMinWidth, height = LAYOUT.cardHandleHeight): number {
+  return Math.hypot(width, height) / 2 + Math.min(18, Math.sqrt(degree) * 4);
 }
 
 /** Repulsion strength for a node, stronger for higher-degree hubs. */
@@ -93,13 +129,14 @@ export function buildGraph(cards: Card[], connections: Connection[]): Graph {
   }
   const nodes: GraphNode[] = cards.map((c) => {
     const d = degree.get(c.handle) ?? 0;
+    const size = nodeDimensions(c.handle, c.name, d);
     return {
       handle: c.handle,
       type: c.type,
       name: c.name,
       status: c.status,
       degree: d,
-      r: nodeRadius(d),
+      ...size,
     };
   });
   const links: GraphLink[] = valid.map((c) => ({ source: c.a, target: c.b }));
@@ -135,7 +172,7 @@ export function clusterAnchors(types: string[], width: number, height: number): 
 /**
  * BFS hop-distance from `focused` to every reachable node over the undirected
  * adjacency map. The focused node is distance 0; unreachable nodes are simply absent
- * from the result (callers treat "absent" as the far periphery).
+ * from the result (callers treat "absent" as the bounded outer lane).
  */
 export function focusRadii(focused: string, neighbors: Map<string, string[]>): Map<string, number> {
   const dist = new Map<string, number>([[focused, 0]]);
@@ -153,10 +190,10 @@ export function focusRadii(focused: string, neighbors: Map<string, string[]>): M
   return dist;
 }
 
-/** Map a hop-distance to a target ring radius; unreachable (undefined/Infinity) → periphery. */
+/** Map a hop-distance to a target lane radius; unreachable (undefined/Infinity) → bounded periphery. */
 export function ringRadius(hop: number | undefined, ringGap = LAYOUT.ringGap): number {
   if (hop === undefined || !Number.isFinite(hop)) return ringGap * LAYOUT.peripheryRings;
-  return hop * ringGap;
+  return Math.min(Math.max(0, hop), LAYOUT.maxFocusHop) * ringGap;
 }
 
 /**
@@ -176,10 +213,10 @@ export function fitToBounds(
   for (const n of nodes) {
     const x = n.x ?? 0;
     const y = n.y ?? 0;
-    minX = Math.min(minX, x - n.r);
-    minY = Math.min(minY, y - n.r);
-    maxX = Math.max(maxX, x + n.r);
-    maxY = Math.max(maxY, y + n.r);
+    minX = Math.min(minX, x - n.w / 2);
+    minY = Math.min(minY, y - n.h / 2);
+    maxX = Math.max(maxX, x + n.w / 2);
+    maxY = Math.max(maxY, y + n.h / 2);
   }
   const bw = Math.max(1, maxX - minX);
   const bh = Math.max(1, maxY - minY);
@@ -217,16 +254,15 @@ export function createSimulation(opts: {
 }
 
 /**
- * Compute the focus-mode target point for every non-focused node: **angle encodes the
- * card's type, radius encodes its hop-distance** from the focused node. Each type owns
- * an evenly-spaced angular wedge (so DATATYPE, DOC, … each stay a coherent group), and
- * within a wedge nodes fan out per hop-ring — so the cards *connected* to the focused
- * node land on the inner rings, closest to the centre, while their type stays legible.
+ * Compute the focus-mode target point for every non-focused node: **sector encodes the
+ * card's type, lane encodes its hop-distance** from the focused node. Each type owns
+ * an evenly-spaced sector, and nodes inside that sector are packed into short rows.
+ * Directly connected cards sit on the inner lane; less-related cards stay farther out.
  *
  * `types` fixes the angular order of the wedges (pass the same order as the legend so
  * the view is stable); when empty it is derived from the nodes in first-seen order.
- * Unreachable nodes go to the periphery radius but keep their type's angle. Members of a
- * (type, hop) cell are sorted by handle for deterministic placement.
+ * Unreachable nodes go to the bounded periphery lane but keep their type sector. Members
+ * of a (type, lane) cell are sorted by handle for deterministic placement.
  */
 export function focusTargets(
   nodes: GraphNode[],
@@ -241,40 +277,57 @@ export function focusTargets(
   const n = Math.max(1, order.length);
   const typeIndex = new Map(order.map((t, i) => [t, i]));
   const slot = (2 * Math.PI) / n;
-  const fullCircle = n === 1; // a single type spreads all the way round
-  const wedgeHalf = fullCircle ? Math.PI : (slot * LAYOUT.wedgeFill) / 2;
+  const fullCircle = n === 1;
 
-  // Bucket non-focused nodes by (type, hop): each cell fans across its type's wedge at one radius.
-  const cells = new Map<string, { type: string; hop: number; members: GraphNode[] }>();
+  const cells = new Map<string, { type: string; lane: number; members: GraphNode[] }>();
   for (const nd of nodes) {
     if (nd.handle === focused.handle) continue;
     const raw = hops.get(nd.handle);
-    const hop = raw === undefined || !Number.isFinite(raw) ? Infinity : raw;
-    const key = `${nd.type} ${hop}`;
+    const lane = raw === undefined || !Number.isFinite(raw) ? Infinity : Math.min(Math.max(1, raw), LAYOUT.maxFocusHop);
+    const key = `${nd.type}\u0000${lane}`;
     const cell = cells.get(key);
     if (cell) cell.members.push(nd);
-    else cells.set(key, { type: nd.type, hop, members: [nd] });
+    else cells.set(key, { type: nd.type, lane, members: [nd] });
   }
 
-  for (const { type, hop, members } of cells.values()) {
+  for (const { type, lane, members } of cells.values()) {
     members.sort((a, b) => (a.handle < b.handle ? -1 : 1));
-    const radius = ringRadius(Number.isFinite(hop) ? hop : undefined, ringGap);
-    const base = (typeIndex.get(type) ?? 0) * slot - Math.PI / 2; // first type's centre at the top
-    const k = members.length;
+    const radius = ringRadius(Number.isFinite(lane) ? lane : undefined, ringGap);
+    const base = (typeIndex.get(type) ?? 0) * slot - Math.PI / 2;
+    const radial = { x: Math.cos(base), y: Math.sin(base) };
+    const tangent = { x: -Math.sin(base), y: Math.cos(base) };
+    const avgWidth = members.reduce((sum, nd) => sum + nd.w, 0) / Math.max(1, members.length);
+    const step = avgWidth + LAYOUT.focusColumnGap;
+    const sectorWidth = fullCircle ? radius * 1.9 : radius * slot * LAYOUT.wedgeFill;
+    const perRow = Math.max(1, Math.floor(sectorWidth / step));
+
     members.forEach((nd, i) => {
-      const theta =
-        k === 1
-          ? base
-          : fullCircle
-            ? base + (2 * Math.PI * i) / k // wrap fully, no duplicate endpoints
-            : base - wedgeHalf + (2 * wedgeHalf * i) / (k - 1);
+      const row = Math.floor(i / perRow);
+      const col = i % perRow;
+      const inRow = Math.min(perRow, members.length - row * perRow);
+      const tangentOffset = (col - (inRow - 1) / 2) * step;
+      const radialOffset = row * LAYOUT.focusRowGap;
       targets.set(nd.handle, {
-        x: center.x + radius * Math.cos(theta),
-        y: center.y + radius * Math.sin(theta),
+        x: center.x + radial.x * (radius + radialOffset) + tangent.x * tangentOffset,
+        y: center.y + radial.y * (radius + radialOffset) + tangent.y * tangentOffset,
       });
     });
   }
   return targets;
+}
+
+/** Radius needed to frame a set of focus targets while keeping `center` centered. */
+export function focusTargetRadius(nodes: GraphNode[], targets: Map<string, Point>, center: Point): number {
+  const byHandle = new Map(nodes.map((n) => [n.handle, n]));
+  let radius = Math.max(LAYOUT.ringGap, LAYOUT.cardMaxWidth);
+  for (const [handle, point] of targets) {
+    const n = byHandle.get(handle);
+    if (!n) continue;
+    const dx = Math.abs(point.x - center.x) + n.w / 2;
+    const dy = Math.abs(point.y - center.y) + n.h / 2;
+    radius = Math.max(radius, Math.hypot(dx, dy));
+  }
+  return radius;
 }
 
 /** Pre-seed node positions from precomputed focus targets so the sim starts already arranged. */
@@ -304,7 +357,7 @@ export function enterFocus(
   center: Point,
   types: string[] = [],
   ringGap = LAYOUT.ringGap,
-): void {
+): Map<string, Point> {
   const targets = focusTargets(nodes, focused, hops, types, center, ringGap);
   seedFocusTargets(nodes, targets);
 
@@ -331,6 +384,7 @@ export function enterFocus(
       d.handle === focused.handle ? 0 : LAYOUT.focusTargetStrength,
     ),
   );
+  return targets;
 }
 
 /** Restore the overview (type-cluster) state: unpin, drop radial, restore charge/links/x/y. */
