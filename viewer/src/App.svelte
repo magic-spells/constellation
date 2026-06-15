@@ -2,6 +2,7 @@
   import Nav from './components/Nav.svelte';
   import CardList from './components/CardList.svelte';
   import ThemePicker from './components/ThemePicker.svelte';
+  import SyncPill from './components/SyncPill.svelte';
   import CardPage from './pages/CardPage.svelte';
   import Home from './pages/Home.svelte';
   import TypeIntro from './pages/TypeIntro.svelte';
@@ -57,6 +58,7 @@
       {/if}
     </a>
     <span class="spacer"></span>
+    <SyncPill />
     <ThemePicker />
   </header>
 

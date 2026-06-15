@@ -2,8 +2,8 @@ import { execFile } from 'node:child_process';
 import { readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { isHandleShaped, typeForHandle } from '../core/handles.js';
-import { parseFile } from '../core/parse.js';
+import { isHandleShaped, typeForHandle } from './handles.js';
+import { parseFile } from './parse.js';
 
 const exec = promisify(execFile);
 
@@ -247,4 +247,90 @@ export async function planLog(
       const [sha, date, ...subject] = line.split('\t');
       return { sha, date, subject: subject.join('\t') };
     });
+}
+
+export interface SyncActivity {
+  sha: string;
+  short_sha: string;
+  date: string;
+  subject: string;
+  cards: string[];
+  is_sync_point: boolean;
+}
+
+/**
+ * Recent commits that touched the plan folder, newest first. Each entry lists the
+ * plan-card handles it changed and flags sync-point commits (those that moved the
+ * .sync.json marker). Derived live from git — the activity log is never stored.
+ */
+export async function recentPlanActivity(
+  planRoot: string,
+  limit = 6,
+): Promise<SyncActivity[]> {
+  const realRoot = await realpath(planRoot);
+  const repoRoot = await repoRootFor(realRoot);
+  const planRel = path.relative(repoRoot, realRoot) || '.';
+  // %x1e (record separator) prefixes each commit; %x1f (unit separator) splits the
+  // header fields; --name-only then lists that commit's files (scoped to the plan
+  // folder) on their own lines. One git call, parsed defensively.
+  const out = await git(
+    repoRoot,
+    'log',
+    `-n${limit}`,
+    '--pretty=format:%x1e%H%x1f%aI%x1f%s',
+    '--name-only',
+    '--',
+    planRel,
+  );
+  const activity: SyncActivity[] = [];
+  for (const record of out.split('\x1e')) {
+    if (!record.trim()) continue;
+    const newline = record.indexOf('\n');
+    const header = newline === -1 ? record : record.slice(0, newline);
+    const [sha, date, subject] = header.split('\x1f');
+    if (!sha) continue;
+    const files = (newline === -1 ? '' : record.slice(newline + 1))
+      .split('\n')
+      .map((f) => f.trim())
+      .filter(Boolean);
+    const cards: string[] = [];
+    let isSyncPoint = false;
+    for (const file of files) {
+      if (path.basename(file) === SYNC_FILE) isSyncPoint = true;
+      const handle = handleForRepoPath(file, planRel);
+      if (handle && !cards.includes(handle)) cards.push(handle);
+    }
+    activity.push({
+      sha,
+      short_sha: sha.slice(0, 8),
+      date: date ?? '',
+      subject: subject ?? '',
+      cards,
+      is_sync_point: isSyncPoint,
+    });
+  }
+  return activity;
+}
+
+/**
+ * How many commits between `sinceSha` and HEAD touch files OUTSIDE the plan folder
+ * — i.e. how far the code has moved since the plan was last reconciled.
+ */
+export async function countCodeCommitsSince(
+  planRoot: string,
+  sinceSha: string,
+): Promise<number> {
+  const realRoot = await realpath(planRoot);
+  const repoRoot = await repoRootFor(realRoot);
+  const planRel = path.relative(repoRoot, realRoot) || '.';
+  const out = await git(
+    repoRoot,
+    'rev-list',
+    '--count',
+    `${sinceSha}..HEAD`,
+    '--',
+    '.',
+    `:(exclude)${planRel}`,
+  );
+  return Number.parseInt(out.trim(), 10) || 0;
 }

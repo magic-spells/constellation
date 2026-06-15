@@ -2,10 +2,12 @@
   import Editable from '../components/Editable.svelte';
   import Markdown from '../components/Markdown.svelte';
   import { patchCard } from '../lib/api';
+  import { relTime, SYNC_META } from '../lib/format';
   import { plan } from '../lib/state.svelte';
   import { GROUPS, TYPE_META } from '../lib/types';
 
   const planCard = $derived(plan.byHandle.get('PLAN-PROJECT'));
+  const sync = $derived(plan.sync);
   const tiles = $derived(
     GROUPS.flatMap((group) =>
       Object.entries(TYPE_META)
@@ -21,6 +23,39 @@
 </script>
 
 <div class="page">
+  {#if sync && sync.state !== 'no-git'}
+    <section class="sync-dash">
+      <div class="sd-head {sync.state}">
+        <span class="sd-dot"></span>
+        <span class="sd-state">{SYNC_META[sync.state].label}</span>
+        <span class="sd-meta">
+          {#if sync.marker}last synced {relTime(sync.marker.synced_at)}{:else}no sync point yet{/if}
+          {#if sync.state === 'drifted'}
+            · {sync.code_commits_since_marker} code commit{sync.code_commits_since_marker === 1 ? '' : 's'} / {sync.plan_changes_since_marker} plan change{sync.plan_changes_since_marker === 1 ? '' : 's'} since
+          {/if}
+          {#if sync.plan_dirty} · uncommitted plan edits{/if}
+        </span>
+      </div>
+      {#if sync.activity.length}
+        <ul class="activity">
+          {#each sync.activity as a}
+            <li class:sync={a.is_sync_point}>
+              <span class="ac-when">{relTime(a.date)}</span>
+              <span class="ac-subject">{a.subject}</span>
+              {#if a.is_sync_point}<span class="ac-tag">sync</span>{/if}
+              {#if a.cards.length}
+                <span class="ac-cards">
+                  {#each a.cards.slice(0, 4) as h}<a class="ac-card" href="#/card/{h}">{h}</a>{/each}
+                  {#if a.cards.length > 4}<span class="ac-more">+{a.cards.length - 4}</span>{/if}
+                </span>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </section>
+  {/if}
+
   <div class="stats">
     <div class="stat"><span class="n">{plan.cards.length}</span><span class="label">cards</span></div>
     <div class="stat"><span class="n">{plan.connections.length}</span><span class="label">connections</span></div>

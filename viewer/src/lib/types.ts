@@ -22,6 +22,34 @@ export interface Issue {
   file: string;
 }
 
+export type SyncState =
+  | 'in-sync'
+  | 'drifted'
+  | 'dirty'
+  | 'never-synced'
+  | 'no-git';
+
+export interface SyncActivity {
+  sha: string;
+  short_sha: string;
+  date: string;
+  subject: string;
+  cards: string[];
+  is_sync_point: boolean;
+}
+
+export interface SyncStatus {
+  state: SyncState;
+  marker: { synced_sha: string; synced_at: string } | null;
+  plan_dirty: boolean;
+  plan_changes_since_marker: number;
+  code_commits_since_marker: number;
+  integrity: { errors: number; warnings: number; orphans: number };
+  status_rollup: Record<string, number>;
+  total_cards: number;
+  activity: SyncActivity[];
+}
+
 export interface TypeMeta {
   label: string;
   folder: string;

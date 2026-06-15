@@ -11,7 +11,7 @@ import { resolvePlanDir } from '../core/resolve.js';
 import type { Card, Issue, PlanIndex, TypeName } from '../core/types.js';
 import { TYPE_NAMES } from '../core/types.js';
 import type { RunningServer } from '../serve/server.js';
-import { diffPlan, planDirty, planLog, writeSyncPoint } from './git.js';
+import { diffPlan, planDirty, planLog, writeSyncPoint } from '../core/git.js';
 import { searchCards } from './search.js';
 import {
   applyCardPatch,

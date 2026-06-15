@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isHandleShaped, typeForHandle } from '../core/handles.js';
 import { lintPlan } from '../core/lint.js';
+import { computeSyncStatus } from '../core/sync.js';
 import type { Card, Issue } from '../core/types.js';
 import {
   applyCardPatch,
@@ -236,6 +237,9 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     try {
       if (url.pathname === '/api/plan' && method === 'GET') {
         return await handleGetPlan(res);
+      }
+      if (url.pathname === '/api/sync' && method === 'GET') {
+        return json(res, 200, await computeSyncStatus(planRoot));
       }
       if (url.pathname === '/events' && method === 'GET') {
         res.writeHead(200, {

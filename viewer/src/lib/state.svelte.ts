@@ -1,4 +1,4 @@
-import type { Card, Connection, Issue } from './types';
+import type { Card, Connection, Issue, SyncStatus } from './types';
 
 class PlanState {
   cards = $state<Card[]>([]);
@@ -7,6 +7,7 @@ class PlanState {
   warnings = $state<Issue[]>([]);
   loaded = $state(false);
   editable = $state(false);
+  sync = $state<SyncStatus | null>(null);
 
   byHandle = $derived(new Map(this.cards.map((c) => [c.handle, c])));
 
@@ -40,6 +41,16 @@ class PlanState {
     this.warnings = data.warnings;
     this.editable = data.editable ?? false;
     this.loaded = true;
+    void this.loadSync();
+  }
+
+  async loadSync(): Promise<void> {
+    try {
+      const res = await fetch('/api/sync');
+      this.sync = await res.json();
+    } catch {
+      this.sync = null;
+    }
   }
 
   listen(): void {
@@ -47,6 +58,9 @@ class PlanState {
     source.onmessage = (event) => {
       if (event.data === 'change') void this.load();
     };
+    // Code commits outside the plan folder don't trip the file watcher, so poll
+    // the (cheap, git-derived) sync state to keep drift fresh while the tab is open.
+    setInterval(() => void this.loadSync(), 20000);
   }
 }
 
