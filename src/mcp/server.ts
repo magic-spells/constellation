@@ -84,7 +84,7 @@ and confirm it with the user (it's plan.md's name: and the viewer's title; chang
 anytime via update_card on PLAN-PROJECT); then follow the DATA (DB → DATATYPE →
 API → PAGE, with FLOW/STATE for paths and lifecycles) and the USER (ROLE + auth FLOW
 first, then PAGE/COMPONENT and key journeys) and the EDGES (EXTERNAL/JOB/EVENT); then zoom
-into central or complex areas. Read before you ask — ask the user only for intent,
+into central or complex areas. For a non-trivial plan, after the macro pass act as the ORCHESTRATOR here too: partition the build into independent neighborhoods (the DATA, the USER, the EDGES) and fan out a sub-agent per neighborhood in parallel — but assign each card to exactly one agent (two agents calling update_card on the same card race, later write wins) and have them return card specs you write via batched create_cards/add_connections, then verify each agent's work and lint once; use one agent for a small plan. Read before you ask — ask the user only for intent,
 priorities, and history the code can't reveal. Then find gaps IN THE PLAN: step back and
 hunt blind spots the user may not have considered — missing unhappy paths and lifecycle
 states, auth/permission gaps, and cross-cutting concerns plans forget (security, privacy,

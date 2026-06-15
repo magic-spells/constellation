@@ -121,6 +121,8 @@ how to find gaps and recommend tastefully — is in [`methodology.md`](./methodo
 which also backs the `bootstrap_plan` / `audit_plan` MCP prompts.** Read it before a large
 pass.
 
+**Orchestrate a large build.** For a non-trivial plan, after the macro pass act as the **orchestrator**: split the work into independent neighborhoods (the data, the user, the edges) and fan out a sub-agent per neighborhood in parallel — assign each card to exactly one agent (one handle = one file, so this also keeps writes to disjoint plan files and concurrent `update_card`s can't clobber), partition the research on area/file boundaries, and have them return card specs you write via batched `create_cards`/`add_connections`, then verify each agent's work and lint once. A single agent for a small plan — don't over-engineer.
+
 ## Syncing the plan to code
 
 The plan is the source of truth: you change behavior by editing the **plan first**, then
