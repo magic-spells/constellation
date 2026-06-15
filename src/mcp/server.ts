@@ -4,7 +4,12 @@ import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { isHandleShaped, isKnownHandle, typeForHandle } from '../core/handles.js';
+import {
+  isHandleShaped,
+  isKnownHandle,
+  TYPE_FOLDERS,
+  typeForHandle,
+} from '../core/handles.js';
 import { loadPlan } from '../core/indexer.js';
 import { lintPlan } from '../core/lint.js';
 import { resolvePlanDir } from '../core/resolve.js';
@@ -36,6 +41,11 @@ about to work on an area; use "summary" for orientation.
 Writes are validated: every write tool lints and returns issues for the file it touched.
 update_card patch.fields deep-merges (arrays replace, null deletes); body replaces.
 Body-only updates never reformat frontmatter.
+
+describe_type is the type reference, served by this server: call it with no args for the
+catalog of all 17 card types, or with a type (e.g. describe_type PAGE) for that type's
+frontmatter schema + a golden example. Consult it before authoring a type you haven't used
+this session — you don't need the authoring skill loaded to get the fields right.
 
 Change tracking is git: diff_plan reports per-card changes since the sync marker (or HEAD).
 Never stamp dirty flags into cards.
@@ -103,11 +113,42 @@ The viewer runs until stop_viewer or until this server process exits.`;
 // The full plan-from-code playbook lives in one file (skill/methodology.md), shared by the
 // skill and the MCP prompts so the two can't drift. Resolve it relative to this module:
 // from dist/mcp/server.js (or src/mcp/server.ts) '../..' is the package/repo root.
-const METHODOLOGY_PATH = path.join(
-  fileURLToPath(new URL('../..', import.meta.url)),
-  'skill',
-  'methodology.md',
-);
+// Package root: from dist/mcp/server.js (or src/mcp/server.ts) '../..' is the
+// package/repo root. The skill folder, type docs, and JSON schemas all ship here.
+const PKG_ROOT = fileURLToPath(new URL('../..', import.meta.url));
+const METHODOLOGY_PATH = path.join(PKG_ROOT, 'skill', 'methodology.md');
+const SCHEMAS_DIR = path.join(PKG_ROOT, 'schemas');
+const TYPE_DOCS_DIR = path.join(PKG_ROOT, 'skill', 'types');
+
+/** Parsed JSON Schema for a type's frontmatter, or null if it can't be read. */
+async function readTypeSchema(folder: string): Promise<unknown> {
+  try {
+    return JSON.parse(
+      await readFile(path.join(SCHEMAS_DIR, `${folder}.json`), 'utf8'),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** The authoring reference (field table + golden example) for a type, or null. */
+async function readTypeDoc(folder: string): Promise<string | null> {
+  try {
+    return await readFile(path.join(TYPE_DOCS_DIR, `${folder}.md`), 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+/** First sentence of a schema's top-level description — its one-line purpose. */
+function schemaPurpose(schema: unknown): string {
+  const desc =
+    schema && typeof schema === 'object' && 'description' in schema
+      ? String((schema as { description?: unknown }).description ?? '')
+      : '';
+  const match = desc.match(/^.*?\.(?:\s|$)/);
+  return (match ? match[0] : desc).trim();
+}
 
 let methodologyCache: string | null = null;
 
@@ -441,10 +482,50 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   );
 
   server.registerTool(
+    'describe_type',
+    {
+      description:
+        'The card-type reference, served straight from this package. Call with no args for the catalog — all 17 types with their prefix, folder, and one-line purpose. Call with a type for everything needed to author one: the frontmatter JSON Schema (fields, which are required, descriptions) plus the golden example and authoring guidance. Use it before writing a card of a type you have not authored this session — it is the contract create_card/create_cards/update_card validate against (W002/W003), so you do not need the authoring skill loaded to get the fields right.',
+      inputSchema: {
+        type: typeSchema.optional().describe('omit for the full catalog'),
+      },
+    },
+    async ({ type }: { type?: TypeName }) => {
+      if (!type) {
+        const types = await Promise.all(
+          TYPE_NAMES.map(async (t) => {
+            const folder = TYPE_FOLDERS[t];
+            return {
+              type: t,
+              prefix: `${t}-`,
+              folder,
+              purpose: schemaPurpose(await readTypeSchema(folder)),
+            };
+          }),
+        );
+        return ok({ types });
+      }
+      const folder = TYPE_FOLDERS[type];
+      const [schema, reference] = await Promise.all([
+        readTypeSchema(folder),
+        readTypeDoc(folder),
+      ]);
+      return ok({
+        type,
+        prefix: `${type}-`,
+        folder,
+        reserved: ['name', 'kind', 'status', 'connections'],
+        schema,
+        reference,
+      });
+    },
+  );
+
+  server.registerTool(
     'create_card',
     {
       description:
-        'Create a new card. The handle determines type and file location. fields = type-specific frontmatter (see the type schemas); body = markdown. The card IS created even when issues are returned — issues are the current lint state, not a failure. Set validate:false to skip linting during bulk import (then run check_integrity once at the end). For many cards at once, prefer create_cards.',
+        'Create a new card. The handle determines type and file location. fields = type-specific frontmatter — call describe_type(type) first for its field schema and a golden example; body = markdown. The card IS created even when issues are returned — issues are the current lint state, not a failure. Set validate:false to skip linting during bulk import (then run check_integrity once at the end). For many cards at once, prefer create_cards.',
       inputSchema: {
         handle: z.string(),
         name: z.string().optional(),
