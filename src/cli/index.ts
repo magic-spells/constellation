@@ -6,6 +6,7 @@ import process from 'node:process';
 import { Command } from 'commander';
 import pc from 'picocolors';
 import { lintPlan } from '../core/lint.js';
+import { listConnectedRepos } from '../core/repos.js';
 import { exists, resolvePlanDir } from '../core/resolve.js';
 import type { Issue } from '../core/types.js';
 import { notifyUpdate } from './update-check.js';
@@ -156,6 +157,43 @@ program
             : 'xdg-open';
       spawn(cmd, [url], { stdio: 'ignore', detached: true }).unref();
     }
+  });
+
+program
+  .command('repos')
+  .argument(
+    '[path]',
+    'plan folder, or a directory containing constellation/ (default: walk up from cwd)',
+  )
+  .description('List the sibling repos declared in connected_repos')
+  .action(async (target: string | null | undefined) => {
+    const root = await resolvePlanDir(target ?? undefined);
+    if (!root) {
+      console.error(
+        pc.red('No constellation/ folder found.') +
+          ' Run `constellation init` to create one.',
+      );
+      process.exit(2);
+    }
+    const repos = await listConnectedRepos(root);
+    if (repos.length === 0) {
+      console.log(pc.dim('No connected repos declared in plan.md (connected_repos).'));
+      return;
+    }
+    for (const r of repos) {
+      const status = r.reachable
+        ? pc.green('✓ reachable')
+        : pc.yellow('• not found here');
+      console.log(`${pc.bold(r.name)}  ${pc.dim(r.path)}  ${status}`);
+      if (r.description) console.log(`  ${r.description}`);
+    }
+    console.log();
+    console.log(
+      pc.dim(
+        `${repos.length} connected repo${repos.length === 1 ? '' : 's'}. ` +
+          'Paths are relative to this repo; "not found here" just means a different local layout.',
+      ),
+    );
   });
 
 program.parseAsync(process.argv).catch((err) => {

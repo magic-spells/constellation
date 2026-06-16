@@ -37,6 +37,19 @@ export interface Connection {
   b: string;
 }
 
+/**
+ * A sibling repo declared in PLAN-PROJECT `connected_repos`. A repo-level link
+ * only — never a card connection. The path is local topology (relative to the
+ * repo root, or absolute) and is never validated by lint.
+ */
+export interface ConnectedRepo {
+  /** Lowercase id used as the `repo` selector. */
+  name: string;
+  /** Path to the connected repo's root, relative to this repo's root (or absolute). */
+  path: string;
+  description?: string;
+}
+
 export type Severity = 'error' | 'warning';
 
 export interface Issue {

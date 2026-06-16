@@ -12,6 +12,25 @@ Keep it **short**. Three rules:
 | Field | Type | Notes |
 |---|---|---|
 | `scope` | string | area for scoped plans, e.g. `frontend`; omit for `plan.md` |
+| `connected_repos` | list | sibling repos this project coordinates with (on `PLAN-PROJECT` only) — see below |
+
+## Connected repos (multi-repo)
+
+When one change spans several sibling repos, declare them on `PLAN-PROJECT` so an agent can
+reach each one with the MCP `repo:` selector. These are **repo-level links, not card
+connections** — cards never reference another repo's cards, and each plan still lints alone.
+Each entry has a lowercase `name` (the `repo:` selector value), a `path` relative to this
+repo's root, and a one-line `description`. Paths are local topology — never lint-checked.
+
+```yaml
+connected_repos:
+  - name: pyramid-server
+    path: ../pyramid-server
+    description: Back-end API for Pyramid, written in Go.
+```
+
+Manage these with `add_connected_repo` / `list_connected_repos` / `remove_connected_repo`
+(MCP) or `constellation repos` (CLI), not by hand-editing unless you prefer to.
 
 Example — `constellation/plan.md`:
 
