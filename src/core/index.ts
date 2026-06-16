@@ -6,3 +6,4 @@ export * from './indexer.js';
 export * from './validate.js';
 export * from './lint.js';
 export * from './writer.js';
+export * from './repos.js';

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ConnectedRepos from '../components/ConnectedRepos.svelte';
   import Editable from '../components/Editable.svelte';
   import Markdown from '../components/Markdown.svelte';
   import { patchCard } from '../lib/api';
@@ -7,6 +8,18 @@
   import { GROUPS, TYPE_META } from '../lib/types';
 
   const planCard = $derived(plan.byHandle.get('PLAN-PROJECT'));
+  const connectedRepos = $derived.by(() => {
+    const raw = planCard?.frontmatter?.connected_repos;
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object')
+      .map((e) => ({
+        name: String(e.name ?? ''),
+        path: String(e.path ?? ''),
+        description: typeof e.description === 'string' ? e.description : undefined,
+      }))
+      .filter((e) => e.name && e.path);
+  });
   const sync = $derived(plan.sync);
   const tiles = $derived(
     GROUPS.flatMap((group) =>
@@ -79,6 +92,8 @@
   {:else}
     <p class="empty">No plan.md yet — run `constellation init`.</p>
   {/if}
+
+  <ConnectedRepos repos={connectedRepos} />
 
   <div class="section">
     <h3>Browse</h3>

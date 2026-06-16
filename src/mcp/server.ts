@@ -26,6 +26,15 @@ import {
   reservedFieldKeys,
   updateCardFile,
 } from '../core/writer.js';
+import {
+  connectedRepoToFm,
+  listConnectedRepos,
+  readConnectedRepos,
+  removeConnectedRepoEntry,
+  resolveConnectedRepo,
+  upsertConnectedRepo,
+} from '../core/repos.js';
+import type { ConnectedRepo } from '../core/types.js';
 
 const INSTRUCTIONS = `# Constellation MCP
 
@@ -119,6 +128,21 @@ observability, rate limits, pagination, migrations, testing). The mechanical che
 short, prioritized list of recommendations and ask about the judgment calls. For the full
 method use the bootstrap_plan or audit_plan prompt. Status is planned → building → built →
 verified; verify only against real code.
+
+Connected repos (multi-repo work): a project can declare sibling repos in PLAN-PROJECT
+connected_repos (name + on-disk path + description) — list_connected_repos shows them with
+reachability, add_connected_repo links one (reciprocate:true also writes the reverse link
+into the other repo, with the user's OK). These are REPO-level links only: cards never connect
+across repos, and each repo's plan stays self-contained and lints alone. To work on a connected
+repo, pass repo: "<name>" to any read or write tool (get_card, search, traverse, update_card,
+…) and it reads/writes THAT repo's plan; omit repo for the current one. To answer a question
+about a connected repo, first read its plan with repo:; if you need the real code (or its plan
+can't answer), spawn a sub-agent scoped to that repo's path to investigate and report back —
+and if its plan had the gap, fill it. For one change spanning repos: examine each repo's area,
+write the per-repo card updates with repo: set on EVERY write (never omit it cross-repo, or the
+write lands in the wrong place), then fan out a per-repo implementer sub-agent (each runs in
+plain single-repo mode, blind to the others) and reconcile + set_sync_point per repo. Inside a
+single repo, repo is unnecessary and everything behaves exactly as before.
 
 To let the user browse the plan visually, start_viewer launches a local web server that
 renders the plan as an editable site and returns its URL (it scans forward from port 4747
@@ -236,6 +260,12 @@ function issuesForFile(issues: Issue[], relPath: string): Issue[] {
 const detailSchema = z.enum(['none', 'summary', 'full']);
 const typeSchema = z.enum(TYPE_NAMES as unknown as [TypeName, ...TypeName[]]);
 const statusSchema = z.enum(['planned', 'building', 'built', 'verified']);
+const repoSchema = z
+  .string()
+  .optional()
+  .describe(
+    'Target a connected repo by its connected_repos name (or a path). Omit to use the current repo.',
+  );
 
 export interface ServerOptions {
   /** Fixed plan root (tests); when omitted, resolved per call by walking up from cwd. */
@@ -244,7 +274,7 @@ export interface ServerOptions {
 
 export function buildServer(options: ServerOptions = {}): McpServer {
   const server = new McpServer(
-    { name: 'constellation', version: '0.1.1' },
+    { name: 'constellation', version: '0.2.0' },
     { instructions: INSTRUCTIONS },
   );
 
@@ -299,23 +329,63 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   // A single web viewer owned by this server process; null until start_viewer runs.
   let viewer: { server: RunningServer; planRoot: string; url: string } | null = null;
 
-  /** Wrap a handler with plan resolution and error reporting. */
+  const noPlanFound = () =>
+    fail(
+      'NO_PLAN_FOUND',
+      `No constellation/ folder found by walking up from ${process.cwd()}. This MCP ` +
+        `server uses its own working directory — if that isn't your repo, set "cwd" to ` +
+        'the repo root in your MCP client config. Otherwise call init_plan (optionally ' +
+        'with { path } pointing at the repo root), or run `constellation init`.',
+    );
+
+  /**
+   * Resolve which plan a call targets. With no `repo`, the home plan (walk up
+   * from cwd); with `repo`, a connected repo selected by its connected_repos
+   * name or by a path. Returns the resolved root or a ready-to-return error.
+   */
+  async function resolveTarget(
+    repo?: string,
+  ): Promise<{ root: string } | { error: ToolResult }> {
+    const home = await planRoot();
+    if (!repo) {
+      return home ? { root: home } : { error: noPlanFound() };
+    }
+    if (home) {
+      const resolved = await resolveConnectedRepo(home, repo);
+      if (resolved) return { root: resolved.root };
+      const names = (await readConnectedRepos(home)).map((r) => r.name);
+      return {
+        error: fail(
+          'UNKNOWN_REPO',
+          `Connected repo "${repo}" not found. Pass a connected_repos name ` +
+            `(${names.length ? names.join(', ') : 'none declared — add one with add_connected_repo'}) ` +
+            'or a path to a repo that has a constellation/ plan.',
+        ),
+      };
+    }
+    // No home plan: a name can't be looked up, but a path can still resolve.
+    const byPath = await resolvePlanDir(
+      path.isAbsolute(repo) ? repo : path.resolve(process.cwd(), repo),
+    );
+    if (byPath) return { root: byPath };
+    return {
+      error: fail(
+        'UNKNOWN_REPO',
+        `No plan found for repo "${repo}". With no plan in the current directory, pass a ` +
+          'path to a repo that has a constellation/ plan.',
+      ),
+    };
+  }
+
+  /** Wrap a handler with plan resolution and error reporting; `repo` selects a connected repo. */
   function withPlan<A>(
     handler: (root: string, args: A) => Promise<ToolResult>,
   ): (args: A) => Promise<ToolResult> {
     return async (args: A) => {
-      const root = await planRoot();
-      if (!root) {
-        return fail(
-          'NO_PLAN_FOUND',
-          `No constellation/ folder found by walking up from ${process.cwd()}. This MCP ` +
-            `server uses its own working directory — if that isn't your repo, set "cwd" to ` +
-            'the repo root in your MCP client config. Otherwise call init_plan (optionally ' +
-            'with { path } pointing at the repo root), or run `constellation init`.',
-        );
-      }
+      const target = await resolveTarget((args as { repo?: string } | undefined)?.repo);
+      if ('error' in target) return target.error;
       try {
-        return await handler(root, args);
+        return await handler(target.root, args);
       } catch (err) {
         return fail('INTERNAL', err instanceof Error ? err.message : String(err));
       }
@@ -368,6 +438,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       inputSchema: {
         handle: z.string(),
         connected: detailSchema.optional().describe('default: summary'),
+        repo: repoSchema,
       },
     },
     withPlan(async (root, { handle, connected }) => {
@@ -396,6 +467,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .optional()
           .describe('false = orphans only; true = connected only'),
         limit: z.number().int().min(1).max(500).optional(),
+        repo: repoSchema,
       },
     },
     withPlan(async (root, { types, kind, status, connected, limit }) => {
@@ -426,6 +498,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         types: z.array(typeSchema).optional(),
         limit: z.number().int().min(1).max(100).optional(),
         connected: detailSchema.optional().describe('default: none'),
+        repo: repoSchema,
       },
     },
     withPlan(async (root, { q, types, limit, connected }) => {
@@ -453,6 +526,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         depth: z.number().int().min(0).max(5).optional().describe('default: 2'),
         types: z.array(typeSchema).optional(),
         detail: z.enum(['summary', 'full']).optional().describe('default: summary'),
+        repo: repoSchema,
       },
     },
     withPlan(async (root, { start, depth, types, detail }) => {
@@ -559,6 +633,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .boolean()
           .optional()
           .describe('default true; false skips lint and returns no issues'),
+        repo: repoSchema,
       },
     },
     withPlan(async (root, args) => {
@@ -635,6 +710,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           )
           .min(1)
           .max(500),
+        repo: repoSchema,
       },
     },
     withPlan(async (root, { cards }) => {
@@ -710,6 +786,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .array(z.object({ from: z.string(), to: z.string() }))
           .min(1)
           .max(1000),
+        repo: repoSchema,
       },
     },
     withPlan(async (root, { connections }) => {
@@ -771,6 +848,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           })
           .optional(),
         body: z.string().optional(),
+        repo: repoSchema,
       },
     },
     withPlan(async (root, { handle, patch, body }) => {
@@ -807,7 +885,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       description:
         'Delete a card file. Returns the handles that referenced it (their references are now dangling) plus resulting lint issues.',
-      inputSchema: { handle: z.string() },
+      inputSchema: { handle: z.string(), repo: repoSchema },
     },
     withPlan(async (root, { handle }) => {
       const index = await loadPlan(root);
@@ -832,7 +910,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       description:
         'Connect two cards by appending `to` to `from`’s connections list. No-op if they are already connected through any source.',
-      inputSchema: { from: z.string(), to: z.string() },
+      inputSchema: { from: z.string(), to: z.string(), repo: repoSchema },
     },
     withPlan(async (root, args) => {
       const index = await loadPlan(root);
@@ -865,7 +943,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       description:
         'Remove a connection by deleting it from either card’s connections list. Reports if the cards remain connected through other sources (frontmatter fields, body links, mermaid) that must be edited manually.',
-      inputSchema: { a: z.string(), b: z.string() },
+      inputSchema: { a: z.string(), b: z.string(), repo: repoSchema },
     },
     withPlan(async (root, args) => {
       const index = await loadPlan(root);
@@ -926,12 +1004,159 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   );
 
   server.registerTool(
+    'list_connected_repos',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'List the sibling repos declared on PLAN-PROJECT connected_repos, each with its path, description, and whether it is reachable on this machine. Use a name as the `repo` selector on other tools to read or write that repo. Repo-level links only — not card connections.',
+      inputSchema: {},
+    },
+    withPlan(async (root) => {
+      const repos = await listConnectedRepos(root);
+      return ok({
+        connected_repos: repos.map((r) => ({
+          name: r.name,
+          path: r.path,
+          description: r.description ?? null,
+          reachable: r.reachable,
+        })),
+      });
+    }),
+  );
+
+  server.registerTool(
+    'add_connected_repo',
+    {
+      description:
+        'Declare a sibling repo on PLAN-PROJECT connected_repos (a repo-level link, not a card connection). name is the lowercase `repo` selector; path is relative to this repo root (e.g. ../pyramid-server). reciprocate:true also writes the reverse link into the target repo — only do this with the user’s OK, since it edits the other repo. Upserts by name.',
+      inputSchema: {
+        name: z
+          .string()
+          .describe('lowercase id used as the `repo` selector (e.g. pyramid-server)'),
+        path: z
+          .string()
+          .describe('path to the connected repo root, relative to this repo (e.g. ../pyramid-server)'),
+        description: z.string().optional(),
+        reciprocate: z
+          .boolean()
+          .optional()
+          .describe('also add the reverse link into the target repo (writes there). default false'),
+        reverse_description: z
+          .string()
+          .optional()
+          .describe('description for the reverse link when reciprocate is set; defaults to none'),
+      },
+    },
+    withPlan(async (root, args) => {
+      const { name, path: repoPath, description, reciprocate, reverse_description } = args;
+      if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) {
+        return fail(
+          'INVALID_NAME',
+          `"${name}" is not a valid repo name (lowercase letters, digits, and hyphens).`,
+        );
+      }
+      const index = await loadPlan(root);
+      const planCard = index.cards.get('PLAN-PROJECT');
+      if (!planCard) {
+        return fail(
+          'NO_PLAN_PROJECT',
+          'No plan.md (PLAN-PROJECT) at the plan root to record connected_repos on.',
+        );
+      }
+      const entry: ConnectedRepo = { name, path: repoPath, description };
+      const next = upsertConnectedRepo(await readConnectedRepos(root), entry);
+      const frontmatter = applyCardPatch(planCard.frontmatter, {
+        fields: { connected_repos: next.map(connectedRepoToFm) },
+      });
+      await updateCardFile(planCard.filePath, { frontmatter });
+
+      let reciprocated: unknown;
+      if (reciprocate) {
+        const target = await resolveConnectedRepo(root, repoPath);
+        if (!target) {
+          reciprocated = { ok: false, reason: 'target repo not reachable (no plan found at path)' };
+        } else {
+          const targetPlan = (await loadPlan(target.root)).cards.get('PLAN-PROJECT');
+          if (!targetPlan) {
+            reciprocated = { ok: false, reason: 'target repo has no plan.md (PLAN-PROJECT)' };
+          } else {
+            const homeRepoRoot = path.dirname(root);
+            const reverseName =
+              path
+                .basename(homeRepoRoot)
+                .toLowerCase()
+                .replace(/[^a-z0-9-]/g, '-')
+                .replace(/^-+|-+$/g, '') || 'home';
+            const reverseEntry: ConnectedRepo = {
+              name: reverseName,
+              path: path.relative(target.repoRoot, homeRepoRoot) || '.',
+              description: reverse_description,
+            };
+            const targetNext = upsertConnectedRepo(
+              await readConnectedRepos(target.root),
+              reverseEntry,
+            );
+            await updateCardFile(targetPlan.filePath, {
+              frontmatter: applyCardPatch(targetPlan.frontmatter, {
+                fields: { connected_repos: targetNext.map(connectedRepoToFm) },
+              }),
+            });
+            reciprocated = {
+              ok: true,
+              repo_root: target.repoRoot,
+              entry: connectedRepoToFm(reverseEntry),
+            };
+          }
+        }
+      }
+
+      const lint = await lintPlan(root);
+      return ok({
+        connected_repos: next.map(connectedRepoToFm),
+        reciprocated,
+        issues: issuesForFile(lint.issues, planCard.relPath),
+      });
+    }),
+  );
+
+  server.registerTool(
+    'remove_connected_repo',
+    {
+      description:
+        'Remove a sibling repo from PLAN-PROJECT connected_repos by name. Does not touch the other repo.',
+      inputSchema: { name: z.string() },
+    },
+    withPlan(async (root, { name }) => {
+      const planCard = (await loadPlan(root)).cards.get('PLAN-PROJECT');
+      if (!planCard) {
+        return fail('NO_PLAN_PROJECT', 'No plan.md (PLAN-PROJECT) at the plan root.');
+      }
+      const existing = await readConnectedRepos(root);
+      if (!existing.some((r) => r.name === name)) {
+        return ok({ removed: false, connected_repos: existing.map(connectedRepoToFm) });
+      }
+      const next = removeConnectedRepoEntry(existing, name);
+      await updateCardFile(planCard.filePath, {
+        frontmatter: applyCardPatch(planCard.frontmatter, {
+          fields: { connected_repos: next.length > 0 ? next.map(connectedRepoToFm) : null },
+        }),
+      });
+      const lint = await lintPlan(root);
+      return ok({
+        removed: true,
+        connected_repos: next.map(connectedRepoToFm),
+        issues: issuesForFile(lint.issues, planCard.relPath),
+      });
+    }),
+  );
+
+  server.registerTool(
     'check_integrity',
     {
       annotations: { readOnlyHint: true },
       description:
         'Lint the whole plan: broken handles, dangling references, wrong folders, schema violations, plus orphans (cards with zero connections). Errors break the graph; warnings and orphans are quality signals.',
-      inputSchema: {},
+      inputSchema: { repo: repoSchema },
     },
     withPlan(async (root) => {
       const lint = await lintPlan(root);
@@ -957,6 +1182,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       inputSchema: {
         base: z.string().optional(),
         head: z.string().optional(),
+        repo: repoSchema,
       },
     },
     withPlan(async (root, { base, head }) => {
@@ -972,6 +1198,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       inputSchema: {
         handle: z.string(),
         limit: z.number().int().min(1).max(100).optional(),
+        repo: repoSchema,
       },
     },
     withPlan(async (root, { handle, limit }) => {
@@ -990,7 +1217,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       description:
         'Record that code has been reconciled with the plan as of a commit (default HEAD). diff_plan uses this marker as its default base. Commit the plan first: if constellation/ has uncommitted changes, the marker points at a commit that lacks them and the response includes a warning.',
-      inputSchema: { sha: z.string().optional() },
+      inputSchema: { sha: z.string().optional(), repo: repoSchema },
     },
     withPlan(async (root, { sha }) => {
       const point = await writeSyncPoint(root, sha);

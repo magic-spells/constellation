@@ -40,6 +40,7 @@ constellation init          # scaffold constellation/ with a starter plan.md
 constellation lint          # validate handles, references, folders, schemas
 constellation mcp           # run the MCP server (stdio) for AI agents
 constellation serve         # open the local viewer (editable; --readonly to disable)
+constellation repos         # list sibling repos declared in connected_repos
 ```
 
 Lint errors (broken graph: bad handles, dangling structured references,
@@ -55,7 +56,7 @@ unknown fields, dangling prose links) don't block.
 | `schemas/` | JSON Schemas: `card.json` (reserved keys) + one per type |
 | `skill/` | AI authoring skill: `SKILL.md` + per-type references with golden examples |
 | `src/core/` | Parser, reference extraction, indexer, schema validation, lint |
-| `src/cli/` | The `constellation` binary (`lint`, `init`, `mcp`) |
+| `src/cli/` | The `constellation` binary (`init`, `lint`, `mcp`, `serve`, `repos`) |
 | `src/mcp/` | MCP server: hydrated retrieval, validated writes, git tools |
 | `examples/constellation/` | Golden sample plan — one card of every type, lints clean, doubles as the test fixture |
 
@@ -79,6 +80,10 @@ npm run build            # tsc → dist/
   Body-only updates never reformat frontmatter.
 - **Git-powered change tracking**: `diff_plan` (per-card changes since the sync
   marker), `plan_log`, `set_sync_point`, `check_integrity`.
+- **Connected repos (multi-repo)**: a plan can declare sibling repos
+  (`add_connected_repo` / `list_connected_repos` / `remove_connected_repo`); every
+  tool takes an optional `repo` selector to read or write a sibling's plan. Omit it
+  and single-repo behavior is unchanged.
 - **Visual viewer**: `start_viewer` / `stop_viewer` open and close the local web
   viewer from inside an agent session, returning a clickable URL.
 

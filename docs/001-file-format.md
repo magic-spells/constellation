@@ -212,9 +212,34 @@ planned but not yet written.
   `built` → `verified`), orthogonal to git history. An agent that verifies a card
   against the actual code sets `status: verified`.
 
+## Connected repos (multi-repo)
+
+A project that spans several repos can declare its siblings on `PLAN-PROJECT`. This is the
+one cross-repo concept in the format, and it is deliberately minimal: each repo's
+`constellation/` is identical to a standalone one, references only its own cards, and lints
+clean on its own — connections never cross repos.
+
+`plan.md` frontmatter may carry a `connected_repos` list (validated by `schemas/plan.json`):
+
+```yaml
+connected_repos:
+  - name: pyramid-server          # lowercase id; the `repo` selector in MCP tools
+    path: ../pyramid-server       # relative to this repo's root (or absolute)
+    description: Back-end API for Pyramid, written in Go.
+```
+
+These are **repo-level links only** — never card-to-card connections, never a merged graph.
+The path is local topology (it may differ per machine), so it is **never validated by lint**;
+tooling reports reachability only when something actually uses it. The MCP server's `repo`
+selector resolves a name (or path) to that sibling's plan, so one agent can read or write
+across repos; the per-repo plan remains the unit, and **plan resolution still never crosses a
+repo boundary** on its own — a sibling is reached only when explicitly named.
+
 ## What is deliberately not in the format
 
 - No IDs other than handles. No UUIDs/ULIDs.
+- No cross-repo card references. Cards connect only within their own plan; sibling repos are
+  linked at the project level via `connected_repos` (above), not by handle.
 - No connection kinds, directions, or metadata. If a relationship needs explanation,
   explain it in prose in the body — structure is for navigation, prose is for meaning.
 - No revision/branch/diff machinery. Git does that.

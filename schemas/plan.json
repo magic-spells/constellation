@@ -8,6 +8,33 @@
     "scope": {
       "type": "string",
       "description": "Area this plan covers, e.g. frontend. Omit for the project plan."
+    },
+    "connected_repos": {
+      "type": "array",
+      "description": "Sibling repos this project coordinates with (declare on PLAN-PROJECT). Repo-level links only — NOT card connections; cards never reference another repo's cards. Each entry's path is local topology and is never validated by lint.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "maxLength": 64,
+            "description": "Lowercase id used as the `repo` selector in MCP tools (e.g. pyramid-server)."
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 400,
+            "description": "Path to the connected repo's root, relative to this repo's root (e.g. ../pyramid-server). May be absolute."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 280,
+            "description": "What the connected repo is, e.g. 'Back-end API for Pyramid, written in Go'."
+          }
+        },
+        "required": ["name", "path"],
+        "additionalProperties": false
+      }
     }
   }
 }

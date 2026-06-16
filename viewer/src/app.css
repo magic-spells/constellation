@@ -929,6 +929,30 @@ a.wiki:hover { text-decoration: none; border-color: var(--accent); }
 .row .name { font-family: var(--sans); font-size: 0.92rem; }
 .row .pill { margin-left: auto; }
 
+/* connected repos (home) */
+.repos { display: flex; flex-direction: column; gap: 0.45rem; }
+.repo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  padding: 0.7rem 1rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  animation: rise 0.3s ease both;
+  animation-delay: calc(var(--i) * 18ms);
+}
+.repo .r-name { font: 600 0.9rem var(--sans); }
+.repo .r-path { font: 0.78rem var(--mono); color: var(--text-muted); }
+.repo .r-desc {
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  color: color-mix(in oklab, var(--text) 80%, var(--text-muted));
+  flex-basis: 100%;
+}
+.repos-note { font: 0.78rem var(--sans); color: var(--text-muted); margin: 0.6rem 0 0; }
+
 /* ───────────────────────── card page sections ───────────────────────── */
 
 .section { margin: 2.2rem 0; }

@@ -181,6 +181,42 @@ change against the cards it was meant to satisfy and run the project's build/tes
 trust the sub-agents' reports alone. Only after that whole-plan verification passes do you
 commit and `set_sync_point` (once, as the orchestrator).
 
+## Connected repos (multi-repo work)
+
+One change often spans several sibling repos (e.g. `pyramid-web`, `pyramid-server`,
+`pyramid-mcp`). Constellation models this with **repo-level links**, not cross-repo card
+connections: each project lists its siblings in `PLAN-PROJECT` frontmatter, and every plan
+stays self-contained and lints on its own.
+
+```yaml
+# plan.md (PLAN-PROJECT) frontmatter
+connected_repos:
+  - name: pyramid-server          # the `repo` selector value (lowercase id)
+    path: ../pyramid-server       # relative to this repo's root
+    description: Back-end API for Pyramid, written in Go.
+```
+
+- **Declare** links with `add_connected_repo` (`reciprocate: true` also writes the reverse
+  link into the other repo — only with the user's OK, since it edits that repo). List them
+  with `list_connected_repos` or `constellation repos`; remove with `remove_connected_repo`.
+  Paths are local topology — a missing path is never a lint error, just "not reachable here."
+- **Target** a connected repo by passing `repo: "<name>"` to any read or write tool
+  (`get_card`, `search`, `traverse`, `update_card`, `create_card`, `set_sync_point`, …); it
+  reads/writes THAT repo's plan. Omit `repo` for the current one — single-repo work is
+  unchanged.
+- **Answer cross-repo questions two ways.** For "what does the back end's plan say," read it
+  in-process with `repo:`. For "how does the back end actually work" — real code, or the
+  connected plan can't answer — spawn a **sub-agent scoped to that repo's path** to
+  investigate and report back, and if its plan had the gap, have it fill the gap.
+- **One change across repos:** examine each repo's affected area (`repo:` reads), write the
+  per-repo card updates with `repo:` set on **every** write (never omit it cross-repo, or the
+  write lands in the wrong repo), then fan out a per-repo implementer sub-agent — each runs
+  in plain single-repo mode inside its repo, blind to the others — and reconcile +
+  `set_sync_point` per repo.
+
+Cards never connect across repos; the relationship between repos lives in the
+`connected_repos` links and in your reasoning, not in card connections.
+
 ## Workflow
 
 1. Before creating a card, check it doesn't exist: the filename is deterministic,
