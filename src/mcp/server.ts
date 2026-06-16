@@ -67,6 +67,22 @@ macro view. ALWAYS verify the sub-agents' work yourself after they have all fini
 each change against its cards and run the build/tests; never trust their reports alone — then
 set the sync point once.
 
+Plan-first when changing code: when asked to build a feature or change behavior in an area
+this plan covers, do NOT edit code first. The plan you make leads with Constellation — read
+the affected neighborhood (get_card / traverse / search, connected: "full"), then add or
+update the cards so they describe the desired END STATE (work that isn't built yet is
+status: planned), wiring every connection between the affected cards. Show that set of card
+changes as the proposal; on approval, bring the CODE up to match via the sync loop above.
+FINISH by reconciling — re-read the touched cards against the code, run check_integrity so
+no affected card is left an orphan and every connection is set, bump status (planned →
+building → built → verified), commit, and set_sync_point. In plan mode the write tools are
+unavailable by design (the read tools — get_card, list_cards, search, traverse,
+describe_type, check_integrity, diff_plan, plan_log — are marked read-only and stay
+available), so spend plan mode READING: pull in as much of the relevant plan as you can
+(traverse from the entry points, connected: "full") to build a strong model of the project
+fast, fold the intended card edits into the plan you present, and write them to
+Constellation first, before any code, once the user approves.
+
 For migrations or large scaffolds, use create_cards and add_connections (batched, one
 lint pass) instead of many single calls — connections between cards in the same batch
 resolve without transient "does not resolve" errors. A card is created even when issues
@@ -346,6 +362,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   server.registerTool(
     'get_card',
     {
+      annotations: { readOnlyHint: true },
       description:
         'Fetch one card by handle, optionally with all connected cards hydrated. connected: "full" returns the complete frontmatter and body of every connected card — use it when about to work on an area.',
       inputSchema: {
@@ -367,6 +384,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   server.registerTool(
     'list_cards',
     {
+      annotations: { readOnlyHint: true },
       description:
         'Catalog of cards filtered by type, kind, status, and/or connectedness. connected:false returns orphans (cards with zero connections). Returns summaries (handle, type, kind, name, status).',
       inputSchema: {
@@ -400,6 +418,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   server.registerTool(
     'search',
     {
+      annotations: { readOnlyHint: true },
       description:
         'Scored full-text search over handles, names, kinds, and bodies. Set connected: "full" to hydrate each match with the complete content of its connected cards — fuzzy query to working context in one call.',
       inputSchema: {
@@ -426,6 +445,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   server.registerTool(
     'traverse',
     {
+      annotations: { readOnlyHint: true },
       description:
         'Breadth-first walk of the connection graph from one or more starting handles. Seed it with diff_plan output for impact analysis. detail: "full" includes frontmatter and body of every reached card.',
       inputSchema: {
@@ -484,6 +504,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   server.registerTool(
     'describe_type',
     {
+      annotations: { readOnlyHint: true },
       description:
         'The card-type reference, served straight from this package. Call with no args for the catalog — all 17 types with their prefix, folder, and one-line purpose. Call with a type for everything needed to author one: the frontmatter JSON Schema (fields, which are required, descriptions) plus the golden example and authoring guidance. Use it before writing a card of a type you have not authored this session — it is the contract create_card/create_cards/update_card validate against (W002/W003), so you do not need the authoring skill loaded to get the fields right.',
       inputSchema: {
@@ -907,6 +928,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   server.registerTool(
     'check_integrity',
     {
+      annotations: { readOnlyHint: true },
       description:
         'Lint the whole plan: broken handles, dangling references, wrong folders, schema violations, plus orphans (cards with zero connections). Errors break the graph; warnings and orphans are quality signals.',
       inputSchema: {},
@@ -929,6 +951,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   server.registerTool(
     'diff_plan',
     {
+      annotations: { readOnlyHint: true },
       description:
         'Per-card plan changes from git. base defaults to the sync marker (constellation/.sync.json) or HEAD; head defaults to the working tree. Returns added/modified/removed cards with changed frontmatter keys. Feed the handles to traverse for blast radius.',
       inputSchema: {
@@ -944,6 +967,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   server.registerTool(
     'plan_log',
     {
+      annotations: { readOnlyHint: true },
       description: 'Git history of one card: the commits that touched its file.',
       inputSchema: {
         handle: z.string(),

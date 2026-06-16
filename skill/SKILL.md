@@ -123,6 +123,33 @@ pass.
 
 **Orchestrate a large build.** For a non-trivial plan, after the macro pass act as the **orchestrator**: split the work into independent neighborhoods (the data, the user, the edges) and fan out a sub-agent per neighborhood in parallel — assign each card to exactly one agent (one handle = one file, so this also keeps writes to disjoint plan files and concurrent `update_card`s can't clobber), partition the research on area/file boundaries, and have them return card specs you write via batched `create_cards`/`add_connections`, then verify each agent's work and lint once. A single agent for a small plan — don't over-engineer.
 
+## Changing code: plan-first
+
+When the user asks to build a feature or change behavior in an area the plan covers, the
+plan **is** the spec — so do **not** edit code first. The plan you make leads with
+Constellation:
+
+1. **Read the neighborhood** — `get_card` / `traverse` / `search` (`connected: "full"`) the
+   cards the change touches, so you work from the real architecture, not a guess.
+2. **Express the end state in the plan** — add or update the cards (and `plan.md`) so they
+   describe what you're about to build, wiring every connection between the affected cards.
+   Work that doesn't exist yet is `status: planned` — honest intent, not a claim it's built.
+3. **Get sign-off on the plan diff** — show the user that set of card changes as the
+   proposal (`git diff -- constellation/` is the diff). The plan is what they approve.
+4. **Then bring the code up to match** — via the sync loop below.
+5. **Reconcile at the end** — re-read the touched cards against the code, run
+   `check_integrity` to confirm no affected card is left an orphan and every intended
+   connection is set, bump `status` (`planned → building → built → verified`), commit, and
+   `set_sync_point`.
+
+**In plan mode, read as much of the plan as you can.** The write tools are unavailable there
+by design (the read tools — `get_card`, `list_cards`, `search`, `traverse`, `describe_type`,
+`check_integrity`, `diff_plan`, `plan_log` — are marked read-only and stay available). Spend
+plan mode pulling the relevant plan into context — `traverse` from the entry points with
+`connected: "full"` — to build a strong model of the project fast, and fold the card edits
+you intend into the plan you present. Execute those Constellation writes first, before any
+code, once the user approves.
+
 ## Syncing the plan to code
 
 The plan is the source of truth: you change behavior by editing the **plan first**, then

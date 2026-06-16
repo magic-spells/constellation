@@ -217,3 +217,9 @@ the smallest set of changes that most improves the plan — not the most cards.
   so no two agents edit the same file, and give each card to exactly one agent so concurrent
   `update_card`s can't clobber each other) and always verify the agents' work yourself before
   setting the marker.
+- Building something new also goes **plan-first**: don't edit code first — read the affected
+  neighborhood, express the desired end state as cards (new work as `planned`) with their
+  connections wired, get sign-off on the plan diff, then run that same code-up-to-plan loop and
+  reconcile (`check_integrity` for orphans, status bumps, `set_sync_point`). In plan mode, where
+  writes are blocked, read the plan heavily to model the project fast and present the card edits
+  you'll make. Full steps in *Changing code: plan-first* in `SKILL.md`.

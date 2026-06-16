@@ -107,6 +107,31 @@ step back and pressure-test the plan for blind spots (missing unhappy paths, aut
 forgotten cross-cutting concerns) and recommend. The full method is in
 [`skill/methodology.md`](skill/methodology.md).
 
+### Add to Codex
+
+Codex CLI keeps MCP servers in `~/.codex/config.toml` (TOML, not JSON). Add it with the CLI:
+
+```sh
+# Run straight from npm — no install needed:
+codex mcp add constellation -- npx -y @magic-spells/constellation mcp
+
+# Or, if installed globally (npm i -g @magic-spells/constellation):
+codex mcp add constellation -- constellation mcp
+```
+
+…or hand-edit the config (a project-scoped `.codex/config.toml` also works in trusted repos):
+
+```toml
+[mcp_servers.constellation]
+command = "npx"
+args = ["-y", "@magic-spells/constellation", "mcp"]
+cwd = "/path/to/your/repo"   # so the server walks up to your plan
+```
+
+Launch `codex` from your repo root (or set `cwd` above) so the server starts there and finds
+the plan — otherwise tools return `NO_PLAN_FOUND`. Run `/mcp` inside a Codex session to confirm
+it's connected; manage it with `codex mcp list` and `codex mcp remove constellation`.
+
 ### Other MCP clients
 
 Hand-edit the client's config (Claude Desktop, a project `.mcp.json`, etc.):
