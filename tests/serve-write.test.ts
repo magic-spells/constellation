@@ -91,6 +91,29 @@ describe('write endpoints', () => {
     expect((await created.json()).error.code).toBe('INVALID_FIELDS');
   });
 
+  it('reports malformed request bodies as client errors', async () => {
+    const invalidJson = await api('/api/card/EVENT-TICKET-CREATED', {
+      method: 'PATCH',
+      body: '{',
+    });
+    expect(invalidJson.status).toBe(400);
+    expect((await invalidJson.json()).error.code).toBe('INVALID_JSON');
+
+    const invalidBody = await api('/api/card/EVENT-TICKET-CREATED', {
+      method: 'PATCH',
+      body: JSON.stringify([]),
+    });
+    expect(invalidBody.status).toBe(400);
+    expect((await invalidBody.json()).error.code).toBe('INVALID_BODY');
+
+    const tooLarge = await api('/api/card/EVENT-TICKET-CREATED', {
+      method: 'PATCH',
+      body: 'x'.repeat(2 * 1024 * 1024 + 1),
+    });
+    expect(tooLarge.status).toBe(413);
+    expect((await tooLarge.json()).error.code).toBe('BODY_TOO_LARGE');
+  });
+
   it('PATCH with stale if_mtime returns 409', async () => {
     const card = await getCard('API-TICKETS');
     const res = await api('/api/card/API-TICKETS', {

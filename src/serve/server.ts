@@ -32,6 +32,17 @@ const MIME: Record<string, string> = {
   '.ico': 'image/x-icon',
 };
 
+class RequestBodyError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'RequestBodyError';
+  }
+}
+
 async function cardPayload(card: Card) {
   let mtime = 0;
   try {
@@ -275,6 +286,9 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
 
       await serveStatic(url.pathname, res);
     } catch (err) {
+      if (err instanceof RequestBodyError) {
+        return failure(res, err.status, err.code, err.message);
+      }
       failure(res, 500, 'INTERNAL', err instanceof Error ? err.message : 'error');
     }
   });
@@ -317,13 +331,20 @@ async function readJson(req: http.IncomingMessage): Promise<Record<string, unkno
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > 2 * 1024 * 1024) throw new Error('Request body too large');
+    if (size > 2 * 1024 * 1024) {
+      throw new RequestBodyError(413, 'BODY_TOO_LARGE', 'Request body too large');
+    }
     chunks.push(chunk as Buffer);
   }
   const text = Buffer.concat(chunks).toString('utf8');
-  const parsed: unknown = text ? JSON.parse(text) : {};
+  let parsed: unknown;
+  try {
+    parsed = text ? JSON.parse(text) : {};
+  } catch {
+    throw new RequestBodyError(400, 'INVALID_JSON', 'Request body must be valid JSON');
+  }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Expected a JSON object body');
+    throw new RequestBodyError(400, 'INVALID_BODY', 'Expected a JSON object body');
   }
   return parsed as Record<string, unknown>;
 }

@@ -1,4 +1,4 @@
-import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,7 @@ import { buildServer } from '../src/mcp/server.js';
 const GOLDEN = fileURLToPath(new URL('../examples/constellation', import.meta.url));
 
 let dir: string;
+let planRoot: string;
 let client: Client;
 
 async function call(name: string, args: Record<string, unknown> = {}) {
@@ -20,7 +21,7 @@ async function call(name: string, args: Record<string, unknown> = {}) {
 
 beforeAll(async () => {
   dir = await mkdtemp(path.join(tmpdir(), 'constellation-robust-'));
-  const planRoot = path.join(dir, 'constellation');
+  planRoot = path.join(dir, 'constellation');
   await cp(GOLDEN, planRoot, { recursive: true });
 
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -87,6 +88,21 @@ describe('bulk connections', () => {
     });
     expect(data.added).toBe(0);
     expect(data.failed[0].error).toContain('NOT_FOUND');
+  });
+
+  it('add_connections tolerates malformed existing connection entries', async () => {
+    const file = path.join(planRoot, 'doc', 'DOC-MALFORMED-CONNECTIONS.md');
+    await writeFile(file, '---\nconnections:\n  - 123\n---\n\nMalformed but repairable.\n');
+
+    const { data, isError } = await call('add_connections', {
+      connections: [{ from: 'DOC-MALFORMED-CONNECTIONS', to: 'DOC-TICKET-LIFECYCLE' }],
+    });
+
+    expect(isError).toBe(false);
+    expect(data.added).toBe(1);
+    const after = await readFile(file, 'utf8');
+    expect(after).toContain('- DOC-TICKET-LIFECYCLE');
+    expect(after).not.toContain('- 123');
   });
 });
 

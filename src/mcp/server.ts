@@ -228,6 +228,26 @@ function fail(code: string, message: string): ToolResult {
   };
 }
 
+async function openUrl(url: string): Promise<void> {
+  try {
+    const { spawn } = await import('node:child_process');
+    const child =
+      process.platform === 'darwin'
+        ? spawn('open', [url], { stdio: 'ignore', detached: true })
+        : process.platform === 'win32'
+          ? spawn('cmd', ['/c', 'start', '', url], {
+              stdio: 'ignore',
+              detached: true,
+              windowsHide: true,
+            })
+          : spawn('xdg-open', [url], { stdio: 'ignore', detached: true });
+    child.on('error', () => {});
+    child.unref();
+  } catch {
+    // Opening the browser is best-effort; callers still receive the URL.
+  }
+}
+
 function summary(card: Card) {
   return {
     handle: card.handle,
@@ -817,7 +837,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       for (const [src, targets] of additions) {
         const card = index.cards.get(src)!;
         const existingList = Array.isArray(card.frontmatter.connections)
-          ? (card.frontmatter.connections as string[])
+          ? card.frontmatter.connections.filter((c): c is string => typeof c === 'string')
           : [];
         const merged = [...new Set([...existingList, ...targets])];
         const frontmatter = applyCardPatch(card.frontmatter, { connections: merged });
@@ -1009,7 +1029,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       annotations: { readOnlyHint: true },
       description:
         'List the sibling repos declared on PLAN-PROJECT connected_repos, each with its path, description, and whether it is reachable on this machine. Use a name as the `repo` selector on other tools to read or write that repo. Repo-level links only — not card connections.',
-      inputSchema: {},
+      inputSchema: { repo: repoSchema },
     },
     withPlan(async (root) => {
       const repos = await listConnectedRepos(root);
@@ -1045,6 +1065,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .string()
           .optional()
           .describe('description for the reverse link when reciprocate is set; defaults to none'),
+        repo: repoSchema,
       },
     },
     withPlan(async (root, args) => {
@@ -1124,7 +1145,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       description:
         'Remove a sibling repo from PLAN-PROJECT connected_repos by name. Does not touch the other repo.',
-      inputSchema: { name: z.string() },
+      inputSchema: { name: z.string(), repo: repoSchema },
     },
     withPlan(async (root, { name }) => {
       const planCard = (await loadPlan(root)).cards.get('PLAN-PROJECT');
@@ -1287,14 +1308,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       const url = `http://localhost:${running.port}/`;
       viewer = { server: running, planRoot: root, url };
       if (open) {
-        const { spawn } = await import('node:child_process');
-        const cmd =
-          process.platform === 'darwin'
-            ? 'open'
-            : process.platform === 'win32'
-              ? 'start'
-              : 'xdg-open';
-        spawn(cmd, [url], { stdio: 'ignore', detached: true }).unref();
+        await openUrl(url);
       }
       return ok({ url, port: running.port, plan_root: root, editable: !(readonly ?? false) });
     }),

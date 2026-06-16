@@ -35,7 +35,7 @@ npm run build:viewer     # build static viewer assets → viewer/dist
 npm run serve:examples   # serve the golden plan in the viewer (no auto-open)
 ```
 
-CLI surface (`src/cli/index.ts`): `init`, `lint`, `mcp`, `serve`.
+CLI surface (`src/cli/index.ts`): `init`, `lint`, `mcp`, `serve`, `repos`.
 `lint` exits **1** on errors, **0** otherwise (warnings never fail); **2** when no plan is found.
 
 ## Architecture
@@ -52,6 +52,7 @@ The pipeline is one direction: **files → index → (lint | serve | MCP)**.
 | `src/core/lint.ts` | `loadPlan` + schema validation, sorted. |
 | `src/core/writer.ts` | Byte-preserving card writes + deep-merge patch semantics (shared by MCP and viewer). |
 | `src/core/resolve.ts` | Find the plan folder by walking up from cwd, **bounded by the repo root**. |
+| `src/core/repos.ts` | Connected-repo declarations on `PLAN-PROJECT` (`connected_repos`) and repo selector resolution. |
 | `src/cli/index.ts` | The `constellation` binary. |
 | `src/mcp/` | MCP server (`server.ts`), full-text search (`search.ts`), git change-tracking (`git.ts`). |
 | `src/serve/server.ts` | Local HTTP server: serves `viewer/dist`, a read API, and a PATCH/POST/DELETE write API; watches files for live reload. |
@@ -64,6 +65,7 @@ The pipeline is one direction: **files → index → (lint | serve | MCP)**.
 - **Connections are undirected and deduped.** Endpoints are stored sorted (`a < b`); declaring a connection on either side is enough.
 - **Writes preserve bytes.** `updateCardFile` re-serializes only the top-level frontmatter keys whose values actually changed and keeps the body byte-for-byte on a frontmatter-only update (and vice versa). A `status` flip must not reformat a neighboring table. Keep it that way.
 - **Plan resolution never crosses a repo boundary.** `findPlanUp` stops at the first ancestor containing `.git` and returns null rather than adopting a sibling repo's plan.
+- **Connected repos are repo-level links only.** `connected_repos` on `PLAN-PROJECT` can point to sibling repo roots; cards never connect across repos, lint never validates local sibling paths, and MCP tools only target a sibling when `repo` is explicitly passed.
 - **Four frontmatter keys are reserved:** `name`, `kind`, `status`, `connections`. Type-specific `fields` may not use them; writer/MCP reject reserved keys in `fields`.
 - **`plan.md` at the plan root is the one special file** — its handle is `PLAN-PROJECT`, and it's the only card not named after its handle / not in a type folder.
 - **Agent guidance lives in two unshared copies — update both.** The MCP server embeds its own `INSTRUCTIONS` string (`src/mcp/server.ts`) and never reads the skill; the skill (`skill/SKILL.md`, `skill/methodology.md`) is loaded only by the agent harness. Neither imports the other. Any change to *how an agent should use the plan* — workflows, commands, terminology, the plan↔code sync loop — must land in **both**, and stay consistent with the spec in `docs/`.
@@ -98,6 +100,7 @@ touch type plumbing, make sure all four locations land together.)
 - **Hydrated retrieval:** `get_card` / `search` / `traverse` can return connected cards' *full* frontmatter and body in one call (`connected: "full"`).
 - **Validated writes:** every write tool lints and returns the issues for the file it touched. A card is still created/updated when issues come back — issues are lint *state*, not failure. `create_cards` / `add_connections` batch and lint **once** so intra-batch references resolve.
 - **Git change-tracking:** `diff_plan` (per-card changes since the `.sync.json` marker or HEAD), `plan_log`, `set_sync_point`, `check_integrity`. Never stamp dirty flags into cards — git is the source of truth for change.
+- **Connected repos:** `list_connected_repos`, `add_connected_repo`, and `remove_connected_repo` manage `PLAN-PROJECT.connected_repos`; every read/write tool, including those management tools, accepts optional `repo` to target a connected repo explicitly.
 
 ## Conventions / gotchas
 

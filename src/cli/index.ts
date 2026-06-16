@@ -16,6 +16,26 @@ const { name, version } = require('../../package.json') as { name: string; versi
 
 const program = new Command();
 
+async function openUrl(url: string): Promise<void> {
+  try {
+    const { spawn } = await import('node:child_process');
+    const child =
+      process.platform === 'darwin'
+        ? spawn('open', [url], { stdio: 'ignore', detached: true })
+        : process.platform === 'win32'
+          ? spawn('cmd', ['/c', 'start', '', url], {
+              stdio: 'ignore',
+              detached: true,
+              windowsHide: true,
+            })
+          : spawn('xdg-open', [url], { stdio: 'ignore', detached: true });
+    child.on('error', () => {});
+    child.unref();
+  } catch {
+    // Opening the browser is best-effort; the server URL is still printed.
+  }
+}
+
 program
   .name('constellation')
   .description('Files-first architecture planning for AI-assisted development')
@@ -148,14 +168,7 @@ program
     console.log(`${pc.green('✓')} Constellation viewer at ${pc.underline(url)}`);
     console.log(pc.dim(`  plan: ${root}`));
     if (opts.open) {
-      const { spawn } = await import('node:child_process');
-      const cmd =
-        process.platform === 'darwin'
-          ? 'open'
-          : process.platform === 'win32'
-            ? 'start'
-            : 'xdg-open';
-      spawn(cmd, [url], { stdio: 'ignore', detached: true }).unref();
+      await openUrl(url);
     }
   });
 

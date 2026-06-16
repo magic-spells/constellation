@@ -122,6 +122,27 @@ describe('connected repos over MCP', () => {
     expect(serverMd).toContain('../pyramid-web');
   });
 
+  it('connected repo management tools honor the repo selector', async () => {
+    await call('add_connected_repo', {
+      repo: 'pyramid-server',
+      name: 'analytics',
+      path: '../analytics',
+      description: 'Analytics pipeline',
+    });
+
+    const { data: selected } = await call('list_connected_repos', { repo: 'pyramid-server' });
+    expect(
+      selected.connected_repos.find((r: { name: string }) => r.name === 'analytics'),
+    ).toMatchObject({ path: '../analytics', description: 'Analytics pipeline' });
+
+    const { data: home } = await call('list_connected_repos');
+    expect(home.connected_repos.some((r: { name: string }) => r.name === 'analytics')).toBe(false);
+
+    await call('remove_connected_repo', { repo: 'pyramid-server', name: 'analytics' });
+    const { data: removed } = await call('list_connected_repos', { repo: 'pyramid-server' });
+    expect(removed.connected_repos.some((r: { name: string }) => r.name === 'analytics')).toBe(false);
+  });
+
   it('remove_connected_repo drops the link', async () => {
     await call('remove_connected_repo', { name: 'ghost' });
     const { data } = await call('list_connected_repos');

@@ -160,9 +160,9 @@ may not be your project — in which case tools return `NO_PLAN_FOUND`.
 ## Viewer
 
 `constellation serve` renders the plan as a local website, **editable in place**
-(pass `--readonly` to disable writes). Eight themes toggle in the header:
+(pass `--readonly` to disable writes). Nine themes toggle in the header:
 **observatory** (dark, star-field), **claw** (cream paper, serif, coral accents),
-**black**, **synthwave**, **sumi**, **daylight**, **frost**, and **ember**.
+**black**, **synthwave**, **sumi**, **daylight**, **frost**, **ember**, and **corona**.
 Card pages show structured fields, the
 markdown body, connection chips in both directions, and a small constellation
 diagram of the card's neighborhood — its nodes tinted by card type. Mermaid blocks
