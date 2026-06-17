@@ -41,6 +41,8 @@ constellation lint          # validate handles, references, folders, schemas
 constellation mcp           # run the MCP server (stdio) for AI agents
 constellation serve         # open the local viewer (editable; --readonly to disable)
 constellation repos         # list sibling repos declared in connected_repos
+constellation version       # print the CLI version (`v` also works)
+constellation upgrade       # npm install -g @magic-spells/constellation@latest
 ```
 
 Lint errors (broken graph: bad handles, dangling structured references,

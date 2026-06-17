@@ -35,7 +35,7 @@ npm run build:viewer     # build static viewer assets → viewer/dist
 npm run serve:examples   # serve the golden plan in the viewer (no auto-open)
 ```
 
-CLI surface (`src/cli/index.ts`): `init`, `lint`, `mcp`, `serve`, `repos`.
+CLI surface (`src/cli/index.ts`): `init`, `lint`, `mcp`, `serve`, `repos`, `version`/`v`, `upgrade`.
 `lint` exits **1** on errors, **0** otherwise (warnings never fail); **2** when no plan is found.
 
 ## Architecture

@@ -294,7 +294,7 @@ export interface ServerOptions {
 
 export function buildServer(options: ServerOptions = {}): McpServer {
   const server = new McpServer(
-    { name: 'constellation', version: '0.2.0' },
+    { name: 'constellation', version: '0.2.1' },
     { instructions: INSTRUCTIONS },
   );
 

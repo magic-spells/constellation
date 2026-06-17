@@ -36,6 +36,19 @@ async function openUrl(url: string): Promise<void> {
   }
 }
 
+async function upgradeCli(): Promise<void> {
+  const { spawn } = await import('node:child_process');
+  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const child = spawn(npm, ['install', '-g', `${name}@latest`], {
+    stdio: 'inherit',
+  });
+  const code = await new Promise<number>((resolve) => {
+    child.on('error', () => resolve(1));
+    child.on('close', (exitCode) => resolve(exitCode ?? 1));
+  });
+  process.exit(code);
+}
+
 program
   .name('constellation')
   .description('Files-first architecture planning for AI-assisted development')
@@ -43,6 +56,22 @@ program
 
 // Update notice on every human command, but never for `mcp` (its stdout is JSON-RPC).
 if (process.argv[2] !== 'mcp') notifyUpdate(name, version);
+
+for (const command of ['version', 'v']) {
+  program
+    .command(command)
+    .description('Print the Constellation CLI version')
+    .action(() => {
+      console.log(version);
+    });
+}
+
+program
+  .command('upgrade')
+  .description('Upgrade the globally installed Constellation CLI with npm')
+  .action(async () => {
+    await upgradeCli();
+  });
 
 program
   .command('lint')
