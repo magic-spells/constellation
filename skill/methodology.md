@@ -211,8 +211,11 @@ the smallest set of changes that most improves the plan — not the most cards.
 - When reverse-engineering shipped code, default new cards to `built`, then verify in a
   second pass — don't claim `verified` you haven't earned.
 - After reconciling the plan with code, commit the plan, then `set_sync_point` to mark the
-  reconciliation. Change history is git (`diff_plan`, `plan_log`) — never stamp dirty
-  flags, changelogs, or timestamps into cards.
+  reconciliation. Change history is git (`diff_plan`, `plan_log`) — never stamp dirty flags
+  or changelogs into cards. The one allowed baseline is verification provenance: mark a card
+  `verified` with `set_verified` (it records `verified_sha`, the sha you checked against), so
+  `stale_report` / `check_sync` can later flag the card if its bound code moved. The
+  staleness verdict stays live — recomputed from git, never stored.
 - The opposite direction — bringing **code** up to a changed **plan** ("sync the plan to
   the code") — is its own loop, documented in *Syncing the plan to code* in `SKILL.md`:
   `diff_plan` → `traverse` the blast radius → update code → verify → `set_sync_point`. For a

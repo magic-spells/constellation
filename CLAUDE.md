@@ -50,7 +50,8 @@ The pipeline is one direction: **files → index → (lint | serve | MCP)**.
 | `src/core/indexer.ts` | `loadPlan(root)` — read every card, dedupe handles, resolve refs, build undirected connections, collect structural issues. The heart of the system. |
 | `src/core/validate.ts` | Ajv schema validation against `schemas/` → W002/W003. |
 | `src/core/lint.ts` | `loadPlan` + schema validation, sorted. |
-| `src/core/writer.ts` | Byte-preserving card writes + deep-merge patch semantics (shared by MCP and viewer). |
+| `src/core/writer.ts` | Byte-preserving card writes + deep-merge patch semantics + note-append / section-replace helpers (shared by MCP and viewer). |
+| `src/core/code.ts` | Code binding: resolve a card's bound files (connected FILE `path:` + own `code_refs`) and attach contents under size caps (shared by `get_card` code mode, `stale_report`, `assemble`). |
 | `src/core/resolve.ts` | Find the plan folder by walking up from cwd, **bounded by the repo root**. |
 | `src/core/repos.ts` | Connected-repo declarations on `PLAN-PROJECT` (`connected_repos`) and repo selector resolution. |
 | `src/cli/index.ts` | The `constellation` binary. |
@@ -60,15 +61,15 @@ The pipeline is one direction: **files → index → (lint | serve | MCP)**.
 
 ### Invariants — don't break these
 
-- **Nothing derived is stored.** Connections, the graph, orphan status: all recomputed from files on every load. Never persist them into a card.
+- **Nothing derived is stored.** Connections, the graph, orphan status: all recomputed from files on every load. Never persist them into a card. The one recorded per-card baseline is `verified_sha`/`verified_at` (from `set_verified`) — verification *provenance*, not a derived value or a change flag; the drift *verdict* over it is still recomputed live by `stale_report`/`check_sync` and never stored.
 - **Structured refs are contracts; prose refs are aspirational.** A missing target in `connections`/frontmatter is an **error** (E005); a missing `[[link]]`/mermaid target is a **warning** (W004) — prose may point at a not-yet-written card.
 - **Connections are undirected and deduped.** Endpoints are stored sorted (`a < b`); declaring a connection on either side is enough.
 - **Writes preserve bytes.** `updateCardFile` re-serializes only the top-level frontmatter keys whose values actually changed and keeps the body byte-for-byte on a frontmatter-only update (and vice versa). A `status` flip must not reformat a neighboring table. Keep it that way.
 - **Plan resolution never crosses a repo boundary.** `findPlanUp` stops at the first ancestor containing `.git` and returns null rather than adopting a sibling repo's plan.
 - **Connected repos are repo-level links only.** `connected_repos` on `PLAN-PROJECT` can point to sibling repo roots; cards never connect across repos, lint never validates local sibling paths, and MCP tools only target a sibling when `repo` is explicitly passed.
-- **Four frontmatter keys are reserved:** `name`, `kind`, `status`, `connections`. Type-specific `fields` may not use them; writer/MCP reject reserved keys in `fields`.
+- **Four frontmatter keys are reserved:** `name`, `kind`, `status`, `connections`. Type-specific `fields` may not use them; writer/MCP reject reserved keys in `fields`. **`schemas/card.json` is also the home for cross-type metadata** — `code_refs`, `verified_sha`, `verified_at`, `notes` — valid on every type and tool-managed (not reserved, not hand-authored). `validate.ts` derives the W003 base allow-list from card.json's properties (not a hardcoded list), so a field added there is blessed on all 17 types and AJV validates its shape (W002). Add cross-type metadata to card.json, not to each type schema.
 - **`plan.md` at the plan root is the one special file** — its handle is `PLAN-PROJECT`, and it's the only card not named after its handle / not in a type folder.
-- **Agent guidance lives in two unshared copies — update both.** The MCP server embeds its own `INSTRUCTIONS` string (`src/mcp/server.ts`) and never reads the skill; the skill (`skill/SKILL.md`, `skill/methodology.md`) is loaded only by the agent harness. Neither imports the other. Any change to *how an agent should use the plan* — workflows, commands, terminology, the plan↔code sync loop — must land in **both**, and stay consistent with the spec in `docs/`.
+- **Agent guidance lives in three unshared copies — update all three.** The MCP server embeds its own `INSTRUCTIONS` string (`src/mcp/server.ts`) and never reads the skill; the skill is itself two files loaded only by the agent harness — `skill/SKILL.md` and `skill/methodology.md`. None of the three imports another. Any change to *how an agent should use the plan* — workflows, commands, terminology, the plan↔code sync loop, the tool surface — must land in **all three**, and stay consistent with the spec in `docs/`.
 
 ### Lint codes (keep in sync with `docs/001-file-format.md`)
 
@@ -99,6 +100,8 @@ touch type plumbing, make sure all four locations land together.)
 
 - **Hydrated retrieval:** `get_card` / `search` / `traverse` can return connected cards' *full* frontmatter and body in one call (`connected: "full"`).
 - **Validated writes:** every write tool lints and returns the issues for the file it touched. A card is still created/updated when issues come back — issues are lint *state*, not failure. `create_cards` / `add_connections` batch and lint **once** so intra-batch references resolve.
+- **Cheap writes (keep the memory honest):** `append_note` (append-only typed note — decision/gotcha/state/deviation/verified) and `edit_section` (replace one `##` section) are byte-preserving — the low-friction path that prevents drift.
+- **Code binding, drift & assembly:** a card binds to code via a connected FILE card's `path:` or its own `code_refs`. `get_card(code: "paths"|"direct")` attaches it; `set_verified` stamps the `verified_sha` baseline; `stale_report` / `check_sync` flag reverse drift (bound code changed since verify); `assemble` builds file-disjoint work packages from a delta. All same-repo — cards never bind across repos.
 - **Git change-tracking:** `diff_plan` (per-card changes since the `.sync.json` marker or HEAD), `plan_log`, `set_sync_point`, `check_integrity`. Never stamp dirty flags into cards — git is the source of truth for change.
 - **Connected repos:** `list_connected_repos`, `add_connected_repo`, and `remove_connected_repo` manage `PLAN-PROJECT.connected_repos`; every read/write tool, including those management tools, accepts optional `repo` to target a connected repo explicitly.
 

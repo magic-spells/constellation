@@ -19,7 +19,18 @@ export interface SchemaSet {
   validateCard(card: Card): Issue[];
 }
 
+// The four reserved keys, plus any cross-type metadata fields card.json defines
+// (code_refs, verified_sha, verified_at, notes). Deriving the base allow-list
+// from card.json — rather than a hardcoded list — means a new optional metadata
+// field is blessed on every type the moment it is added to the schema, and AJV
+// validates its shape (W002) on every card via cardValidator.
 const RESERVED_KEYS = ['name', 'kind', 'status', 'connections'];
+
+function baseKeysFrom(cardSchema: Record<string, unknown> | undefined): string[] {
+  const props = (cardSchema?.properties as Record<string, unknown> | undefined) ?? {};
+  const keys = Object.keys(props);
+  return keys.length > 0 ? keys : RESERVED_KEYS;
+}
 
 export async function loadSchemas(schemasDir?: string): Promise<SchemaSet> {
   const dir =
@@ -35,6 +46,7 @@ export async function loadSchemas(schemasDir?: string): Promise<SchemaSet> {
   }
 
   const cardValidator = ajv.getSchema('card.json') as ValidateFn;
+  const baseKeys = baseKeysFrom(raw.get('card.json'));
   const typeValidators = new Map<TypeName, ValidateFn>();
   const knownKeys = new Map<TypeName, Set<string>>();
 
@@ -46,7 +58,7 @@ export async function loadSchemas(schemasDir?: string): Promise<SchemaSet> {
     const props = Object.keys(
       (schema.properties as Record<string, unknown> | undefined) ?? {},
     );
-    knownKeys.set(type as TypeName, new Set([...RESERVED_KEYS, ...props]));
+    knownKeys.set(type as TypeName, new Set([...baseKeys, ...props]));
   }
 
   return {
@@ -69,7 +81,7 @@ export async function loadSchemas(schemasDir?: string): Promise<SchemaSet> {
         }
       }
 
-      const known = knownKeys.get(card.type) ?? new Set(RESERVED_KEYS);
+      const known = knownKeys.get(card.type) ?? new Set(baseKeys);
       for (const key of Object.keys(card.frontmatter)) {
         if (!known.has(key)) {
           issues.push({

@@ -119,6 +119,16 @@ YAML frontmatter is optional. Four keys are **reserved** (defined in
 | `status`      | enum     | Lifecycle: `planned` \| `building` \| `built` \| `verified`  |
 | `connections` | string[] | Plain list of handles this card is connected to              |
 
+Beyond the reserved keys, `schemas/card.json` also defines a few **cross-type metadata
+fields** — valid on *any* card and managed by tooling rather than hand-authored:
+
+| Key            | Type     | Meaning                                                                 |
+|----------------|----------|------------------------------------------------------------------------|
+| `code_refs`    | string[] | Code the card is bound to (`path` or `path:symbol`), for drift detection and code attach. The *primary* binding stays a connected `FILE` card's `path:`; `code_refs` adds precision where it earns its keep. |
+| `verified_sha` | string   | Git sha the card was last verified against — the drift baseline (see *Change tracking* below). |
+| `verified_at`  | string   | ISO-8601 time the card was last verified. |
+| `notes`        | object[] | Append-only typed memory: `{ kind, text, sha? }`, `kind ∈ decision \| gotcha \| state \| deviation \| verified`. Ordered newest-last (position is recency); no timestamps. |
+
 Type-specific fields sit at the top level of frontmatter (not nested under a `data` key).
 Schemas are permissive: almost nothing is required, known fields are typed, unknown
 fields are allowed (lint warns so typos get caught).
@@ -193,7 +203,7 @@ flowchart or actually a STATE card.
 |------|------|
 | W001 | Card is not in the folder matching its type |
 | W002 | Frontmatter violates the type's JSON Schema |
-| W003 | Unknown frontmatter field (not reserved, not in the type schema) |
+| W003 | Unknown frontmatter field (not a reserved/cross-type key from `card.json`, not in the type schema) |
 | W004 | Body `[[link]]` or Mermaid reference resolves to no card |
 
 The split between E005 and W004 is deliberate: structured references (frontmatter) are
@@ -205,12 +215,20 @@ planned but not yet written.
 - **What changed**: `git diff <ref> -- constellation/` . Plan changes ride branches and
   PRs like any other change; reviewing a plan PR is the human approval gate before an
   AI syncs code to it.
-- **Sync marker**: a reconciling agent records the last plan commit it synced code
-  against (e.g. a `constellation-synced` tag or a SHA noted in `plan.md`). "Dirty" =
-  everything in `git diff <synced>..HEAD -- constellation/`. No per-card stamping.
+- **Sync marker**: a reconciling agent records the last plan commit it synced code against in
+  `constellation/.sync.json` (plan-global, written by `set_sync_point`). "Drifted" = anything
+  in `git diff <synced>..HEAD -- constellation/` (the plan moved) or code commits since the
+  marker (the code moved).
 - **Lifecycle**: `status` tracks where a card is in its life (`planned` → `building` →
   `built` → `verified`), orthogonal to git history. An agent that verifies a card
   against the actual code sets `status: verified`.
+- **Verification provenance vs. change tracking.** "What changed" is never stamped into a card
+  — that's git's job: no dirty flags, no changelogs, no per-card *change* marks. The one
+  recorded per-card baseline that *is* kept is `verified_sha`/`verified_at`: when a card is
+  verified against code, `set_verified` stamps the sha it was checked at. That is the basis of
+  a *claim*, not a change flag — and the drift *verdict* ("has the bound code moved since?") is
+  always recomputed live by `stale_report`/`check_sync`, never stored. This is what lets a
+  `built`/`verified` claim be re-verified later instead of taken on faith.
 
 ## Connected repos (multi-repo)
 

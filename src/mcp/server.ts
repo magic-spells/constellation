@@ -16,16 +16,30 @@ import { resolvePlanDir } from '../core/resolve.js';
 import type { Card, Issue, PlanIndex, TypeName } from '../core/types.js';
 import { TYPE_NAMES } from '../core/types.js';
 import type { RunningServer } from '../serve/server.js';
-import { diffPlan, planDirty, planLog, writeSyncPoint } from '../core/git.js';
+import {
+  changedFilesSince,
+  diffPlan,
+  headSha,
+  planDirty,
+  planLog,
+  readSyncPoint,
+  writeSyncPoint,
+} from '../core/git.js';
+import { computeSyncStatus } from '../core/sync.js';
+import { boundPathsForCard, resolveCodeForCard } from '../core/code.js';
 import { searchCards } from './search.js';
 import {
   applyCardPatch,
+  bodyHeadingTexts,
   createCardFile,
   deepMerge,
   relPathForHandle,
+  replaceBodySection,
   reservedFieldKeys,
   updateCardFile,
+  withAppendedNote,
 } from '../core/writer.js';
+import type { CardNote } from '../core/writer.js';
 import {
   connectedRepoToFm,
   listConnectedRepos,
@@ -38,6 +52,20 @@ import type { ConnectedRepo } from '../core/types.js';
 
 const INSTRUCTIONS = `# Constellation MCP
 
+Constellation is this project's durable, cross-session memory for AI agents — treat it as
+memory you share with every past and future agent, not docs you skim. Before changing code
+an area's cards cover, READ those cards: you're recovering prior agents' understanding, not
+starting fresh. After changing that code, bring the cards back into line — that's part of
+"done," like updating tests. The payoff is that understanding COMPOUNDS across sessions
+instead of being re-derived from scratch each time; that only holds if you keep the cards
+true. A card you can't trust is worse than no card.
+
+Put in cards what the code can't say — intent, decisions (and the alternatives you rejected),
+current built/live state, gotchas, cross-cutting rules. Do NOT duplicate what the repo already
+holds — DDL, signatures, code: link to it instead; copies drift. "built"/"verified" is a
+claim, not a fact — stamp it with set_verified so a later agent can re-check whether the bound
+code moved (stale_report / check_sync). Durability, not distrust.
+
 The project's architecture plan lives as markdown files in a constellation/ folder.
 Each file is a **card** (the filename is the handle: api/API-TICKETS.md = API-TICKETS);
 cards are linked by undirected **connections** derived from the connections: frontmatter
@@ -45,11 +73,21 @@ list, handle-shaped frontmatter values, [[HANDLE]] body links, and mermaid node 
 
 Retrieval is hydrated: get_card / search / traverse can return connected cards with
 their FULL frontmatter and body in one call (connected: "full"). Use that when you are
-about to work on an area; use "summary" for orientation.
+about to work on an area; use "summary" for orientation. get_card can also hand back the
+CODE a card is bound to — code: "paths" returns the resolved file paths of its connected
+FILE cards (path:) plus its own code_refs; code: "direct" attaches their contents (capped,
+binaries/lockfiles/generated skipped) so a background coder starts from intent + current
+code in one call. assemble turns a delta (or a handle set) into a work package: the changed
+cards + their neighborhood (full) + bound code + a heuristic build order + FILE-DISJOINT
+units you can fan out one sub-agent per, with no two touching the same file.
 
 Writes are validated: every write tool lints and returns issues for the file it touched.
 update_card patch.fields deep-merges (arrays replace, null deletes); body replaces.
-Body-only updates never reformat frontmatter.
+Body-only updates never reformat frontmatter. Prefer SMALL, cheap writes over rewriting a
+whole card — make the honest update the easy one: append_note adds an append-only typed note
+(decision / gotcha / state / deviation / verified) with no full-body rewrite; edit_section
+replaces a single ## section in place. Reach for these to record a correction the moment you
+learn it, so cards stay true instead of drifting.
 
 describe_type is the type reference, served by this server: call it with no args for the
 catalog of all 17 card types, or with a type (e.g. describe_type PAGE) for that type's
@@ -57,7 +95,13 @@ frontmatter schema + a golden example. Consult it before authoring a type you ha
 this session — you don't need the authoring skill loaded to get the fields right.
 
 Change tracking is git: diff_plan reports per-card changes since the sync marker (or HEAD).
-Never stamp dirty flags into cards.
+Never stamp dirty flags or changelogs into cards — "what changed" is git's job. The one
+recorded baseline that IS allowed is verification provenance: set_verified stamps verified_sha
+(the git sha you checked a card against) + verified_at. That is the basis of a claim, not a
+change flag — and the staleness VERDICT is always recomputed live (stale_report / check_sync),
+never stored. stale_report lists built/verified cards whose bound code changed since their
+verified_sha (reverse drift); check_sync rolls that per-card drift plus the plan-global state
+into one definition-of-done verdict (advisory — the server reports, it can't block).
 
 "Sync the plan" / "sync the plan to the code" = bring the CODE up to match the plan (the
 plan is the source of truth — behavior changes in the plan FIRST, then in code, never the
@@ -85,9 +129,10 @@ changes as the proposal; on approval, bring the CODE up to match via the sync lo
 FINISH by reconciling — re-read the touched cards against the code, run check_integrity so
 no affected card is left an orphan and every connection is set, bump status (planned →
 building → built → verified), commit, and set_sync_point. In plan mode the write tools are
-unavailable by design (the read tools — get_card, list_cards, search, traverse,
-describe_type, check_integrity, diff_plan, plan_log — are marked read-only and stay
-available), so spend plan mode READING: pull in as much of the relevant plan as you can
+unavailable by design (the read tools — get_card, list_cards, search, traverse, assemble,
+describe_type, check_integrity, diff_plan, plan_log, stale_report, check_sync,
+list_connected_repos — are marked read-only and stay available), so spend plan mode READING:
+pull in as much of the relevant plan as you can
 (traverse from the entry points, connected: "full") to build a strong model of the project
 fast, fold the intended card edits into the plan you present, and write them to
 Constellation first, before any code, once the user approves.
@@ -277,9 +322,156 @@ function issuesForFile(issues: Issue[], relPath: string): Issue[] {
   return issues.filter((i) => i.file === relPath);
 }
 
+interface StaleCard {
+  handle: string;
+  name: string | null;
+  status: string | null;
+  baseline: string;
+  baseline_source: 'verified_sha' | 'argument' | 'sync-marker';
+  changed_files: string[];
+  missing_files: string[];
+}
+
+interface StaleResult {
+  checked: number;
+  stale: StaleCard[];
+  no_baseline: Array<{ handle: string; status: string | null; files: string[]; reason?: string }>;
+}
+
+/**
+ * Code-side drift: for every card that makes a claim about code it is bound to
+ * (status built/verified, or carrying a verified_sha) compare its bound files
+ * against its baseline (its own verified_sha, else the passed base, else the
+ * sync marker). A card whose bound code changed — or whose bound file vanished —
+ * since it was verified is stale. The verdict is computed live and never stored.
+ * Shared by stale_report and check_sync.
+ */
+async function computeStaleCards(
+  root: string,
+  index: PlanIndex,
+  base?: string,
+): Promise<StaleResult> {
+  let marker: string | null = null;
+  try {
+    marker = (await readSyncPoint(root))?.synced_sha ?? null;
+  } catch {
+    marker = null;
+  }
+  const fallback = base ?? marker ?? null;
+
+  const stale: StaleCard[] = [];
+  const noBaseline: StaleResult['no_baseline'] = [];
+  let checked = 0;
+
+  for (const card of index.cards.values()) {
+    const verifiedSha =
+      typeof card.frontmatter.verified_sha === 'string'
+        ? card.frontmatter.verified_sha
+        : undefined;
+    const isClaim =
+      card.status === 'built' || card.status === 'verified' || Boolean(verifiedSha);
+    if (!isClaim) continue;
+    if (boundPathsForCard(index, card).length === 0) continue;
+    checked++;
+
+    const baseline = verifiedSha ?? fallback ?? undefined;
+    const resolved = await resolveCodeForCard(root, index, card, 'paths');
+    const paths = resolved.files.map((f) => f.path);
+    const missing = resolved.files.filter((f) => !f.exists).map((f) => f.path);
+
+    if (!baseline) {
+      noBaseline.push({ handle: card.handle, status: card.status ?? null, files: paths });
+      continue;
+    }
+    let changed: Set<string>;
+    try {
+      changed = await changedFilesSince(root, baseline, paths);
+    } catch {
+      noBaseline.push({
+        handle: card.handle,
+        status: card.status ?? null,
+        files: paths,
+        reason: `baseline ${baseline.slice(0, 8)} unreachable in git history`,
+      });
+      continue;
+    }
+    const changedFiles = paths.filter((p) => changed.has(p));
+    if (changedFiles.length > 0 || missing.length > 0) {
+      stale.push({
+        handle: card.handle,
+        name: card.name ?? null,
+        status: card.status ?? null,
+        baseline: baseline.slice(0, 12),
+        baseline_source: verifiedSha ? 'verified_sha' : base ? 'argument' : 'sync-marker',
+        changed_files: changedFiles,
+        missing_files: missing,
+      });
+    }
+  }
+  return { checked, stale, no_baseline: noBaseline };
+}
+
+// Rough dependency tiers for assemble's suggested build order: data first, then
+// contracts, then surfaces. Connections are undirected, so this is a heuristic
+// by type, not a true topological sort.
+const TYPE_TIER: Partial<Record<TypeName, number>> = {
+  DB: 0, DATATYPE: 1, ROLE: 2, EXTERNAL: 2, EVENT: 2,
+  API: 3, JOB: 3, STATE: 4, FLOW: 4, COMPONENT: 5, PAGE: 6,
+  FILE: 7, TEST: 8, DOC: 9, DIAGRAM: 9, AGENT: 9, PLAN: 9,
+};
+const tierOf = (type: TypeName): number => TYPE_TIER[type] ?? 5;
+
+/**
+ * Partition seed handles into groups whose bound file sets are disjoint, so each
+ * group can be handed to its own sub-agent with no risk of two agents editing
+ * the same file. Seeds that share any bound file land in the same group.
+ */
+function partitionByFiles(
+  seeds: string[],
+  filesBy: Map<string, string[]>,
+): Array<{ handles: string[]; files: string[] }> {
+  const parent = new Map<string, string>();
+  seeds.forEach((s) => parent.set(s, s));
+  const find = (x: string): string => {
+    let root = x;
+    while (parent.get(root) !== root) root = parent.get(root)!;
+    while (parent.get(x) !== root) {
+      const next = parent.get(x)!;
+      parent.set(x, root);
+      x = next;
+    }
+    return root;
+  };
+  const union = (a: string, b: string) => parent.set(find(a), find(b));
+
+  const fileOwner = new Map<string, string>();
+  for (const s of seeds) {
+    for (const f of filesBy.get(s) ?? []) {
+      const owner = fileOwner.get(f);
+      if (owner) union(owner, s);
+      else fileOwner.set(f, s);
+    }
+  }
+
+  const groups = new Map<string, { handles: string[]; files: Set<string> }>();
+  for (const s of seeds) {
+    const r = find(s);
+    if (!groups.has(r)) groups.set(r, { handles: [], files: new Set() });
+    const g = groups.get(r)!;
+    g.handles.push(s);
+    for (const f of filesBy.get(s) ?? []) g.files.add(f);
+  }
+  return [...groups.values()].map((g) => ({
+    handles: g.handles.sort(),
+    files: [...g.files].sort(),
+  }));
+}
+
 const detailSchema = z.enum(['none', 'summary', 'full']);
 const typeSchema = z.enum(TYPE_NAMES as unknown as [TypeName, ...TypeName[]]);
 const statusSchema = z.enum(['planned', 'building', 'built', 'verified']);
+const noteKindSchema = z.enum(['decision', 'gotcha', 'state', 'deviation', 'verified']);
+const codeModeSchema = z.enum(['none', 'paths', 'direct']);
 const repoSchema = z
   .string()
   .optional()
@@ -454,21 +646,47 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Fetch one card by handle, optionally with all connected cards hydrated. connected: "full" returns the complete frontmatter and body of every connected card — use it when about to work on an area.',
+        'Fetch one card by handle, optionally with all connected cards hydrated. connected: "full" returns the complete frontmatter and body of every connected card — use it when about to work on an area. code: "paths" returns the resolved file paths the card is bound to (connected FILE cards plus code_refs); code: "direct" attaches their contents (capped, binaries/lockfiles/generated skipped) so a background coder starts from intent + current code in one call.',
       inputSchema: {
         handle: z.string(),
         connected: detailSchema.optional().describe('default: summary'),
+        code: codeModeSchema
+          .optional()
+          .describe('attach bound code: none (default) | paths | direct'),
+        notes_kind: noteKindSchema
+          .optional()
+          .describe('filter the returned card.notes to one kind'),
+        notes_limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe('return only the most recent N notes'),
         repo: repoSchema,
       },
     },
-    withPlan(async (root, { handle, connected }) => {
+    withPlan(async (root, { handle, connected, code, notes_kind, notes_limit }) => {
       const index = await loadPlan(root);
       const card = index.cards.get(handle.toUpperCase());
       if (!card) return fail('NOT_FOUND', `No card with handle ${handle}`);
-      return ok({
-        card: full(card),
+      let cardView = full(card);
+      if ((notes_kind || notes_limit) && Array.isArray(card.frontmatter.notes)) {
+        let notes = card.frontmatter.notes.filter(
+          (n): n is Record<string, unknown> => Boolean(n) && typeof n === 'object',
+        );
+        if (notes_kind) notes = notes.filter((n) => n.kind === notes_kind);
+        if (notes_limit) notes = notes.slice(-notes_limit);
+        cardView = { ...cardView, frontmatter: { ...card.frontmatter, notes } };
+      }
+      const result: Record<string, unknown> = {
+        card: cardView,
         connected_cards: connectedCards(index, card.handle, connected ?? 'summary'),
-      });
+      };
+      if (code && code !== 'none') {
+        result.code = await resolveCodeForCard(root, index, card, code);
+      }
+      return ok(result);
     }),
   );
 
@@ -592,6 +810,134 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         (c) => distance.has(c.a) && distance.has(c.b),
       );
       return ok({ cards, connections, not_found: missing });
+    }),
+  );
+
+  server.registerTool(
+    'assemble',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'Turn a set of cards (or the plan delta since a base) into a ready-to-work package: the seed cards plus their connected neighborhood (full), the code each is bound to (code: paths|direct), a heuristic build order (data → contracts → surfaces), and — the key bit — the seeds split into FILE-DISJOINT units so you can hand one sub-agent per unit with no risk of two agents editing the same file. Omit handles to assemble everything changed since base (default: the sync marker). This is the orchestration bridge: diff_plan + traverse + code attach in one call.',
+      inputSchema: {
+        handles: z
+          .array(z.string())
+          .optional()
+          .describe('seed handles; omit to use the plan delta since base'),
+        base: z
+          .string()
+          .optional()
+          .describe('base for the delta when handles is omitted (default: sync marker)'),
+        depth: z
+          .number()
+          .int()
+          .min(0)
+          .max(3)
+          .optional()
+          .describe('neighborhood depth around each seed (default: 1)'),
+        code: codeModeSchema.optional().describe('attach bound code per card (default: paths)'),
+        repo: repoSchema,
+      },
+    },
+    withPlan(async (root, { handles, base, depth, code }) => {
+      const index = await loadPlan(root);
+
+      let seeds: string[];
+      let delta: { base: string; base_source: string } | null = null;
+      if (handles && handles.length > 0) {
+        seeds = [...new Set(handles.map((h) => h.toUpperCase()))].filter((h) =>
+          index.cards.has(h),
+        );
+      } else {
+        let diff;
+        try {
+          diff = await diffPlan(root, base);
+        } catch (err) {
+          return fail(
+            'BAD_BASE',
+            `Could not diff against base ${base ?? '(marker/HEAD)'}: ${err instanceof Error ? err.message : String(err)}. Pass a reachable base sha, or omit it to use the sync marker.`,
+          );
+        }
+        delta = { base: diff.base, base_source: diff.base_source };
+        seeds = [...new Set(diff.changes.map((c) => c.handle))].filter((h) =>
+          index.cards.has(h),
+        );
+      }
+      if (seeds.length === 0) {
+        return ok({
+          base: delta,
+          seeds: [],
+          units: [],
+          note: handles
+            ? 'None of the given handles exist in the plan.'
+            : 'No plan changes since base — nothing to assemble.',
+        });
+      }
+
+      const maxDepth = depth ?? 1;
+      const distance = new Map<string, number>();
+      let frontier = seeds;
+      for (const s of seeds) distance.set(s, 0);
+      for (let d = 1; d <= maxDepth && frontier.length > 0; d++) {
+        const next: string[] = [];
+        for (const h of frontier) {
+          for (const n of index.connectedHandles.get(h) ?? []) {
+            if (distance.has(n) || !index.cards.has(n)) continue;
+            distance.set(n, d);
+            next.push(n);
+          }
+        }
+        frontier = next;
+      }
+      const reached = [...distance.keys()];
+
+      const codeMode = code ?? 'paths';
+      const filesBy = new Map<string, string[]>();
+      for (const s of seeds) {
+        filesBy.set(
+          s,
+          boundPathsForCard(index, index.cards.get(s)!).map((b) => b.path),
+        );
+      }
+      const partitions = partitionByFiles(seeds, filesBy);
+
+      const suggestedOrder = [...reached].sort(
+        (a, b) =>
+          tierOf(index.cards.get(a)!.type) - tierOf(index.cards.get(b)!.type) ||
+          a.localeCompare(b),
+      );
+
+      const units = [];
+      for (const part of partitions) {
+        const cards = [];
+        for (const h of part.handles) {
+          const card = index.cards.get(h)!;
+          const entry: Record<string, unknown> = {
+            ...full(card),
+            connected_cards: connectedCards(index, h, 'full'),
+          };
+          if (codeMode !== 'none') {
+            entry.code = await resolveCodeForCard(root, index, card, codeMode);
+          }
+          cards.push(entry);
+        }
+        units.push({ handles: part.handles, files: part.files, cards });
+      }
+
+      return ok({
+        base: delta,
+        seeds,
+        reached_handles: reached,
+        suggested_order: suggestedOrder,
+        units,
+        fanout: {
+          unit_count: units.length,
+          note:
+            units.length > 1
+              ? `${units.length} file-disjoint units — assign one sub-agent each; no two share a bound file. Still assign each card to exactly one agent.`
+              : 'One unit — the seeds share bound files (or have none); do not split across agents.',
+        },
+      });
     }),
   );
 
@@ -895,6 +1241,140 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       const updated = lint.index.cards.get(card.handle);
       return ok({
         card: updated ? full(updated) : null,
+        issues: issuesForFile(lint.issues, card.relPath),
+      });
+    }),
+  );
+
+  server.registerTool(
+    'append_note',
+    {
+      description:
+        'Append one typed note to a card\'s memory — append-only, NO full-body rewrite (cheap, so the honest path stays the cheap path). kind: decision (a choice + why) | gotcha (a non-obvious trap) | state (current built/live reality) | deviation (where code intentionally differs from the card) | verified (a verification note). Capture what the code can\'t say; do NOT paste code/DDL/signatures that live in the repo — link to them. Notes are queryable by kind (get_card notes_kind) and ordered newest-last.',
+      inputSchema: {
+        handle: z.string(),
+        kind: noteKindSchema,
+        text: z.string().min(1).max(4000),
+        sha: z
+          .string()
+          .optional()
+          .describe('optional git sha this note was recorded against'),
+        repo: repoSchema,
+      },
+    },
+    withPlan(async (root, { handle, kind, text, sha }) => {
+      const index = await loadPlan(root);
+      const card = index.cards.get(handle.toUpperCase());
+      if (!card) return fail('NOT_FOUND', `No card with handle ${handle}`);
+      const note: CardNote = { kind, text };
+      if (sha) note.sha = sha;
+      const frontmatter = withAppendedNote(card.frontmatter, note);
+      await updateCardFile(card.filePath, { frontmatter });
+      const lint = await lintPlan(root);
+      const updated = lint.index.cards.get(card.handle);
+      return ok({
+        card: updated ? full(updated) : null,
+        note_count: Array.isArray(updated?.frontmatter.notes)
+          ? updated!.frontmatter.notes.length
+          : 0,
+        issues: issuesForFile(lint.issues, card.relPath),
+      });
+    }),
+  );
+
+  server.registerTool(
+    'edit_section',
+    {
+      description:
+        'Replace the content under one markdown heading in a card\'s body, keeping every other section byte-for-byte — a cheap, surgical alternative to rewriting the whole body. Match the heading by its text (case-insensitive, no #). Errors if no such heading exists (use update_card to set the whole body or add a section).',
+      inputSchema: {
+        handle: z.string(),
+        section: z
+          .string()
+          .describe('heading text to replace under, e.g. "Notes" or "Current state"'),
+        text: z.string().describe('new markdown content for that section (heading kept)'),
+        repo: repoSchema,
+      },
+    },
+    withPlan(async (root, { handle, section, text }) => {
+      const index = await loadPlan(root);
+      const card = index.cards.get(handle.toUpperCase());
+      if (!card) return fail('NOT_FOUND', `No card with handle ${handle}`);
+      const body = replaceBodySection(card.body, section, text);
+      if (body === null) {
+        const headings = bodyHeadingTexts(card.body);
+        const target = section.trim().replace(/^#+\s*/, '').toLowerCase();
+        const matchCount = headings.filter((h) => h.toLowerCase() === target).length;
+        if (matchCount > 1) {
+          return fail(
+            'AMBIGUOUS_SECTION',
+            `${card.handle} has ${matchCount} headings called "${section}"; edit_section can't tell them apart. Use update_card to set the whole body.`,
+          );
+        }
+        return fail(
+          'SECTION_NOT_FOUND',
+          `No heading "${section}" in ${card.handle}. Headings present: ${headings.length ? headings.join(', ') : '(none)'}. Use update_card to set the whole body or add the section.`,
+        );
+      }
+      await updateCardFile(card.filePath, { body });
+      const lint = await lintPlan(root);
+      const updated = lint.index.cards.get(card.handle);
+      return ok({
+        card: updated ? full(updated) : null,
+        issues: issuesForFile(lint.issues, card.relPath),
+      });
+    }),
+  );
+
+  server.registerTool(
+    'set_verified',
+    {
+      description:
+        'Mark a card verified against the real code: stamp verified_sha (the git sha you checked it at, default HEAD) + verified_at, set status to verified, and optionally append a verified note. The verified_sha is the BASELINE for code-side drift (stale_report / check_sync): later, if the card\'s bound code changed since this sha, the claim is flagged for re-verification. This is durability, not distrust — verify only against code you actually checked.',
+      inputSchema: {
+        handle: z.string(),
+        sha: z
+          .string()
+          .optional()
+          .describe('git sha verified against (default: current HEAD)'),
+        note: z
+          .string()
+          .optional()
+          .describe('optional verification note appended to the card'),
+        repo: repoSchema,
+      },
+    },
+    withPlan(async (root, { handle, sha, note }) => {
+      const index = await loadPlan(root);
+      const card = index.cards.get(handle.toUpperCase());
+      if (!card) return fail('NOT_FOUND', `No card with handle ${handle}`);
+      let resolvedSha = sha;
+      let warning: string | undefined;
+      if (!resolvedSha) {
+        try {
+          resolvedSha = await headSha(root);
+        } catch {
+          warning =
+            'Not a git repo (or no commits): stamped verified_at + status only. Drift detection needs a verified_sha baseline — pass sha or commit first.';
+        }
+      }
+      const verifiedAt = new Date().toISOString();
+      const fields: Record<string, unknown> = { verified_at: verifiedAt };
+      if (resolvedSha) fields.verified_sha = resolvedSha;
+      let frontmatter = applyCardPatch(card.frontmatter, { status: 'verified', fields });
+      if (note) {
+        const n: CardNote = { kind: 'verified', text: note };
+        if (resolvedSha) n.sha = resolvedSha;
+        frontmatter = withAppendedNote(frontmatter, n);
+      }
+      await updateCardFile(card.filePath, { frontmatter });
+      const lint = await lintPlan(root);
+      const updated = lint.index.cards.get(card.handle);
+      return ok({
+        card: updated ? full(updated) : null,
+        verified_sha: resolvedSha ?? null,
+        verified_at: verifiedAt,
+        warning,
         issues: issuesForFile(lint.issues, card.relPath),
       });
     }),
@@ -1248,6 +1728,67 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         warning: dirty
           ? `constellation/ has uncommitted changes; marker ${point.synced_sha.slice(0, 8)} does not include them — commit the plan first, then set_sync_point.`
           : undefined,
+      });
+    }),
+  );
+
+  server.registerTool(
+    'stale_report',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'Code-side drift: cards that claim something about code (status built/verified, or carrying a verified_sha) whose BOUND code changed since they were verified. Binding = directly-connected FILE cards (path:) + the card\'s own code_refs. Each card\'s baseline is its verified_sha, else base, else the sync marker. Reports changed_files and vanished missing_files per stale card, plus cards with no baseline to check against. This makes a "built/verified" claim re-verifiable instead of taken on faith. Feed the handles to traverse or assemble.',
+      inputSchema: {
+        base: z
+          .string()
+          .optional()
+          .describe('fallback baseline sha for cards without verified_sha'),
+        repo: repoSchema,
+      },
+    },
+    withPlan(async (root, { base }) => {
+      const index = await loadPlan(root);
+      const r = await computeStaleCards(root, index, base);
+      return ok({
+        checked: r.checked,
+        stale_count: r.stale.length,
+        stale: r.stale,
+        no_baseline: r.no_baseline,
+      });
+    }),
+  );
+
+  server.registerTool(
+    'check_sync',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'Definition-of-done check: one glanceable verdict on whether the plan and code are in sync. Combines the plan-global state (in-sync / drifted / dirty / never-synced) — plan changes and code commits since the marker, lint integrity, status rollup — with the per-card code-side drift from stale_report. Advisory only: the server reports, it cannot block; treat code changed without its bound cards re-verified as "not done yet".',
+      inputSchema: {
+        base: z
+          .string()
+          .optional()
+          .describe('fallback baseline sha for per-card drift (default: sync marker)'),
+        repo: repoSchema,
+      },
+    },
+    withPlan(async (root, { base }) => {
+      const status = await computeSyncStatus(root);
+      const index = await loadPlan(root);
+      const r = await computeStaleCards(root, index, base);
+      return ok({
+        advisory:
+          'Advisory only — the MCP server reports sync state, it cannot block. Use as a definition-of-done gate before calling work complete.',
+        state: status.state,
+        marker: status.marker,
+        plan_dirty: status.plan_dirty,
+        plan_changes_since_marker: status.plan_changes_since_marker,
+        code_commits_since_marker: status.code_commits_since_marker,
+        integrity: status.integrity,
+        status_rollup: status.status_rollup,
+        total_cards: status.total_cards,
+        stale_cards: r.stale,
+        cards_without_baseline: r.no_baseline,
       });
     }),
   );
