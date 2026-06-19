@@ -3,7 +3,9 @@ import path from 'node:path';
 import yaml from 'js-yaml';
 import { TYPE_FOLDERS, typeForHandle } from './handles.js';
 
-const FM_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
+// The `(?:\r?\n)?` before the closing fence keeps a truly-empty block (`---\n---`)
+// matchable, so a frontmatter-only write doesn't mistake it for body and duplicate it.
+const FM_BLOCK = /^---\r?\n([\s\S]*?)(?:\r?\n)?---\r?\n?/;
 const RESERVED_FRONTMATTER_KEYS = new Set(['name', 'kind', 'status', 'connections']);
 
 export function reservedFieldKeys(fields?: Record<string, unknown>): string[] {
@@ -71,6 +73,92 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
     !Array.isArray(value) &&
     Object.getPrototypeOf(value) === Object.prototype
   );
+}
+
+export type NoteKind = 'decision' | 'gotcha' | 'state' | 'deviation' | 'verified';
+
+export interface CardNote {
+  kind: NoteKind;
+  text: string;
+  sha?: string;
+}
+
+/**
+ * Append a typed note to a card's `notes` array (append-only memory). Preserves
+ * frontmatter key order — when `notes` already exists it is updated in place, so
+ * updateCardFile re-serializes only that one key and leaves the rest byte-for-byte.
+ */
+export function withAppendedNote(
+  frontmatter: Record<string, unknown>,
+  note: CardNote,
+): Record<string, unknown> {
+  const existing = Array.isArray(frontmatter.notes) ? frontmatter.notes : [];
+  const entry: Record<string, unknown> = { kind: note.kind, text: note.text };
+  if (note.sha) entry.sha = note.sha;
+  return { ...frontmatter, notes: [...existing, entry] };
+}
+
+const HEADING_RE = /^(#{1,6})\s+(.*?)\s*$/;
+const FENCE_RE = /^\s*(```|~~~)/;
+
+interface BodyHeading {
+  line: number;
+  level: number;
+  text: string;
+}
+
+/** Markdown headings in a body, skipping any inside fenced code blocks. */
+function scanHeadings(lines: string[]): BodyHeading[] {
+  const out: BodyHeading[] = [];
+  let inFence = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (FENCE_RE.test(lines[i])) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    const m = HEADING_RE.exec(lines[i]);
+    if (m) out.push({ line: i, level: m[1].length, text: m[2].trim() });
+  }
+  return out;
+}
+
+/** Heading texts of a body (fence-aware) — for surfacing the available sections. */
+export function bodyHeadingTexts(body: string): string[] {
+  return scanHeadings(body.split('\n')).map((h) => h.text);
+}
+
+/**
+ * Replace the content under a markdown heading (matched by heading text,
+ * case-insensitively) with `newContent`, keeping the heading line and every
+ * other section byte-for-byte. The replaced span runs from just after the
+ * heading to the next heading of the same or higher level (or end of body).
+ * Headings inside fenced code blocks are ignored, so a `#`-line in a ```sh block
+ * is never mistaken for a section. Returns null when the heading is absent OR
+ * ambiguous (more than one match) — the caller tells the two apart via
+ * bodyHeadingTexts and reports accordingly.
+ */
+export function replaceBodySection(
+  body: string,
+  heading: string,
+  newContent: string,
+): string | null {
+  const target = heading.trim().replace(/^#+\s*/, '').toLowerCase();
+  const lines = body.split('\n');
+  const headings = scanHeadings(lines);
+  const matches = headings.filter((h) => h.text.toLowerCase() === target);
+  if (matches.length !== 1) return null; // absent or ambiguous
+
+  const { line: startIdx, level } = matches[0];
+  const next = headings.find((h) => h.line > startIdx && h.level <= level);
+  const endIdx = next ? next.line : lines.length;
+
+  const before = lines.slice(0, startIdx + 1).join('\n');
+  const after = lines.slice(endIdx).join('\n');
+  const content = newContent.replace(/\s+$/, '');
+  return after.trim().length > 0
+    ? `${before}\n\n${content}\n\n${after}`
+    : `${before}\n\n${content}\n`;
 }
 
 function dumpFrontmatter(fm: Record<string, unknown>): string {

@@ -15,6 +15,20 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
   return stdout;
 }
 
+/**
+ * Guard a caller-supplied git revision. A value starting with `-` would be
+ * parsed by git as an option, not a revision — e.g. `--output=/path` makes
+ * `git diff` write an arbitrary file. We both reject leading-dash revisions here
+ * and pass `--end-of-options` before every revision below, so no caller string
+ * is ever interpreted as a flag.
+ */
+function safeRev(rev: string): string {
+  if (rev.startsWith('-')) {
+    throw new Error(`Refusing git revision that looks like an option: ${rev}`);
+  }
+  return rev;
+}
+
 export async function repoRootFor(planRoot: string): Promise<string> {
   return (await git(planRoot, 'rev-parse', '--show-toplevel')).trim();
 }
@@ -41,7 +55,7 @@ export async function writeSyncPoint(
   sha?: string,
 ): Promise<SyncPoint> {
   const resolved = sha
-    ? (await git(planRoot, 'rev-parse', sha)).trim()
+    ? (await git(planRoot, 'rev-parse', '--end-of-options', safeRev(sha))).trim()
     : (await git(planRoot, 'rev-parse', 'HEAD')).trim();
   const point: SyncPoint = {
     synced_sha: resolved,
@@ -73,6 +87,38 @@ export async function planDirty(planRoot: string): Promise<boolean> {
     `:(exclude)${path.join(planRel, SYNC_FILE)}`,
   );
   return out.trim().length > 0;
+}
+
+/** The current HEAD sha of the repo the plan lives in. */
+export async function headSha(planRoot: string): Promise<string> {
+  const realRoot = await realpath(planRoot);
+  const repoRoot = await repoRootFor(realRoot);
+  return (await git(repoRoot, 'rev-parse', 'HEAD')).trim();
+}
+
+/**
+ * Of the given repo-relative paths, the subset that changed between `sinceSha`
+ * and the working tree — one git call. A path absent from the result is
+ * unchanged since that sha (file existence is checked separately, on disk).
+ */
+export async function changedFilesSince(
+  planRoot: string,
+  sinceSha: string,
+  paths: string[],
+): Promise<Set<string>> {
+  if (paths.length === 0) return new Set();
+  const realRoot = await realpath(planRoot);
+  const repoRoot = await repoRootFor(realRoot);
+  const out = await git(
+    repoRoot,
+    'diff',
+    '--name-only',
+    '--end-of-options',
+    safeRev(sinceSha),
+    '--',
+    ...paths,
+  );
+  return new Set(out.split('\n').map((l) => l.trim()).filter(Boolean));
 }
 
 export type ChangeKind = 'added' | 'modified' | 'removed' | 'renamed';
@@ -116,8 +162,8 @@ export async function diffPlan(
     }
   }
 
-  const args = ['diff', '--name-status', '-M', resolvedBase];
-  if (head) args.push(head);
+  const args = ['diff', '--name-status', '-M', '--end-of-options', safeRev(resolvedBase)];
+  if (head) args.push(safeRev(head));
   args.push('--', planRel);
   const output = await git(repoRoot, ...args);
 

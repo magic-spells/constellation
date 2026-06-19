@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "card.json",
-  "title": "Constellation card — reserved frontmatter keys",
-  "description": "The four reserved keys every card may use. All other frontmatter keys are type-specific fields defined in the per-type schemas.",
+  "title": "Constellation card — reserved + cross-type metadata keys",
+  "description": "Keys every card may use, regardless of type. The first four are the reserved keys (name, kind, status, connections); the rest are optional cross-type metadata managed by tooling (code binding + verification provenance + durable notes). All other frontmatter keys are type-specific fields defined in the per-type schemas.",
   "type": "object",
   "properties": {
     "name": {
@@ -24,6 +24,50 @@
       "type": "array",
       "items": { "$ref": "#/$defs/handle" },
       "description": "Plain list of handles this card is connected to. Undirected; declare on whichever card you are editing."
+    },
+    "code_refs": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300,
+        "description": "Repo-relative path, optionally path:symbol (e.g. src/api/tickets.ts or src/api/tickets.ts:createTicket)."
+      },
+      "description": "Code this card is bound to, for drift detection and code attach. Optional precision binding ON ANY card; the primary binding stays a connected FILE card's path:. Symbol after a colon is an informational hint — drift is detected at file granularity."
+    },
+    "verified_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{7,40}$",
+      "description": "Git sha this card's claim was last verified against (set by set_verified). The baseline for code-side drift detection — not a change-tracking flag (that is git's job). The staleness VERDICT is always recomputed live and never stored."
+    },
+    "verified_at": {
+      "type": "string",
+      "description": "ISO-8601 timestamp the card was last verified. Provenance of the verified claim, not a changelog of the card."
+    },
+    "notes": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": ["decision", "gotcha", "state", "deviation", "verified"],
+            "description": "decision = a choice + why; gotcha = a non-obvious trap; state = current built/live reality; deviation = where code intentionally differs from the card; verified = a verification note."
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "The note body. Capture what code can't say; do not paste code that lives in the repo."
+          },
+          "sha": {
+            "type": "string",
+            "description": "Optional git sha the note was recorded against."
+          }
+        },
+        "required": ["kind", "text"]
+      },
+      "description": "Append-only typed memory the code can't hold (decisions, gotchas, current state, deviations). Ordered newest-last by append order; managed by append_note. Queryable by kind. No timestamps — ordering is array position; 'what changed when' is git's job."
     }
   },
   "$defs": {

@@ -10,6 +10,20 @@ typed piece of the plan, linked to other cards by **connections**. Filenames are
 identities, frontmatter is structure, the body is prose, and git is the
 change-tracking system.
 
+## Why it exists: durable cross-session memory
+
+Constellation is the project's **durable, cross-session memory** for AI agents — memory you
+share with every past and future agent, not docs you skim. Before changing code an area's
+cards cover, read those cards: you're recovering prior agents' understanding, not starting
+fresh. After changing that code, bring the cards back into line — that's part of "done,"
+like updating tests. Understanding then **compounds** across sessions instead of being
+re-derived each time — but only if the cards stay true, so **a card you can't trust is worse
+than no card.** Put in cards what code can't say (intent, decisions, current state, gotchas,
+cross-cutting rules); never duplicate DDL / signatures / code that lives in the repo — link
+to it, because copies drift. `built`/`verified` is a claim, not a fact: mark it with
+`set_verified` so a later agent can re-check whether the bound code moved (`stale_report` /
+`check_sync`). Durability, not distrust.
+
 ## The one rule that matters most
 
 **The filename is the handle.** `constellation/api/API-TICKETS.md` defines the card
@@ -57,6 +71,12 @@ status: built                      # planned | building | built | verified
 connections:                       # plain list of handles — no kinds, no direction
   - DB-TICKETS
 ```
+
+Beyond the four reserved keys, a few **cross-type metadata fields** are valid on any card
+(defined in `schemas/card.json`) but are tool-managed, not hand-authored: `code_refs` (extra
+code this card is bound to — `path` or `path:symbol`), `verified_sha` / `verified_at` (set by
+`set_verified` — the drift baseline), and `notes` (append-only typed memory, via
+`append_note`). Reach for the tools rather than writing these by hand.
 
 ## Connections — how the graph gets wired
 
@@ -143,8 +163,9 @@ Constellation:
    `set_sync_point`.
 
 **In plan mode, read as much of the plan as you can.** The write tools are unavailable there
-by design (the read tools — `get_card`, `list_cards`, `search`, `traverse`, `describe_type`,
-`check_integrity`, `diff_plan`, `plan_log` — are marked read-only and stay available). Spend
+by design (the read tools — `get_card`, `list_cards`, `search`, `traverse`, `assemble`,
+`describe_type`, `check_integrity`, `diff_plan`, `plan_log`, `stale_report`, `check_sync`,
+`list_connected_repos` — are marked read-only and stay available). Spend
 plan mode pulling the relevant plan into context — `traverse` from the entry points with
 `connected: "full"` — to build a strong model of the project fast, and fold the card edits
 you intend into the plan you present. Execute those Constellation writes first, before any
@@ -222,14 +243,20 @@ Cards never connect across repos; the relationship between repos lives in the
 1. Before creating a card, check it doesn't exist: the filename is deterministic,
    so look up `constellation/<folder>/<HANDLE>.md`; grep for the handle to find
    prose references.
-2. Write or edit the card.
+2. Write or edit the card — prefer small, byte-cheap writes over rewriting a whole card:
+   `append_note` for a typed note (decision / gotcha / state / deviation / verified),
+   `edit_section` to replace a single `##` section in place.
 3. Verify: `npx constellation lint` (errors break the graph and must be fixed;
    warnings are quality signals).
-4. Update `status` when reality changes: `planned → building → built`, and
-   `verified` only after checking the card against the actual code.
+4. Update `status` when reality changes: `planned → building → built`, and mark
+   `verified` only after checking the card against the actual code — use `set_verified`,
+   which records the git sha you checked against so later drift is detectable
+   (`stale_report` / `check_sync`).
 5. Never bulk-rewrite `constellation/plan.md` — edit the relevant section.
    Decisions go in DOC cards (`kind: decision`), one file each, not in the plan.
 
 "What changed in the plan" is never tracked in cards — that's
-`git diff -- constellation/`. Don't add dirty flags, changelogs, or timestamps to
-frontmatter.
+`git diff -- constellation/`. Don't add dirty flags or changelogs to frontmatter. The one
+recorded baseline that's allowed is verification provenance — `verified_sha` / `verified_at`
+(set by `set_verified`), the basis of a "verified" claim, not a change flag; the staleness
+verdict itself is always recomputed live, never stored.

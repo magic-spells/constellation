@@ -3,6 +3,11 @@ name: Ticket
 status: built
 connections:
   - DB-TICKETS
+code_refs:
+  - src/types/ticket.ts:Ticket
+notes:
+  - kind: decision
+    text: requester_email is denormalized onto the ticket so list views avoid a join.
 ---
 
 The canonical ticket shape, returned by every ticket endpoint.
