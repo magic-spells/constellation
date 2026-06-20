@@ -17,7 +17,7 @@
     placeholder?: string;
     /** Selector for click targets that should NOT start editing (links etc). */
     ignore?: string;
-    onsave: (next: string) => void | Promise<void>;
+    onsave: (next: string) => void | Promise<unknown>;
     children?: Snippet;
   } = $props();
 

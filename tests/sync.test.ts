@@ -55,7 +55,25 @@ describe('computeSyncStatus', () => {
     expect(status.plan_dirty).toBe(false);
   });
 
+  it('drifts with a clear error when the sync marker is unreachable', async () => {
+    await writeFile(
+      path.join(planRoot, '.sync.json'),
+      JSON.stringify(
+        {
+          synced_sha: '0000000000000000000000000000000000000000',
+          synced_at: new Date().toISOString(),
+        },
+        null,
+        2,
+      ) + '\n',
+    );
+    const status = await computeSyncStatus(planRoot);
+    expect(status.state).toBe('drifted');
+    expect(status.marker_error).toContain('Sync marker 000000000000');
+  });
+
   it('drifts when code is committed past the marker', async () => {
+    await writeSyncPoint(planRoot);
     await writeFile(path.join(repo, 'app.ts'), 'export const x = 1;\n');
     git('add', '-A');
     git('commit', '-q', '-m', 'feat: add app entrypoint');

@@ -19,6 +19,7 @@ export type SyncState =
 export interface SyncStatus {
   state: SyncState;
   marker: SyncPoint | null;
+  marker_error: string | null;
   plan_dirty: boolean;
   plan_changes_since_marker: number;
   code_commits_since_marker: number;
@@ -67,6 +68,7 @@ export async function computeSyncStatus(
   let plan_dirty = false;
   let plan_changes_since_marker = 0;
   let code_commits_since_marker = 0;
+  let marker_error: string | null = null;
   let activity: SyncActivity[] = [];
   try {
     marker = await readSyncPoint(planRoot);
@@ -76,16 +78,16 @@ export async function computeSyncStatus(
       try {
         const diff = await diffPlan(planRoot, marker.synced_sha, 'HEAD');
         plan_changes_since_marker = diff.changes.length;
-      } catch {
-        // marker sha unreachable (e.g. rebased history) — leave 0
+      } catch (err) {
+        marker_error = markerError(marker.synced_sha, err);
       }
       try {
         code_commits_since_marker = await countCodeCommitsSince(
           planRoot,
           marker.synced_sha,
         );
-      } catch {
-        // ignore — drift count is best-effort
+      } catch (err) {
+        marker_error ??= markerError(marker.synced_sha, err);
       }
     }
   } catch {
@@ -93,6 +95,7 @@ export async function computeSyncStatus(
     return {
       state: 'no-git',
       marker: null,
+      marker_error: null,
       plan_dirty: false,
       plan_changes_since_marker: 0,
       code_commits_since_marker: 0,
@@ -103,6 +106,8 @@ export async function computeSyncStatus(
 
   const state: SyncState = !marker
     ? 'never-synced'
+    : marker_error
+      ? 'drifted'
     : plan_changes_since_marker > 0 || code_commits_since_marker > 0
       ? 'drifted'
       : plan_dirty
@@ -112,10 +117,19 @@ export async function computeSyncStatus(
   return {
     state,
     marker,
+    marker_error,
     plan_dirty,
     plan_changes_since_marker,
     code_commits_since_marker,
     activity,
     ...base,
   };
+}
+
+function markerError(sha: string, err: unknown): string {
+  const reason = err instanceof Error ? err.message : String(err);
+  return (
+    `Sync marker ${sha.slice(0, 12)} is not reachable in git history; ` +
+    `reconcile the plan and run set_sync_point again. ${reason}`
+  );
 }

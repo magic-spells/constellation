@@ -44,7 +44,11 @@
         <span class="sd-meta">
           {#if sync.marker}last synced {relTime(sync.marker.synced_at)}{:else}no sync point yet{/if}
           {#if sync.state === 'drifted'}
-            · {sync.code_commits_since_marker} code commit{sync.code_commits_since_marker === 1 ? '' : 's'} / {sync.plan_changes_since_marker} plan change{sync.plan_changes_since_marker === 1 ? '' : 's'} since
+            {#if sync.marker_error}
+              · {sync.marker_error}
+            {:else}
+              · {sync.code_commits_since_marker} code commit{sync.code_commits_since_marker === 1 ? '' : 's'} / {sync.plan_changes_since_marker} plan change{sync.plan_changes_since_marker === 1 ? '' : 's'} since
+            {/if}
           {/if}
           {#if sync.plan_dirty} · uncommitted plan edits{/if}
         </span>

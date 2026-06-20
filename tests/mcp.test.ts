@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -175,6 +175,27 @@ describe('writes', () => {
     const after = await readFile(file, 'utf8');
     expect(after.split('---')[1]).toBe(before.split('---')[1]);
     expect(after).toContain('Rewritten body only.');
+  });
+
+  it('update_card refuses stale if_mtime and accepts a fresh one', async () => {
+    const file = path.join(planRoot, 'db', 'DB-TICKETS.md');
+    const mtime = Math.round((await stat(file)).mtimeMs);
+
+    const stale = await call('update_card', {
+      handle: 'DB-TICKETS',
+      patch: { name: 'clobbered' },
+      if_mtime: mtime - 1,
+    });
+    expect(stale.isError).toBe(true);
+    expect(stale.data.error.code).toBe('STALE');
+
+    const fresh = await call('update_card', {
+      handle: 'DB-TICKETS',
+      patch: { name: 'Tickets table' },
+      if_mtime: mtime,
+    });
+    expect(fresh.isError).toBe(false);
+    expect(fresh.data.card.name).toBe('Tickets table');
   });
 
   it('update_card deep-merges fields and null-deletes', async () => {

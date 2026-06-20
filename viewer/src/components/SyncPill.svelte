@@ -7,6 +7,7 @@
   const detail = $derived.by(() => {
     if (!sync) return '';
     if (sync.state === 'drifted') {
+      if (sync.marker_error) return 'marker unreachable';
       const parts: string[] = [];
       const c = sync.code_commits_since_marker;
       const p = sync.plan_changes_since_marker;

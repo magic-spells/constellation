@@ -1,4 +1,4 @@
-import { readFile, rm } from 'node:fs/promises';
+import { readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -486,7 +486,7 @@ export interface ServerOptions {
 
 export function buildServer(options: ServerOptions = {}): McpServer {
   const server = new McpServer(
-    { name: 'constellation', version: '0.2.1' },
+    { name: 'constellation', version: '0.2.2' },
     { instructions: INSTRUCTIONS },
   );
 
@@ -1214,10 +1214,16 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           })
           .optional(),
         body: z.string().optional(),
+        if_mtime: z
+          .number()
+          .optional()
+          .describe(
+            'optional stale-write guard: current rounded file mtime from a client-side stat or viewer payload',
+          ),
         repo: repoSchema,
       },
     },
-    withPlan(async (root, { handle, patch, body }) => {
+    withPlan(async (root, { handle, patch, body, if_mtime }) => {
       const index = await loadPlan(root);
       const card = index.cards.get(handle.toUpperCase());
       if (!card) return fail('NOT_FOUND', `No card with handle ${handle}`);
@@ -1230,6 +1236,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           'INVALID_FIELDS',
           `fields cannot contain reserved keys: ${reserved.join(', ')}`,
         );
+      }
+      if (typeof if_mtime === 'number' && if_mtime !== 0) {
+        const current = Math.round((await stat(card.filePath)).mtimeMs);
+        if (current !== if_mtime) {
+          return fail('STALE', `${card.handle} changed on disk`);
+        }
       }
 
       const frontmatter = patch

@@ -48,7 +48,7 @@ marked.use({
         return undefined;
       },
       renderer(token) {
-        const t = token as { handle: string };
+        const t = token as unknown as { handle: string };
         return `<a class="wiki" href="#/card/${t.handle}">${t.handle}</a>`;
       },
     },

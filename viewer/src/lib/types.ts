@@ -41,6 +41,7 @@ export interface SyncActivity {
 export interface SyncStatus {
   state: SyncState;
   marker: { synced_sha: string; synced_at: string } | null;
+  marker_error: string | null;
   plan_dirty: boolean;
   plan_changes_since_marker: number;
   code_commits_since_marker: number;

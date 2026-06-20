@@ -373,7 +373,7 @@ export async function countCodeCommitsSince(
     repoRoot,
     'rev-list',
     '--count',
-    `${sinceSha}..HEAD`,
+    `${safeRev(sinceSha)}..HEAD`,
     '--',
     '.',
     `:(exclude)${planRel}`,

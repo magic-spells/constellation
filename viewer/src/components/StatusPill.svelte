@@ -8,7 +8,7 @@
     onpick,
   }: {
     status: string | null;
-    onpick: (next: string | null) => void | Promise<void>;
+    onpick: (next: string | null) => void | Promise<unknown>;
   } = $props();
 
   let open = $state(false);

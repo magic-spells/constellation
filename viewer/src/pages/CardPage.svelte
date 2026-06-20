@@ -47,7 +47,8 @@
   $effect(() => {
     if (!diagramHost || !constellationSrc) return;
     diagramHost.innerHTML = `<div class="mermaid-block" data-src="${encodeURIComponent(constellationSrc)}"></div>`;
-    void renderMermaidBlocks(diagramHost, theme.current === 'observatory');
+    theme.current; // re-tint diagrams when the theme switches
+    void renderMermaidBlocks(diagramHost);
   });
 
   function patch(p: Parameters<typeof patchCard>[1]) {
