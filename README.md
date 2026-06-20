@@ -53,8 +53,7 @@ unknown fields, dangling prose links) don't block.
 
 | Path | What |
 |---|---|
-| `docs/001-file-format.md` | The normative format spec |
-| `docs/002-mcp.md` | MCP design: tool surface, hydration, write semantics, git layer |
+| `constellation/` | Constellation's own plan — the format spec, MCP design, and architecture as connected cards (formerly `docs/`); also a flagship real-world plan |
 | `schemas/` | JSON Schemas: `card.json` (reserved keys) + one per type |
 | `skill/` | AI authoring skill: `SKILL.md` + per-type references with golden examples |
 | `src/core/` | Parser, reference extraction, indexer, schema validation, lint |

@@ -14,13 +14,15 @@ markdown (narrative), linked by undirected **connections**. The graph is always
 
 This repo ships four things that must stay consistent with each other:
 
-- **The spec** — `docs/001-file-format.md` (normative format) and `docs/002-mcp.md` (MCP design).
+- **The spec** — Constellation's own plan in `constellation/` (the format in `DOC-FILE-FORMAT` / `DOC-CARD-TYPES` / `DOC-LINT-CODES`, the MCP design in `DOC-MCP-SERVER`, the memory/durability decisions in `DOC-MCP-UPGRADES`); formerly `docs/`.
 - **The implementation** — `src/` (parser, indexer, lint, CLI, MCP server, viewer server).
 - **The authoring skill** — `skill/SKILL.md` + `skill/types/*.md`, with golden examples.
 - **The golden plan** — `examples/constellation/`, which lints clean and doubles as the test fixture.
 
-> Tool vs. project: keep tool concerns out of any example plan content and vice versa.
-> The examples plan is a *sample ticketing app*, not documentation of Constellation.
+> Two plan folders, kept separate: `constellation/` is Constellation's *own* plan (this tool,
+> as cards — the spec lives here). `examples/constellation/` is a *sample ticketing app*
+> fixture that lints clean and the tests use — not documentation of Constellation. Don't let
+> tool concerns and example content leak into each other.
 
 ## Commands
 
@@ -69,9 +71,9 @@ The pipeline is one direction: **files → index → (lint | serve | MCP)**.
 - **Connected repos are repo-level links only.** `connected_repos` on `PLAN-PROJECT` can point to sibling repo roots; cards never connect across repos, lint never validates local sibling paths, and MCP tools only target a sibling when `repo` is explicitly passed.
 - **Four frontmatter keys are reserved:** `name`, `kind`, `status`, `connections`. Type-specific `fields` may not use them; writer/MCP reject reserved keys in `fields`. **`schemas/card.json` is also the home for cross-type metadata** — `code_refs`, `verified_sha`, `verified_at`, `notes` — valid on every type and tool-managed (not reserved, not hand-authored). `validate.ts` derives the W003 base allow-list from card.json's properties (not a hardcoded list), so a field added there is blessed on all 17 types and AJV validates its shape (W002). Add cross-type metadata to card.json, not to each type schema.
 - **`plan.md` at the plan root is the one special file** — its handle is `PLAN-PROJECT`, and it's the only card not named after its handle / not in a type folder.
-- **Agent guidance lives in three unshared copies — update all three.** The MCP server embeds its own `INSTRUCTIONS` string (`src/mcp/server.ts`) and never reads the skill; the skill is itself two files loaded only by the agent harness — `skill/SKILL.md` and `skill/methodology.md`. None of the three imports another. Any change to *how an agent should use the plan* — workflows, commands, terminology, the plan↔code sync loop, the tool surface — must land in **all three**, and stay consistent with the spec in `docs/`.
+- **Agent guidance lives in three unshared copies — update all three.** The MCP server embeds its own `INSTRUCTIONS` string (`src/mcp/server.ts`) and never reads the skill; the skill is itself two files loaded only by the agent harness — `skill/SKILL.md` and `skill/methodology.md`. None of the three imports another. Any change to *how an agent should use the plan* — workflows, commands, terminology, the plan↔code sync loop, the tool surface — must land in **all three**, and stay consistent with the spec cards in `constellation/`.
 
-### Lint codes (keep in sync with `docs/001-file-format.md`)
+### Lint codes (keep in sync with `constellation/doc/DOC-LINT-CODES.md`)
 
 Errors (break the graph, exit 1): **E001** bad filename handle · **E002** unknown prefix ·
 **E003** duplicate handle · **E004** bad `connections` entry · **E005** structured ref to
@@ -89,7 +91,7 @@ DIAGRAM AGENT PLAN` (defined in `src/core/types.ts`; folders in `src/core/handle
 1. `TYPE_NAMES` in `src/core/types.ts` and `TYPE_FOLDERS` in `src/core/handles.ts`
 2. `schemas/<folder>.json` (the JSON Schema for its frontmatter)
 3. `skill/types/<folder>.md` (authoring reference + golden example)
-4. `examples/constellation/<folder>/` (a clean sample card) and the type table in `docs/001-file-format.md`
+4. `examples/constellation/<folder>/` (a clean sample card) and the type table in `constellation/doc/DOC-CARD-TYPES.md`
 
 (The current working tree is mid-rename: `ARCH`→`DIAGRAM` and `EXT`→`EXTERNAL`. If you
 touch type plumbing, make sure all four locations land together.)
