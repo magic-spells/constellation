@@ -30,7 +30,14 @@ export async function readConnectedRepos(planRoot: string): Promise<ConnectedRep
   } catch {
     return [];
   }
-  const list = parseFile(raw).frontmatter.connected_repos;
+  return connectedReposFromFrontmatter(parseFile(raw).frontmatter);
+}
+
+/** The lenient connected_repos parse, for callers that already hold plan.md's frontmatter. */
+export function connectedReposFromFrontmatter(
+  frontmatter: Record<string, unknown>,
+): ConnectedRepo[] {
+  const list = frontmatter.connected_repos;
   if (!Array.isArray(list)) return [];
   const repos: ConnectedRepo[] = [];
   for (const entry of list) {

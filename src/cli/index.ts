@@ -150,6 +150,56 @@ program
   });
 
 program
+  .command('rename')
+  .argument('<from>', 'current handle (e.g. API-OLD-NAME)')
+  .argument('<to>', 'new handle — a different prefix also moves the type folder')
+  .argument(
+    '[path]',
+    'plan folder, or a directory containing constellation/ (default: walk up from cwd)',
+  )
+  .description('Rename a card and rewrite every reference to it across the plan')
+  .action(async (from: string, to: string, target: string | null | undefined) => {
+    const root = await resolvePlanDir(target ?? undefined);
+    if (!root) {
+      console.error(
+        pc.red('No constellation/ folder found.') +
+          ' Run `constellation init` to create one.',
+      );
+      process.exit(2);
+    }
+    const { renameCard, RenameCardError } = await import('../core/rename.js');
+    try {
+      const result = await renameCard(root, from, to);
+      if (result.noop) {
+        console.log(pc.dim(`${result.from} → ${result.to}: same handle, nothing to do.`));
+        return;
+      }
+      console.log(
+        `${pc.green('✓')} ${result.from} → ${pc.bold(result.to)}  (${result.file})`,
+      );
+      console.log(
+        result.references_updated.length > 0
+          ? `  references rewritten in: ${result.references_updated.join(', ')}`
+          : pc.dim('  no other card referenced it'),
+      );
+      const lint = await lintPlan(root);
+      if (lint.errors.length > 0) {
+        console.log(
+          pc.yellow(
+            `  plan now has ${lint.errors.length} lint error(s) — run \`constellation lint\` for details`,
+          ),
+        );
+      }
+    } catch (err) {
+      if (err instanceof RenameCardError) {
+        console.error(pc.red(err.message));
+        process.exit(2);
+      }
+      throw err;
+    }
+  });
+
+program
   .command('mcp')
   .description('Run the Constellation MCP server over stdio')
   .action(async () => {

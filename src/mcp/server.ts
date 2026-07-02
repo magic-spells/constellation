@@ -23,6 +23,7 @@ import {
   planDirty,
   planLog,
   readSyncPoint,
+  resolveCommit,
   writeSyncPoint,
 } from '../core/git.js';
 import { computeSyncStatus } from '../core/sync.js';
@@ -33,15 +34,17 @@ import {
   bodyHeadingTexts,
   createCardFile,
   deepMerge,
+  mutateCardFile,
   relPathForHandle,
   replaceBodySection,
   reservedFieldKeys,
-  updateCardFile,
   withAppendedNote,
 } from '../core/writer.js';
+import { renameCard, RenameCardError } from '../core/rename.js';
 import type { CardNote } from '../core/writer.js';
 import {
   connectedRepoToFm,
+  connectedReposFromFrontmatter,
   listConnectedRepos,
   readConnectedRepos,
   removeConnectedRepoEntry,
@@ -75,9 +78,9 @@ Retrieval is hydrated: get_card / search / traverse can return connected cards w
 their FULL frontmatter and body in one call (connected: "full"). Use that when you are
 about to work on an area; use "summary" for orientation. get_card can also hand back the
 CODE a card is bound to — code: "paths" returns the resolved file paths of its connected
-FILE cards (path:) plus its own code_refs; code: "direct" attaches their contents (capped,
-binaries/lockfiles/generated skipped) so a background coder starts from intent + current
-code in one call. assemble turns a delta (or a handle set) into a work package: the changed
+FILE cards (path:) plus its own code_refs; code: "direct" attaches their contents (over-cap
+files truncated, binaries/lockfiles/generated skipped) so a background coder starts from
+intent + current code in one call. assemble turns a delta (or a handle set) into a work package: the changed
 cards + their neighborhood (full) + bound code + a heuristic build order + FILE-DISJOINT
 units you can fan out one sub-agent per, with no two touching the same file.
 
@@ -87,7 +90,11 @@ Body-only updates never reformat frontmatter. Prefer SMALL, cheap writes over re
 whole card — make the honest update the easy one: append_note adds an append-only typed note
 (decision / gotcha / state / deviation / verified) with no full-body rewrite; edit_section
 replaces a single ## section in place. Reach for these to record a correction the moment you
-learn it, so cards stay true instead of drifting.
+learn it, so cards stay true instead of drifting. Notes are retrievable memory: search
+matches note text, and list_notes lists them across cards by kind — every gotcha or decision
+in one call. To rename a handle, use rename_card: it moves the file and rewrites every
+reference plan-wide (connections, frontmatter values, [[links]], mermaid node IDs) as whole
+tokens — never delete-and-recreate to rename.
 
 describe_type is the type reference, served by this server: call it with no args for the
 catalog of all 17 card types, or with a type (e.g. describe_type PAGE) for that type's
@@ -129,8 +136,8 @@ changes as the proposal; on approval, bring the CODE up to match via the sync lo
 FINISH by reconciling — re-read the touched cards against the code, run check_integrity so
 no affected card is left an orphan and every connection is set, bump status (planned →
 building → built → verified), commit, and set_sync_point. In plan mode the write tools are
-unavailable by design (the read tools — get_card, list_cards, search, traverse, assemble,
-describe_type, check_integrity, diff_plan, plan_log, stale_report, check_sync,
+unavailable by design (the read tools — get_card, list_cards, list_notes, search, traverse,
+assemble, describe_type, check_integrity, diff_plan, plan_log, stale_report, check_sync,
 list_connected_repos — are marked read-only and stay available), so spend plan mode READING:
 pull in as much of the relevant plan as you can
 (traverse from the entry points, connected: "full") to build a strong model of the project
@@ -141,7 +148,11 @@ For migrations or large scaffolds, use create_cards and add_connections (batched
 lint pass) instead of many single calls — connections between cards in the same batch
 resolve without transient "does not resolve" errors. A card is created even when issues
 are returned (issues are lint state, not failure). check_integrity reports orphans
-(zero-connection cards), and list_cards connected:false lists them.
+(zero-connection cards), and list_cards connected:false lists them. The BACKLOG view —
+everything not yet built — is list_cards status: ["planned", "building", "none"] ("none" =
+cards with no status set, which usually means unbuilt). traverse takes the same status
+filter as a post-filter: the walk still passes through built cards, so a built hub never
+hides the planned work behind it.
 
 The plan folder is found by walking up from the working directory, BOUNDED by the repo
 root (it never adopts another repo's plan). If no plan exists in this repo (tools return
@@ -359,10 +370,15 @@ async function computeStaleCards(
   }
   const fallback = base ?? marker ?? null;
 
-  const stale: StaleCard[] = [];
-  const noBaseline: StaleResult['no_baseline'] = [];
-  let checked = 0;
-
+  // Pass 1: collect every claim card with its baseline and resolved bound paths.
+  interface Claim {
+    card: Card;
+    baseline: string | null;
+    baseline_source: StaleCard['baseline_source'];
+    paths: string[];
+    missing: string[];
+  }
+  const claims: Claim[] = [];
   for (const card of index.cards.values()) {
     const verifiedSha =
       typeof card.frontmatter.verified_sha === 'string'
@@ -372,21 +388,44 @@ async function computeStaleCards(
       card.status === 'built' || card.status === 'verified' || Boolean(verifiedSha);
     if (!isClaim) continue;
     if (boundPathsForCard(index, card).length === 0) continue;
-    checked++;
-
-    const baseline = verifiedSha ?? fallback ?? undefined;
     const resolved = await resolveCodeForCard(root, index, card, 'paths');
-    const paths = resolved.files.map((f) => f.path);
-    const missing = resolved.files.filter((f) => !f.exists).map((f) => f.path);
+    claims.push({
+      card,
+      baseline: verifiedSha ?? fallback,
+      baseline_source: verifiedSha ? 'verified_sha' : base ? 'argument' : 'sync-marker',
+      paths: resolved.files.map((f) => f.path),
+      missing: resolved.files.filter((f) => !f.exists).map((f) => f.path),
+    });
+  }
 
+  // Pass 2: one git call per DISTINCT baseline (usually just the sync marker),
+  // not one per card — a plan with 100 verified cards must not spawn 100 diffs.
+  const changedBy = new Map<string, Set<string> | 'unreachable'>();
+  const baselines = new Set(
+    claims.map((c) => c.baseline).filter((b): b is string => Boolean(b)),
+  );
+  for (const baseline of baselines) {
+    const union = [
+      ...new Set(
+        claims.filter((c) => c.baseline === baseline).flatMap((c) => c.paths),
+      ),
+    ];
+    try {
+      changedBy.set(baseline, await changedFilesSince(root, baseline, union));
+    } catch {
+      changedBy.set(baseline, 'unreachable');
+    }
+  }
+
+  const stale: StaleCard[] = [];
+  const noBaseline: StaleResult['no_baseline'] = [];
+  for (const { card, baseline, baseline_source, paths, missing } of claims) {
     if (!baseline) {
       noBaseline.push({ handle: card.handle, status: card.status ?? null, files: paths });
       continue;
     }
-    let changed: Set<string>;
-    try {
-      changed = await changedFilesSince(root, baseline, paths);
-    } catch {
+    const changed = changedBy.get(baseline)!;
+    if (changed === 'unreachable') {
       noBaseline.push({
         handle: card.handle,
         status: card.status ?? null,
@@ -402,13 +441,13 @@ async function computeStaleCards(
         name: card.name ?? null,
         status: card.status ?? null,
         baseline: baseline.slice(0, 12),
-        baseline_source: verifiedSha ? 'verified_sha' : base ? 'argument' : 'sync-marker',
+        baseline_source,
         changed_files: changedFiles,
         missing_files: missing,
       });
     }
   }
-  return { checked, stale, no_baseline: noBaseline };
+  return { checked: claims.length, stale, no_baseline: noBaseline };
 }
 
 // Rough dependency tiers for assemble's suggested build order: data first, then
@@ -470,6 +509,18 @@ function partitionByFiles(
 const detailSchema = z.enum(['none', 'summary', 'full']);
 const typeSchema = z.enum(TYPE_NAMES as unknown as [TypeName, ...TypeName[]]);
 const statusSchema = z.enum(['planned', 'building', 'built', 'verified']);
+// Filter variant: "none" selects cards with no status at all — unset usually
+// means nobody has claimed the card is built, so backlog queries want it.
+const statusFilterSchema = z.enum(['planned', 'building', 'built', 'verified', 'none']);
+type StatusFilter = z.infer<typeof statusFilterSchema>;
+const statusesSchema = z
+  .union([statusFilterSchema, z.array(statusFilterSchema).min(1)])
+  .optional();
+
+function statusSetOf(status?: StatusFilter | StatusFilter[]): Set<string> | null {
+  if (status === undefined) return null;
+  return new Set(Array.isArray(status) ? status : [status]);
+}
 const noteKindSchema = z.enum(['decision', 'gotcha', 'state', 'deviation', 'verified']);
 const codeModeSchema = z.enum(['none', 'paths', 'direct']);
 const repoSchema = z
@@ -646,7 +697,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Fetch one card by handle, optionally with all connected cards hydrated. connected: "full" returns the complete frontmatter and body of every connected card — use it when about to work on an area. code: "paths" returns the resolved file paths the card is bound to (connected FILE cards plus code_refs); code: "direct" attaches their contents (capped, binaries/lockfiles/generated skipped) so a background coder starts from intent + current code in one call.',
+        'Fetch one card by handle, optionally with all connected cards hydrated. connected: "full" returns the complete frontmatter and body of every connected card — use it when about to work on an area. code: "paths" returns the resolved file paths the card is bound to (connected FILE cards plus code_refs); code: "direct" attaches their contents (over-cap files truncated with truncated:true; binaries/lockfiles/generated skipped) so a background coder starts from intent + current code in one call.',
       inputSchema: {
         handle: z.string(),
         connected: detailSchema.optional().describe('default: summary'),
@@ -695,11 +746,13 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Catalog of cards filtered by type, kind, status, and/or connectedness. connected:false returns orphans (cards with zero connections). Returns summaries (handle, type, kind, name, status).',
+        'Catalog of cards filtered by type, kind, status, and/or connectedness. status takes one value or a list; "none" selects cards with no status at all — status: ["planned", "building", "none"] is the backlog view (everything not yet built). connected:false returns orphans (cards with zero connections). Returns summaries (handle, type, kind, name, status).',
       inputSchema: {
         types: z.array(typeSchema).optional(),
         kind: z.string().optional(),
-        status: statusSchema.optional(),
+        status: statusesSchema.describe(
+          'one status or a list; "none" = cards with no status set',
+        ),
         connected: z
           .boolean()
           .optional()
@@ -711,11 +764,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     withPlan(async (root, { types, kind, status, connected, limit }) => {
       const index = await loadPlan(root);
       const typeFilter = types && types.length > 0 ? new Set(types) : null;
+      const statusFilter = statusSetOf(status);
       const isConnected = (h: string) => (index.connectedHandles.get(h)?.size ?? 0) > 0;
       const matched = [...index.cards.values()]
         .filter((c) => !typeFilter || typeFilter.has(c.type))
         .filter((c) => !kind || c.kind === kind)
-        .filter((c) => !status || c.status === status)
+        .filter((c) => !statusFilter || statusFilter.has(c.status ?? 'none'))
         .filter((c) => connected === undefined || isConnected(c.handle) === connected)
         .sort((a, b) => a.handle.localeCompare(b.handle));
       return ok({
@@ -758,16 +812,19 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Breadth-first walk of the connection graph from one or more starting handles. Seed it with diff_plan output for impact analysis. detail: "full" includes frontmatter and body of every reached card.',
+        'Breadth-first walk of the connection graph from one or more starting handles. Seed it with diff_plan output for impact analysis. detail: "full" includes frontmatter and body of every reached card. status filters the RESULT only — the walk still passes through non-matching cards, so a built hub never hides the planned work behind it (status: ["planned", "building", "none"] = open work in this neighborhood). types, by contrast, prunes the walk itself.',
       inputSchema: {
         start: z.union([z.string(), z.array(z.string()).min(1)]),
         depth: z.number().int().min(0).max(5).optional().describe('default: 2'),
         types: z.array(typeSchema).optional(),
+        status: statusesSchema.describe(
+          'post-filter on returned cards; "none" = no status set. The walk passes through non-matching cards.',
+        ),
         detail: z.enum(['summary', 'full']).optional().describe('default: summary'),
         repo: repoSchema,
       },
     },
-    withPlan(async (root, { start, depth, types, detail }) => {
+    withPlan(async (root, { start, depth, types, status, detail }) => {
       const index = await loadPlan(root);
       const starts = (Array.isArray(start) ? start : [start]).map((s) =>
         s.toUpperCase(),
@@ -797,7 +854,15 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         frontier = next;
       }
 
+      // Status is a post-filter: the walk above passed THROUGH every card, so
+      // a built hub in the middle never hides open work behind it.
+      const statusFilter = statusSetOf(status);
       const cards = [...distance.entries()]
+        .filter(
+          ([handle]) =>
+            !statusFilter ||
+            statusFilter.has(index.cards.get(handle)!.status ?? 'none'),
+        )
         .map(([handle, dist]) => {
           const card = index.cards.get(handle)!;
           return {
@@ -806,8 +871,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           };
         })
         .sort((a, b) => a.distance - b.distance || a.handle.localeCompare(b.handle));
+      const surviving = new Set(cards.map((c) => c.handle));
       const connections = index.connections.filter(
-        (c) => distance.has(c.a) && distance.has(c.b),
+        (c) => surviving.has(c.a) && surviving.has(c.b),
       );
       return ok({ cards, connections, not_found: missing });
     }),
@@ -843,11 +909,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       const index = await loadPlan(root);
 
       let seeds: string[];
+      let notFound: string[] = [];
       let delta: { base: string; base_source: string } | null = null;
       if (handles && handles.length > 0) {
-        seeds = [...new Set(handles.map((h) => h.toUpperCase()))].filter((h) =>
-          index.cards.has(h),
-        );
+        const requested = [...new Set(handles.map((h) => h.toUpperCase()))];
+        seeds = requested.filter((h) => index.cards.has(h));
+        notFound = requested.filter((h) => !index.cards.has(h));
       } else {
         let diff;
         try {
@@ -867,6 +934,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         return ok({
           base: delta,
           seeds: [],
+          not_found: notFound,
           units: [],
           note: handles
             ? 'None of the given handles exist in the plan.'
@@ -927,6 +995,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       return ok({
         base: delta,
         seeds,
+        not_found: notFound,
         reached_handles: reached,
         suggested_order: suggestedOrder,
         units,
@@ -1182,12 +1251,19 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       const touched = new Set<string>();
       for (const [src, targets] of additions) {
         const card = index.cards.get(src)!;
-        const existingList = Array.isArray(card.frontmatter.connections)
-          ? card.frontmatter.connections.filter((c): c is string => typeof c === 'string')
-          : [];
-        const merged = [...new Set([...existingList, ...targets])];
-        const frontmatter = applyCardPatch(card.frontmatter, { connections: merged });
-        await updateCardFile(card.filePath, { frontmatter });
+        // Merge against the file's CURRENT list inside the lock, not the index
+        // snapshot — a concurrent write must not be clobbered.
+        await mutateCardFile(card.filePath, (current) => {
+          const existingList = Array.isArray(current.frontmatter.connections)
+            ? current.frontmatter.connections.filter(
+                (c): c is string => typeof c === 'string',
+              )
+            : [];
+          const merged = [...new Set([...existingList, ...targets])];
+          return {
+            frontmatter: applyCardPatch(current.frontmatter, { connections: merged }),
+          };
+        });
         touched.add(card.relPath);
         added += targets.size;
       }
@@ -1244,11 +1320,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         }
       }
 
-      const frontmatter = patch
-        ? applyCardPatch(card.frontmatter, patch)
-        : undefined;
-
-      await updateCardFile(card.filePath, { frontmatter, body });
+      // Apply the patch to the file's CURRENT frontmatter inside the lock —
+      // patch semantics compose with a concurrent write instead of undoing it.
+      await mutateCardFile(card.filePath, (current) => ({
+        frontmatter: patch ? applyCardPatch(current.frontmatter, patch) : undefined,
+        body,
+      }));
       const lint = await lintPlan(root);
       const updated = lint.index.cards.get(card.handle);
       return ok({
@@ -1280,8 +1357,11 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       if (!card) return fail('NOT_FOUND', `No card with handle ${handle}`);
       const note: CardNote = { kind, text };
       if (sha) note.sha = sha;
-      const frontmatter = withAppendedNote(card.frontmatter, note);
-      await updateCardFile(card.filePath, { frontmatter });
+      // Append to the CURRENT notes list inside the lock so two concurrent
+      // appends both land — the memory tool must never lose a note.
+      await mutateCardFile(card.filePath, (current) => ({
+        frontmatter: withAppendedNote(current.frontmatter, note),
+      }));
       const lint = await lintPlan(root);
       const updated = lint.index.cards.get(card.handle);
       return ok({
@@ -1291,6 +1371,62 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           : 0,
         issues: issuesForFile(lint.issues, card.relPath),
       });
+    }),
+  );
+
+  server.registerTool(
+    'list_notes',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'All typed notes across the plan (the memory recorded via append_note), in handle order and newest-last within each card. Filter by kind — "show me every gotcha" / "every decision" in one call — and/or by handles. The cross-card view of the plan\'s memory; for one card\'s notes use get_card notes_kind/notes_limit.',
+      inputSchema: {
+        kind: noteKindSchema.optional().describe('return only notes of this kind'),
+        handles: z
+          .array(z.string())
+          .optional()
+          .describe('restrict to these cards; omit for the whole plan'),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(500)
+          .optional()
+          .describe('default 200'),
+        repo: repoSchema,
+      },
+    },
+    withPlan(async (root, { kind, handles, limit }) => {
+      const index = await loadPlan(root);
+      const wanted =
+        handles && handles.length > 0
+          ? new Set(handles.map((h) => h.toUpperCase()))
+          : null;
+      const notes: Array<{ handle: string; kind: string; text: string; sha?: string }> =
+        [];
+      const sorted = [...index.cards.values()].sort((a, b) =>
+        a.handle.localeCompare(b.handle),
+      );
+      for (const card of sorted) {
+        if (wanted && !wanted.has(card.handle)) continue;
+        const list = Array.isArray(card.frontmatter.notes)
+          ? card.frontmatter.notes
+          : [];
+        for (const n of list) {
+          if (!n || typeof n !== 'object') continue;
+          const note = n as Record<string, unknown>;
+          if (typeof note.text !== 'string') continue;
+          const noteKind = typeof note.kind === 'string' ? note.kind : 'note';
+          if (kind && noteKind !== kind) continue;
+          notes.push({
+            handle: card.handle,
+            kind: noteKind,
+            text: note.text,
+            ...(typeof note.sha === 'string' ? { sha: note.sha } : {}),
+          });
+        }
+      }
+      return ok({ total: notes.length, notes: notes.slice(0, limit ?? 200) });
     }),
   );
 
@@ -1312,23 +1448,30 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       const index = await loadPlan(root);
       const card = index.cards.get(handle.toUpperCase());
       if (!card) return fail('NOT_FOUND', `No card with handle ${handle}`);
-      const body = replaceBodySection(card.body, section, text);
-      if (body === null) {
-        const headings = bodyHeadingTexts(card.body);
-        const target = section.trim().replace(/^#+\s*/, '').toLowerCase();
-        const matchCount = headings.filter((h) => h.toLowerCase() === target).length;
-        if (matchCount > 1) {
-          return fail(
-            'AMBIGUOUS_SECTION',
-            `${card.handle} has ${matchCount} headings called "${section}"; edit_section can't tell them apart. Use update_card to set the whole body.`,
-          );
+      // Replace against the CURRENT body inside the lock — concurrent edits to
+      // different sections compose instead of the later one clobbering.
+      let failure: ToolResult | null = null;
+      await mutateCardFile(card.filePath, (current) => {
+        const body = replaceBodySection(current.body, section, text);
+        if (body === null) {
+          const headings = bodyHeadingTexts(current.body);
+          const target = section.trim().replace(/^#+\s*/, '').toLowerCase();
+          const matchCount = headings.filter((h) => h.toLowerCase() === target).length;
+          failure =
+            matchCount > 1
+              ? fail(
+                  'AMBIGUOUS_SECTION',
+                  `${card.handle} has ${matchCount} headings called "${section}"; edit_section can't tell them apart. Use update_card to set the whole body.`,
+                )
+              : fail(
+                  'SECTION_NOT_FOUND',
+                  `No heading "${section}" in ${card.handle}. Headings present: ${headings.length ? headings.join(', ') : '(none)'}. Use update_card to set the whole body or add the section.`,
+                );
+          return null;
         }
-        return fail(
-          'SECTION_NOT_FOUND',
-          `No heading "${section}" in ${card.handle}. Headings present: ${headings.length ? headings.join(', ') : '(none)'}. Use update_card to set the whole body or add the section.`,
-        );
-      }
-      await updateCardFile(card.filePath, { body });
+        return { body };
+      });
+      if (failure) return failure;
       const lint = await lintPlan(root);
       const updated = lint.index.cards.get(card.handle);
       return ok({
@@ -1360,33 +1503,65 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       const index = await loadPlan(root);
       const card = index.cards.get(handle.toUpperCase());
       if (!card) return fail('NOT_FOUND', `No card with handle ${handle}`);
+      const warnings: string[] = [];
       let resolvedSha = sha;
-      let warning: string | undefined;
-      if (!resolvedSha) {
+      if (resolvedSha) {
+        // Normalize to the full commit sha; a typo'd baseline would otherwise
+        // surface only later, as an unreachable baseline in stale_report.
+        try {
+          resolvedSha = await resolveCommit(root, resolvedSha);
+        } catch {
+          warnings.push(
+            `sha ${resolvedSha} does not resolve to a commit in this repo; stamped as given — stale_report will report this card's baseline as unreachable until it does.`,
+          );
+        }
+      } else {
         try {
           resolvedSha = await headSha(root);
         } catch {
-          warning =
-            'Not a git repo (or no commits): stamped verified_at + status only. Drift detection needs a verified_sha baseline — pass sha or commit first.';
+          warnings.push(
+            'Not a git repo (or no commits): stamped verified_at + status only. Drift detection needs a verified_sha baseline — pass sha or commit first.',
+          );
+        }
+      }
+      // A verified_sha is a claim about COMMITTED code. Uncommitted edits to the
+      // bound files are not covered by it — mirror set_sync_point's dirty warning.
+      if (resolvedSha) {
+        try {
+          const bound = boundPathsForCard(index, card).map((b) => b.path);
+          const dirty = await changedFilesSince(root, 'HEAD', bound);
+          const dirtyBound = bound.filter((p) => dirty.has(p));
+          if (dirtyBound.length > 0) {
+            warnings.push(
+              `Bound file(s) have uncommitted changes the baseline does not include: ${dirtyBound.join(', ')}. Commit first, then set_verified.`,
+            );
+          }
+        } catch {
+          // Best-effort: no git repo or nothing bound — nothing to warn about.
         }
       }
       const verifiedAt = new Date().toISOString();
       const fields: Record<string, unknown> = { verified_at: verifiedAt };
       if (resolvedSha) fields.verified_sha = resolvedSha;
-      let frontmatter = applyCardPatch(card.frontmatter, { status: 'verified', fields });
-      if (note) {
-        const n: CardNote = { kind: 'verified', text: note };
-        if (resolvedSha) n.sha = resolvedSha;
-        frontmatter = withAppendedNote(frontmatter, n);
-      }
-      await updateCardFile(card.filePath, { frontmatter });
+      await mutateCardFile(card.filePath, (current) => {
+        let frontmatter = applyCardPatch(current.frontmatter, {
+          status: 'verified',
+          fields,
+        });
+        if (note) {
+          const n: CardNote = { kind: 'verified', text: note };
+          if (resolvedSha) n.sha = resolvedSha;
+          frontmatter = withAppendedNote(frontmatter, n);
+        }
+        return { frontmatter };
+      });
       const lint = await lintPlan(root);
       const updated = lint.index.cards.get(card.handle);
       return ok({
         card: updated ? full(updated) : null,
         verified_sha: resolvedSha ?? null,
         verified_at: verifiedAt,
-        warning,
+        warning: warnings.length > 0 ? warnings.join(' ') : undefined,
         issues: issuesForFile(lint.issues, card.relPath),
       });
     }),
@@ -1418,6 +1593,41 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   );
 
   server.registerTool(
+    'rename_card',
+    {
+      description:
+        'Rename a card\'s handle and rewrite every reference to it across the plan — connections lists, handle-shaped frontmatter values, [[links]], mermaid nodes, and prose mentions (whole-token matches only; API-USER never touches API-USERS). The file moves to the new handle\'s path, so a cross-type rename (new prefix) also moves folders and the card\'s fields are then validated against the new type\'s schema. Returns the handles whose references were rewritten plus lint issues for every touched file.',
+      inputSchema: { from: z.string(), to: z.string(), repo: repoSchema },
+    },
+    withPlan(async (root, args) => {
+      let result;
+      try {
+        result = await renameCard(root, args.from, args.to);
+      } catch (err) {
+        if (err instanceof RenameCardError) return fail(err.code, err.message);
+        throw err;
+      }
+      if (result.noop) {
+        return ok({ renamed: null, note: 'from and to are the same handle — nothing to do.' });
+      }
+      const lint = await lintPlan(root);
+      const touched = new Set([result.file]);
+      for (const h of result.references_updated) {
+        const rel = lint.index.cards.get(h)?.relPath;
+        if (rel) touched.add(rel);
+      }
+      const renamed = lint.index.cards.get(result.to);
+      return ok({
+        renamed: { from: result.from, to: result.to },
+        file: result.file,
+        references_updated: result.references_updated,
+        card: renamed ? full(renamed) : null,
+        issues: lint.issues.filter((i) => touched.has(i.file)),
+      });
+    }),
+  );
+
+  server.registerTool(
     'add_connection',
     {
       description:
@@ -1434,13 +1644,19 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       if (index.connectedHandles.get(from.handle)?.has(to.handle)) {
         return ok({ already_connected: true, between: [from.handle, to.handle] });
       }
-      const existing = Array.isArray(from.frontmatter.connections)
-        ? (from.frontmatter.connections as string[])
-        : [];
-      const frontmatter = deepMerge(from.frontmatter, {
-        connections: [...existing, to.handle],
+      await mutateCardFile(from.filePath, (current) => {
+        const existing = Array.isArray(current.frontmatter.connections)
+          ? current.frontmatter.connections.filter(
+              (c): c is string => typeof c === 'string',
+            )
+          : [];
+        if (existing.includes(to.handle)) return null; // raced: already added
+        return {
+          frontmatter: deepMerge(current.frontmatter, {
+            connections: [...existing, to.handle],
+          }),
+        };
       });
-      await updateCardFile(from.filePath, { frontmatter });
       const lint = await lintPlan(root);
       return ok({
         connected: [from.handle, to.handle],
@@ -1470,17 +1686,22 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         [cardA, cardB.handle],
         [cardB, cardA.handle],
       ] as const) {
-        const list = Array.isArray(card.frontmatter.connections)
-          ? (card.frontmatter.connections as string[])
-          : [];
-        if (list.includes(other)) {
+        let removed = false;
+        await mutateCardFile(card.filePath, (current) => {
+          // Keep malformed (non-string) entries as-is — lint owns reporting them.
+          const list = Array.isArray(current.frontmatter.connections)
+            ? current.frontmatter.connections
+            : [];
+          if (!list.includes(other)) return null;
+          removed = true;
           const next = list.filter((h) => h !== other);
-          const frontmatter = deepMerge(card.frontmatter, {
-            connections: next.length > 0 ? next : null,
-          });
-          await updateCardFile(card.filePath, { frontmatter });
-          removedFrom.push(card.handle);
-        }
+          return {
+            frontmatter: deepMerge(current.frontmatter, {
+              connections: next.length > 0 ? next : null,
+            }),
+          };
+        });
+        if (removed) removedFrom.push(card.handle);
       }
 
       const lint = await lintPlan(root);
@@ -1577,11 +1798,18 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         );
       }
       const entry: ConnectedRepo = { name, path: repoPath, description };
-      const next = upsertConnectedRepo(await readConnectedRepos(root), entry);
-      const frontmatter = applyCardPatch(planCard.frontmatter, {
-        fields: { connected_repos: next.map(connectedRepoToFm) },
+      let next: ConnectedRepo[] = [];
+      await mutateCardFile(planCard.filePath, (current) => {
+        next = upsertConnectedRepo(
+          connectedReposFromFrontmatter(current.frontmatter),
+          entry,
+        );
+        return {
+          frontmatter: applyCardPatch(current.frontmatter, {
+            fields: { connected_repos: next.map(connectedRepoToFm) },
+          }),
+        };
       });
-      await updateCardFile(planCard.filePath, { frontmatter });
 
       let reciprocated: unknown;
       if (reciprocate) {
@@ -1605,15 +1833,16 @@ export function buildServer(options: ServerOptions = {}): McpServer {
               path: path.relative(target.repoRoot, homeRepoRoot) || '.',
               description: reverse_description,
             };
-            const targetNext = upsertConnectedRepo(
-              await readConnectedRepos(target.root),
-              reverseEntry,
-            );
-            await updateCardFile(targetPlan.filePath, {
-              frontmatter: applyCardPatch(targetPlan.frontmatter, {
-                fields: { connected_repos: targetNext.map(connectedRepoToFm) },
+            await mutateCardFile(targetPlan.filePath, (current) => ({
+              frontmatter: applyCardPatch(current.frontmatter, {
+                fields: {
+                  connected_repos: upsertConnectedRepo(
+                    connectedReposFromFrontmatter(current.frontmatter),
+                    reverseEntry,
+                  ).map(connectedRepoToFm),
+                },
               }),
-            });
+            }));
             reciprocated = {
               ok: true,
               repo_root: target.repoRoot,
@@ -1648,11 +1877,19 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       if (!existing.some((r) => r.name === name)) {
         return ok({ removed: false, connected_repos: existing.map(connectedRepoToFm) });
       }
-      const next = removeConnectedRepoEntry(existing, name);
-      await updateCardFile(planCard.filePath, {
-        frontmatter: applyCardPatch(planCard.frontmatter, {
-          fields: { connected_repos: next.length > 0 ? next.map(connectedRepoToFm) : null },
-        }),
+      let next: ConnectedRepo[] = [];
+      await mutateCardFile(planCard.filePath, (current) => {
+        next = removeConnectedRepoEntry(
+          connectedReposFromFrontmatter(current.frontmatter),
+          name,
+        );
+        return {
+          frontmatter: applyCardPatch(current.frontmatter, {
+            fields: {
+              connected_repos: next.length > 0 ? next.map(connectedRepoToFm) : null,
+            },
+          }),
+        };
       });
       const lint = await lintPlan(root);
       return ok({
@@ -1785,9 +2022,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       },
     },
     withPlan(async (root, { base }) => {
-      const status = await computeSyncStatus(root);
-      const index = await loadPlan(root);
-      const r = await computeStaleCards(root, index, base);
+      const lint = await lintPlan(root);
+      const status = await computeSyncStatus(root, { lint });
+      const r = await computeStaleCards(root, lint.index, base);
       return ok({
         advisory:
           'Advisory only — the MCP server reports sync state, it cannot block. Use as a definition-of-done gate before calling work complete.',

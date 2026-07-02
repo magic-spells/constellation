@@ -96,6 +96,21 @@ export async function headSha(planRoot: string): Promise<string> {
   return (await git(repoRoot, 'rev-parse', 'HEAD')).trim();
 }
 
+/** Resolve a revision to a full commit sha, verifying it actually exists. */
+export async function resolveCommit(planRoot: string, rev: string): Promise<string> {
+  const realRoot = await realpath(planRoot);
+  const repoRoot = await repoRootFor(realRoot);
+  return (
+    await git(
+      repoRoot,
+      'rev-parse',
+      '--verify',
+      '--end-of-options',
+      `${safeRev(rev)}^{commit}`,
+    )
+  ).trim();
+}
+
 /**
  * Of the given repo-relative paths, the subset that changed between `sinceSha`
  * and the working tree — one git call. A path absent from the result is

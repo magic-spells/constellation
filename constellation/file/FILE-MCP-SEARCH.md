@@ -9,4 +9,4 @@ connections:
   - DOC-MCP-SERVER
 ---
 
-Ranks matches: handle ≫ name > kind/type > body occurrences; excerpt is the first matching body line.
+Ranks matches: handle ≫ name > kind/type > body-and-note occurrences; appended notes are indexed as `note(kind): text` lines so recorded memory stays findable, and the excerpt is the first matching body or note line.

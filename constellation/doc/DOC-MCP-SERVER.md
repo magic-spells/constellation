@@ -22,13 +22,22 @@ content of every card connected to it (its datatypes, table, tests, docs).
 
 ## Tool surface
 
-- **Read** — `get_card` (+ `code: none|paths|direct`, notes filters), `list_cards`, `search`,
+- **Read** — `get_card` (+ `code: none|paths|direct`, notes filters), `list_cards`,
+  `list_notes` (cross-card notes query by kind/handles), `search` (bodies **and** notes),
   `traverse`, `assemble`, `describe_type` (the type reference, plan-independent).
+  `list_cards`/`traverse` filter by status (value or list; `"none"` = unset), so
+  `["planned","building","none"]` is the backlog view. On `traverse` status is a
+  *post-filter* — the walk passes through non-matching cards so a built hub never hides
+  planned work — while `types` prunes the walk itself.
 - **Write** — `create_card`, `create_cards` (batched, lints once), `update_card` (+ `if_mtime`
-  stale-write guard), `append_note`, `edit_section`, `set_verified`, `delete_card`,
-  `add_connection`, `add_connections`, `remove_connection`. Every write reloads + lints and
-  returns the issues for the file it touched; **a card is created even when issues come back**
-  (issues are lint state, not failure).
+  stale-write guard), `append_note`, `edit_section`, `set_verified`, `rename_card` (rename a
+  handle and rewrite every reference plan-wide, whole-token; the file moves with the prefix —
+  shared engine with the CLI `constellation rename`, [[FILE-RENAME]]),
+  `delete_card`, `add_connection`, `add_connections`, `remove_connection`. Every write reloads
+  + lints and returns the issues for the file it touched; **a card is created even when issues
+  come back** (issues are lint state, not failure). Writes are serialized per file behind an
+  in-process lock and land atomically (temp + rename); the cheap writes apply their change to
+  the file's *current* content, so concurrent small updates compose instead of clobbering.
 - **Git** — `diff_plan`, `plan_log`, `set_sync_point`, `stale_report`, `check_sync`,
   `check_integrity` (see [[DOC-CHANGE-TRACKING]]).
 - **Viewer** — `start_viewer` / `stop_viewer` ([[PAGE-VIEWER-HOME]]).

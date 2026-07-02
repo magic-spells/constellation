@@ -10,8 +10,8 @@ import type { Card, Issue } from '../core/types.js';
 import {
   applyCardPatch,
   createCardFile,
+  mutateCardFile,
   reservedFieldKeys,
-  updateCardFile,
   type CardPatch,
 } from '../core/writer.js';
 
@@ -162,13 +162,12 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
       );
     }
 
-    const frontmatter = hasPatch
-      ? applyCardPatch(card.frontmatter, patch)
-      : undefined;
-    await updateCardFile(card.filePath, {
-      frontmatter,
+    // Apply the patch to the file's CURRENT frontmatter inside the write lock,
+    // so a viewer edit composes with a concurrent MCP write instead of undoing it.
+    await mutateCardFile(card.filePath, (current) => ({
+      frontmatter: hasPatch ? applyCardPatch(current.frontmatter, patch) : undefined,
       body: typeof patch.body === 'string' ? patch.body : undefined,
-    });
+    }));
 
     const after = await lintPlan(planRoot);
     const updated = after.index.cards.get(card.handle);

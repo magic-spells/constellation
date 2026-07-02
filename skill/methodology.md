@@ -155,9 +155,13 @@ the plan the way a seasoned engineer reviews a design doc: assume something impo
 missing, and go find it. This matters more than any single card you write.
 
 **First, a quick hygiene sweep** (mechanical, cheap, not the point): `check_integrity` for
-orphans, `list_cards connected:false` for islands, lint for dangling `[[links]]`/refs (W004)
+orphans, `list_cards connected:false` for islands, `list_cards status: ["planned",
+"building", "none"]` for the open backlog, lint for dangling `[[links]]`/refs (W004)
 and unresolved structured refs (E005), plus code with no card and `built` cards with no
-code. Fix or note these and move on — they're table stakes.
+code. Skim the recorded memory too — `list_notes kind:gotcha` / `kind:deviation` surfaces
+earlier agents' traps and intentional divergences as review input. If a handle no longer
+says what its card is, `rename_card` moves the file and rewrites every reference plan-wide.
+Fix or note these and move on — they're table stakes.
 
 **Then the real review.** Run these lenses across each area *and* the whole — but calibrate
 to the project's stage and scope; a weekend prototype and a production system have very
