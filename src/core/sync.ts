@@ -7,7 +7,7 @@ import {
   type SyncActivity,
   type SyncPoint,
 } from './git.js';
-import { lintPlan } from './lint.js';
+import { lintPlan, type LintResult } from './lint.js';
 
 export type SyncState =
   | 'in-sync'
@@ -41,9 +41,11 @@ const STATUS_KEYS = ['planned', 'building', 'built', 'verified'] as const;
  */
 export async function computeSyncStatus(
   planRoot: string,
-  options: { activityLimit?: number } = {},
+  options: { activityLimit?: number; lint?: LintResult } = {},
 ): Promise<SyncStatus> {
-  const lint = await lintPlan(planRoot);
+  // Callers that already linted (check_sync) pass the result in — the plan
+  // must not be re-read from disk twice in one tool call.
+  const lint = options.lint ?? (await lintPlan(planRoot));
   const orphans = [...lint.index.cards.keys()].filter(
     (h) => (lint.index.connectedHandles.get(h)?.size ?? 0) === 0,
   );

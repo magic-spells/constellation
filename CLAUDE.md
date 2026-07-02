@@ -37,8 +37,10 @@ npm run build:viewer     # build static viewer assets → viewer/dist
 npm run serve:examples   # serve the golden plan in the viewer (no auto-open)
 ```
 
-CLI surface (`src/cli/index.ts`): `init`, `lint`, `mcp`, `serve`, `repos`, `version`/`v`, `upgrade`.
+CLI surface (`src/cli/index.ts`): `init`, `lint`, `rename`, `mcp`, `serve`, `repos`, `version`/`v`, `upgrade`.
 `lint` exits **1** on errors, **0** otherwise (warnings never fail); **2** when no plan is found.
+`rename OLD NEW` moves a card file and rewrites every reference plan-wide — same engine as the
+MCP `rename_card` (`src/core/rename.ts`).
 
 ## Architecture
 
@@ -52,7 +54,8 @@ The pipeline is one direction: **files → index → (lint | serve | MCP)**.
 | `src/core/indexer.ts` | `loadPlan(root)` — read every card, dedupe handles, resolve refs, build undirected connections, collect structural issues. The heart of the system. |
 | `src/core/validate.ts` | Ajv schema validation against `schemas/` → W002/W003. |
 | `src/core/lint.ts` | `loadPlan` + schema validation, sorted. |
-| `src/core/writer.ts` | Byte-preserving card writes + deep-merge patch semantics + note-append / section-replace helpers (shared by MCP and viewer). |
+| `src/core/writer.ts` | Byte-preserving card writes (atomic, per-file locked) + deep-merge patch semantics + note-append / section-replace / handle-rewrite helpers (shared by MCP and viewer). |
+| `src/core/rename.ts` | Plan-wide handle rename: move the card file, rewrite every reference as whole tokens (shared by MCP `rename_card` and CLI `rename`). |
 | `src/core/code.ts` | Code binding: resolve a card's bound files (connected FILE `path:` + own `code_refs`) and attach contents under size caps (shared by `get_card` code mode, `stale_report`, `assemble`). |
 | `src/core/resolve.ts` | Find the plan folder by walking up from cwd, **bounded by the repo root**. |
 | `src/core/repos.ts` | Connected-repo declarations on `PLAN-PROJECT` (`connected_repos`) and repo selector resolution. |
@@ -93,16 +96,15 @@ DIAGRAM AGENT PLAN` (defined in `src/core/types.ts`; folders in `src/core/handle
 3. `skill/types/<folder>.md` (authoring reference + golden example)
 4. `examples/constellation/<folder>/` (a clean sample card) and the type table in `constellation/doc/DOC-CARD-TYPES.md`
 
-(The current working tree is mid-rename: `ARCH`→`DIAGRAM` and `EXT`→`EXTERNAL`. If you
-touch type plumbing, make sure all four locations land together.)
-
 ## MCP server (`src/mcp/server.ts`)
 
 `constellation mcp` exposes the plan over stdio. Design notes worth preserving:
 
-- **Hydrated retrieval:** `get_card` / `search` / `traverse` can return connected cards' *full* frontmatter and body in one call (`connected: "full"`).
+- **Hydrated retrieval:** `get_card` / `search` / `traverse` can return connected cards' *full* frontmatter and body in one call (`connected: "full"`). `list_cards` / `traverse` filter by status — one value or a list, `"none"` = unset — so `["planned","building","none"]` is the backlog view; traverse's status filter is a *post-filter* (the walk passes through built hubs), unlike `types` which prunes the walk.
 - **Validated writes:** every write tool lints and returns the issues for the file it touched. A card is still created/updated when issues come back — issues are lint *state*, not failure. `create_cards` / `add_connections` batch and lint **once** so intra-batch references resolve.
-- **Cheap writes (keep the memory honest):** `append_note` (append-only typed note — decision/gotcha/state/deviation/verified) and `edit_section` (replace one `##` section) are byte-preserving — the low-friction path that prevents drift.
+- **Cheap writes (keep the memory honest):** `append_note` (append-only typed note — decision/gotcha/state/deviation/verified) and `edit_section` (replace one `##` section) are byte-preserving — the low-friction path that prevents drift. Notes are retrievable: `search` indexes note text, `list_notes` queries them across cards by kind.
+- **Graph-safe rename:** `rename_card` moves the card file and rewrites every reference plan-wide as whole tokens (connections, frontmatter values, `[[links]]`, mermaid). Never delete-and-recreate to rename.
+- **Concurrency:** card writes are atomic (temp + rename) and serialized behind an in-process per-file lock; the cheap writes re-read the file inside the lock so concurrent small updates compose. Cross-process races remain the `if_mtime` guard's job.
 - **Code binding, drift & assembly:** a card binds to code via a connected FILE card's `path:` or its own `code_refs`. `get_card(code: "paths"|"direct")` attaches it; `set_verified` stamps the `verified_sha` baseline; `stale_report` / `check_sync` flag reverse drift (bound code changed since verify); `assemble` builds file-disjoint work packages from a delta. All same-repo — cards never bind across repos.
 - **Git change-tracking:** `diff_plan` (per-card changes since the `.sync.json` marker or HEAD), `plan_log`, `set_sync_point`, `check_integrity`. Never stamp dirty flags into cards — git is the source of truth for change.
 - **Connected repos:** `list_connected_repos`, `add_connected_repo`, and `remove_connected_repo` manage `PLAN-PROJECT.connected_repos`; every read/write tool, including those management tools, accepts optional `repo` to target a connected repo explicitly.

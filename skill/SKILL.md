@@ -76,7 +76,9 @@ Beyond the four reserved keys, a few **cross-type metadata fields** are valid on
 (defined in `schemas/card.json`) but are tool-managed, not hand-authored: `code_refs` (extra
 code this card is bound to — `path` or `path:symbol`), `verified_sha` / `verified_at` (set by
 `set_verified` — the drift baseline), and `notes` (append-only typed memory, via
-`append_note`). Reach for the tools rather than writing these by hand.
+`append_note`). Reach for the tools rather than writing these by hand. Notes are
+retrievable: `search` matches note text, `list_notes` lists them across cards by kind
+(every gotcha / every decision in one call), and `get_card` filters them per card.
 
 ## Connections — how the graph gets wired
 
@@ -246,13 +248,17 @@ Cards never connect across repos; the relationship between repos lives in the
 2. Write or edit the card — prefer small, byte-cheap writes over rewriting a whole card:
    `append_note` for a typed note (decision / gotcha / state / deviation / verified),
    `edit_section` to replace a single `##` section in place.
-3. Verify: `npx constellation lint` (errors break the graph and must be fixed;
+3. Renaming a handle is a plan-wide operation: use the MCP `rename_card`, which moves the
+   file and rewrites every reference (connections, frontmatter values, `[[links]]`, mermaid
+   node IDs) as whole tokens. Never hand-rename the file and chase references yourself.
+4. Verify: `npx constellation lint` (errors break the graph and must be fixed;
    warnings are quality signals).
-4. Update `status` when reality changes: `planned → building → built`, and mark
+5. Update `status` when reality changes: `planned → building → built`, and mark
    `verified` only after checking the card against the actual code — use `set_verified`,
    which records the git sha you checked against so later drift is detectable
-   (`stale_report` / `check_sync`).
-5. Never bulk-rewrite `constellation/plan.md` — edit the relevant section.
+   (`stale_report` / `check_sync`). The backlog view — everything not yet built — is
+   `list_cards status: ["planned", "building", "none"]` (`"none"` = no status set).
+6. Never bulk-rewrite `constellation/plan.md` — edit the relevant section.
    Decisions go in DOC cards (`kind: decision`), one file each, not in the plan.
 
 "What changed in the plan" is never tracked in cards — that's

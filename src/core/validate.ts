@@ -32,10 +32,24 @@ function baseKeysFrom(cardSchema: Record<string, unknown> | undefined): string[]
   return keys.length > 0 ? keys : RESERVED_KEYS;
 }
 
-export async function loadSchemas(schemasDir?: string): Promise<SchemaSet> {
+// Schemas are static package files; compile them once per directory per process.
+// Rebuilding Ajv on every lint (i.e. every MCP write) is pure waste.
+const schemaSetCache = new Map<string, Promise<SchemaSet>>();
+
+export function loadSchemas(schemasDir?: string): Promise<SchemaSet> {
   const dir =
     schemasDir ?? path.join(fileURLToPath(new URL('../..', import.meta.url)), 'schemas');
+  let cached = schemaSetCache.get(dir);
+  if (!cached) {
+    cached = buildSchemaSet(dir);
+    // A failed load (e.g. transient fs error) must not poison the process.
+    cached.catch(() => schemaSetCache.delete(dir));
+    schemaSetCache.set(dir, cached);
+  }
+  return cached;
+}
 
+async function buildSchemaSet(dir: string): Promise<SchemaSet> {
   const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true });
   const files = (await readdir(dir)).filter((f) => f.endsWith('.json'));
   const raw = new Map<string, Record<string, unknown>>();

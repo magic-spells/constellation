@@ -1,7 +1,8 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import yaml from 'js-yaml';
 import { TYPE_FOLDERS, typeForHandle } from './handles.js';
+import { parseFile, type ParsedFile } from './parse.js';
 
 // The `(?:\r?\n)?` before the closing fence keeps a truly-empty block (`---\n---`)
 // matchable, so a frontmatter-only write doesn't mistake it for body and duplicate it.
@@ -184,6 +185,62 @@ export function relPathForHandle(handle: string): string {
   return path.join(TYPE_FOLDERS[type], `${handle}.md`);
 }
 
+let tmpSeq = 0;
+
+function tmpPathFor(filePath: string): string {
+  return `${filePath}.${process.pid}.${(tmpSeq++).toString(36)}.tmp`;
+}
+
+/** Write via temp file + rename so a crash can never leave a half-written card. */
+async function writeAtomic(filePath: string, data: string): Promise<void> {
+  const tmp = tmpPathFor(filePath);
+  await writeFile(tmp, data, 'utf8');
+  try {
+    await rename(tmp, filePath);
+  } catch (err) {
+    await rm(tmp, { force: true });
+    throw err;
+  }
+}
+
+/** Atomic create that refuses to overwrite (link fails with EEXIST like `wx`). */
+async function writeAtomicExclusive(filePath: string, data: string): Promise<void> {
+  const tmp = tmpPathFor(filePath);
+  await writeFile(tmp, data, 'utf8');
+  try {
+    await link(tmp, filePath);
+  } finally {
+    await rm(tmp, { force: true });
+  }
+}
+
+const fileLocks = new Map<string, Promise<void>>();
+
+/**
+ * Serialize an async critical section per file path. In-process only — but the
+ * MCP server and the viewer it starts share one process, so this covers their
+ * combined read→modify→write races; cross-process coordination is out of scope
+ * (the update_card if_mtime guard remains the cross-process check).
+ */
+export async function withFileLock<T>(
+  filePath: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const key = path.resolve(filePath);
+  const prev = fileLocks.get(key) ?? Promise.resolve();
+  const run = prev.then(fn, fn);
+  const tail = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  fileLocks.set(key, tail);
+  try {
+    return await run;
+  } finally {
+    if (fileLocks.get(key) === tail) fileLocks.delete(key);
+  }
+}
+
 export async function createCardFile(
   planRoot: string,
   handle: string,
@@ -193,8 +250,48 @@ export async function createCardFile(
   const relPath = relPathForHandle(handle);
   const filePath = path.join(planRoot, relPath);
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, composeCard(fm, body), { flag: 'wx' });
+  await writeAtomicExclusive(filePath, composeCard(fm, body));
   return relPath;
+}
+
+/**
+ * Create a card file from raw text (frontmatter + body exactly as given),
+ * refusing to overwrite. Used by rename, where the moved card's bytes must
+ * survive untouched rather than being re-serialized.
+ */
+export async function createRawCardFile(
+  planRoot: string,
+  handle: string,
+  raw: string,
+): Promise<string> {
+  const relPath = relPathForHandle(handle);
+  const filePath = path.join(planRoot, relPath);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeAtomicExclusive(filePath, raw);
+  return relPath;
+}
+
+/**
+ * Replace every whole-token occurrence of a handle in a card file's raw text —
+ * frontmatter values, [[links]], mermaid nodes, and prose alike — preserving
+ * every other byte. Handles only contain [A-Z0-9-], so those characters
+ * delimit a whole handle. Locked + atomic. Returns true when the file changed.
+ */
+export async function rewriteHandleInFile(
+  filePath: string,
+  from: string,
+  to: string,
+): Promise<boolean> {
+  return withFileLock(filePath, async () => {
+    const raw = await readFile(filePath, 'utf8');
+    const replaced = raw.replace(
+      new RegExp(`(?<![A-Z0-9-])${from}(?![A-Z0-9-])`, 'g'),
+      to,
+    );
+    if (replaced === raw) return false;
+    await writeAtomic(filePath, replaced);
+    return true;
+  });
 }
 
 export interface CardFileUpdate {
@@ -261,8 +358,35 @@ function rewriteFrontmatter(
  * Rewrite a card file. A body-only update preserves the original frontmatter
  * block byte-for-byte; a frontmatter update re-serializes only the top-level
  * keys whose values changed, keeping everything else byte-identical.
+ * Takes the per-file lock; the write itself is atomic (temp + rename).
  */
 export async function updateCardFile(
+  filePath: string,
+  update: CardFileUpdate,
+): Promise<void> {
+  await withFileLock(filePath, () => applyCardFileUpdate(filePath, update));
+}
+
+/**
+ * Locked read→transform→write. The transform receives the file's CURRENT
+ * frontmatter + body (read inside the lock), so concurrent cheap writes —
+ * two append_notes, an edit_section racing an add_connection — compose instead
+ * of the later one clobbering the earlier. Return null to write nothing.
+ */
+export async function mutateCardFile(
+  filePath: string,
+  transform: (
+    current: ParsedFile,
+  ) => CardFileUpdate | null | Promise<CardFileUpdate | null>,
+): Promise<void> {
+  await withFileLock(filePath, async () => {
+    const current = parseFile(await readFile(filePath, 'utf8'));
+    const update = await transform(current);
+    if (update) await applyCardFileUpdate(filePath, update);
+  });
+}
+
+async function applyCardFileUpdate(
   filePath: string,
   update: CardFileUpdate,
 ): Promise<void> {
@@ -293,5 +417,5 @@ export async function updateCardFile(
   // The frontmatter block already supplies the blank-line separation.
   if (fmText.endsWith('\n\n')) body = body.replace(/^\n+/, '');
   const trailingNewline = update.body !== undefined ? '\n' : '';
-  await writeFile(filePath, `${fmText}${body}${trailingNewline}`, 'utf8');
+  await writeAtomic(filePath, `${fmText}${body}${trailingNewline}`);
 }

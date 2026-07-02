@@ -7,8 +7,8 @@ export interface SearchHit {
 }
 
 /**
- * Scored full-text search over handle, name, kind, and body.
- * Handle matches dominate; body occurrences break ties.
+ * Scored full-text search over handle, name, kind, body, and appended notes.
+ * Handle matches dominate; body/note occurrences break ties.
  */
 export function searchCards(
   index: PlanIndex,
@@ -25,7 +25,13 @@ export function searchCards(
 
     const handle = card.handle.toLowerCase();
     const name = (card.name ?? '').toLowerCase();
-    const body = card.body.toLowerCase();
+    // Notes are memory (append_note) — they must be findable like the body is.
+    const noteLines = noteLinesOf(card);
+    const text =
+      noteLines.length > 0
+        ? `${card.body}\n${noteLines.join('\n')}`
+        : card.body;
+    const searchable = text.toLowerCase();
 
     let score = 0;
     for (const token of tokens) {
@@ -34,16 +40,31 @@ export function searchCards(
       if (name.includes(token)) score += 4;
       if (card.kind?.toLowerCase() === token || card.type.toLowerCase() === token)
         score += 2;
-      score += Math.min(countOccurrences(body, token), 5);
+      score += Math.min(countOccurrences(searchable, token), 5);
     }
     if (score === 0) continue;
 
-    hits.push({ card, score, excerpt: makeExcerpt(card.body, tokens) });
+    hits.push({ card, score, excerpt: makeExcerpt(text, tokens) });
   }
 
   return hits.sort(
     (a, b) => b.score - a.score || a.card.handle.localeCompare(b.card.handle),
   );
+}
+
+/** A card's notes as `note(kind): text` lines — searchable and excerpt-able. */
+function noteLinesOf(card: Card): string[] {
+  const notes = card.frontmatter.notes;
+  if (!Array.isArray(notes)) return [];
+  const out: string[] = [];
+  for (const n of notes) {
+    if (!n || typeof n !== 'object') continue;
+    const note = n as Record<string, unknown>;
+    if (typeof note.text !== 'string') continue;
+    const kind = typeof note.kind === 'string' ? note.kind : 'note';
+    out.push(`note(${kind}): ${note.text}`);
+  }
+  return out;
 }
 
 function countOccurrences(haystack: string, needle: string): number {

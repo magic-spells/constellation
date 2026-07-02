@@ -38,6 +38,7 @@ Requires Node ≥ 22.
 ```sh
 constellation init          # scaffold constellation/ with a starter plan.md
 constellation lint          # validate handles, references, folders, schemas
+constellation rename A-X A-Y  # rename a card + rewrite every reference to it
 constellation mcp           # run the MCP server (stdio) for AI agents
 constellation serve         # open the local viewer (editable; --readonly to disable)
 constellation repos         # list sibling repos declared in connected_repos
@@ -57,7 +58,7 @@ unknown fields, dangling prose links) don't block.
 | `schemas/` | JSON Schemas: `card.json` (reserved keys) + one per type |
 | `skill/` | AI authoring skill: `SKILL.md` + per-type references with golden examples |
 | `src/core/` | Parser, reference extraction, indexer, schema validation, lint |
-| `src/cli/` | The `constellation` binary (`init`, `lint`, `mcp`, `serve`, `repos`) |
+| `src/cli/` | The `constellation` binary (`init`, `lint`, `rename`, `mcp`, `serve`, `repos`) |
 | `src/mcp/` | MCP server: hydrated retrieval, validated writes, git tools |
 | `examples/constellation/` | Golden sample plan — one card of every type, lints clean, doubles as the test fixture |
 
@@ -76,11 +77,18 @@ npm run build            # tsc → dist/
 
 - **Hydrated retrieval**: `get_card`, `search`, and `traverse` can return
   connected cards with their complete frontmatter and body in one call.
-- **Validated writes**: `create_card`, `update_card`, `delete_card`,
-  `add_connection`, `remove_connection` — every write lints and returns issues.
+  `list_cards` and `traverse` filter by status — `["planned", "building", "none"]`
+  is the backlog view (everything not yet built).
+- **Validated writes**: `create_card` / `create_cards`, `update_card`,
+  `append_note` / `edit_section` (byte-cheap memory writes), `set_verified`,
+  `rename_card` (rewrites every reference plan-wide), `delete_card`,
+  `add_connection(s)`, `remove_connection` — every write lints and returns issues.
   Body-only updates never reformat frontmatter.
+- **Queryable memory**: `search` matches appended note text; `list_notes` lists
+  notes across cards by kind (every gotcha / decision in one call).
 - **Git-powered change tracking**: `diff_plan` (per-card changes since the sync
-  marker), `plan_log`, `set_sync_point`, `check_integrity`.
+  marker), `plan_log`, `set_sync_point`, `stale_report` / `check_sync`
+  (bound-code drift since a card was verified), `check_integrity`.
 - **Connected repos (multi-repo)**: a plan can declare sibling repos
   (`add_connected_repo` / `list_connected_repos` / `remove_connected_repo`); every
   tool takes an optional `repo` selector to read or write a sibling's plan. Omit it

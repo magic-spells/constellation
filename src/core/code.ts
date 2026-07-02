@@ -1,4 +1,4 @@
-import { readFile, realpath, stat } from 'node:fs/promises';
+import { open, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { repoRootFor } from './git.js';
 import type { Card, PlanIndex } from './types.js';
@@ -61,8 +61,9 @@ export interface CodeFile extends BoundPath {
   bytes?: number;
   /** Attached file contents (mode "direct" only, when not skipped). */
   content?: string;
+  /** Set when the file was over the per-file cap and only its head was attached. */
   truncated?: boolean;
-  /** Why contents were not attached (missing, binary, lockfile, too large, budget). */
+  /** Why contents were not attached (missing, binary, lockfile, budget). */
   skipped?: string;
 }
 
@@ -106,11 +107,24 @@ function skipReason(p: string): string | null {
   return null;
 }
 
+/** First `max` bytes of a file, without loading the rest into memory. */
+async function readCapped(abs: string, max: number): Promise<Buffer> {
+  const fh = await open(abs);
+  try {
+    const buf = Buffer.alloc(max);
+    const { bytesRead } = await fh.read(buf, 0, max, 0);
+    return buf.subarray(0, bytesRead);
+  } finally {
+    await fh.close();
+  }
+}
+
 /**
  * Resolve a card's bound code. mode "paths" returns existence-checked paths
  * (cheap; the agent Reads what it wants); mode "direct" also attaches file
  * contents under per-file and total size caps, skipping binaries, lockfiles,
- * and generated output, with truncation noted.
+ * and generated output. A file over the per-file cap attaches its head with
+ * `truncated: true` rather than being skipped.
  */
 export async function resolveCodeForCard(
   planRoot: string,
@@ -182,21 +196,23 @@ export async function resolveCodeForCard(
         file.skipped = 'missing';
       } else {
         const reason = skipReason(b.path);
+        const attachBytes = Math.min(bytes ?? 0, PER_FILE_MAX);
         if (reason) {
           file.skipped = reason;
-        } else if ((bytes ?? 0) > PER_FILE_MAX) {
-          file.skipped = `too large (${bytes} > ${PER_FILE_MAX} bytes)`;
-        } else if (total + (bytes ?? 0) > TOTAL_MAX) {
+        } else if (total + attachBytes > TOTAL_MAX) {
           file.skipped = 'total budget exhausted';
           budgetExhausted = true;
         } else {
           try {
-            const buf = await readFile(abs!);
+            const buf = await readCapped(abs!, PER_FILE_MAX);
             if (buf.includes(0)) {
               file.skipped = 'binary';
             } else {
+              // Cutting at a byte boundary may split a multibyte char at the
+              // very end; a single replacement char there is acceptable.
               file.content = buf.toString('utf8');
               total += buf.length;
+              if ((bytes ?? 0) > PER_FILE_MAX) file.truncated = true;
             }
           } catch {
             file.skipped = 'unreadable';

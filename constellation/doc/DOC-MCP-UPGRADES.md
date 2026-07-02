@@ -49,5 +49,8 @@ call. `assemble` fuses both into a fan-out-ready work package.
 - **Decided AGAINST a dedicated `DECISION` card type** — decisions live as data on the cards
   they concern: an `append_note(kind: decision)`, a DOC card (`kind: decision`, like this one),
   or a DIAGRAM. Co-location beats a separate filing system you have to remember to open.
+- **Memory must be retrievable to be memory** — `search` indexes note text alongside bodies,
+  and `list_notes` gives the cross-card view (every gotcha / every decision in one call). A
+  note that full-text search can't find would silently defeat the point of appending it.
 - **Deferred** — a structured partial-status model (`{built, pending}`); typed `notes` cover most
   of that need for now.
