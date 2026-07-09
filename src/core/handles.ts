@@ -13,6 +13,7 @@ export const TYPE_FOLDERS: Record<TypeName, string> = {
   DATATYPE: 'datatype',
   ROLE: 'role',
   DOC: 'doc',
+  DECISION: 'decision',
   FILE: 'file',
   TEST: 'test',
   EXTERNAL: 'external',
@@ -38,7 +39,7 @@ export function isHandleShaped(value: string): boolean {
   );
 }
 
-/** Type for a handle's prefix, or null when the prefix is not one of the 17. */
+/** Type for a handle's prefix, or null when the prefix is not one of the 18. */
 export function typeForHandle(handle: string): TypeName | null {
   const dash = handle.indexOf('-');
   if (dash <= 0) return null;

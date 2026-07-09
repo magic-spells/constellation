@@ -46,9 +46,10 @@ call. `assemble` fuses both into a fan-out-ready work package.
   change flag; the drift verdict stays live and unstored ([[DOC-CHANGE-TRACKING]], [[FILE-SYNC]]).
 - **Code attach is same-repo** — cards never bind across repos; reach a sibling's code via the
   `repo` selector ([[DOC-CONNECTED-REPOS]]).
-- **Decided AGAINST a dedicated `DECISION` card type** — decisions live as data on the cards
-  they concern: an `append_note(kind: decision)`, a DOC card (`kind: decision`, like this one),
-  or a DIAGRAM. Co-location beats a separate filing system you have to remember to open.
+- **Decided AGAINST a dedicated `DECISION` card type** — *superseded by
+  [[DECISION-NATIVE-DECISION-TYPE]]*: real projects accumulated dozens of DOC decision cards,
+  and cross-cutting decisions have no single card to co-locate a note on. Card-local choices
+  still live as `append_note(kind: decision)` on the card they concern.
 - **Memory must be retrievable to be memory** — `search` indexes note text alongside bodies,
   and `list_notes` gives the cross-card view (every gotcha / every decision in one call). A
   note that full-text search can't find would silently defeat the point of appending it.

@@ -9,9 +9,9 @@ const GOLDEN = fileURLToPath(
 describe('loadPlan on the golden example', () => {
   it('loads one card of every type plus the root plan', async () => {
     const index = await loadPlan(GOLDEN);
-    expect(index.cards.size).toBe(18);
+    expect(index.cards.size).toBe(19);
     const types = new Set([...index.cards.values()].map((c) => c.type));
-    expect(types.size).toBe(17);
+    expect(types.size).toBe(18);
   });
 
   it('maps root plan.md to PLAN-PROJECT', async () => {
@@ -25,6 +25,12 @@ describe('loadPlan on the golden example', () => {
   it('has no structural issues', async () => {
     const index = await loadPlan(GOLDEN);
     expect(index.issues).toEqual([]);
+  });
+
+  it('wires DECISION cards to the cards they shaped', async () => {
+    const index = await loadPlan(GOLDEN);
+    expect(index.connectedHandles.get('DECISION-NO-HARD-DELETE')).toContain('DB-TICKETS');
+    expect(index.connectedHandles.get('DB-TICKETS')).toContain('DECISION-NO-HARD-DELETE');
   });
 
   it('derives connections from frontmatter fields (response_schema etc.)', async () => {

@@ -52,9 +52,9 @@ describe('isKnownHandle', () => {
 });
 
 describe('TYPE_FOLDERS', () => {
-  it('covers all 17 types with unique folders', () => {
+  it('covers all 18 types with unique folders', () => {
     const folders = Object.values(TYPE_FOLDERS);
-    expect(Object.keys(TYPE_FOLDERS)).toHaveLength(17);
-    expect(new Set(folders).size).toBe(17);
+    expect(Object.keys(TYPE_FOLDERS)).toHaveLength(18);
+    expect(new Set(folders).size).toBe(18);
   });
 });

@@ -41,7 +41,8 @@ dashes only. No underscores, no lowercase.
 | `DB-`        | `db/`        | Tables / collections             | `types/db.md`        |
 | `DATATYPE-`  | `datatype/`  | Type schemas                     | `types/datatype.md`  |
 | `ROLE-`      | `role/`      | Roles / permissions              | `types/role.md`      |
-| `DOC-`       | `doc/`       | Documentation, rules, decisions  | `types/doc.md`       |
+| `DOC-`       | `doc/`       | Documentation, guides, rules     | `types/doc.md`       |
+| `DECISION-`  | `decision/`  | Architecture decisions (ADRs)    | `types/decision.md`  |
 | `FILE-`      | `file/`      | Source file references           | `types/file.md`      |
 | `TEST-`      | `test/`      | Test specs                       | `types/test.md`      |
 | `EXTERNAL-`  | `external/`  | External services                | `types/external.md`  |
@@ -79,6 +80,8 @@ code this card is bound to — `path` or `path:symbol`), `verified_sha` / `verif
 `append_note`). Reach for the tools rather than writing these by hand. Notes are
 retrievable: `search` matches note text, `list_notes` lists them across cards by kind
 (every gotcha / every decision in one call), and `get_card` filters them per card.
+A `decision` note is for a choice local to that one card; a decision that shaped
+*several* cards gets its own `DECISION` card, connected to each of them.
 
 ## Connections — how the graph gets wired
 
@@ -106,6 +109,8 @@ that's how you mark future work.
 - STATE: a ```mermaid stateDiagram-v2 block.
 - DIAGRAM: a ```mermaid flowchart with **handles as node IDs** so the diagram joins
   the graph.
+- DECISION: `## Context` / `## Decision` / `## Alternatives` / `## Consequences`
+  sections (suggested, not enforced).
 - Everything else: prose with `[[links]]`. Put relationship nuance in prose, not
   in structure.
 
@@ -259,7 +264,8 @@ Cards never connect across repos; the relationship between repos lives in the
    (`stale_report` / `check_sync`). The backlog view — everything not yet built — is
    `list_cards status: ["planned", "building", "none"]` (`"none"` = no status set).
 6. Never bulk-rewrite `constellation/plan.md` — edit the relevant section.
-   Decisions go in DOC cards (`kind: decision`), one file each, not in the plan.
+   Decisions go in DECISION cards, one file each, not in the plan — connected to
+   the cards they shaped (card-local choices: `append_note(kind: decision)`).
 
 "What changed in the plan" is never tracked in cards — that's
 `git diff -- constellation/`. Don't add dirty flags or changelogs to frontmatter. The one

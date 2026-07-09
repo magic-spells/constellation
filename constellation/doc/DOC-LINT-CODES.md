@@ -15,7 +15,7 @@ Structural codes come from [[FILE-INDEXER]]; schema codes (W002/W003) from [[FIL
 | Code | Rule |
 |---|---|
 | E001 | Filename is not a valid handle |
-| E002 | Handle prefix is not one of the 17 canonical prefixes |
+| E002 | Handle prefix is not one of the 18 canonical prefixes |
 | E003 | Duplicate handle (two files resolve to the same handle) |
 | E004 | `connections` entry is not a handle-shaped string |
 | E005 | `connections` or frontmatter-field target resolves to no card |
