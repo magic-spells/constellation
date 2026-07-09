@@ -19,8 +19,8 @@ describe('constellation serve', () => {
     const res = await fetch(`http://localhost:${running.port}/api/plan`);
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.cards).toHaveLength(18);
-    expect(data.connections).toHaveLength(48);
+    expect(data.cards).toHaveLength(19);
+    expect(data.connections).toHaveLength(52);
     expect(data.errors).toEqual([]);
     const api = data.cards.find((c: { handle: string }) => c.handle === 'API-TICKETS');
     expect(api.frontmatter.path).toBe('/api/v1/tickets');

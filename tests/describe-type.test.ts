@@ -29,9 +29,9 @@ afterAll(async () => {
 });
 
 describe('describe_type', () => {
-  it('catalogs all 17 types with prefix, folder, and purpose', async () => {
+  it('catalogs all 18 types with prefix, folder, and purpose', async () => {
     const { types } = await call('describe_type');
-    expect(types).toHaveLength(17);
+    expect(types).toHaveLength(18);
     const page = types.find((t: { type: string }) => t.type === 'PAGE');
     expect(page.prefix).toBe('PAGE-');
     expect(page.folder).toBe('page');
@@ -39,6 +39,7 @@ describe('describe_type', () => {
     // post-rename types are present; the old prefixes are gone
     expect(types.map((t: { type: string }) => t.type)).toContain('DIAGRAM');
     expect(types.map((t: { type: string }) => t.type)).toContain('EXTERNAL');
+    expect(types.map((t: { type: string }) => t.type)).toContain('DECISION');
   });
 
   it('describes one type with its schema, reference, and reserved keys', async () => {

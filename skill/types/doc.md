@@ -1,8 +1,8 @@
 # DOC cards (`DOC-`, `doc/`)
 
 No structured fields — DOC cards are prose. Suggested `kind`: `guide`, `rule`,
-`decision`, `meta`. Decisions (ADRs) get one DOC card each (`kind: decision`),
-never a section in `plan.md`.
+`meta`. DOCs explain *how* the system is set up; the *why* behind a choice is a
+[DECISION card](./decision.md), not a DOC.
 
 Example — `constellation/doc/DOC-TICKET-LIFECYCLE.md`:
 

@@ -1,12 +1,12 @@
 ---
-name: The 17 card types
+name: The 18 card types
 kind: reference
 status: built
 ---
 
-# The 17 card types
+# The 18 card types
 
-The prefix before the first dash determines a card's type and must be one of these 17. Folder
+The prefix before the first dash determines a card's type and must be one of these 18. Folder
 placement matches the type (a misfiled card warns W001, not errors — the prefix is
 authoritative). Defined in [[FILE-TYPES]] (`TYPE_NAMES`) and [[FILE-HANDLES]] (`TYPE_FOLDERS`).
 
@@ -17,6 +17,7 @@ authoritative). Defined in [[FILE-TYPES]] (`TYPE_NAMES`) and [[FILE-HANDLES]] (`
 | DATATYPE | `DATATYPE-` | `datatype/` | Data type schemas (interfaces, Zod, etc.) |
 | ROLE | `ROLE-` | `role/` | User roles / permission groups |
 | DOC | `DOC-` | `doc/` | Documentation cards |
+| DECISION | `DECISION-` | `decision/` | Architecture decision records — the why + rejected alternatives |
 | FILE | `FILE-` | `file/` | Source file references (require `path`) |
 | TEST | `TEST-` | `test/` | Test specs |
 | EXTERNAL | `EXTERNAL-` | `external/` | External services / integrations |

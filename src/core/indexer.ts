@@ -78,7 +78,7 @@ function readCard(
     issues.push({
       severity: 'error',
       code: 'E002',
-      message: `Unknown handle prefix: ${handle.split('-')[0]}- (expected one of the 17 canonical prefixes)`,
+      message: `Unknown handle prefix: ${handle.split('-')[0]}- (expected one of the 18 canonical prefixes)`,
       file: relPath,
     });
     return null;

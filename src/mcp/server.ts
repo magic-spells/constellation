@@ -92,12 +92,15 @@ whole card — make the honest update the easy one: append_note adds an append-o
 replaces a single ## section in place. Reach for these to record a correction the moment you
 learn it, so cards stay true instead of drifting. Notes are retrievable memory: search
 matches note text, and list_notes lists them across cards by kind — every gotcha or decision
-in one call. To rename a handle, use rename_card: it moves the file and rewrites every
+in one call. A decision note is for a choice local to that one card; a decision that shaped
+SEVERAL cards gets its own DECISION card, connected to every card it shaped (the successor
+of a replaced decision points at it via supersedes — never delete decision history). To
+rename a handle, use rename_card: it moves the file and rewrites every
 reference plan-wide (connections, frontmatter values, [[links]], mermaid node IDs) as whole
 tokens — never delete-and-recreate to rename.
 
 describe_type is the type reference, served by this server: call it with no args for the
-catalog of all 17 card types, or with a type (e.g. describe_type PAGE) for that type's
+catalog of all 18 card types, or with a type (e.g. describe_type PAGE) for that type's
 frontmatter schema + a golden example. Consult it before authoring a type you haven't used
 this session — you don't need the authoring skill loaded to get the fields right.
 
@@ -1015,7 +1018,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'The card-type reference, served straight from this package. Call with no args for the catalog — all 17 types with their prefix, folder, and one-line purpose. Call with a type for everything needed to author one: the frontmatter JSON Schema (fields, which are required, descriptions) plus the golden example and authoring guidance. Use it before writing a card of a type you have not authored this session — it is the contract create_card/create_cards/update_card validate against (W002/W003), so you do not need the authoring skill loaded to get the fields right.',
+        'The card-type reference, served straight from this package. Call with no args for the catalog — all 18 types with their prefix, folder, and one-line purpose. Call with a type for everything needed to author one: the frontmatter JSON Schema (fields, which are required, descriptions) plus the golden example and authoring guidance. Use it before writing a card of a type you have not authored this session — it is the contract create_card/create_cards/update_card validate against (W002/W003), so you do not need the authoring skill loaded to get the fields right.',
       inputSchema: {
         type: typeSchema.optional().describe('omit for the full catalog'),
       },

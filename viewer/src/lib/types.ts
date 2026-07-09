@@ -61,6 +61,7 @@ export const TYPE_META: Record<string, TypeMeta> = {
   PLAN: { label: 'Plans', folder: 'plan', group: 'Overview' },
   DIAGRAM: { label: 'Architecture', folder: 'diagram', group: 'Overview' },
   DOC: { label: 'Docs', folder: 'doc', group: 'Overview' },
+  DECISION: { label: 'Decisions', folder: 'decision', group: 'Overview' },
   AGENT: { label: 'Agent rules', folder: 'agent', group: 'Overview' },
   API: { label: 'API endpoints', folder: 'api', group: 'System' },
   DB: { label: 'Database', folder: 'db', group: 'System' },

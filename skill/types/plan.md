@@ -5,7 +5,7 @@ where the project stands. Scoped plans (`PLAN-FRONTEND`) live in `plan/`.
 
 Keep it **short**. Three rules:
 
-- Decisions go in DOC cards (`kind: decision`), one file each — not in the plan.
+- Decisions go in DECISION cards, one file each — not in the plan.
 - Per-card status lives on the cards (`status:`), not in plan checklists.
 - Edit the relevant section; never bulk-rewrite the file (it's shared state).
 

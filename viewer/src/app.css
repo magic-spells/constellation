@@ -113,7 +113,7 @@
   --t-DOC: #4d9fff; --t-FILE: #aab3c5; --t-TEST: #5cff9d; --t-EXTERNAL: #ff9d3c;
   --t-EVENT: #ffe14d; --t-COMPONENT: #2be0ff; --t-PAGE: #5cc8ff; --t-JOB: #ffb35c;
   --t-FLOW: #b76bff; --t-STATE: #3dffc4; --t-DIAGRAM: #ff6ec7; --t-AGENT: #9dff5c;
-  --t-PLAN: #ffe066;
+  --t-PLAN: #ffe066; --t-DECISION: #8a8cff;
 }
 
 :root[data-theme='sumi'] {
@@ -137,7 +137,7 @@
   --t-DOC: #4a72b8; --t-FILE: #6f6a5c; --t-TEST: #4f8a48; --t-EXTERNAL: #b56a32;
   --t-EVENT: #a88a2a; --t-COMPONENT: #3a8a9c; --t-PAGE: #4a7bb0; --t-JOB: #8a6240;
   --t-FLOW: #7559a8; --t-STATE: #3a8a70; --t-DIAGRAM: #b15a84; --t-AGENT: #5f8a3a;
-  --t-PLAN: #a8893f;
+  --t-PLAN: #a8893f; --t-DECISION: #5560a8;
 }
 
 :root[data-theme='daylight'] {
@@ -162,7 +162,7 @@
   --t-DOC: #2f6fed; --t-FILE: #6b7280; --t-TEST: #2f9e54; --t-EXTERNAL: #d9762e;
   --t-EVENT: #c79a1f; --t-COMPONENT: #1f97b0; --t-PAGE: #2f7fd6; --t-JOB: #9c6a3f;
   --t-FLOW: #8257c9; --t-STATE: #1f9e7a; --t-DIAGRAM: #d15a92; --t-AGENT: #5a9e2f;
-  --t-PLAN: #b08a2a;
+  --t-PLAN: #b08a2a; --t-DECISION: #5459d6;
 }
 
 :root[data-theme='frost'] {
@@ -187,7 +187,7 @@
   --t-DOC: #8fb0d8; --t-FILE: #a6b0c2; --t-TEST: #b0ca99; --t-EXTERNAL: #dc9580;
   --t-EVENT: #eccf94; --t-COMPONENT: #93cdda; --t-PAGE: #8fb0d8; --t-JOB: #dc9580;
   --t-FLOW: #c39bbf; --t-STATE: #95c7c5; --t-DIAGRAM: #c39bbf; --t-AGENT: #b0ca99;
-  --t-PLAN: #eccf94;
+  --t-PLAN: #eccf94; --t-DECISION: #a3aede;
 }
 
 :root[data-theme='ember'] {
@@ -235,7 +235,7 @@
   --t-DOC: #6a9fef; --t-FILE: #8a8f98; --t-TEST: #66b35c; --t-EXTERNAL: #e0894a;
   --t-EVENT: #d9b53c; --t-COMPONENT: #4cb3c9; --t-PAGE: #5d9fe0; --t-JOB: #b8845f;
   --t-FLOW: #9d7cd8; --t-STATE: #4faf92; --t-DIAGRAM: #e07fae; --t-AGENT: #84b35c;
-  --t-PLAN: #d9c06a;
+  --t-PLAN: #d9c06a; --t-DECISION: #7d84dd;
 }
 
 /* ───────────────────────── base ───────────────────────── */

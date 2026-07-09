@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "doc.json",
   "title": "DOC card frontmatter",
-  "description": "Documentation card. No structured fields: prose lives in the body. Suggested kinds: guide, rule, decision, meta.",
+  "description": "Documentation card. No structured fields: prose lives in the body. Suggested kinds: guide, rule, meta. Decisions get a DECISION card, not a DOC.",
   "type": "object",
   "properties": {}
 }

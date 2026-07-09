@@ -17,7 +17,7 @@ normative format; the JSON Schemas in `schemas/` define per-type frontmatter and
 The filename IS the handle: `api/API-TICKETS.md` defines the card `API-TICKETS`. There is no
 `handle:` or `type:` field — the path already says it. Handle grammar:
 `^[A-Z][A-Z0-9]*-[A-Z0-9][A-Z0-9-]*$` (3–135 chars; uppercase, digits, dashes). The prefix
-before the first dash is the type and must be one of the 17 canonical prefixes (see
+before the first dash is the type and must be one of the 18 canonical prefixes (see
 [[DOC-CARD-TYPES]]). `plan.md` at the root is the one special file — the card `PLAN-PROJECT`.
 
 ## Frontmatter
