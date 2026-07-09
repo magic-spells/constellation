@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "release.json",
+  "title": "RELEASE card frontmatter",
+  "description": "A version milestone — the theme and intent of a release, plus migration/upgrade notes. NOT a changelog: what shipped is git's job (tags, diff_plan); never enumerate commits or card changes here. FEATURE cards point at a release via their release: field.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "The version string, e.g. 1.1.0. The handle stays the identity (RELEASE-V1-1-0); this is the exact display form."
+    }
+  }
+}

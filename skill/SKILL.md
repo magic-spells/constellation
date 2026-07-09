@@ -55,6 +55,8 @@ dashes only. No underscores, no lowercase.
 | `DIAGRAM-`   | `diagram/`   | Architecture diagrams            | `types/diagram.md`   |
 | `AGENT-`     | `agent/`     | AI agent instructions            | `types/agent.md`     |
 | `PLAN-`      | `plan/`      | Plan docs (`plan.md` at root = `PLAN-PROJECT`) | `types/plan.md` |
+| `FEATURE-`   | `feature/`   | Future work units (iteration)    | `types/feature.md`   |
+| `RELEASE-`   | `release/`   | Version milestones               | `types/release.md`   |
 
 Read the matching `types/<type>.md` before writing a card of a type you haven't
 authored in this session — it has the field table and a golden example.
@@ -177,6 +179,24 @@ plan mode pulling the relevant plan into context — `traverse` from the entry p
 `connected: "full"` — to build a strong model of the project fast, and fold the card edits
 you intend into the plan you present. Execute those Constellation writes first, before any
 code, once the user approves.
+
+## Iterating: features & releases
+
+PLAN cards and phases carry the *initial* build. Once a project is live, work
+arrives as feature branches and ships as versions — model that with FEATURE and
+RELEASE cards:
+
+- A coherent slice of future work is a **FEATURE** card: connect it to every card
+  it adds or touches (new work as `status: planned`), record intent / scope /
+  acceptance in the body, and set `branch:` while it's in flight. Its status is
+  the arc: `planned` → `building` (on its branch) → `built` (merged) →
+  `verified`. A shipped FEATURE stays — it's the record of why the system grew.
+- A version milestone is a **RELEASE** card; features target it via their
+  `release:` field. The body is theme + upgrade/migration notes — **never a
+  changelog** (what shipped is git's job).
+- Not a ticket tracker: work that's one card's status flip needs no FEATURE
+  card. The backlog stays `list_cards status: ["planned", "building", "none"]`;
+  a FEATURE's neighborhood (`traverse` from its handle) is the feature's spec.
 
 ## Syncing the plan to code
 

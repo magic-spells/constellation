@@ -49,7 +49,7 @@ The pipeline is one direction: **files → index → (lint | serve | MCP)**.
 | Module | Responsibility |
 |---|---|
 | `src/core/parse.ts` | Split a file into YAML frontmatter + body (gray-matter). |
-| `src/core/handles.ts` | Handle grammar, the 18 canonical prefixes, type↔folder map. |
+| `src/core/handles.ts` | Handle grammar, the 20 canonical prefixes, type↔folder map. |
 | `src/core/extract.ts` | Pull references out of a card: `[[HANDLE]]` body links, handle-shaped frontmatter values, mermaid node IDs. |
 | `src/core/indexer.ts` | `loadPlan(root)` — read every card, dedupe handles, resolve refs, build undirected connections, collect structural issues. The heart of the system. |
 | `src/core/validate.ts` | Ajv schema validation against `schemas/` → W002/W003. |
@@ -72,7 +72,7 @@ The pipeline is one direction: **files → index → (lint | serve | MCP)**.
 - **Writes preserve bytes.** `updateCardFile` re-serializes only the top-level frontmatter keys whose values actually changed and keeps the body byte-for-byte on a frontmatter-only update (and vice versa). A `status` flip must not reformat a neighboring table. Keep it that way.
 - **Plan resolution never crosses a repo boundary.** `findPlanUp` stops at the first ancestor containing `.git` and returns null rather than adopting a sibling repo's plan.
 - **Connected repos are repo-level links only.** `connected_repos` on `PLAN-PROJECT` can point to sibling repo roots; cards never connect across repos, lint never validates local sibling paths, and MCP tools only target a sibling when `repo` is explicitly passed.
-- **Four frontmatter keys are reserved:** `name`, `kind`, `status`, `connections`. Type-specific `fields` may not use them; writer/MCP reject reserved keys in `fields`. **`schemas/card.json` is also the home for cross-type metadata** — `code_refs`, `verified_sha`, `verified_at`, `notes` — valid on every type and tool-managed (not reserved, not hand-authored). `validate.ts` derives the W003 base allow-list from card.json's properties (not a hardcoded list), so a field added there is blessed on all 18 types and AJV validates its shape (W002). Add cross-type metadata to card.json, not to each type schema.
+- **Four frontmatter keys are reserved:** `name`, `kind`, `status`, `connections`. Type-specific `fields` may not use them; writer/MCP reject reserved keys in `fields`. **`schemas/card.json` is also the home for cross-type metadata** — `code_refs`, `verified_sha`, `verified_at`, `notes` — valid on every type and tool-managed (not reserved, not hand-authored). `validate.ts` derives the W003 base allow-list from card.json's properties (not a hardcoded list), so a field added there is blessed on all 20 types and AJV validates its shape (W002). Add cross-type metadata to card.json, not to each type schema.
 - **`plan.md` at the plan root is the one special file** — its handle is `PLAN-PROJECT`, and it's the only card not named after its handle / not in a type folder.
 - **Agent guidance lives in three unshared copies — update all three.** The MCP server embeds its own `INSTRUCTIONS` string (`src/mcp/server.ts`) and never reads the skill; the skill is itself two files loaded only by the agent harness — `skill/SKILL.md` and `skill/methodology.md`. None of the three imports another. Any change to *how an agent should use the plan* — workflows, commands, terminology, the plan↔code sync loop, the tool surface — must land in **all three**, and stay consistent with the spec cards in `constellation/`.
 
@@ -84,7 +84,7 @@ no card · **E006** invalid YAML.
 Warnings (quality, exit 0): **W001** wrong folder · **W002** schema violation ·
 **W003** unknown field · **W004** dangling prose/mermaid ref.
 
-## The 18 card types
+## The 20 card types
 
 `API DB DATATYPE ROLE DOC DECISION FILE TEST EXTERNAL EVENT COMPONENT PAGE JOB FLOW STATE
 DIAGRAM AGENT PLAN` (defined in `src/core/types.ts`; folders in `src/core/handles.ts`).

@@ -59,6 +59,8 @@ export interface TypeMeta {
 
 export const TYPE_META: Record<string, TypeMeta> = {
   PLAN: { label: 'Plans', folder: 'plan', group: 'Overview' },
+  FEATURE: { label: 'Features', folder: 'feature', group: 'Overview' },
+  RELEASE: { label: 'Releases', folder: 'release', group: 'Overview' },
   DIAGRAM: { label: 'Architecture', folder: 'diagram', group: 'Overview' },
   DOC: { label: 'Docs', folder: 'doc', group: 'Overview' },
   DECISION: { label: 'Decisions', folder: 'decision', group: 'Overview' },

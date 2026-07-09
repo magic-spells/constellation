@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "feature.json",
+  "title": "FEATURE card frontmatter",
+  "description": "A coherent unit of future work — the iteration primitive for a project past its initial build. Connect it to every card the feature adds or touches; the body holds intent, scope, and acceptance. Not a ticket tracker: work small enough to be one card's status flip needs no FEATURE card.",
+  "type": "object",
+  "properties": {
+    "release": {
+      "type": "string",
+      "pattern": "^RELEASE-[A-Z0-9][A-Z0-9-]*$",
+      "description": "Handle of the RELEASE card this feature targets (or shipped in). A structured ref: it must resolve (E005) and connects the two cards."
+    },
+    "branch": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "Git branch the feature is developed on (e.g. feature/auto-assign). Informational — branches are often deleted after merge; the card outlives the branch."
+    }
+  }
+}
