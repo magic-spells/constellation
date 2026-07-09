@@ -87,7 +87,7 @@ Warnings (quality, exit 0): **W001** wrong folder Â· **W002** schema violation Â
 ## The 20 card types
 
 `API DB DATATYPE ROLE DOC DECISION FILE TEST EXTERNAL EVENT COMPONENT PAGE JOB FLOW STATE
-DIAGRAM AGENT PLAN` (defined in `src/core/types.ts`; folders in `src/core/handles.ts`).
+DIAGRAM AGENT PLAN FEATURE RELEASE` (defined in `src/core/types.ts`; folders in `src/core/handles.ts`).
 
 **Adding or renaming a type touches four places that must agree:**
 
