@@ -100,7 +100,7 @@ reference plan-wide (connections, frontmatter values, [[links]], mermaid node ID
 tokens — never delete-and-recreate to rename.
 
 describe_type is the type reference, served by this server: call it with no args for the
-catalog of all 18 card types, or with a type (e.g. describe_type PAGE) for that type's
+catalog of all 20 card types, or with a type (e.g. describe_type PAGE) for that type's
 frontmatter schema + a golden example. Consult it before authoring a type you haven't used
 this session — you don't need the authoring skill loaded to get the fields right.
 
@@ -136,6 +136,12 @@ the affected neighborhood (get_card / traverse / search, connected: "full"), the
 update the cards so they describe the desired END STATE (work that isn't built yet is
 status: planned), wiring every connection between the affected cards. Show that set of card
 changes as the proposal; on approval, bring the CODE up to match via the sync loop above.
+Past the initial build, model iteration explicitly: a coherent slice of future work is a
+FEATURE card connected to every card it adds or touches (intent/scope/acceptance in the
+body, branch: while in flight, status planned → building → built as it merges), optionally
+targeting a RELEASE card (a version milestone; features point at it via release:). A RELEASE
+body is theme + upgrade notes, NEVER a changelog — what shipped is git's job. Neither is a
+ticket tracker: work that is one card's status flip needs no FEATURE card.
 FINISH by reconciling — re-read the touched cards against the code, run check_integrity so
 no affected card is left an orphan and every connection is set, bump status (planned →
 building → built → verified), commit, and set_sync_point. In plan mode the write tools are
@@ -1018,7 +1024,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'The card-type reference, served straight from this package. Call with no args for the catalog — all 18 types with their prefix, folder, and one-line purpose. Call with a type for everything needed to author one: the frontmatter JSON Schema (fields, which are required, descriptions) plus the golden example and authoring guidance. Use it before writing a card of a type you have not authored this session — it is the contract create_card/create_cards/update_card validate against (W002/W003), so you do not need the authoring skill loaded to get the fields right.',
+        'The card-type reference, served straight from this package. Call with no args for the catalog — all 20 types with their prefix, folder, and one-line purpose. Call with a type for everything needed to author one: the frontmatter JSON Schema (fields, which are required, descriptions) plus the golden example and authoring guidance. Use it before writing a card of a type you have not authored this session — it is the contract create_card/create_cards/update_card validate against (W002/W003), so you do not need the authoring skill loaded to get the fields right.',
       inputSchema: {
         type: typeSchema.optional().describe('omit for the full catalog'),
       },
