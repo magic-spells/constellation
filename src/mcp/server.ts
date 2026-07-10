@@ -138,7 +138,8 @@ status: planned), wiring every connection between the affected cards. Show that 
 changes as the proposal; on approval, bring the CODE up to match via the sync loop above.
 Past the initial build, model iteration explicitly: a coherent slice of future work is a
 FEATURE card connected to every card it adds or touches (intent/scope/acceptance in the
-body, branch: while in flight, status planned → building → built as it merges), optionally
+body, branch: while in flight, status planned → building → built as it merges — stamp pr:
+with the merged PR link then, as provenance), optionally
 targeting a RELEASE card (a version milestone; features point at it via release:). A RELEASE
 body is theme + upgrade notes, NEVER a changelog — what shipped is git's job. Neither is a
 ticket tracker: work that is one card's status flip needs no FEATURE card.

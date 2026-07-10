@@ -189,8 +189,9 @@ RELEASE cards:
 - A coherent slice of future work is a **FEATURE** card: connect it to every card
   it adds or touches (new work as `status: planned`), record intent / scope /
   acceptance in the body, and set `branch:` while it's in flight. Its status is
-  the arc: `planned` → `building` (on its branch) → `built` (merged) →
-  `verified`. A shipped FEATURE stays — it's the record of why the system grew.
+  the arc: `planned` → `building` (on its branch) → `built` (merged — set `pr:`
+  to the merged PR's link then, as provenance) → `verified`. A shipped FEATURE
+  stays — it's the record of why the system grew.
 - A version milestone is a **RELEASE** card; features target it via their
   `release:` field. The body is theme + upgrade/migration notes — **never a
   changelog** (what shipped is git's job).

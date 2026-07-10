@@ -1,9 +1,10 @@
 import type { SyncState } from './types';
 
-/** Compact relative time: "just now", "5m ago", "2h ago", "3d ago", or a date. */
-export function relTime(iso: string): string {
-  if (!iso) return '';
-  const then = new Date(iso).getTime();
+/** Compact relative time: "just now", "5m ago", "2h ago", "3d ago", or a date.
+ *  Accepts an ISO string or an epoch-ms number (card mtimes). */
+export function relTime(when: string | number): string {
+  if (!when) return '';
+  const then = typeof when === 'number' ? when : new Date(when).getTime();
   if (Number.isNaN(then)) return '';
   const secs = Math.round((Date.now() - then) / 1000);
   if (secs < 45) return 'just now';
@@ -13,7 +14,7 @@ export function relTime(iso: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.round(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
+  return new Date(then).toLocaleDateString();
 }
 
 /** Pill/dashboard glyph + label per sync state (shared by SyncPill and the Overview dashboard). */

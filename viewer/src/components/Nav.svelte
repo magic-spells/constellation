@@ -30,6 +30,14 @@
   >
     <span class="star">⁂</span> Constellation
   </a>
+  <a
+    class="nav-home"
+    class:active={route.path === '/features'}
+    href="#/features"
+    style="--c: var(--t-FEATURE)"
+  >
+    <span class="star">✦</span> Features
+  </a>
   {#each groups as { group, types }}
     <div class="nav-group">
       <h4>{group}</h4>
