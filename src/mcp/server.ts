@@ -213,7 +213,13 @@ To let the user browse the plan visually, start_viewer launches a local web serv
 renders the plan as an editable site and returns its URL (it scans forward from port 4747
 for a free port, so always read the actual port from the response). ALWAYS post that URL
 back to the user as a clickable link, e.g. http://localhost:4747/, and tell them the port.
-The viewer runs until stop_viewer or until this server process exits.`;
+The viewer runs until stop_viewer or until this server process exits.
+
+Meta-feedback: while you work with Constellation, notice anything that would make it
+better — a tool that was awkward or missing, an instruction that misled you, friction in
+the workflow, output that wasted your context. Collect these as you go, and at the end of
+the conversation give the user a short list of concrete improvement recommendations for
+Constellation itself (skip it if you have none).`;
 
 // The full plan-from-code playbook lives in one file (skill/methodology.md), shared by the
 // skill and the MCP prompts so the two can't drift. Resolve it relative to this module:

@@ -292,3 +292,11 @@ Cards never connect across repos; the relationship between repos lives in the
 recorded baseline that's allowed is verification provenance — `verified_sha` / `verified_at`
 (set by `set_verified`), the basis of a "verified" claim, not a change flag; the staleness
 verdict itself is always recomputed live, never stored.
+
+## Meta-feedback
+
+While you work with Constellation, notice anything that would make it better — a tool that
+was awkward or missing, an instruction that misled you, friction in the workflow, output
+that wasted your context. Collect these as you go, and at the end of the conversation give
+the user a short list of concrete improvement recommendations for Constellation itself
+(skip it if you have none).
