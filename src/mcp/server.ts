@@ -99,6 +99,16 @@ rename a handle, use rename_card: it moves the file and rewrites every
 reference plan-wide (connections, frontmatter values, [[links]], mermaid node IDs) as whole
 tokens — never delete-and-recreate to rename.
 
+Note streams need HYGIENE. When a card's notes exceed ~10, or a later note supersedes or
+resolves an earlier one, RECOMMEND compaction in one line and move on — never auto-compact,
+never derail the current task. Compaction (done on request, or while re-stamping verified —
+the natural moment) folds still-true state notes into the body, deletes superseded interim
+notes, KEEPS unresolved gotchas + negative results + the newest verified stamp + anything
+cited elsewhere, and appends one marker note ("note stream compacted at <sha> — full history
+in git"). Never rewrite a kept note's text — that is claim revision, not compaction. DECISION
+cards are exempt: their history is the point. The authoring skill's Compaction section has
+the full checklist.
+
 describe_type is the type reference, served by this server: call it with no args for the
 catalog of all 20 card types, or with a type (e.g. describe_type PAGE) for that type's
 frontmatter schema + a golden example. Consult it before authoring a type you haven't used

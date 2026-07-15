@@ -1,6 +1,6 @@
 ---
 name: constellation
-description: Author and edit Constellation plan cards — markdown files in a constellation/ folder that model a project's architecture as a typed, connected graph. Use when creating, updating, or querying cards (API endpoints, data types, DB tables, flows, pages, etc.) in any repo with a constellation/ directory, or when setting up a plan in a repo that has none yet.
+description: Author and edit Constellation plan cards — markdown files in a constellation/ folder that model a project's architecture as a typed, connected graph. Use when creating, updating, or querying cards (API endpoints, data types, DB tables, flows, pages, etc.), when compacting a card whose note stream has grown stale or repetitive, in any repo with a constellation/ directory, or when setting up a plan in a repo that has none yet.
 ---
 
 # Constellation cards
@@ -228,6 +228,47 @@ hold the macro view of the whole change rather than drowning in file-level edits
 change against the cards it was meant to satisfy and run the project's build/tests; never
 trust the sub-agents' reports alone. Only after that whole-plan verification passes do you
 commit and `set_sync_point` (once, as the orchestrator).
+
+## Compaction — keeping note streams lean
+
+Append-only notes keep the honest path cheap at WRITE time, but streams grow: a
+long-lived component card accumulates interim verified stamps, `state` notes that
+later notes supersede, and gotcha/resolution pairs a reader must reconcile
+chronologically. Every future hydration of that card pays for all of it. Compaction
+is the curation pass that keeps the working set lean — **git preserves every deleted
+note**, so compacting curates what agents load, it never destroys history.
+
+**Never compact silently.** When you notice a card is due mid-task (triggers below),
+say so in one line and move on — do not derail the task. Compact only when the user
+asks, or as part of a verification/truthing pass you are already performing. A wrong
+deletion silently poisons shared memory; a wrong recommendation costs one sentence.
+
+**Triggers** (any of these → recommend compaction):
+- The note stream exceeds ~10 entries.
+- A later note explicitly resolves or supersedes an earlier one (a gotcha marked
+  RESOLVED, a `state` note refining a previous `state` note).
+- Several interim `verified` stamps predate the newest one.
+- You are about to re-stamp the card `verified` after a merge — the natural moment:
+  you have already re-read everything, so fold while you stamp.
+
+**The pass** (per card):
+1. **Fold** still-true `state` notes into the body — the body IS current reality;
+   a `state` note is a delta waiting to be merged.
+2. **Keep** (never delete): unresolved gotchas; **negative results** (disproven
+   hypotheses are the most valuable notes in the system — they stop the next agent
+   from re-investigating); the newest `verified` stamp; any note another card or
+   doc cites (`search` the note's distinctive phrases before deleting).
+3. **Delete**: superseded interim notes, resolved gotcha/resolution pairs (if the
+   episode leaves a lasting rule, fold that rule into the body first), and stale
+   `verified` stamps.
+4. **Mark it**: append one `state` note — "Note stream compacted into body at
+   `<sha>` — full history in git." A reader then knows the stream is curated, and
+   where the archaeology lives.
+5. **Never rewrite a kept note's text** to say something different — that is claim
+   revision, not compaction. If reality changed, the body is where you say so.
+
+**Exempt: DECISION cards.** Their notes and body ARE the history — the record of
+what was believed and when. Compact a decision card and you delete the point of it.
 
 ## Connected repos (multi-repo work)
 

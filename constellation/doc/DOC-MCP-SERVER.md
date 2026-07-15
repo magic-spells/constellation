@@ -2,6 +2,19 @@
 name: MCP server design
 kind: reference
 status: built
+notes:
+  - kind: state
+    text: >-
+      2026-07-14: server INSTRUCTIONS gained the note-stream HYGIENE paragraph — agents should
+      RECOMMEND compaction in one line when a card's notes exceed ~10 or a later note
+      supersedes/resolves an earlier one (never auto-compact, never derail the task); compaction
+      itself folds still-true state notes into the body, deletes superseded interim notes, keeps
+      unresolved gotchas / negative results / newest verified stamp / cross-cited notes, appends a
+      "compacted at <sha>" marker, and exempts DECISION cards. The full checklist lives in the new
+      "Compaction — keeping note streams lean" section of skill/SKILL.md (whose frontmatter
+      description now names compaction as a trigger). Motivated by real bloat in the puzzle repo's
+      plan: COMPONENT-ROUTER at 21 notes with superseded pairs a reader must reconcile
+      chronologically.
 ---
 
 # MCP server
