@@ -14,9 +14,11 @@ when the work spans several cards or needs intent/acceptance recorded.
 |---|---|---|
 | `release` | handle | `RELEASE-` card this feature targets or shipped in; must resolve, and connects the two |
 | `branch` | string | git branch it's developed on (informational — the card outlives the branch) |
+| `pr` | string | link to the PR (or commit) that shipped it — a URL or `#42`; set when it merges |
 
 `status` is the feature's arc: `planned` = specced, not started; `building` = in
-progress on its branch; `built` = merged; `verified` = confirmed in a release.
+progress on its branch; `built` = merged (set `pr:` then, as provenance);
+`verified` = confirmed in a release.
 A shipped FEATURE card stays — it's the record of why the system grew, alongside
 any [DECISION cards](./decision.md) it produced.
 

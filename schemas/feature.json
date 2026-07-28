@@ -14,6 +14,11 @@
       "type": "string",
       "maxLength": 200,
       "description": "Git branch the feature is developed on (e.g. feature/auto-assign). Informational — branches are often deleted after merge; the card outlives the branch."
+    },
+    "pr": {
+      "type": "string",
+      "maxLength": 400,
+      "description": "Link to the pull request (or commit) that shipped this feature — a URL or short ref like #42. Provenance of the built claim, like verified_sha; set it when the feature merges. Not a changelog."
     }
   }
 }
