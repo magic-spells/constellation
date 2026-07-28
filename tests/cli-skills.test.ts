@@ -29,8 +29,9 @@ describe('detectSkillTargets', () => {
   it('finds only agent config dirs that exist', async () => {
     await mkdir(path.join(home, '.claude'), { recursive: true });
     await mkdir(path.join(home, '.cursor'), { recursive: true });
+    await mkdir(path.join(home, '.agents'), { recursive: true });
     const found = await detectSkillTargets(home);
-    expect(found.map((t) => t.name)).toEqual(['Claude Code', 'Cursor']);
+    expect(found.map((t) => t.name)).toEqual(['Claude Code', 'Cursor', 'Agents (shared)']);
   });
 
   it('returns nothing in an empty home', async () => {

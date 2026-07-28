@@ -83,7 +83,7 @@ const add = program
 add
   .command('skills')
   .description(
-    'Install (or refresh) the Constellation authoring skill into ~/.claude, ~/.codex, ~/.cursor',
+    'Install (or refresh) the Constellation authoring skill into ~/.claude, ~/.codex, ~/.cursor, ~/.agents',
   )
   .option('--overwrite', 'replace existing installs without asking, symlinks included')
   .option(

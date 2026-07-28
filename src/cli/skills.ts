@@ -28,6 +28,7 @@ export const SUPPORTED_SKILL_TARGETS = [
   { name: 'Claude Code', config: '.claude' },
   { name: 'Codex', config: '.codex' },
   { name: 'Cursor', config: '.cursor' },
+  { name: 'Agents (shared)', config: '.agents' },
 ] as const;
 
 export function skillDestination(target: SkillTarget): string {
