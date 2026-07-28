@@ -236,3 +236,11 @@ the smallest set of changes that most improves the plan — not the most cards.
   reconcile (`check_integrity` for orphans, status bumps, `set_sync_point`). In plan mode, where
   writes are blocked, read the plan heavily to model the project fast and present the card edits
   you'll make. Full steps in *Changing code: plan-first* in `SKILL.md`.
+
+## Meta-feedback
+
+While you work with Constellation, notice anything that would make it better — a tool that
+was awkward or missing, an instruction that misled you, friction in the workflow, output
+that wasted your context. Collect these as you go, and at the end of the conversation give
+the user a short list of concrete improvement recommendations for Constellation itself
+(skip it if you have none).
