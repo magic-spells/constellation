@@ -34,8 +34,10 @@ typed as documentation.
 
 Add `DECISION-` / `decision/` as the 18th type. A DECISION card is an ADR — the
 choice, the why, the alternatives rejected — **connected to every card it
-shaped**. One structured field, `supersedes` (an earlier DECISION handle; must
-resolve, and connects the two). Superseded decisions are kept, never deleted.
+shaped**. Cards are **living, one per decision topic**: when a decision changes,
+the existing card is rewritten to state only the current choice and why (the
+abandoned approach becomes a rejected Alternative); a new card is never created
+to supersede an old one, and git holds the full trail. No type-specific fields.
 
 `append_note(kind: decision)` stays: it remains the right home for a choice local
 to a single card. Promote a note to a DECISION card when the choice touches more
@@ -48,6 +50,11 @@ than one card or the rejected alternatives are worth recording.
   can't treat decisions as first-class.
 - **Notes only, no decision cards** — rejected: cross-cutting decisions have no
   co-location target; splitting one rationale across N notes drifts.
+- **Immutable ADRs with a `supersedes` field** — we shipped this first, then
+  removed it: on fast-iterating projects every revisit spawned a new card, so one
+  decision topic became a chain of a dozen cards a reader had to reconcile
+  chronologically. History bloat with no retrieval value — git already has the
+  trail; the card should hold the present.
 
 ## Consequences
 

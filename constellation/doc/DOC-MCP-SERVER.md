@@ -15,6 +15,22 @@ notes:
       description now names compaction as a trigger). Motivated by real bloat in the puzzle repo's
       plan: COMPONENT-ROUTER at 21 notes with superseded pairs a reader must reconcile
       chronologically.
+  - kind: state
+    text: >-
+      2026-07-28: DECISION cards flipped from compaction-exempt to living records — one card per
+      decision topic, updated in place when the decision changes (old approach becomes a rejected
+      Alternative; git holds the trail); the `supersedes` field was removed from
+      schemas/decision.json. Landed in all three guidance copies (server INSTRUCTIONS, SKILL.md,
+      types/decision.md) and DECISION-NATIVE-DECISION-TYPE. Motivated by real bloat: fast-iterating
+      projects grew chains of ~12 superseding DECISION cards about one topic.
+  - kind: state
+    text: >-
+      2026-07-28: compaction policy loosened from "recommend only, never auto-compact" to
+      OPPORTUNISTIC — agents compact as part of any card update (or an obviously-safe fix spotted
+      while exploring), and the pass now covers body bloat too (history narration, removed
+      behavior, restated code), not just note streams. Recommend-only is reserved for big jobs or
+      anything touching the keep-list. Updated in server INSTRUCTIONS + SKILL.md Compaction
+      section (now "keeping cards lean", with a body-trim step).
 ---
 
 # MCP server

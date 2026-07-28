@@ -93,21 +93,28 @@ replaces a single ## section in place. Reach for these to record a correction th
 learn it, so cards stay true instead of drifting. Notes are retrievable memory: search
 matches note text, and list_notes lists them across cards by kind — every gotcha or decision
 in one call. A decision note is for a choice local to that one card; a decision that shaped
-SEVERAL cards gets its own DECISION card, connected to every card it shaped (the successor
-of a replaced decision points at it via supersedes — never delete decision history). To
+SEVERAL cards gets its own DECISION card, connected to every card it shaped. DECISION cards
+are LIVING: one card per decision topic, updated in place. When a decision changes, rewrite
+the existing card to state only the current choice and why — the abandoned approach becomes
+a line in Alternatives, and git holds the full trail. Never create a successor DECISION card
+for the same topic; merge any supersession chain you find into one card. To
 rename a handle, use rename_card: it moves the file and rewrites every
 reference plan-wide (connections, frontmatter values, [[links]], mermaid node IDs) as whole
 tokens — never delete-and-recreate to rename.
 
-Note streams need HYGIENE. When a card's notes exceed ~10, or a later note supersedes or
-resolves an earlier one, RECOMMEND compaction in one line and move on — never auto-compact,
-never derail the current task. Compaction (done on request, or while re-stamping verified —
-the natural moment) folds still-true state notes into the body, deletes superseded interim
-notes, KEEPS unresolved gotchas + negative results + the newest verified stamp + anything
-cited elsewhere, and appends one marker note ("note stream compacted at <sha> — full history
-in git"). Never rewrite a kept note's text — that is claim revision, not compaction. DECISION
-cards are exempt: their history is the point. The authoring skill's Compaction section has
-the full checklist.
+Cards need HYGIENE — both note streams (notes exceed ~10, later notes supersede earlier
+ones) and bodies (history narration like "previously... but now...", removed behavior,
+restated code, or growth well past what the current state needs). A card body should read
+in about a minute and describe the CURRENT system, present tense. Compact OPPORTUNISTICALLY:
+when already updating a card (or spotting an obviously-safe fix while exploring), fold
+still-true state notes into the body, delete superseded interim notes, trim body sections
+(edit_section) down to present-tense current truth, and append one marker note ("compacted
+at <sha> — full history in git"). Git preserves everything deleted. KEEP unresolved gotchas
++ negative results + the newest verified stamp + anything cited elsewhere — a compaction big
+enough to derail the task, or one touching the keep-list, gets a one-line recommendation
+instead. Never rewrite a kept note's text — that is claim revision, not compaction. DECISION
+cards compact hardest: keep only the current decision and why. The authoring skill's
+Compaction section has the full checklist.
 
 describe_type is the type reference, served by this server: call it with no args for the
 catalog of all 20 card types, or with a type (e.g. describe_type PAGE) for that type's

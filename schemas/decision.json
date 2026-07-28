@@ -2,13 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "decision.json",
   "title": "DECISION card frontmatter",
-  "description": "Architecture decision record — one choice, the why, and the alternatives rejected. Connect it to every card the decision shaped; the body carries Context / Decision / Alternatives / Consequences. For a choice local to a single card, prefer append_note(kind: decision) on that card instead.",
+  "description": "Architecture decision record — one card per decision TOPIC, updated in place. It states the CURRENT choice, the why, and the alternatives rejected (including approaches previously tried and abandoned). Connect it to every card the decision shaped; the body carries Context / Decision / Alternatives / Consequences. When the decision changes, rewrite this card — never create a successor card. For a choice local to a single card, prefer append_note(kind: decision) on that card instead.",
   "type": "object",
-  "properties": {
-    "supersedes": {
-      "type": "string",
-      "pattern": "^DECISION-[A-Z0-9][A-Z0-9-]*$",
-      "description": "Handle of an earlier DECISION card this one replaces. A structured ref: it must resolve (E005) and connects the two cards. Keep the superseded card — history is the point."
-    }
-  }
+  "properties": {}
 }

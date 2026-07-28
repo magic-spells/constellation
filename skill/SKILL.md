@@ -229,25 +229,33 @@ change against the cards it was meant to satisfy and run the project's build/tes
 trust the sub-agents' reports alone. Only after that whole-plan verification passes do you
 commit and `set_sync_point` (once, as the orchestrator).
 
-## Compaction — keeping note streams lean
+## Compaction — keeping cards lean
 
-Append-only notes keep the honest path cheap at WRITE time, but streams grow: a
-long-lived component card accumulates interim verified stamps, `state` notes that
-later notes supersede, and gotcha/resolution pairs a reader must reconcile
-chronologically. Every future hydration of that card pays for all of it. Compaction
-is the curation pass that keeps the working set lean — **git preserves every deleted
-note**, so compacting curates what agents load, it never destroys history.
+Cards grow two ways. Note streams accumulate interim verified stamps, `state` notes
+that later notes supersede, and gotcha/resolution pairs a reader must reconcile
+chronologically. Bodies accumulate history: superseded details, "we used to / now we"
+narration, folded-in state that was never pruned, restatements of what the code
+already says. Every future hydration of that card pays for all of it. Compaction is
+the curation pass that keeps the working set lean — **git preserves every deleted
+line**, so compacting curates what agents load, it never destroys history. A card
+body should read in about a minute and describe the *current* system, present tense.
 
-**Never compact silently.** When you notice a card is due mid-task (triggers below),
-say so in one line and move on — do not derail the task. Compact only when the user
-asks, or as part of a verification/truthing pass you are already performing. A wrong
-deletion silently poisons shared memory; a wrong recommendation costs one sentence.
+**Compact opportunistically.** When you are already updating a card — editing a
+section, folding in a change, re-stamping `verified` — and you see bloat (triggers
+below), compact it as part of that write; don't leave the mess for the next agent.
+Small, obviously-safe cleanups spotted while exploring (a superseded interim note, a
+paragraph describing behavior that no longer exists) are also fine to fix in passing.
+Reserve "recommend, don't touch" for the big jobs: a compaction large enough to
+derail your current task, or one where you'd have to delete something on the
+keep-list below — those get a one-line recommendation instead.
 
-**Triggers** (any of these → recommend compaction):
+**Triggers** (any of these → compact, or recommend if it's a big job):
 - The note stream exceeds ~10 entries.
 - A later note explicitly resolves or supersedes an earlier one (a gotcha marked
   RESOLVED, a `state` note refining a previous `state` note).
 - Several interim `verified` stamps predate the newest one.
+- The body narrates history ("previously… but now…"), describes removed behavior,
+  or has grown well past what a reader needs to understand the current state.
 - You are about to re-stamp the card `verified` after a merge — the natural moment:
   you have already re-read everything, so fold while you stamp.
 
@@ -261,14 +269,20 @@ deletion silently poisons shared memory; a wrong recommendation costs one senten
 3. **Delete**: superseded interim notes, resolved gotcha/resolution pairs (if the
    episode leaves a lasting rule, fold that rule into the body first), and stale
    `verified` stamps.
-4. **Mark it**: append one `state` note — "Note stream compacted into body at
+4. **Trim the body**: rewrite bloated sections (`edit_section`) down to present-tense
+   current truth — cut superseded details, "used to be" narration, and anything that
+   restates the code. Keep the why; cut the was.
+5. **Mark it**: append one `state` note — "Note stream compacted into body at
    `<sha>` — full history in git." A reader then knows the stream is curated, and
    where the archaeology lives.
-5. **Never rewrite a kept note's text** to say something different — that is claim
+6. **Never rewrite a kept note's text** to say something different — that is claim
    revision, not compaction. If reality changed, the body is where you say so.
 
-**Exempt: DECISION cards.** Their notes and body ARE the history — the record of
-what was believed and when. Compact a decision card and you delete the point of it.
+**DECISION cards compact hardest.** One card per decision topic, updated in place:
+when a decision changes, rewrite the existing card to state only the current choice
+and why — the abandoned approach becomes a line in Alternatives, and git holds the
+full trail. Never create a successor DECISION card for the same topic; if you find
+a supersession chain, merge it into one card.
 
 ## Connected repos (multi-repo work)
 
