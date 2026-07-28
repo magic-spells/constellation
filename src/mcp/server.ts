@@ -65,7 +65,10 @@ true. A card you can't trust is worse than no card.
 
 Put in cards what the code can't say — intent, decisions (and the alternatives you rejected),
 current built/live state, gotchas, cross-cutting rules. Do NOT duplicate what the repo already
-holds — DDL, signatures, code: link to it instead; copies drift. "built"/"verified" is a
+holds — DDL, signatures, code: link to it instead; copies drift. Never create INDEX cards
+that enumerate other cards (a DOC-DECISIONS listing every DECISION card, a table-of-contents
+card): those are derived views list_cards / search / the viewer produce live, and a stored
+copy is stale by the next card — delete any you find. "built"/"verified" is a
 claim, not a fact — stamp it with set_verified so a later agent can re-check whether the bound
 code moved (stale_report / check_sync). Durability, not distrust.
 

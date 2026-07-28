@@ -18,7 +18,10 @@ It's a test of **coverage, not volume.** Rebuildable does not mean transcribing 
 markdown; it means capturing what someone would need to make the same decisions again — the
 structure, the contracts, the *why*. If a reader couldn't reconstruct a part from its card
 and connections, that's the gap to close (Step 7). The best plan is the *smallest* one that
-still passes this test.
+still passes this test. In particular, never create index cards that just enumerate other
+cards (a `DOC-DECISIONS` listing every DECISION, a table-of-contents card): those are
+derived views `list_cards` / `search` / the viewer already produce live from the files, and
+a stored copy is stale by the next card — delete any you find.
 
 ## Act as the architect
 

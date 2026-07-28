@@ -20,7 +20,10 @@ like updating tests. Understanding then **compounds** across sessions instead of
 re-derived each time — but only if the cards stay true, so **a card you can't trust is worse
 than no card.** Put in cards what code can't say (intent, decisions, current state, gotchas,
 cross-cutting rules); never duplicate DDL / signatures / code that lives in the repo — link
-to it, because copies drift. `built`/`verified` is a claim, not a fact: mark it with
+to it, because copies drift. The same goes for the plan itself: never create index cards
+that enumerate other cards (a `DOC-DECISIONS` listing every DECISION, a card-type table of
+contents) — those are derived views `list_cards` / `search` / the viewer produce live, and
+a stored copy is stale by the next card; delete any you find. `built`/`verified` is a claim, not a fact: mark it with
 `set_verified` so a later agent can re-check whether the bound code moved (`stale_report` /
 `check_sync`). Durability, not distrust.
 

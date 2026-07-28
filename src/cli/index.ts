@@ -46,7 +46,10 @@ async function upgradeCli(): Promise<void> {
     child.on('error', () => resolve(1));
     child.on('close', (exitCode) => resolve(exitCode ?? 1));
   });
-  process.exit(code);
+  if (code !== 0) process.exit(code);
+  const { offerSkillUpdateAfterUpgrade } = await import('./skills.js');
+  await offerSkillUpdateAfterUpgrade();
+  process.exit(0);
 }
 
 program
@@ -71,6 +74,25 @@ program
   .description('Upgrade the globally installed Constellation CLI with npm')
   .action(async () => {
     await upgradeCli();
+  });
+
+const add = program
+  .command('add')
+  .description('Install Constellation extras into agent config folders');
+
+add
+  .command('skills')
+  .description(
+    'Install (or refresh) the Constellation authoring skill into ~/.claude, ~/.codex, ~/.cursor',
+  )
+  .option('--overwrite', 'replace existing installs without asking, symlinks included')
+  .option(
+    '--skill-root <dir...>',
+    'install into these config folders instead of auto-detecting',
+  )
+  .action(async (opts: { overwrite?: boolean; skillRoot?: string[] }) => {
+    const { addSkills } = await import('./skills.js');
+    await addSkills(version, opts);
   });
 
 program

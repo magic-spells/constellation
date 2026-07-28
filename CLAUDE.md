@@ -37,7 +37,9 @@ npm run build:viewer     # build static viewer assets → viewer/dist
 npm run serve:examples   # serve the golden plan in the viewer (no auto-open)
 ```
 
-CLI surface (`src/cli/index.ts`): `init`, `lint`, `rename`, `mcp`, `serve`, `repos`, `version`/`v`, `upgrade`.
+CLI surface (`src/cli/index.ts`): `init`, `lint`, `rename`, `mcp`, `serve`, `repos`, `add skills`, `version`/`v`, `upgrade`.
+`add skills` copies the packaged `skill/` into `~/.claude` / `~/.codex` / `~/.cursor` skills dirs with a
+`.constellation-skill-version` stamp (`src/cli/skills.ts`); `upgrade` offers to refresh those installs afterward.
 `lint` exits **1** on errors, **0** otherwise (warnings never fail); **2** when no plan is found.
 `rename OLD NEW` moves a card file and rewrites every reference plan-wide — same engine as the
 MCP `rename_card` (`src/core/rename.ts`).
