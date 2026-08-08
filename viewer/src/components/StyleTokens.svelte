@@ -73,7 +73,7 @@
   <div class="style-tokens style-{category}">
     {#if category === 'color'}
       <div class="swatch-grid">
-        {#each tokens as t (t.name)}
+        {#each tokens as t, i (i)}
           <div class="swatch">
             <div class="swatch-chip" style="background: {t.value}"></div>
             <div class="swatch-name">{t.name}</div>
@@ -84,7 +84,7 @@
       </div>
     {:else if category === 'font'}
       <div class="specimen-grid">
-        {#each tokens as t (t.name)}
+        {#each tokens as t, i (i)}
           <div class="specimen">
             {#if t.role}<div class="specimen-role">{t.role}</div>{/if}
             <div class="specimen-name" style="font-family: {fontStack(t)}">{t.name}</div>
@@ -100,7 +100,7 @@
         {/each}
       </div>
     {:else if category === 'type-scale'}
-      {#each tokens as t (t.name)}
+      {#each tokens as t, i (i)}
         <div class="scale-row">
           <div class="token-label">{t.name} · {t.value}{t.weight ? ` · ${t.weight}` : ''}</div>
           <div
@@ -109,7 +109,7 @@
         </div>
       {/each}
     {:else if category === 'spacing'}
-      {#each tokens as t (t.name)}
+      {#each tokens as t, i (i)}
         <div class="spacing-row">
           <div class="token-label">{t.name} · {t.value}</div>
           <div class="spacing-bar" style="width: {(100 * (parseFloat(t.value) || 0)) / maxSpacing}%"></div>
@@ -117,7 +117,7 @@
       {/each}
     {:else if category === 'radius'}
       <div class="radius-grid">
-        {#each tokens as t (t.name)}
+        {#each tokens as t, i (i)}
           <div class="radius-item">
             <div class="radius-box" style="border-radius: {t.value}"></div>
             <div class="token-label">{t.name} · {t.value}</div>
@@ -126,7 +126,7 @@
       </div>
     {:else if category === 'shadow'}
       <div class="shadow-grid">
-        {#each tokens as t (t.name)}
+        {#each tokens as t, i (i)}
           <div class="shadow-item">
             <div class="shadow-box" style="box-shadow: {t.value}"></div>
             <div class="token-label">{t.name}</div>
@@ -135,7 +135,7 @@
       </div>
     {:else}
       <div class="token-table">
-        {#each tokens as t (t.name)}
+        {#each tokens as t, i (i)}
           <div class="k">{t.name}</div>
           <div class="v">{t.value}{t.description ? ` — ${t.description}` : ''}</div>
         {/each}
