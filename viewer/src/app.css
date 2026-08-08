@@ -1325,3 +1325,26 @@ a.feat-chip:hover { border-color: var(--c, var(--border-strong)); text-decoratio
   .feat-row { flex-direction: column; align-items: flex-start; }
   .feat-meta { justify-content: flex-start; }
 }
+
+/* ---- STYLE token rendering ---- */
+.style-tokens { display: block; }
+.token-label, .swatch-name { font-size: 0.75rem; opacity: 0.75; font-family: var(--mono, monospace); }
+.token-desc { font-size: 0.75rem; opacity: 0.6; margin-top: 2px; }
+.swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+.swatch-chip { height: 64px; border-radius: 6px; border: 1px solid rgba(128,128,128,0.35); }
+.swatch-value { font-size: 0.7rem; opacity: 0.6; font-family: var(--mono, monospace); }
+.specimen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.specimen { border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; padding: 16px; }
+.specimen-role { font-size: 0.7rem; opacity: 0.6; }
+.specimen-name { font-size: 1.6rem; margin: 2px 0; }
+.specimen-weights { font-size: 0.7rem; opacity: 0.6; margin-bottom: 10px; }
+.specimen-row { margin-top: 8px; }
+.specimen-label { font-size: 0.65rem; opacity: 0.55; }
+.specimen-chars { font-size: 1.05rem; overflow-wrap: anywhere; }
+.scale-row, .spacing-row { margin-bottom: 14px; }
+.spacing-bar { height: 20px; background: var(--t-STYLE); border-radius: 3px; min-width: 2px; }
+.radius-grid, .shadow-grid { display: flex; flex-wrap: wrap; gap: 20px; }
+.radius-box { width: 110px; height: 70px; border: 1px solid rgba(128,128,128,0.45); }
+.shadow-box { width: 110px; height: 70px; border-radius: 6px; background: var(--bg-panel, #fff); }
+.token-table { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: 0.85rem; }
+.token-table .k { font-family: var(--mono, monospace); opacity: 0.8; }

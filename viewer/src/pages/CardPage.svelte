@@ -4,6 +4,7 @@
   import FmValue from '../components/FmValue.svelte';
   import Markdown from '../components/Markdown.svelte';
   import StatusPill from '../components/StatusPill.svelte';
+  import StyleTokens from '../components/StyleTokens.svelte';
   import { deleteCard, patchCard } from '../lib/api';
   import { renderMermaidBlocks } from '../lib/markdown';
   import { notice, plan, route, theme } from '../lib/state.svelte';
@@ -155,6 +156,10 @@
         </span>
       </div>
     </div>
+
+    {#if card.type === 'STYLE'}
+      <div class="section"><StyleTokens {card} /></div>
+    {/if}
 
     {#if fields.length > 0 || plan.editable}
       <div class="section">
