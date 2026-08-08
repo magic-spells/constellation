@@ -1,5 +1,8 @@
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { lintPlan } from '../src/core/lint.js';
 
 const GOLDEN = fileURLToPath(
@@ -62,5 +65,64 @@ describe('lintPlan', () => {
     expect(codes).toContain('W002'); // status enum + path type
     expect(codes).toContain('W003'); // banana_count
     expect(codes.filter((c) => c === 'W002').length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('STYLE cards', () => {
+  const temps: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(temps.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  });
+
+  /** Write a one-card temp plan and return its plan root. */
+  async function tempPlan(relPath: string, contents: string): Promise<string> {
+    const dir = await mkdtemp(path.join(tmpdir(), 'constellation-style-'));
+    temps.push(dir);
+    const root = path.join(dir, 'constellation');
+    const file = path.join(root, relPath);
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, contents, 'utf8');
+    return root;
+  }
+
+  it('W002: a token without a value violates the schema', async () => {
+    const root = await tempPlan(
+      'style/STYLE-COLORS.md',
+      [
+        '---',
+        'name: Colors',
+        'category: color',
+        'tokens:',
+        '  - name: brand-blue',
+        '---',
+        '',
+        'Brand palette.',
+        '',
+      ].join('\n'),
+    );
+    const result = await lintPlan(root);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings.map((i) => i.code)).toEqual(['W002']);
+  });
+
+  it('accepts a well-formed color token group', async () => {
+    const root = await tempPlan(
+      'style/STYLE-COLORS.md',
+      [
+        '---',
+        'name: Colors',
+        'category: color',
+        'tokens:',
+        '  - name: brand-blue',
+        '    value: "#1e40af"',
+        '---',
+        '',
+        'Brand palette.',
+        '',
+      ].join('\n'),
+    );
+    const result = await lintPlan(root);
+    expect(result.issues).toEqual([]);
   });
 });

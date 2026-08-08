@@ -29,9 +29,9 @@ afterAll(async () => {
 });
 
 describe('describe_type', () => {
-  it('catalogs all 20 types with prefix, folder, and purpose', async () => {
+  it('catalogs all 21 types with prefix, folder, and purpose', async () => {
     const { types } = await call('describe_type');
-    expect(types).toHaveLength(20);
+    expect(types).toHaveLength(21);
     const page = types.find((t: { type: string }) => t.type === 'PAGE');
     expect(page.prefix).toBe('PAGE-');
     expect(page.folder).toBe('page');
@@ -42,6 +42,14 @@ describe('describe_type', () => {
     expect(types.map((t: { type: string }) => t.type)).toContain('DECISION');
     expect(types.map((t: { type: string }) => t.type)).toContain('FEATURE');
     expect(types.map((t: { type: string }) => t.type)).toContain('RELEASE');
+    expect(types.map((t: { type: string }) => t.type)).toContain('STYLE');
+  });
+
+  it('describes STYLE with its token schema', async () => {
+    const res = await call('describe_type', { type: 'STYLE' });
+    expect(res.folder).toBe('style');
+    expect(res.schema.properties.tokens).toBeDefined();
+    expect(res.schema.properties.category.enum).toContain('color');
   });
 
   it('describes one type with its schema, reference, and reserved keys', async () => {

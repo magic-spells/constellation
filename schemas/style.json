@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "style.json",
+  "title": "STYLE card frontmatter",
+  "description": "Design-system token group — one card per group (colors, fonts, type scale, spacing, radius, shadows). Values are authored here so the viewer can render them; bind the card to the real CSS/config via code_refs or a connected FILE card so drift is caught by stale_report.",
+  "type": "object",
+  "properties": {
+    "category": {
+      "enum": ["font", "color", "type-scale", "spacing", "radius", "shadow", "other"],
+      "description": "Which visual treatment the viewer uses. font = family specimens; color = swatch grid; type-scale = sized sample text; spacing = proportional bars; radius = rounded boxes; shadow = elevation chips; other = name/value table."
+    },
+    "tokens": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "Token name, e.g. brand-blue, display, fs-body-md, spacing-md." },
+          "value": { "type": "string", "description": "The CSS value: a color, a font-family stack, a size, a shadow, etc." },
+          "description": { "type": "string", "description": "Usage note, e.g. 'Primary brand color — CTAs only'." },
+          "role": { "type": "string", "description": "font only: Display Font / Body Font / Mono — the muted label above the specimen." },
+          "weights": { "type": "string", "description": "font only: display string, e.g. 'Black (900)' or 'Regular (400) · Medium (500)'." },
+          "src": { "type": "string", "description": "font only: repo-relative path to a woff2/woff/ttf/otf so the viewer renders the real font." },
+          "line_height": { "type": "string", "description": "type-scale only." },
+          "weight": { "type": "string", "description": "type-scale only: CSS font-weight for the sample." },
+          "sample": { "type": "string", "description": "type-scale only: sample text override." }
+        },
+        "required": ["name", "value"]
+      },
+      "description": "The tokens in this group, in display order."
+    }
+  }
+}
