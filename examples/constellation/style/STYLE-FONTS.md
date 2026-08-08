@@ -2,6 +2,8 @@
 name: Fonts
 category: font
 status: built
+connections:
+  - PAGE-INBOX
 tokens:
   - name: display
     value: "'Inter', system-ui, sans-serif"

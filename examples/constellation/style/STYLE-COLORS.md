@@ -2,6 +2,11 @@
 name: Colors
 category: color
 status: built
+connections:
+  - PAGE-INBOX
+  - COMPONENT-TICKET-CARD
+code_refs:
+  - src/styles/tokens.css
 tokens:
   - name: ink
     value: "#111827"
@@ -28,5 +33,6 @@ tokens:
 
 # Colors
 
-Status colors map to ticket state everywhere — a resolved ticket is always
-`success`, never brand. Backgrounds stay on `paper`/`brand-soft`.
+Status colors map to ticket state everywhere — the status chip on
+[[COMPONENT-TICKET-CARD]] reads its color from [[STATE-TICKET]], so a resolved
+ticket is always `success`, never brand. Backgrounds stay on `paper`/`brand-soft`.

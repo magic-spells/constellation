@@ -2,6 +2,8 @@
 name: Spacing
 category: spacing
 status: built
+connections:
+  - COMPONENT-TICKET-CARD
 tokens:
   - name: spacing-xs
     value: "0.25rem"

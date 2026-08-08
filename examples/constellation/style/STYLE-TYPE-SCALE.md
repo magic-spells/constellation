@@ -2,6 +2,9 @@
 name: Type scale
 category: type-scale
 status: built
+connections:
+  - PAGE-INBOX
+  - STYLE-FONTS
 tokens:
   - name: display-1
     value: "2.5rem"
