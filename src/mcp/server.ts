@@ -120,7 +120,7 @@ cards compact hardest: keep only the current decision and why. The authoring ski
 Compaction section has the full checklist.
 
 describe_type is the type reference, served by this server: call it with no args for the
-catalog of all 20 card types, or with a type (e.g. describe_type PAGE) for that type's
+catalog of all 21 card types, or with a type (e.g. describe_type PAGE) for that type's
 frontmatter schema + a golden example. Consult it before authoring a type you haven't used
 this session — you don't need the authoring skill loaded to get the fields right.
 
@@ -1051,7 +1051,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'The card-type reference, served straight from this package. Call with no args for the catalog — all 20 types with their prefix, folder, and one-line purpose. Call with a type for everything needed to author one: the frontmatter JSON Schema (fields, which are required, descriptions) plus the golden example and authoring guidance. Use it before writing a card of a type you have not authored this session — it is the contract create_card/create_cards/update_card validate against (W002/W003), so you do not need the authoring skill loaded to get the fields right.',
+        'The card-type reference, served straight from this package. Call with no args for the catalog — all 21 types with their prefix, folder, and one-line purpose. Call with a type for everything needed to author one: the frontmatter JSON Schema (fields, which are required, descriptions) plus the golden example and authoring guidance. Use it before writing a card of a type you have not authored this session — it is the contract create_card/create_cards/update_card validate against (W002/W003), so you do not need the authoring skill loaded to get the fields right.',
       inputSchema: {
         type: typeSchema.optional().describe('omit for the full catalog'),
       },

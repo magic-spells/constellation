@@ -60,6 +60,7 @@ dashes only. No underscores, no lowercase.
 | `PLAN-`      | `plan/`      | Plan docs (`plan.md` at root = `PLAN-PROJECT`) | `types/plan.md` |
 | `FEATURE-`   | `feature/`   | Future work units (iteration)    | `types/feature.md`   |
 | `RELEASE-`   | `release/`   | Version milestones               | `types/release.md`   |
+| `STYLE-`     | `style/`     | Design tokens (colors, fonts, scales) | `types/style.md` |
 
 Read the matching `types/<type>.md` before writing a card of a type you haven't
 authored in this session — it has the field table and a golden example.
