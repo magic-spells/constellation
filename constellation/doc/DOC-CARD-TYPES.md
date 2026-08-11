@@ -1,12 +1,12 @@
 ---
-name: The 20 card types
+name: The 21 card types
 kind: reference
 status: built
 ---
 
-# The 20 card types
+# The 21 card types
 
-The prefix before the first dash determines a card's type and must be one of these 20. Folder
+The prefix before the first dash determines a card's type and must be one of these 21. Folder
 placement matches the type (a misfiled card warns W001, not errors — the prefix is
 authoritative). Defined in [[FILE-TYPES]] (`TYPE_NAMES`) and [[FILE-HANDLES]] (`TYPE_FOLDERS`).
 
@@ -32,6 +32,7 @@ authoritative). Defined in [[FILE-TYPES]] (`TYPE_NAMES`) and [[FILE-HANDLES]] (`
 | PLAN | `PLAN-` | `plan/` | Plan documents (`plan.md` = PLAN-PROJECT) |
 | FEATURE | `FEATURE-` | `feature/` | Future work units — the iteration primitive |
 | RELEASE | `RELEASE-` | `release/` | Version milestones — theme + upgrade notes, never a changelog |
+| STYLE | `STYLE-` | `style/` | Design-system token groups (colors, fonts, scales) |
 
 **Adding or renaming a type touches four places that must agree:** `TYPE_NAMES`
 ([[FILE-TYPES]]) + `TYPE_FOLDERS` ([[FILE-HANDLES]]); `schemas/<folder>.json`;

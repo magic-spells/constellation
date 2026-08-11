@@ -7,11 +7,11 @@ const GOLDEN = fileURLToPath(
 );
 
 describe('loadPlan on the golden example', () => {
-  it('loads one card of every type plus the root plan', async () => {
+  it('loads every card type including the root plan', async () => {
     const index = await loadPlan(GOLDEN);
-    expect(index.cards.size).toBe(21);
+    expect(index.cards.size).toBe(25);
     const types = new Set([...index.cards.values()].map((c) => c.type));
-    expect(types.size).toBe(20);
+    expect(types.size).toBe(21);
   });
 
   it('maps root plan.md to PLAN-PROJECT', async () => {

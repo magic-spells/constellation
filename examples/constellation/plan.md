@@ -5,7 +5,7 @@ name: Ticketing Example
 # Project Plan
 
 A minimal support-ticket app used as the golden example for the Constellation v2
-format. One card of every type, fully connected.
+format. Every card type is represented, and every card is connected.
 
 ## Current state
 

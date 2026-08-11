@@ -8,6 +8,7 @@
   import TypeIntro from './pages/TypeIntro.svelte';
   import ConstellationView from './pages/ConstellationView.svelte';
   import FeaturesPanel from './pages/FeaturesPanel.svelte';
+  import StyleGuide from './pages/StyleGuide.svelte';
   import { notice, plan, route } from './lib/state.svelte';
   import { TYPE_META } from './lib/types';
 
@@ -36,6 +37,7 @@
   const atHome = $derived(segments.length === 0);
   const atConstellation = $derived(segments[0] === 'constellation');
   const atFeatures = $derived(segments[0] === 'features');
+  const atStyleGuide = $derived(segments[0] === 'style-guide');
 
   // Convert a legacy path-style URL (/type/plan) into a hash URL on load, so old
   // links and manual edits resolve instead of showing a blank page.
@@ -71,7 +73,7 @@
       <CardList folder={activeFolder} {activeHandle} />
     {/if}
 
-    <main class="detail" class:wide={atHome || atFeatures} class:full={atConstellation}>
+    <main class="detail" class:wide={atHome || atFeatures || atStyleGuide} class:full={atConstellation}>
       {#if !plan.loaded}
         <div class="loading">reading the plan…</div>
       {:else if atConstellation}
@@ -80,6 +82,8 @@
         <div class="detail-inner"><FeaturesPanel /></div>
       {:else if atHome}
         <div class="detail-inner"><Home /></div>
+      {:else if atStyleGuide}
+        <div class="detail-inner"><StyleGuide /></div>
       {:else if activeHandle}
         {#key activeHandle}
           <div class="detail-inner"><CardPage handle={activeHandle} /></div>

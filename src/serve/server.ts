@@ -29,8 +29,14 @@ const MIME: Record<string, string> = {
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
   '.ico': 'image/x-icon',
 };
+
+// Font files a STYLE card may bind to via a token's `src:` path.
+const FONT_EXT = new Set(['.woff2', '.woff', '.ttf', '.otf']);
 
 class RequestBodyError extends Error {
   constructor(
@@ -127,6 +133,33 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
       errors: lint.errors,
       warnings: lint.warnings,
     });
+  }
+
+  // Read-only: hands the viewer real font bytes so STYLE specimens can @font-face
+  // the project's own fonts. Confined to the repo root (the plan folder's parent).
+  async function handleStyleAsset(url: URL, res: http.ServerResponse): Promise<void> {
+    const rel = url.searchParams.get('path') ?? '';
+    const ext = path.extname(rel).toLowerCase();
+    if (!rel || !FONT_EXT.has(ext)) {
+      return failure(
+        res,
+        400,
+        'INVALID_ASSET',
+        'path must be a repo-relative font file (woff2/woff/ttf/otf)',
+      );
+    }
+    const repoRoot = path.dirname(path.resolve(planRoot));
+    const abs = path.resolve(repoRoot, rel);
+    if (abs !== repoRoot && !abs.startsWith(repoRoot + path.sep)) {
+      return failure(res, 403, 'FORBIDDEN', 'path escapes the repository');
+    }
+    try {
+      const content = await readFile(abs);
+      res.writeHead(200, { 'content-type': MIME[ext], 'cache-control': 'no-cache' });
+      res.end(content);
+    } catch {
+      failure(res, 404, 'NOT_FOUND', `No file at ${rel}`);
+    }
   }
 
   async function handlePatchCard(
@@ -250,6 +283,9 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
       }
       if (url.pathname === '/api/sync' && method === 'GET') {
         return json(res, 200, await computeSyncStatus(planRoot));
+      }
+      if (url.pathname === '/api/style-asset' && method === 'GET') {
+        return await handleStyleAsset(url, res);
       }
       if (url.pathname === '/events' && method === 'GET') {
         res.writeHead(200, {

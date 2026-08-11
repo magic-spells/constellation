@@ -76,6 +76,7 @@ export const TYPE_META: Record<string, TypeMeta> = {
   EXTERNAL: { label: 'External services', folder: 'external', group: 'System' },
   PAGE: { label: 'Pages', folder: 'page', group: 'Interface' },
   COMPONENT: { label: 'Components', folder: 'component', group: 'Interface' },
+  STYLE: { label: 'Style guide', folder: 'style', group: 'Interface' },
   FILE: { label: 'Repo files', folder: 'file', group: 'Code & tests' },
   TEST: { label: 'Tests', folder: 'test', group: 'Code & tests' },
 };

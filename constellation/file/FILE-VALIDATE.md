@@ -8,4 +8,4 @@ connections:
   - FILE-TYPES
 ---
 
-Validates each card's frontmatter against `schemas/`. Derives the W003 base allow-list from `card.json`'s properties (not a hardcoded list), so cross-type metadata fields are blessed on all 20 types. Ajv ships CJS — loaded via createRequire.
+Validates each card's frontmatter against `schemas/`. Derives the W003 base allow-list from `card.json`'s properties (not a hardcoded list), so cross-type metadata fields are blessed on all 21 types. Ajv ships CJS — loaded via createRequire.

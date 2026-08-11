@@ -28,6 +28,7 @@ export const TYPE_FOLDERS: Record<TypeName, string> = {
   PLAN: 'plan',
   FEATURE: 'feature',
   RELEASE: 'release',
+  STYLE: 'style',
 };
 
 const TYPE_SET = new Set<string>(TYPE_NAMES);
@@ -41,7 +42,7 @@ export function isHandleShaped(value: string): boolean {
   );
 }
 
-/** Type for a handle's prefix, or null when the prefix is not one of the 20. */
+/** Type for a handle's prefix, or null when the prefix is not one of the 21. */
 export function typeForHandle(handle: string): TypeName | null {
   const dash = handle.indexOf('-');
   if (dash <= 0) return null;

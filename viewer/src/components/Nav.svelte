@@ -38,6 +38,16 @@
   >
     <span class="star">✦</span> Features
   </a>
+  {#if (plan.byType.get('STYLE')?.length ?? 0) > 0}
+    <a
+      class="nav-home"
+      class:active={route.path === '/style-guide'}
+      href="#/style-guide"
+      style="--c: var(--t-STYLE)"
+    >
+      <span class="star">✦</span> Style guide
+    </a>
+  {/if}
   {#each groups as { group, types }}
     <div class="nav-group">
       <h4>{group}</h4>

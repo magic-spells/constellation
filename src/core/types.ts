@@ -1,7 +1,7 @@
 export const TYPE_NAMES = [
   'API', 'DB', 'DATATYPE', 'ROLE', 'DOC', 'DECISION', 'FILE', 'TEST', 'EXTERNAL',
   'EVENT', 'COMPONENT', 'PAGE', 'JOB', 'FLOW', 'STATE', 'DIAGRAM', 'AGENT', 'PLAN',
-  'FEATURE', 'RELEASE',
+  'FEATURE', 'RELEASE', 'STYLE',
 ] as const;
 
 export type TypeName = (typeof TYPE_NAMES)[number];
