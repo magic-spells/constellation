@@ -16,10 +16,11 @@ import { PuzzleView } from '@magic-spells/puzzle';
 import { planIndex } from '../lib/plan-index.js';
 import { TYPE_META, typeForFolder } from '../lib/types.js';
 
-// TypeIntro — what `/:folder` shows in the detail pane: the type's name,
-// how many cards it holds, and a nudge toward the list beside it. Ported from
-// the Svelte viewer's TypeIntro.svelte, hint string included (TYPE_META carries
-// no per-type prose).
+// TypeIntro — what `/:folder` shows in the detail pane. A non-empty type never
+// actually shows it: picking a type auto-selects its first card (replace(), so
+// the bare folder URL doesn't pollute history and Back skips it). The intro
+// only renders for an empty type or an unknown folder. Sorted-by-handle "first"
+// matches the CardList's ordering, so the selected row is the top row.
 //
 // The list itself is AppShell's CardList, not this view — this is only the
 // right-hand half of the split.
@@ -31,15 +32,36 @@ export default class TypeIntro extends PuzzleView {
 		const meta = type ? TYPE_META[type] : undefined;
 		if (!meta) return { known: false, folder };
 
-		const count = planIndex(this.ctx.store).byType.get(type)?.length ?? 0;
+		const cards = planIndex(this.ctx.store).byType.get(type) ?? [];
+		const count = cards.length;
+		const first =
+			count > 0
+				? cards.reduce((a, b) => (a.handle < b.handle ? a : b)).handle
+				: null;
 
 		return {
 			known: true,
 			folder,
+			firstHandle: first,
 			label: meta.label,
 			countLabel: `${count} card${count === 1 ? '' : 's'}`,
 			hueStyle: `--c: var(--t-${type})`,
 		};
+	}
+
+	mounted() {
+		this._openFirst();
+	}
+
+	afterUpdate() {
+		// The plan hydrates asynchronously — on a cold deep link the store may be
+		// empty at mount, so retry once data lands (guarded by firstHandle).
+		this._openFirst();
+	}
+
+	_openFirst() {
+		const { firstHandle, folder } = this.getData();
+		if (firstHandle) this.ctx.router.replace(`/${folder}/${firstHandle}`);
 	}
 }
 </script>

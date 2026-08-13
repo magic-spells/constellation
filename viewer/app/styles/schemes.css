@@ -148,12 +148,6 @@
  * form controls, `<dialog>` backdrops) stays in step regardless of `data-theme`.
  */
 
-:root[data-scheme='observatory'],
-:root[data-scheme='observatory'][data-theme='light'],
-:root[data-scheme='observatory'][data-theme='dark'] {
-	color-scheme: dark;
-}
-
 :root[data-scheme='observatory'] {
 	/* Type. Old: --sans / --display / --body-font all shared one stack. */
 	--font-sans: 'Avenir Next', Seravek, 'Gill Sans', 'Segoe UI', sans-serif;
@@ -161,38 +155,41 @@
 
 	/* Text. Old --text → ink, --text-muted → muted, --text-faint → faint.
 	   pieces adds a fourth step (`body`) between ink and muted; derived. */
-	--color-ink: light-dark(#e6e8f2, #e6e8f2);
-	--color-body: light-dark(#c3cbe0, #c3cbe0);
-	--color-muted: light-dark(#8d93ad, #8d93ad);
-	--color-faint: light-dark(#5a5f78, #5a5f78);
+	/* Light halves are "daybreak observatory": cool blue-leaning light greys
+	   (never stark white for the page), navy ink, the periwinkle deepened to
+	   #3d6bd0 so it clears contrast on pale surfaces. Dark halves unchanged. */
+	--color-ink: light-dark(#232a45, #e6e8f2);
+	--color-body: light-dark(#3a4260, #c3cbe0);
+	--color-muted: light-dark(#6b7390, #8d93ad);
+	--color-faint: light-dark(#9ba3bc, #5a5f78);
 
 	/* Surfaces. Old --bg / --bg-panel / --bg-inset. */
-	--color-page: light-dark(#07080f, #07080f);
-	--color-surface: light-dark(#0c0e18, #0c0e18);
-	--color-surface-sunken: light-dark(#11131f, #11131f);
+	--color-page: light-dark(#eaedf4, #07080f);
+	--color-surface: light-dark(#f7f8fc, #0c0e18);
+	--color-surface-sunken: light-dark(#dfe3ee, #11131f);
 
 	/* Brand. Old --accent (#8ab4ff); -dark/-tint/-ink derived.
-	   The tint echoes the starfield's own #1b2240 glow. */
-	--color-brand: light-dark(#8ab4ff, #8ab4ff);
-	--color-brand-dark: light-dark(#a8c7ff, #a8c7ff);
-	--color-brand-tint: light-dark(#1b2440, #1b2440);
-	--color-brand-ink: #07080f;
+	   The dark tint echoes the starfield's own #1b2240 glow. */
+	--color-brand: light-dark(#3d6bd0, #8ab4ff);
+	--color-brand-dark: light-dark(#2f57b3, #a8c7ff);
+	--color-brand-tint: light-dark(#dce6fa, #1b2440);
+	--color-brand-ink: light-dark(#ffffff, #07080f);
 
 	/* Status colours are the old viewer's own semantic hexes, which are already
 	   observatory-tuned: danger #e0635d (= --t-API), warning #d9a23c (= --t-DB),
 	   success #66b35c (= --t-TEST). Tints are each hue at ~12% over #07080f.
 	   `danger-ink` is dark, not white: on a salmon red that light, white text
 	   only reaches ~3.3:1 while #1a0e0f reaches ~5.9:1. */
-	--color-danger: light-dark(#e0635d, #e0635d);
-	--color-danger-dark: light-dark(#ef7b74, #ef7b74);
-	--color-danger-tint: light-dark(#211318, #211318);
-	--color-danger-ink: #1a0e0f;
+	--color-danger: light-dark(#c04840, #e0635d);
+	--color-danger-dark: light-dark(#a83a33, #ef7b74);
+	--color-danger-tint: light-dark(#f6e2e0, #211318);
+	--color-danger-ink: light-dark(#ffffff, #1a0e0f);
 
-	--color-success: light-dark(#66b35c, #66b35c);
-	--color-success-tint: light-dark(#121c18, #121c18);
+	--color-success: light-dark(#45803d, #66b35c);
+	--color-success-tint: light-dark(#e0edde, #121c18);
 
-	--color-warning: light-dark(#d9a23c, #d9a23c);
-	--color-warning-tint: light-dark(#201a14, #201a14);
+	--color-warning: light-dark(#8f6a1a, #d9a23c);
+	--color-warning-tint: light-dark(#f4ecd9, #201a14);
 
 	/* Charts: eight of the 21 card-type hues, ordered to mirror the base
 	   palette's hue sequence (blue, green, pink, amber, teal, orange, violet,
@@ -207,23 +204,25 @@
 	--color-chart-8: light-dark(#e0635d, #e0635d); /* --t-API */
 
 	/* Lines & focus. Old --border / --border-strong / --accent. */
-	--color-border: light-dark(#1b1e30, #1b1e30);
-	--color-border-strong: light-dark(#2a2e48, #2a2e48);
-	--color-ring: light-dark(#8ab4ff, #8ab4ff);
+	--color-border: light-dark(#c9cfdf, #1b1e30);
+	--color-border-strong: light-dark(#aab2c9, #2a2e48);
+	--color-ring: light-dark(#3d6bd0, #8ab4ff);
 
-	/* Observatory-only decoration: the starfield + nebula wash, painted by the
-	   `body::before` rule below. Old --sky, verbatim. */
+	/* Observatory-only decoration, painted by the `body::before` rule below.
+	   Every stop is a light-dark() pair, so the same layer stack resolves per
+	   mode: in dark it is the old starfield + nebula wash (verbatim values); in
+	   light the stars vanish and the two washes become a soft daybreak glow. */
 	--sky:
-		radial-gradient(1px 1px at 12% 28%, #fff8 50%, transparent 51%),
-		radial-gradient(1px 1px at 38% 12%, #fff5 50%, transparent 51%),
-		radial-gradient(1.5px 1.5px at 64% 38%, #fff9 50%, transparent 51%),
-		radial-gradient(1px 1px at 81% 18%, #fff6 50%, transparent 51%),
-		radial-gradient(1px 1px at 91% 52%, #fff4 50%, transparent 51%),
-		radial-gradient(1.5px 1.5px at 26% 64%, #fff6 50%, transparent 51%),
-		radial-gradient(1px 1px at 53% 78%, #fff5 50%, transparent 51%),
-		radial-gradient(1px 1px at 72% 88%, #fff3 50%, transparent 51%),
-		radial-gradient(900px 500px at 70% -10%, #1b2240cc, transparent 70%),
-		radial-gradient(700px 600px at 0% 100%, #131a3399, transparent 70%);
+		radial-gradient(1px 1px at 12% 28%, light-dark(#0000, #fff8) 50%, transparent 51%),
+		radial-gradient(1px 1px at 38% 12%, light-dark(#0000, #fff5) 50%, transparent 51%),
+		radial-gradient(1.5px 1.5px at 64% 38%, light-dark(#0000, #fff9) 50%, transparent 51%),
+		radial-gradient(1px 1px at 81% 18%, light-dark(#0000, #fff6) 50%, transparent 51%),
+		radial-gradient(1px 1px at 91% 52%, light-dark(#0000, #fff4) 50%, transparent 51%),
+		radial-gradient(1.5px 1.5px at 26% 64%, light-dark(#0000, #fff6) 50%, transparent 51%),
+		radial-gradient(1px 1px at 53% 78%, light-dark(#0000, #fff5) 50%, transparent 51%),
+		radial-gradient(1px 1px at 72% 88%, light-dark(#0000, #fff3) 50%, transparent 51%),
+		radial-gradient(900px 500px at 70% -10%, light-dark(#ffffffb8, #1b2240cc), transparent 70%),
+		radial-gradient(700px 600px at 0% 100%, light-dark(#c8d6f266, #131a3399), transparent 70%);
 }
 
 :root[data-scheme='observatory'] body::before {
