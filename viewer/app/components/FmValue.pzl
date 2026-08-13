@@ -3,7 +3,7 @@
     {#if isString}
       {#if isHandleValue}
         <a class="fm-chip" href="{ cardHref | link }" style={ chipStyle }>
-          <span class="fm-star" aria-hidden="true">✦</span>{ stringValue }
+          { stringValue }
         </a>
       {:else}
         <span>{ stringValue }</span>
@@ -109,7 +109,6 @@ export default class FmValue extends PuzzleView {
 .fm-value { display: contents; }
 .fm-chip { --c: var(--color-brand); display: inline-flex; align-items: center; gap: 0.3rem; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--color-border)); border-radius: 999px; background: color-mix(in srgb, var(--c) 12%, var(--color-surface)); padding: 0.12rem 0.55rem; color: var(--c); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.76rem; font-weight: 600; text-decoration: none; }
 .fm-chip:hover { border-color: var(--c); }
-.fm-star { font-size: 0.68em; }
 .fm-table-wrap { max-width: 100%; overflow-x: auto; }
 .fm-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
 .fm-table th { background: var(--color-surface-sunken); color: var(--color-muted); font-weight: 600; }

@@ -1,8 +1,7 @@
 <puzzle-view>
-  <span class="status-select">
+  <span class="status-select" data-status={ status }>
     {#if canEdit}
       <Select
-        class="w-36"
         options={ options }
         value={ status }
         indicator="caret"
@@ -77,4 +76,27 @@ export default class StatusSelect extends PuzzleView {
 
 <style>
 .status-select { display: inline-flex; }
+
+/* The editable Select trigger reads as the old viewer's status pill: rounded,
+   mono-caps, tinted per status (building=warning, built=brand/blue,
+   verified=success). Scoped by the .status-select ancestor so no other Select
+   on the page is affected. */
+.status-select [data-select-trigger] {
+	--sc: var(--color-muted);
+	border: 1px solid color-mix(in srgb, var(--sc) 40%, transparent);
+	border-radius: 99px;
+	background: color-mix(in srgb, var(--sc) 8%, transparent);
+	padding: 0.16rem 0.6rem;
+	color: var(--sc);
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: 0.66rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.status-select[data-status=''] [data-select-trigger] { border-style: dashed; background: none; }
+.status-select[data-status='planned'] [data-select-trigger] { border-style: dashed; background: none; }
+.status-select[data-status='building'] [data-select-trigger] { --sc: var(--color-warning); }
+.status-select[data-status='built'] [data-select-trigger] { --sc: var(--color-brand); }
+.status-select[data-status='verified'] [data-select-trigger] { --sc: var(--color-success); }
 </style>

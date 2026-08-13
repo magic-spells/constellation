@@ -56,5 +56,19 @@ export default class MarkdownBlock extends PuzzleView {
 .md-block a { color: var(--color-brand); text-underline-offset: 0.18em; }
 .md-block a.wiki { border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface-sunken); padding: 0.08rem 0.45rem; color: var(--color-brand); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.82em; text-decoration: none; }
 .md-block a.wiki:hover { border-color: var(--color-brand); }
-.md-block .mermaid-block { overflow-x: auto; }
+/* Rounded panel around every diagram (old-viewer design). */
+.md-block .mermaid-block {
+	display: flex;
+	justify-content: center;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	padding: 1.2rem;
+	margin: 1rem 0;
+	overflow-x: auto;
+}
+.md-block .mermaid-block svg { max-width: 100%; height: auto; }
+/* rx/ry are settable from CSS: gently round node + subgraph rects */
+.md-block .mermaid-block .node rect,
+.md-block .mermaid-block .cluster rect { rx: 6px; ry: 6px; }
 </style>

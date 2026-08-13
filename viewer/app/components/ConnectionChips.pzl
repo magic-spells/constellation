@@ -7,7 +7,7 @@
           {#for chip in group.chips}
             <span class="connection-chip-wrap" style={ chip.style }>
               <a class="connection-chip" href="{ chip.href | link }" style={ chip.style }>
-                <span aria-hidden="true">✦</span>{ chip.handle }
+                { chip.handle }
               </a>
               {#if chip.removable}
                 <button
@@ -73,10 +73,10 @@ export default class ConnectionChips extends PuzzleView {
 </script>
 
 <style>
-.connection-groups { display: grid; gap: 0.7rem; }
+.connection-groups { display: grid; gap: 1.35rem; }
 .connection-group { display: grid; grid-template-columns: minmax(7rem, 10rem) 1fr; align-items: start; gap: 0.75rem; }
 .connection-type { padding-top: 0.22rem; color: var(--color-muted); font-size: 0.76rem; font-weight: 600; }
-.connection-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.connection-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .connection-chip-wrap { position: relative; display: inline-flex; align-items: center; }
 .connection-remove {
 	margin-left: -0.35rem;
@@ -93,7 +93,7 @@ export default class ConnectionChips extends PuzzleView {
 }
 .connection-chip-wrap:hover .connection-remove, .connection-remove:focus-visible { opacity: 1; }
 .connection-remove:hover { color: var(--color-danger); }
-.connection-chip { --c: var(--color-brand); display: inline-flex; align-items: center; gap: 0.3rem; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--color-border)); border-radius: 999px; background: color-mix(in srgb, var(--c) 12%, var(--color-surface)); padding: 0.18rem 0.58rem; color: var(--c); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.75rem; font-weight: 600; text-decoration: none; }
+.connection-chip { --c: var(--color-brand); display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--color-border)); border-radius: 999px; background: color-mix(in srgb, var(--c) 12%, var(--color-surface)); padding: 0.3rem 0.78rem; color: var(--c); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.84rem; font-weight: 600; letter-spacing: 0.02em; text-decoration: none; }
 .connection-chip:hover { border-color: var(--c); }
 @media (max-width: 640px) { .connection-group { grid-template-columns: 1fr; gap: 0.35rem; } }
 </style>
