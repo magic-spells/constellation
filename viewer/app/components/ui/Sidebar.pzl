@@ -14,7 +14,7 @@
             {#if collapsed}
               <div class="mx-1 my-2 border-t border-border" role="separator" aria-hidden="true"></div>
             {:else}
-              <p class="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-muted">{ item.label }</p>
+              <p class="px-3 pb-1.5 pt-7 text-xs font-semibold uppercase tracking-wide text-muted">{ item.label }</p>
             {/if}
 
           {:else if item.kind === 'parent'}
