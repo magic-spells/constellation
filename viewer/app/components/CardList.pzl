@@ -1,0 +1,153 @@
+<puzzle-view>
+  <aside class="clist flex h-full min-h-0 flex-col bg-surface-sunken" style={ hueStyle } aria-label={ ariaLabel }>
+    {#if known}
+      <div class="flex-none border-b border-border px-3 py-3">
+        <div class="mb-2.5 flex items-baseline gap-2">
+          <h2 class="min-w-0 truncate text-sm font-semibold text-ink">{ label }</h2>
+          <span class="ml-auto font-mono text-xs text-faint">{ total }</span>
+        </div>
+        <!-- `name` is passed only because SearchField renders it unconditionally
+             and an undefined template value is a dev warning. -->
+        <SearchField name="card-filter" value={ filter } placeholder="Filter…" @change={ setFilter }/>
+      </div>
+
+      <div class="min-h-0 flex-1 overflow-auto p-2">
+        {#for row in rows}
+          <a key={ row.handle } class={ row.class } href="{ row.path | link }" aria-current={ row.current }>
+            <span class="flex min-w-0 flex-1 flex-col gap-px">
+              <span class="clist-name truncate text-sm text-ink">{ row.name }</span>
+              <span class="clist-handle truncate font-mono text-[0.68rem] text-faint">{ row.handle }</span>
+            </span>
+            {#if row.status}<span class={ row.dotClass } title={ row.status }></span>{/if}
+          </a>
+        {/for}
+
+        {#if rows.length === 0}
+          <p class="px-2 py-4 text-xs text-muted">{ emptyText }</p>
+        {/if}
+
+        {#if editable}
+          <button type="button" class="clist-new" @click={ create }>+ new { newLabel }</button>
+        {/if}
+      </div>
+    {:else}
+      <p class="p-4 text-sm text-muted">Unknown type: { folder }</p>
+    {/if}
+  </aside>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import SearchField from './ui/SearchField.pzl';
+import { planIndex } from '../lib/plan-index.js';
+import { TYPE_META, typeForFolder } from '../lib/types.js';
+
+// CardList — the middle column: every card of ONE type, filterable, with the
+// active one highlighted. Ported from the Svelte viewer's CardList.svelte.
+//
+// It lives in AppShell (not in a view) so it survives navigation between the
+// cards it lists: `/type/api` → `/card/API-TICKETS` keeps the same instance, so
+// the filter text and scroll position stay put. AppShell decides which folder
+// is showing and hands it down.
+//
+// Props
+//   folder        plan folder name ('api', 'db', …) — the type to list
+//   activeHandle  handle of the card the detail pane is showing, or null
+//
+// Callbacks
+//   @create(type) fired by the "+ new" row (visible only on an editable plan)
+//
+// Status dots read semantic tokens, never hex: success = verified, warning =
+// building, brand = built, faint for planned/unset — so they re-tint with the
+// scheme like everything else. The type's own hue arrives as `--c` on the root
+// and colours the active row (the `.clist-*` rules in styles/styles.css).
+
+const ROW =
+	'clist-row flex items-center gap-2 rounded-md px-2 py-1.5 ' +
+	'outline-ring focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
+
+const DOT = {
+	verified: 'clist-dot is-verified',
+	building: 'clist-dot is-building',
+	built: 'clist-dot is-built',
+};
+
+export default class CardList extends PuzzleView {
+	created() {
+		// Which folder the current filter text belongs to. Switching types clears
+		// the box (the Svelte version's `$effect` on `folder`) — a filter typed for
+		// API cards is meaningless against DB cards.
+		this._folder = null;
+	}
+
+	data(params, props) {
+		const folder = props.folder;
+		const type = typeForFolder(folder);
+		const meta = type ? TYPE_META[type] : undefined;
+
+		if (this._folder !== folder) {
+			this._folder = folder;
+			this.setData('filter', '');
+		}
+		const filter = this.getData().filter ?? '';
+
+		if (!meta) return { known: false, folder, filter };
+
+		const store = this.ctx.store;
+		const cards = [...(planIndex(store).byType.get(type) ?? [])].sort((a, b) =>
+			a.handle.localeCompare(b.handle),
+		);
+
+		const query = filter.trim().toLowerCase();
+		const shown = query
+			? cards.filter(
+					(card) =>
+						card.handle.toLowerCase().includes(query) ||
+						(card.name ?? '').toLowerCase().includes(query),
+				)
+			: cards;
+
+		const active = props.activeHandle || null;
+
+		return {
+			known: true,
+			folder,
+			filter,
+			label: meta.label,
+			total: cards.length,
+			ariaLabel: `${meta.label} cards`,
+			// One dash-free singular for the ghost row: "Features" → "feature".
+			newLabel: meta.label.toLowerCase().replace(/s$/, ''),
+			hueStyle: `--c: var(--t-${type})`,
+			emptyText: query ? 'No matches' : 'Nothing here yet',
+			editable: this.ctx.store.findOne('plan', 'plan')?.editable === true,
+			rows: shown.map((card) => {
+				const current = card.handle === active;
+				return {
+					handle: card.handle,
+					name: card.name || card.handle,
+					status: card.status || '',
+					path: `/card/${card.handle}`,
+					current: current ? 'page' : false,
+					class: current ? `${ROW} is-active` : ROW,
+					dotClass: DOT[card.status] || 'clist-dot',
+				};
+			}),
+		};
+	}
+
+	events = {
+		// SearchField is controlled: it reports the new text, we own it. data()
+		// derives `rows` from it, so the refresh is what actually narrows the list.
+		setFilter: (value) => {
+			this.setData('filter', value);
+			this.refresh();
+		},
+
+		create: () => {
+			const type = typeForFolder(this.props.folder);
+			if (type) this.props.create?.(type);
+		},
+	};
+}
+</script>

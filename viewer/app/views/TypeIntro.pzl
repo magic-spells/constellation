@@ -1,7 +1,45 @@
-<puzzle-view><div class="p-8 text-muted">Type — coming in a later task</div></puzzle-view>
+<puzzle-view>
+  <div class="flex min-h-[60vh] flex-col items-center justify-center gap-1 p-8 text-center" style={ hueStyle }>
+    {#if known}
+      <span class="text-2xl leading-none" style="color: var(--c)" aria-hidden="true">✦</span>
+      <h2 class="mt-1 text-xl text-ink">{ label }</h2>
+      <p class="font-mono text-xs text-faint">{ countLabel }</p>
+      <p class="mt-2 text-sm text-muted">Select a card from the list to view it.</p>
+    {:else}
+      <p class="text-sm text-muted">Unknown type: { folder }</p>
+    {/if}
+  </div>
+</puzzle-view>
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { planIndex } from '../lib/plan-index.js';
+import { TYPE_META, typeForFolder } from '../lib/types.js';
 
-export default class TypeIntro extends PuzzleView {}
+// TypeIntro — what `/type/:folder` shows in the detail pane: the type's name,
+// how many cards it holds, and a nudge toward the list beside it. Ported from
+// the Svelte viewer's TypeIntro.svelte, hint string included (TYPE_META carries
+// no per-type prose).
+//
+// The list itself is AppShell's CardList, not this view — this is only the
+// right-hand half of the split.
+
+export default class TypeIntro extends PuzzleView {
+	data(params) {
+		const folder = params.folder;
+		const type = typeForFolder(folder);
+		const meta = type ? TYPE_META[type] : undefined;
+		if (!meta) return { known: false, folder };
+
+		const count = planIndex(this.ctx.store).byType.get(type)?.length ?? 0;
+
+		return {
+			known: true,
+			folder,
+			label: meta.label,
+			countLabel: `${count} card${count === 1 ? '' : 's'}`,
+			hueStyle: `--c: var(--t-${type})`,
+		};
+	}
+}
 </script>

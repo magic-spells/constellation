@@ -71,6 +71,91 @@
 
 @layer components {
 	/*
+	 * Full-bleed content region (AppShell's `bleed` mode, i.e. /constellation).
+	 * The canvas sizes itself with `height: 100%`, which needs an unbroken chain
+	 * of resolved heights — and the routed view's own <puzzle-view> element sits
+	 * in the middle of that chain, out of the layout's reach from the template.
+	 */
+	.shell-bleed > puzzle-view {
+		height: 100%;
+	}
+
+	/*
+	 * The same SplitPanel with its list pane collapsed to zero (AppShell's `wide`
+	 * and `bleed` modes). The divider is already `disabled` there; this takes it
+	 * out of the layout so an 8px seam doesn't float against the page edge.
+	 * `!important` because the divider carries Tailwind's own `flex`, and
+	 * @layer utilities outranks @layer components no matter the specificity.
+	 */
+	.shell-flat > [data-split-divider] {
+		display: none !important;
+	}
+
+	/*
+	 * Card list column (CardList.pzl). `--c` is the type's hue, set inline on the
+	 * root; everything below either mixes with it or falls back to a token. The
+	 * status dots stay on semantic tokens so they re-tint with the scheme.
+	 */
+	.clist-row:hover {
+		background: var(--color-surface);
+	}
+
+	.clist-row.is-active {
+		background: color-mix(in oklab, var(--c, var(--color-brand)) 20%, var(--color-surface));
+	}
+
+	.clist-row.is-active .clist-name {
+		font-weight: 600;
+	}
+
+	.clist-row.is-active .clist-handle {
+		color: color-mix(in oklab, var(--c, var(--color-brand)) 60%, var(--color-faint));
+	}
+
+	.clist-dot {
+		flex: none;
+		width: 7px;
+		height: 7px;
+		border-radius: 99px;
+		background: var(--color-faint);
+	}
+
+	.clist-dot.is-building {
+		background: var(--color-warning);
+	}
+
+	.clist-dot.is-built {
+		background: var(--color-brand);
+	}
+
+	.clist-dot.is-verified {
+		background: var(--color-success);
+	}
+
+	/* The "+ new <type>" ghost row — deliberately quieter than a real card. */
+	.clist-new {
+		display: flex;
+		width: 100%;
+		margin-top: 0.3rem;
+		padding: 0.4rem 0.55rem;
+		border: 1px dashed var(--color-border-strong);
+		border-radius: 0.375rem;
+		background: none;
+		color: var(--color-faint);
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		text-align: left;
+		opacity: 0.6;
+		cursor: pointer;
+	}
+
+	.clist-new:hover {
+		opacity: 1;
+		color: var(--color-muted);
+		border-color: var(--color-brand);
+	}
+
+	/*
 	 * Sidebar active accent (AppShell's `.cnav`). The old viewer put a coloured ✦
 	 * in front of every nav row; the type hue now shows up only on the ACTIVE row,
 	 * as a 2px inset bar. The Sidebar piece is config-first — `items` carries no

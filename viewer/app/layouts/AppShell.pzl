@@ -25,8 +25,22 @@
       </div>
     </header>
 
-    <main class="min-h-0 min-w-0 flex-1 overflow-auto">
-      <Slot/>
+    <main class="min-h-0 min-w-0 flex-1 overflow-hidden">
+      <SplitPanel
+        class={ splitClass }
+        sizes={ splitSizes }
+        defaultSizes={ splitDefaults }
+        min={ splitMin }
+        max={ splitMax }
+        disabled={ splitDisabled }
+        storageKey="constellation-list">
+        <div slot="first" class="h-full min-h-0">
+          {#if split}
+            <CardList folder={ activeFolder } activeHandle={ activeHandle } @create={ createCard }/>
+          {/if}
+        </div>
+        <div slot="second" class={ detailClass }><Slot/></div>
+      </SplitPanel>
     </main>
   </div>
 
@@ -36,8 +50,10 @@
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
 import Sidebar from '../components/ui/Sidebar.pzl';
+import SplitPanel from '../components/ui/SplitPanel.pzl';
 import Kbd from '../components/ui/Kbd.pzl';
 import Toaster from '../components/ui/Toaster.pzl';
+import CardList from '../components/CardList.pzl';
 import SyncBadge from '../components/SyncBadge.pzl';
 import ThemeControls from '../components/ThemeControls.pzl';
 import { planIndex } from '../lib/plan-index.js';
@@ -57,6 +73,27 @@ import { GROUPS, TYPE_META, folderForType } from '../lib/types.js';
 // Hrefs are mode-encoded through `router.url()` — the exact function the `link`
 // formatter wraps. The template can't pipe them because they live in the
 // Sidebar's `items` config rather than in markup.
+//
+// The content region has three shapes, picked from the route (`_region`):
+//
+//   split      /type/:folder and /card/:handle — a resizable CardList | <Slot/>
+//              pair. The list is hosted HERE rather than inside the views so it
+//              survives navigation between the cards it lists (filter text and
+//              scroll position included) and so both routes get it from one
+//              place.
+//   bleed      /constellation — the canvas owns the whole box: no padding, no
+//              scrolling, and `.shell-bleed` hands 100% height down through the
+//              routed <puzzle-view> element (see styles/styles.css).
+//   wide       everything else — full width, the view scrolls itself.
+//
+// All three are the SAME SplitPanel, because a template may declare the default
+// slot marker exactly once and <Slot/> is where the router mounts the routed
+// view — putting one in each branch of an {#if} is a compile error. So the two
+// listless shapes collapse the panel instead: `sizes` switches it to controlled
+// [0, 100] with the divider disabled and hidden (`.shell-flat`), and the list
+// pane renders nothing. Leaving `sizes` undefined hands the panel back to its
+// own uncontrolled state, which is what restores the dragged width from
+// localStorage.
 
 // Icons are SVG path `d` strings on a 24×24 stroked grid (the Sidebar's icon
 // contract). Every row needs one: the collapsed rail shows nothing else.
@@ -129,28 +166,73 @@ export default class AppShell extends PuzzleView {
 		}
 
 		const project = index.projectCard;
+		const region = this._region(index);
+		const split = region.mode === 'split';
 
 		return {
 			navItems,
-			activePath: this._activePath(index, url),
+			activePath: this._activePath(region, url),
 			projectName: project?.frontmatter?.name || project?.name || 'Constellation',
+
+			split,
+			activeFolder: region.folder,
+			activeHandle: region.handle,
+
+			// SplitPanel config. Arrays can't be written inline in a template
+			// expression, so every one of these is built here. With a list showing:
+			// a quarter of the width by default, pinned between a legible minimum
+			// and a width past which the list is just stealing space from the card;
+			// committed sizes persist under `split-panel:constellation-list`.
+			// Without one: controlled at [0, 100], divider disabled and hidden.
+			splitClass: split ? 'h-full' : 'shell-flat h-full',
+			splitSizes: split ? undefined : [0, 100],
+			splitDefaults: split ? [24, 76] : [0, 100],
+			splitMin: split ? ['220px', '360px'] : [null, null],
+			splitMax: split ? ['480px', null] : [null, null],
+			splitDisabled: !split,
+			detailClass:
+				region.mode === 'bleed' ? 'shell-bleed h-full overflow-hidden' : 'min-h-full',
 		};
+	}
+
+	// Which content shape the current route wants, plus what the list column
+	// should be showing. A card whose handle isn't in the plan has no type and
+	// therefore no list to sit beside, so it falls back to the wide layout and
+	// lets CardPage own the whole box for its "not in this plan" state.
+	_region(index) {
+		const name = this.route.route?.name;
+		const params = this.route.params || {};
+
+		if (name === 'type') {
+			return { mode: 'split', folder: params.folder, handle: null };
+		}
+		if (name === 'card') {
+			const handle = String(params.handle || '').toUpperCase();
+			const folder = folderForType(index.byHandle.get(handle)?.type);
+			return folder
+				? { mode: 'split', folder, handle }
+				: { mode: 'wide', folder: null, handle };
+		}
+		if (name === 'graph') return { mode: 'bleed', folder: null, handle: null };
+		return { mode: 'wide', folder: null, handle: null };
 	}
 
 	// The Sidebar matches `activePath` against an item's href byte-for-byte, so
 	// this resolves the current route to the href of the row that owns it: a
 	// card page highlights its TYPE row (the Svelte Nav's `activeFolder` prop).
-	_activePath(index, url) {
-		const name = this.route.route?.name;
-		const params = this.route.params || {};
-
-		if (name === 'type') return url(`/type/${params.folder}`);
-		if (name === 'card') {
-			const card = index.byHandle.get(String(params.handle || '').toUpperCase());
-			const folder = folderForType(card?.type);
-			return folder ? url(`/type/${folder}`) : '';
-		}
+	_activePath(region, url) {
+		if (region.folder) return url(`/type/${region.folder}`);
+		if (this.route.route?.name === 'card') return '';
 		return url(this.route.pathname || '/');
 	}
+
+	events = {
+		// TODO(T10): open CreateCardDialog for `type`. The seam is wired now so the
+		// list's "+ new" row is real on an editable plan; the dialog is the only
+		// piece still missing.
+		createCard: (type) => {
+			void type;
+		},
+	};
 }
 </script>
