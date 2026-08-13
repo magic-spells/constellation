@@ -36,7 +36,7 @@
     {:else if isArray}
       <span class="fm-array">
         {#for item in arrayItems}
-          <span>{ item.separator }<FmValue value={ item.value } /></span>
+          <span key={ item.key }>{ item.separator }<FmValue value={ item.value } /></span>
         {/for}
       </span>
     {:else}
@@ -94,7 +94,7 @@ export default class FmValue extends PuzzleView {
 				: [],
 			isArray: Array.isArray(value),
 			arrayItems: Array.isArray(value)
-				? value.map((item, index) => ({ value: item, separator: index > 0 ? ', ' : '' }))
+				? value.map((item, index) => ({ key: index, value: item, separator: index > 0 ? ', ' : '' }))
 				: [],
 			objectEntries:
 				value && typeof value === 'object' && !Array.isArray(value)

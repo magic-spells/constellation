@@ -3,7 +3,7 @@ name: Viewer — features panel
 kind: route
 status: built
 code_refs:
-  - viewer/src/pages/FeaturesPanel.svelte
+  - viewer/app/views/FeaturesPanel.pzl
 ---
 
 The `#/features` route: a roadmap view of every FEATURE card, served by

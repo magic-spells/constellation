@@ -51,7 +51,49 @@ export function luminance(color) {
   return p ? (0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2]) / 255 : 0;
 }
 
-/** Pull a resolved CSS custom property off `:root`. */
+/** Pull a CSS custom property off `:root`, as authored (no color resolution). */
 export function cssVar(name, fallback = '') {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
+let probe = null;
+
+/**
+ * Read a CSS custom property and hand back a *usable* color.
+ *
+ * Custom properties compute to their raw token stream, so every puzzle-pieces
+ * palette token — all of them `light-dark(light, dark)` pairs — comes back from
+ * `getComputedStyle().getPropertyValue()` as the literal string
+ * `light-dark(#0c0e18,#0c0e18)`. That string is not a color: `parseHex` rejects
+ * it, canvas `fillStyle` ignores it, and mermaid logs
+ * `Unsupported color format` for it. So let the browser resolve it — assign the
+ * var to a hidden probe element's `color` and read the computed value back,
+ * which lands as `rgb(r, g, b)` with `light-dark()` already collapsed against
+ * the active `color-scheme`.
+ *
+ * Plain-hex tokens (the `--t-<TYPE>` card hues) short-circuit; a property that
+ * isn't declared at all returns `fallback`, same as `cssVar`.
+ */
+export function cssColor(name, fallback = '') {
+  if (typeof document === 'undefined') return fallback;
+  const raw = cssVar(name);
+  if (!raw) return fallback;
+  if (parseHex(raw)) return raw;
+
+  if (!probe || !probe.isConnected) {
+    probe = document.createElement('span');
+    probe.setAttribute('aria-hidden', 'true');
+    probe.style.cssText =
+      'position:absolute;width:0;height:0;overflow:hidden;visibility:hidden;pointer-events:none';
+    (document.body ?? document.documentElement).append(probe);
+  }
+  probe.style.color = '';
+  probe.style.color = `var(${name})`;
+  const computed = getComputedStyle(probe).color;
+  const m = /^rgba?\(([^)]+)\)$/.exec(computed);
+  if (!m) return computed || fallback;
+  const parts = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+  return parts.length >= 3 && parts.slice(0, 3).every(Number.isFinite)
+    ? toHex(parts.slice(0, 3))
+    : fallback;
 }

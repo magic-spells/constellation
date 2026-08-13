@@ -1,5 +1,5 @@
 import { Marked } from 'marked';
-import { cssVar } from './colors.js';
+import { cssColor } from './colors.js';
 
 const HANDLE_LINK = /^\[\[([A-Z][A-Z0-9]*-[A-Z0-9][A-Z0-9-]*)\]\]/;
 
@@ -109,7 +109,7 @@ function colorNodesByType(svg, panel) {
   for (const node of svg.querySelectorAll('g.node')) {
     const handle = (node.textContent ?? '').trim();
     if (!NODE_HANDLE.test(handle)) continue;
-    const color = cssVar(`--t-${handle.slice(0, handle.indexOf('-'))}`);
+    const color = cssColor(`--t-${handle.slice(0, handle.indexOf('-'))}`);
     if (!color) continue;
     const fill = mix(panel, color, 0.35);
     for (const shape of node.querySelectorAll('rect, polygon, circle, ellipse, path')) {
@@ -124,13 +124,16 @@ export async function renderMermaidBlocks(container) {
   const blocks = container.querySelectorAll('.mermaid-block');
   if (blocks.length === 0) return;
 
-  const accent = cssVar('--accent');
-  const panel = cssVar('--bg-panel');
-  const inset = cssVar('--bg-inset');
-  const text = cssVar('--text');
-  const muted = cssVar('--text-muted');
-  const border = cssVar('--border-strong');
-  const bg = parseHex(cssVar('--bg'));
+  // Pieces palette tokens — NOT the old Svelte viewer's `--accent` / `--bg-panel`
+  // names, which no longer exist (reading them handed mermaid empty strings and
+  // it logged `Unsupported color format: ""` for every themeVariable).
+  const accent = cssColor('--color-brand', '#5c7cfa');
+  const panel = cssColor('--color-surface', '#101013');
+  const inset = cssColor('--color-surface-sunken', '#18181c');
+  const text = cssColor('--color-ink', '#f4f4f5');
+  const muted = cssColor('--color-muted', '#7f7f88');
+  const border = cssColor('--color-border-strong', '#3a3a42');
+  const bg = parseHex(cssColor('--color-page', '#09090b'));
   const isDark = bg ? (0.299 * bg[0] + 0.587 * bg[1] + 0.114 * bg[2]) / 255 < 0.5 : false;
 
   // chip aesthetic: a faint accent tint for the fill, accent-leaning border, theme text

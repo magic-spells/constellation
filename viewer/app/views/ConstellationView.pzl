@@ -79,7 +79,7 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import { TYPE_META } from '../lib/types.js';
 import { planIndex } from '../lib/plan-index.js';
-import { cssVar, darken as darkenHex, mix as mixHex, luminance as relLum } from '../lib/colors.js';
+import { cssColor, darken as darkenHex, mix as mixHex, luminance as relLum } from '../lib/colors.js';
 import { onThemeChange } from '../lib/theme.js';
 import {
   buildGraph,
@@ -387,12 +387,12 @@ export default class ConstellationView extends PuzzleView {
   refreshColors() {
     if (typeof document === 'undefined') return;
     const colors = this.colors;
-    colors.edge = cssVar('--color-border-strong', '#888');
-    colors.accent = cssVar('--color-brand', '#88f');
-    colors.bg = cssVar('--color-page', '#000');
-    colors.panel = cssVar('--color-surface', '#111');
-    colors.text = cssVar('--color-body', '#aaa');
-    colors.textStrong = cssVar('--color-ink', '#fff');
+    colors.edge = cssColor('--color-border-strong', '#888');
+    colors.accent = cssColor('--color-brand', '#88f');
+    colors.bg = cssColor('--color-page', '#000');
+    colors.panel = cssColor('--color-surface', '#111');
+    colors.text = cssColor('--color-body', '#aaa');
+    colors.textStrong = cssColor('--color-ink', '#fff');
     const light = relLum(colors.bg) > 0.5;
     colors.light = light;
     const type = {};
@@ -400,7 +400,7 @@ export default class ConstellationView extends PuzzleView {
     const label = {};
     const sub = {};
     for (const t of new Set(this.nodes.map((n) => n.type))) {
-      const base = cssVar('--t-' + t, colors.accent);
+      const base = cssColor('--t-' + t, colors.accent);
       type[t] = base;
       if (light) {
         // Light theme: pale type-tinted card + a deep, type-coloured handle.

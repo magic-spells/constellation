@@ -32,8 +32,8 @@ npm test                 # vitest (run once); npm run test:watch to watch
 npm run build            # tsc → dist/
 npm run lint:examples    # lint the golden plan — must stay clean (0 errors)
 npm run dev -- <cmd>     # run the CLI from source via tsx, e.g. `npm run dev -- lint examples`
-npm run dev:viewer       # vite dev server for the Svelte viewer
-npm run build:viewer     # build static viewer assets → viewer/dist
+npm run dev:viewer       # puzzle dev server for the viewer (cwd viewer/)
+npm run build:viewer     # puzzle build → static viewer assets in viewer/dist
 npm run serve:examples   # serve the golden plan in the viewer (no auto-open)
 ```
 
@@ -64,7 +64,7 @@ The pipeline is one direction: **files → index → (lint | serve | MCP)**.
 | `src/cli/index.ts` | The `constellation` binary. |
 | `src/mcp/` | MCP server (`server.ts`), full-text search (`search.ts`), git change-tracking (`git.ts`). |
 | `src/serve/server.ts` | Local HTTP server: serves `viewer/dist`, a read API, and a PATCH/POST/DELETE write API; watches files for live reload. |
-| `viewer/` | Svelte 5 + Tailwind v4 single-page viewer (themes, card pages, neighborhood diagrams). |
+| `viewer/` | Puzzle + puzzle-pieces + Tailwind v4 single-page viewer (themes, card pages, neighborhood diagrams). |
 
 ### Invariants — don't break these
 

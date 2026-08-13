@@ -6,7 +6,7 @@
 
     <ul class="flex-1 min-h-0 space-y-0.5 overflow-y-auto overflow-x-hidden p-2">
       {#for item in items}
-        <li class={ item.rowClass }>
+        <li key={ item.key } class={ item.rowClass }>
           {#if item.kind === 'divider'}
             <div class="mx-1 my-2 border-t border-border" role="separator" aria-hidden="true"></div>
 
@@ -71,7 +71,7 @@
                 inert={ !item.open }>
                 <ul class="ml-[1.375rem] mt-0.5 space-y-0.5 border-l border-border pl-2">
                   {#for child in item.children}
-                    <li>
+                    <li key={ child.key }>
                       <a
                         href={ child.href }
                         class={ child.linkClass }
@@ -241,15 +241,17 @@ const childLinkClass = (active) =>
 function normalizeItems(items, activePath) {
   const list = Array.isArray(items) ? items : [];
   return list.map((it, i) => {
-    if (it && it.divider) return { kind: 'divider', index: i, rowClass: '' };
+    if (it && it.divider) return { kind: 'divider', index: i, key: `divider:${i}`, rowClass: '' };
     if (it && it.group != null) {
-      return { kind: 'group', index: i, label: String(it.group), rowClass: '' };
+      const label = String(it.group);
+      return { kind: 'group', index: i, key: `group:${label}`, label, rowClass: '' };
     }
 
     const children = Array.isArray(it && it.children)
-      ? it.children.map((c) => {
+      ? it.children.map((c, ci) => {
           const href = (c && c.href) || '#';
           return {
+            key: `${href}:${ci}`,
             label: c && c.label != null ? String(c.label) : '',
             href,
             badge: c && c.badge != null ? String(c.badge) : '',
@@ -266,6 +268,9 @@ function normalizeItems(items, activePath) {
     return {
       kind: hasChildren ? 'parent' : 'link',
       index: i,
+      // Row identity for the keyed {#for} — href is unique per nav entry; the
+      // index tail keeps duplicate/absent hrefs from colliding.
+      key: `${href}:${i}`,
       rowClass: '',
       label: it && it.label != null ? String(it.label) : '',
       href,

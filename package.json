@@ -49,10 +49,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint:examples": "tsx src/cli/index.ts lint examples",
-    "check:viewer": "svelte-check --workspace viewer --tsconfig tsconfig.json",
-    "build:viewer": "vite build viewer",
+    "build:viewer": "cd viewer && puzzle build --mode production",
     "demo": "tsx scripts/demo.ts",
-    "dev:viewer": "vite viewer",
+    "dev:viewer": "cd viewer && puzzle dev",
     "serve:examples": "tsx src/cli/index.ts serve examples --no-open"
   },
   "dependencies": {
@@ -67,9 +66,8 @@
   "devDependencies": {
     "@magic-spells/morph-engine": "^0.1.2",
     "@magic-spells/puzzle": "file:../puzzle/magic-spells-puzzle-0.6.0.tgz",
-    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@magic-spells/puzzle-darwin-arm64": "file:../puzzle/npm/puzzle-darwin-arm64",
     "@tailwindcss/cli": "^4.3.3",
-    "@tailwindcss/vite": "^4.3.1",
     "@types/d3-force": "^3.0.10",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.9.3",
@@ -77,12 +75,9 @@
     "jsdom": "^29.1.1",
     "marked": "^18.0.5",
     "mermaid": "^11.15.0",
-    "svelte": "^5.56.3",
-    "svelte-check": "^4.6.0",
     "tailwindcss": "^4.3.1",
     "tsx": "^4.22.0",
     "typescript": "^6.0.3",
-    "vite": "^8.0.0",
     "vitest": "^4.1.8"
   }
 }
