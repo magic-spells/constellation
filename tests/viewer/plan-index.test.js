@@ -45,4 +45,14 @@ describe('planIndex', () => {
 		expect(third).not.toBe(first);
 		expect(third.projectCard?.handle).toBe('PLAN-PROJECT');
 	});
+
+	it('returns an empty index before the plan singleton lands', () => {
+		const store = storeFake({ cards: [], plan: undefined });
+
+		const index = planIndex(store);
+
+		expect(index.byHandle.size).toBe(0);
+		expect(index.connections).toEqual([]);
+		expect(index.projectCard).toBeNull();
+	});
 });

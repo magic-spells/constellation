@@ -1,7 +1,197 @@
-<puzzle-view><div class="p-8 text-muted">Features — coming in a later task</div></puzzle-view>
+<puzzle-view>
+  <div class="features">
+    <h2 class="feat-title"><span class="star">✦</span> Features</h2>
+
+    {#if empty}
+      <p class="empty">
+        No FEATURE cards yet. A FEATURE groups a coherent slice of future work —
+        create one in <code>feature/FEATURE-*.md</code>, connect the cards it
+        touches, and it shows up here.
+      </p>
+    {:else}
+      {#for section in sections}
+        <section key={ section.title } class="feat-section">
+          <h3>{ section.title } <span class="feat-count">{ section.count }</span></h3>
+          {#if section.cards.length === 0}
+            <p class="empty sm">Nothing here yet.</p>
+          {:else}
+            {#for card in section.cards}
+              <div key={ card.handle } class="feat-row">
+                <a class="feat-main" href="{ card.path | link }">
+                  <span class="feat-name">{ card.name }</span>
+                  <span class="feat-handle">{ card.handle }</span>
+                </a>
+                <span class="feat-meta">
+                  {#if card.release}
+                    <a class="feat-chip release" href="{ card.releasePath | link }">✦ { card.release }</a>
+                  {/if}
+                  {#if card.branch}<span class="feat-chip mono">⎇ { card.branch }</span>{/if}
+                  {#if card.pr}
+                    {#if card.prIsUrl}
+                      <a class="feat-chip mono" href={ card.pr } target="_blank" rel="noopener noreferrer">PR ↗</a>
+                    {:else}
+                      <span class="feat-chip mono">PR { card.pr }</span>
+                    {/if}
+                  {/if}
+                  {#if card.status}
+                    <Badge variant={ card.statusVariant } class={ card.statusTint }>{ card.status }</Badge>
+                  {/if}
+                  <span class="feat-when">{ card.when }</span>
+                </span>
+              </div>
+            {/for}
+          {/if}
+        </section>
+      {/for}
+    {/if}
+  </div>
+</puzzle-view>
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import Badge from '../components/ui/Badge.pzl';
+import { relTime } from '../lib/format.js';
+import { planIndex } from '../lib/plan-index.js';
 
-export default class FeaturesPanel extends PuzzleView {}
+// FeaturesPanel — every FEATURE card, split into what is still ahead and what
+// has shipped. Ported from the Svelte viewer's FeaturesPanel.svelte.
+//
+// "Shipped" = built or verified; everything else (planned / building / no
+// status at all) is future work. Each section sorts by file mtime, freshest
+// edit first. The Shipped section only appears once something has shipped;
+// "Up next" always renders, with an empty line when it is clear.
+
+const SHIPPED = new Set(['built', 'verified']);
+
+// Same status → Badge mapping CardPage uses, so a status reads identically on
+// both pages (Badge has no success/warning variant — those arrive as `!` token
+// utilities that win on source order).
+const STATUS = {
+	planned: { variant: 'outline', tint: 'text-muted!' },
+	building: { variant: 'default', tint: 'bg-warning-tint! text-warning!' },
+	built: { variant: 'brand', tint: '' },
+	verified: { variant: 'default', tint: 'bg-success-tint! text-success!' },
+};
+
+/** A non-empty string frontmatter value, or '' — chips render on truthiness. */
+function str(card, key) {
+	const value = card.frontmatter?.[key];
+	return typeof value === 'string' && value ? value : '';
+}
+
+const isUrl = (value) => /^https?:\/\//.test(value);
+
+function rowFor(card) {
+	const status = card.status ?? '';
+	const statusMeta = STATUS[status] ?? { variant: 'default', tint: '' };
+	const release = str(card, 'release');
+	const pr = str(card, 'pr');
+
+	return {
+		handle: card.handle,
+		name: card.name || card.handle,
+		path: `/card/${card.handle}`,
+		release,
+		releasePath: release ? `/card/${release}` : '',
+		branch: str(card, 'branch'),
+		pr,
+		prIsUrl: isUrl(pr),
+		status,
+		statusVariant: statusMeta.variant,
+		statusTint: statusMeta.tint,
+		when: relTime(card.mtime),
+	};
+}
+
+export default class FeaturesPanel extends PuzzleView {
+	data() {
+		const features = [...(planIndex(this.ctx.store).byType.get('FEATURE') ?? [])].sort(
+			(a, b) => b.mtime - a.mtime,
+		);
+
+		const upNext = features.filter((card) => !SHIPPED.has(card.status ?? '')).map(rowFor);
+		const shipped = features.filter((card) => SHIPPED.has(card.status ?? '')).map(rowFor);
+
+		const sections = [{ title: 'Up next', count: upNext.length, cards: upNext }];
+		if (shipped.length > 0) {
+			sections.push({ title: 'Shipped', count: shipped.length, cards: shipped });
+		}
+
+		return { empty: features.length === 0, sections };
+	}
+}
 </script>
+
+<style>
+.features { width: min(100%, 62rem); margin: 0 auto; padding: 2rem clamp(1.25rem, 4vw, 3.5rem) 4rem; }
+
+.feat-title {
+	--c: var(--t-FEATURE, var(--color-brand));
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 0 0 1rem;
+	color: var(--color-ink);
+	font-family: var(--font-display, var(--font-sans));
+	font-size: 1.3rem;
+}
+.feat-title .star { color: var(--c); font-size: 0.9rem; }
+
+.feat-section { margin-bottom: 1.75rem; }
+.feat-section h3 {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+	margin: 0 0 0.5rem;
+	color: var(--color-muted);
+	font-size: 0.8rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.feat-count { color: var(--color-faint); font-weight: normal; }
+
+.feat-row {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	margin-bottom: 0.4rem;
+	border: 1px solid var(--color-border);
+	border-radius: 0.6rem;
+	background: var(--color-surface);
+	padding: 0.55rem 0.7rem;
+}
+.feat-row:hover { border-color: var(--color-border-strong); }
+
+.feat-main { display: flex; flex: 1; flex-direction: column; gap: 0.1rem; min-width: 0; color: inherit; }
+.feat-main:hover .feat-name { text-decoration: underline; }
+.feat-name { overflow: hidden; color: var(--color-ink); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.feat-handle { color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
+
+.feat-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.45rem; }
+.feat-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	overflow: hidden;
+	max-width: 16rem;
+	border: 1px solid var(--color-border);
+	border-radius: 99px;
+	padding: 0.1rem 0.5rem;
+	color: var(--c, var(--color-muted));
+	font-size: 0.72rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.feat-chip.release { --c: var(--t-RELEASE, var(--color-brand)); }
+.feat-chip.mono { font-family: var(--font-mono); }
+a.feat-chip:hover { border-color: var(--c, var(--color-border-strong)); }
+.feat-when { color: var(--color-faint); font-size: 0.72rem; white-space: nowrap; }
+
+.features .empty { color: var(--color-faint); font-size: 0.88rem; font-style: italic; }
+.features .empty.sm { padding: 1rem 0.6rem; font-size: 0.82rem; }
+
+@media (max-width: 720px) {
+	.feat-row { flex-direction: column; align-items: flex-start; }
+	.feat-meta { justify-content: flex-start; }
+}
+</style>

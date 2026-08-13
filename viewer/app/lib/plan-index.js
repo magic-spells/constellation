@@ -5,7 +5,10 @@ export function planIndex(store) {
 	const generation = plan?.generation;
 	const cached = cache.get(store);
 
-	if (cached?.generation === generation) return cached.index;
+	// `cached &&` is load-bearing: before the plan singleton lands, `generation`
+	// is undefined, and `cached?.generation === generation` would be true with
+	// nothing cached — a view rendering against an unhydrated store would throw.
+	if (cached && cached.generation === generation) return cached.index;
 
 	const cards = store.findMany('card');
 	const connections = plan?.connections ?? [];

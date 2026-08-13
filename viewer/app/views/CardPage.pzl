@@ -15,7 +15,11 @@
         </div>
       </header>
 
-      <!-- STYLE tokens: Task 11 -->
+      {#if isStyle}
+        <section class="card-section">
+          <StyleTokens card={ card } />
+        </section>
+      {/if}
 
       {#if fields.length > 0}
         <section class="card-section">
@@ -68,6 +72,7 @@ import Empty from '../components/ui/Empty.pzl';
 import ConnectionChips from '../components/ConnectionChips.pzl';
 import FmValue from '../components/FmValue.pzl';
 import MarkdownBlock from '../components/MarkdownBlock.pzl';
+import StyleTokens from '../components/StyleTokens.pzl';
 import { planIndex } from '../lib/plan-index.js';
 import { TYPE_META } from '../lib/types.js';
 
@@ -117,6 +122,9 @@ export default class CardPage extends PuzzleView {
 
 		return {
 			card,
+			// STYLE cards render their `tokens:` as swatches/specimens instead of a
+			// frontmatter field row (`fields` is empty for them, just above).
+			isStyle: card.type === 'STYLE',
 			displayName: card.name || card.handle,
 			kind: card.kind ?? '',
 			status,

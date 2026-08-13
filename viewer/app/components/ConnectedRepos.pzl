@@ -1,0 +1,61 @@
+<puzzle-view>
+  <div class="contents">
+    {#if repos.length > 0}
+      <div class="home-section">
+        <h3>Connected repos</h3>
+        <div class="repos">
+          {#for repo in repos}
+            <div key={ repo.path } class="repo" style={ repo.style }>
+              <span class="r-name">{ repo.name }</span>
+              <code class="r-path">{ repo.path }</code>
+              {#if repo.description}<span class="r-desc">{ repo.description }</span>{/if}
+            </div>
+          {/for}
+        </div>
+        <p class="repos-note">Separate plans — open each repo's own viewer to browse it.</p>
+      </div>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// ConnectedRepos — the sibling repos PLAN-PROJECT declares in
+// `connected_repos:`. Repo-level links only: a connected repo has its OWN plan,
+// so these are informational rows, not navigation into this viewer. Ported from
+// the Svelte viewer's ConnectedRepos.svelte.
+//
+// Props: `repos` — `[{ name, path, description? }]`, already normalized by the
+// caller (Home). The whole block disappears when the list is empty.
+
+export default class ConnectedRepos extends PuzzleView {
+	data(params, props) {
+		const list = Array.isArray(props.repos) ? props.repos : [];
+		return { repos: list.map((repo, i) => ({ ...repo, style: `--i: ${i}` })) };
+	}
+}
+</script>
+
+<style>
+/* `.home-section` (the heading frame) and the `cst-rise` keyframe belong to
+   Home.pzl, this component's only caller — .pzl <style> blocks are collected
+   into one sheet, so they resolve there. */
+.repos { display: flex; flex-direction: column; gap: 0.45rem; }
+.repo {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.9rem;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	background: var(--color-surface);
+	padding: 0.7rem 1rem;
+	animation: cst-rise 0.3s ease both;
+	animation-delay: calc(var(--i) * 18ms);
+}
+.repo .r-name { font-size: 0.9rem; font-weight: 600; }
+.repo .r-path { color: var(--color-muted); font-family: var(--font-mono); font-size: 0.78rem; }
+.repo .r-desc { flex-basis: 100%; color: var(--color-body); font-size: 0.9rem; }
+.repos-note { margin: 0.6rem 0 0; color: var(--color-muted); font-size: 0.78rem; }
+</style>

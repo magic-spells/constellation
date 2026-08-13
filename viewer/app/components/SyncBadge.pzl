@@ -18,6 +18,7 @@
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
 import Badge from './ui/Badge.pzl';
+import { relTime } from '../lib/format.js';
 
 // SyncBadge — the topbar freshness pill, ported from the Svelte viewer's
 // SyncPill.svelte. It reads the `sync` object the plan singleton carries
@@ -56,22 +57,6 @@ const VARIANT = {
 	dirty: 'brand',
 	'never-synced': 'outline',
 };
-
-/** Compact relative time: "just now", "5m ago", "2h ago", "3d ago", or a date. */
-function relTime(when) {
-	if (!when) return '';
-	const then = typeof when === 'number' ? when : new Date(when).getTime();
-	if (Number.isNaN(then)) return '';
-	const secs = Math.round((Date.now() - then) / 1000);
-	if (secs < 45) return 'just now';
-	const mins = Math.round(secs / 60);
-	if (mins < 60) return `${mins}m ago`;
-	const hours = Math.round(mins / 60);
-	if (hours < 24) return `${hours}h ago`;
-	const days = Math.round(hours / 24);
-	if (days < 30) return `${days}d ago`;
-	return new Date(then).toLocaleDateString();
-}
 
 /** Secondary text: what drifted, or how long ago the sync point was stamped. */
 function detailFor(sync) {

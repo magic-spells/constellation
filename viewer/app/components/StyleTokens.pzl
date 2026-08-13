@@ -1,0 +1,260 @@
+<puzzle-view>
+  <div class="contents">
+    {#if hasTokens}
+      <div class={ rootClass }>
+        {#if category === 'color'}
+          <div class="swatch-grid">
+            {#for t in tokens}
+              <div key={ t.key } class="swatch">
+                <div class="swatch-chip" style={ t.chipStyle }></div>
+                <div class="swatch-name">{ t.name }</div>
+                <div class="swatch-value">{ t.value }</div>
+                {#if t.description}<div class="token-desc">{ t.description }</div>{/if}
+              </div>
+            {/for}
+          </div>
+        {:else if category === 'font'}
+          <div class="specimen-grid">
+            {#for t in tokens}
+              <div key={ t.key } class="specimen">
+                {#if t.role}<div class="specimen-role">{ t.role }</div>{/if}
+                <div class="specimen-name" style={ t.stackStyle }>{ t.name }</div>
+                {#if t.weights}<div class="specimen-weights">{ t.weights }</div>{/if}
+                {#for row in t.rows}
+                  <div key={ row.label } class="specimen-row">
+                    <div class="specimen-label">{ row.label }</div>
+                    <div class="specimen-chars" style={ t.stackStyle }>{ row.chars }</div>
+                  </div>
+                {/for}
+                {#if t.description}<div class="token-desc">{ t.description }</div>{/if}
+              </div>
+            {/for}
+          </div>
+        {:else if category === 'type-scale'}
+          {#for t in tokens}
+            <div key={ t.key } class="scale-row">
+              <div class="token-label">{ t.label }</div>
+              <div style={ t.sampleStyle }>{ t.sample }</div>
+            </div>
+          {/for}
+        {:else if category === 'spacing'}
+          {#for t in tokens}
+            <div key={ t.key } class="spacing-row">
+              <div class="token-label">{ t.label }</div>
+              <div class="spacing-bar" style={ t.barStyle }></div>
+            </div>
+          {/for}
+        {:else if category === 'radius'}
+          <div class="radius-grid">
+            {#for t in tokens}
+              <div key={ t.key } class="radius-item">
+                <div class="radius-box" style={ t.boxStyle }></div>
+                <div class="token-label">{ t.label }</div>
+              </div>
+            {/for}
+          </div>
+        {:else if category === 'shadow'}
+          <div class="shadow-grid">
+            {#for t in tokens}
+              <div key={ t.key } class="shadow-item">
+                <div class="shadow-box" style={ t.boxStyle }></div>
+                <div class="token-label">{ t.name }</div>
+              </div>
+            {/for}
+          </div>
+        {:else}
+          <div class="token-table">
+            {#for t in tokens}
+              <div key={ t.key } class="tt-pair">
+                <div class="k">{ t.name }</div>
+                <div class="v">{ t.detail }</div>
+              </div>
+            {/for}
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// StyleTokens — renders a STYLE card's `tokens:` frontmatter as the thing it
+// describes: colors become swatches, fonts become specimens in the real face,
+// a type scale becomes sized sample lines, spacing becomes proportional bars,
+// radii and shadows become boxes. Anything else falls back to a key/value
+// table. Ported from the Svelte viewer's StyleTokens.svelte.
+//
+// Props: `card` — the STYLE card record (frontmatter.category + .tokens).
+//
+// Rows are keyed by INDEX on purpose: two tokens may legitimately share a name
+// (see 2b3245a), so the index is the only stable identity here.
+//
+// Fonts with a `src:` get a real @font-face registered under `cst-<name>`,
+// served by the viewer's /api/style-asset endpoint (which is what lets a
+// specimen show the project's actual font file rather than a fallback). The
+// rule can't live in the template — Puzzle interpolations are text nodes, and
+// a <style> element in the template would be patched like markup — so it is
+// injected into <head> imperatively and torn down in destroyed().
+
+const CATEGORIES = ['font', 'color', 'type-scale', 'spacing', 'radius', 'shadow', 'other'];
+
+const SPECIMEN_ROWS = [
+	['Uppercase', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'],
+	['Lowercase', 'abcdefghijklmnopqrstuvwxyz'],
+	['Numbers', '0123456789'],
+	['Characters', "!@#$%^&*()_+-=[]{}|;:',./<>?"],
+];
+
+/** The token list, minus anything that isn't a `{ name, value }` object. */
+function tokensOf(card) {
+	const raw = card?.frontmatter?.tokens;
+	if (!Array.isArray(raw)) return [];
+	return raw.filter(
+		(t) => !!t && typeof t === 'object' && typeof t.name === 'string' && typeof t.value === 'string',
+	);
+}
+
+/** The declared stack, prefixed with the served face when the token has a src. */
+function fontStack(t) {
+	return t.src ? `"cst-${t.name}", ${t.value}` : t.value;
+}
+
+export default class StyleTokens extends PuzzleView {
+	data(params, props) {
+		const card = props.card;
+		const raw = card?.frontmatter?.category;
+		const category = typeof raw === 'string' && CATEGORIES.includes(raw) ? raw : 'other';
+		const list = tokensOf(card);
+
+		// Spacing bars scale relative to the largest token, so the biggest step
+		// spans the row.
+		const maxSpacing = Math.max(...list.map((t) => parseFloat(t.value) || 0), 1);
+
+		const tokens = list.map((t, key) => {
+			const base = { key, name: t.name, value: t.value, description: t.description };
+
+			if (category === 'color') return { ...base, chipStyle: `background: ${t.value}` };
+
+			if (category === 'font') {
+				const stackStyle = `font-family: ${fontStack(t)}`;
+				return {
+					...base,
+					role: t.role,
+					weights: t.weights,
+					stackStyle,
+					rows: SPECIMEN_ROWS.map(([label, chars]) => ({ label, chars })),
+				};
+			}
+
+			if (category === 'type-scale') {
+				return {
+					...base,
+					label: `${t.name} · ${t.value}${t.weight ? ` · ${t.weight}` : ''}`,
+					sample: t.sample ?? 'The quick brown fox jumps over the lazy dog',
+					sampleStyle: `font-size: ${t.value}; font-weight: ${t.weight ?? 'inherit'}; line-height: ${t.line_height ?? 'normal'}`,
+				};
+			}
+
+			if (category === 'spacing') {
+				return {
+					...base,
+					label: `${t.name} · ${t.value}`,
+					barStyle: `width: ${(100 * (parseFloat(t.value) || 0)) / maxSpacing}%`,
+				};
+			}
+
+			if (category === 'radius') {
+				return { ...base, label: `${t.name} · ${t.value}`, boxStyle: `border-radius: ${t.value}` };
+			}
+
+			if (category === 'shadow') return { ...base, boxStyle: `box-shadow: ${t.value}` };
+
+			return { ...base, detail: t.description ? `${t.value} — ${t.description}` : t.value };
+		});
+
+		const fontFaces =
+			category === 'font'
+				? list
+						.filter((t) => t.src)
+						.map(
+							(t) =>
+								`@font-face { font-family: "cst-${t.name}"; src: url("/api/style-asset?path=${encodeURIComponent(t.src)}"); }`,
+						)
+						.join('\n')
+				: '';
+
+		return {
+			category,
+			tokens,
+			fontFaces,
+			hasTokens: tokens.length > 0,
+			rootClass: `style-tokens style-${category}`,
+		};
+	}
+
+	/** Keep the injected @font-face block in step with the current card. */
+	_syncFontFaces() {
+		if (typeof document === 'undefined') return;
+		const css = this.getData()?.fontFaces ?? '';
+
+		if (!css) {
+			this._fontStyle?.remove();
+			this._fontStyle = null;
+			return;
+		}
+
+		if (!this._fontStyle) {
+			this._fontStyle = document.createElement('style');
+			this._fontStyle.dataset.styleTokens = 'font-faces';
+			document.head.append(this._fontStyle);
+		}
+
+		if (this._fontStyle.textContent !== css) this._fontStyle.textContent = css;
+	}
+
+	mounted() {
+		this._syncFontFaces();
+	}
+
+	afterUpdate() {
+		this._syncFontFaces();
+	}
+
+	destroyed() {
+		this._fontStyle?.remove();
+		this._fontStyle = null;
+	}
+}
+</script>
+
+<style>
+.style-tokens { display: block; }
+.token-label, .swatch-name { color: var(--color-muted); font-family: var(--font-mono); font-size: 0.75rem; }
+.token-desc { margin-top: 2px; color: var(--color-faint); font-size: 0.75rem; }
+
+.swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+.swatch-chip { height: 64px; border: 1px solid var(--color-border-strong); border-radius: 6px; }
+.swatch-value { color: var(--color-faint); font-family: var(--font-mono); font-size: 0.7rem; }
+
+.specimen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.specimen { border: 1px solid var(--color-border); border-radius: 8px; padding: 16px; }
+.specimen-role { color: var(--color-faint); font-size: 0.7rem; }
+.specimen-name { margin: 2px 0; color: var(--color-ink); font-size: 1.6rem; }
+.specimen-weights { margin-bottom: 10px; color: var(--color-faint); font-size: 0.7rem; }
+.specimen-row { margin-top: 8px; }
+.specimen-label { color: var(--color-faint); font-size: 0.65rem; }
+.specimen-chars { overflow-wrap: anywhere; font-size: 1.05rem; }
+
+.scale-row, .spacing-row { margin-bottom: 14px; }
+.spacing-bar { height: 20px; min-width: 2px; border-radius: 3px; background: var(--t-STYLE, var(--color-brand)); }
+
+.radius-grid, .shadow-grid { display: flex; flex-wrap: wrap; gap: 20px; }
+.radius-box { width: 110px; height: 70px; border: 1px solid var(--color-border-strong); }
+.shadow-box { width: 110px; height: 70px; border-radius: 6px; background: var(--color-surface); }
+
+.token-table { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: 0.85rem; }
+.token-table .tt-pair { display: contents; }
+.token-table .k { color: var(--color-muted); font-family: var(--font-mono); }
+</style>
