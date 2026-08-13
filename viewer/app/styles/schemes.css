@@ -168,7 +168,7 @@
 	   blue-grey and panels sit nearly white on top. */
 	--color-page: light-dark(#f2f4f9, #07080f);
 	--color-surface: light-dark(#fcfdff, #0c0e18);
-	--color-surface-sunken: light-dark(#ebeef6, #11131f);
+	--color-surface-sunken: light-dark(#f2f4fa, #11131f);
 
 	/* Brand. Old --accent (#8ab4ff); -dark/-tint/-ink derived.
 	   The dark tint echoes the starfield's own #1b2240 glow. */
