@@ -74,6 +74,7 @@
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.9.3",
     "d3-force": "^3.0.0",
+    "jsdom": "^29.1.1",
     "marked": "^18.0.5",
     "mermaid": "^11.15.0",
     "svelte": "^5.56.3",
