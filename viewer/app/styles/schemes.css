@@ -163,9 +163,11 @@
 	--color-muted: light-dark(#6b7390, #8d93ad);
 	--color-faint: light-dark(#9ba3bc, #5a5f78);
 
-	/* Surfaces. Old --bg / --bg-panel / --bg-inset. */
-	--color-page: light-dark(#eaedf4, #07080f);
-	--color-surface: light-dark(#f7f8fc, #0c0e18);
+	/* Surfaces. Old --bg / --bg-panel / --bg-inset. In light, sunken (#dfe3ee)
+	   is the DARKEST background note; the page floats above it as a lighter
+	   blue-grey and panels sit nearly white on top. */
+	--color-page: light-dark(#f2f4f9, #07080f);
+	--color-surface: light-dark(#fcfdff, #0c0e18);
 	--color-surface-sunken: light-dark(#dfe3ee, #11131f);
 
 	/* Brand. Old --accent (#8ab4ff); -dark/-tint/-ink derived.
