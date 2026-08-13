@@ -5,9 +5,19 @@
         <span class="connection-type">{ group.label }</span>
         <span class="connection-chips">
           {#for chip in group.chips}
-            <a class="connection-chip" href="{ chip.href | link }" style={ chip.style }>
-              <span aria-hidden="true">✦</span>{ chip.handle }
-            </a>
+            <span class="connection-chip-wrap" style={ chip.style }>
+              <a class="connection-chip" href="{ chip.href | link }" style={ chip.style }>
+                <span aria-hidden="true">✦</span>{ chip.handle }
+              </a>
+              {#if chip.removable}
+                <button
+                  type="button"
+                  class="connection-remove"
+                  title="remove connection"
+                  aria-label={ chip.removeLabel }
+                  @click={ remove(chip.handle) }>×</button>
+              {/if}
+            </span>
           {/for}
         </span>
       </div>
@@ -19,8 +29,21 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import { TYPE_META } from '../lib/types.js';
 
+// ConnectionChips — a card's neighbours as type-tinted chips.
+//
+// Props
+//   handles    every neighbour handle (both directions — connections are
+//              undirected, so an inbound one is a neighbour just the same)
+//   removable  the subset the OWNING card declares in its own `connections:`
+//              frontmatter. Only those get an × — a connection declared on the
+//              other side has to be removed from that card, exactly as the
+//              Svelte viewer did.
+//
+// Callbacks
+//   @remove(handle)  fired when an × is clicked; the parent owns the PATCH.
 export default class ConnectionChips extends PuzzleView {
 	data(params, props) {
+		const removable = new Set(Array.isArray(props.removable) ? props.removable : []);
 		const grouped = new Map();
 		for (const handle of Array.isArray(props.handles) ? props.handles : []) {
 			const type = String(handle).split('-')[0];
@@ -36,10 +59,16 @@ export default class ConnectionChips extends PuzzleView {
 					handle,
 					href: `/card/${handle}`,
 					style: `--c: var(--t-${type})`,
+					removable: removable.has(handle),
+					removeLabel: `Remove connection to ${handle}`,
 				})),
 			})),
 		};
 	}
+
+	events = {
+		remove: (handle) => this.props.remove?.(handle),
+	};
 }
 </script>
 
@@ -48,6 +77,22 @@ export default class ConnectionChips extends PuzzleView {
 .connection-group { display: grid; grid-template-columns: minmax(7rem, 10rem) 1fr; align-items: start; gap: 0.75rem; }
 .connection-type { padding-top: 0.22rem; color: var(--color-muted); font-size: 0.76rem; font-weight: 600; }
 .connection-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.connection-chip-wrap { position: relative; display: inline-flex; align-items: center; }
+.connection-remove {
+	margin-left: -0.35rem;
+	border: none;
+	border-radius: 999px;
+	background: none;
+	padding: 0 0.3rem;
+	color: var(--color-faint);
+	font-size: 0.9rem;
+	line-height: 1;
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.12s, color 0.12s;
+}
+.connection-chip-wrap:hover .connection-remove, .connection-remove:focus-visible { opacity: 1; }
+.connection-remove:hover { color: var(--color-danger); }
 .connection-chip { --c: var(--color-brand); display: inline-flex; align-items: center; gap: 0.3rem; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--color-border)); border-radius: 999px; background: color-mix(in srgb, var(--c) 12%, var(--color-surface)); padding: 0.18rem 0.58rem; color: var(--c); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.75rem; font-weight: 600; text-decoration: none; }
 .connection-chip:hover { border-color: var(--c); }
 @media (max-width: 640px) { .connection-group { grid-template-columns: 1fr; gap: 0.35rem; } }

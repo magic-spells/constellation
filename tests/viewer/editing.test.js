@@ -45,7 +45,13 @@ const CARDS = [
 		status: 'building',
 		relPath: 'api/API-TICKETS.md',
 		mtime: 1700,
-		frontmatter: { name: 'Tickets endpoint', status: 'building' },
+		frontmatter: {
+			name: 'Tickets endpoint',
+			status: 'building',
+			connections: ['DB-TICKETS'],
+			path: 'src/api.ts',
+			methods: ['GET', 'POST'],
+		},
 		body: 'How tickets are served.',
 	},
 	{
@@ -97,6 +103,30 @@ function routerFake(pushed) {
 		url: (path) => path,
 		setMorphHandler: () => {},
 	};
+}
+
+async function mountCard(editable) {
+	const view = await mountView(CardPage, {
+		store: storeFake({ editable }),
+		router: routerFake([]),
+		params: { handle: 'api-tickets' },
+		route: { params: { handle: 'api-tickets' } },
+		models,
+	});
+	await settled();
+	return view;
+}
+
+/** Click an element the way a user would (view.click only takes selectors). */
+async function press(element) {
+	element.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+	await settled();
+}
+
+async function typeInto(field, text) {
+	field.value = text;
+	field.dispatchEvent(new window.Event('input', { bubbles: true }));
+	await settled();
 }
 
 // jsdom ships <dialog> as an element but implements none of its behaviour.
@@ -470,18 +500,6 @@ describe('DeleteCardDialog', () => {
 });
 
 describe('CardPage edit affordances', () => {
-	const mountCard = async (editable) => {
-		const view = await mountView(CardPage, {
-			store: storeFake({ editable }),
-			router: routerFake([]),
-			params: { handle: 'api-tickets' },
-			route: { params: { handle: 'api-tickets' } },
-			models,
-		});
-		await settled();
-		return view;
-	};
-
 	it('offers no delete button, no status select and no edit hooks when read-only', async () => {
 		const view = await mountCard(false);
 
@@ -527,6 +545,204 @@ describe('CardPage edit affordances', () => {
 
 		await view.click('.card-delete');
 		expect(view.element.textContent).toContain('Delete API-TICKETS?');
+
+		view.destroy();
+	});
+});
+
+// Task 10b — frontmatter FIELD editing. The value on screen is YAML: a scalar
+// edits as itself, a structure edits as the text js-yaml dumps, and whatever
+// comes back is parsed before it is PATCHed as `fields`.
+describe('CardPage frontmatter fields', () => {
+	const rows = (view) => view.findAll('.field-row:not(.field-ghost)');
+
+	it('lists every non-reserved key and never the four reserved ones', async () => {
+		const view = await mountCard(true);
+		const terms = view.findAll('.field-row dt').map((dt) => dt.textContent.trim());
+
+		expect(terms).toEqual(['path', 'methods']);
+		for (const reserved of ['name', 'kind', 'status', 'connections']) {
+			expect(terms).not.toContain(reserved);
+		}
+
+		view.destroy();
+	});
+
+	it('patches a scalar field with the parsed YAML value', async () => {
+		const view = await mountCard(true);
+
+		await press(rows(view)[0].querySelector('.editable'));
+		const input = rows(view)[0].querySelector('input.inline-edit');
+		expect(input.value).toBe('src/api.ts');
+		await typeInto(input, '42');
+		key(input, { key: 'Enter' });
+		await settled();
+
+		const [, handle, patch, mtime] = api.patchCard.mock.calls[0];
+		expect(handle).toBe('API-TICKETS');
+		expect(patch).toEqual({ fields: { path: 42 } });
+		expect(mtime).toBe(1700);
+
+		view.destroy();
+	});
+
+	it('round-trips a structure through YAML text', async () => {
+		const view = await mountCard(true);
+
+		await press(rows(view)[1].querySelector('.editable'));
+		const area = rows(view)[1].querySelector('textarea.inline-edit');
+		expect(area.value).toBe('- GET\n- POST');
+
+		await typeInto(area, '- GET\n- PATCH');
+		key(area, { key: 'Enter', metaKey: true });
+		await settled();
+
+		expect(api.patchCard.mock.calls[0][2]).toEqual({ fields: { methods: ['GET', 'PATCH'] } });
+		view.destroy();
+	});
+
+	it('sends null — the server\'s delete — for an emptied value', async () => {
+		const view = await mountCard(true);
+
+		await press(rows(view)[0].querySelector('.editable'));
+		await typeInto(rows(view)[0].querySelector('input.inline-edit'), '');
+		key(rows(view)[0].querySelector('input.inline-edit'), { key: 'Enter' });
+		await settled();
+
+		expect(api.patchCard.mock.calls[0][2]).toEqual({ fields: { path: null } });
+		view.destroy();
+	});
+
+	it('saves nothing when the YAML does not parse', async () => {
+		const view = await mountCard(true);
+
+		await press(rows(view)[1].querySelector('.editable'));
+		const area = rows(view)[1].querySelector('textarea.inline-edit');
+		await typeInto(area, '- [unclosed');
+		key(area, { key: 'Enter', metaKey: true });
+		await settled();
+
+		expect(api.patchCard).not.toHaveBeenCalled();
+		view.destroy();
+	});
+
+	it('adds a new field from the ghost "key: value" row', async () => {
+		const view = await mountCard(true);
+
+		await press(view.find('.field-ghost .ghost-add'));
+		const input = view.find('.field-ghost input.inline-edit');
+		await typeInto(input, 'owner: platform');
+		key(input, { key: 'Enter' });
+		await settled();
+
+		expect(api.patchCard.mock.calls[0][2]).toEqual({ fields: { owner: 'platform' } });
+		expect(view.find('.field-ghost input.inline-edit')).toBeFalsy();
+		view.destroy();
+	});
+
+	it('needs a key before the colon to add anything', async () => {
+		const view = await mountCard(true);
+
+		await press(view.find('.field-ghost .ghost-add'));
+		const input = view.find('.field-ghost input.inline-edit');
+		await typeInto(input, 'no colon here');
+		key(input, { key: 'Enter' });
+		await settled();
+
+		expect(api.patchCard).not.toHaveBeenCalled();
+		view.destroy();
+	});
+
+	it('throws the ghost row away on Escape', async () => {
+		const view = await mountCard(true);
+
+		await press(view.find('.field-ghost .ghost-add'));
+		const input = view.find('.field-ghost input.inline-edit');
+		await typeInto(input, 'owner: platform');
+		key(input, { key: 'Escape' });
+		await settled();
+
+		expect(api.patchCard).not.toHaveBeenCalled();
+		expect(view.find('.field-ghost input.inline-edit')).toBeFalsy();
+		expect(view.find('.field-ghost .ghost-add')).toBeTruthy();
+		view.destroy();
+	});
+
+	it('renders values as inert text with no ghost row when read-only', async () => {
+		const view = await mountCard(false);
+
+		expect(view.findAll('.field-row dt').map((dt) => dt.textContent.trim())).toEqual([
+			'path',
+			'methods',
+		]);
+		expect(view.find('.field-ghost')).toBeFalsy();
+		expect(view.find('.field-row .editable')).toBeFalsy();
+		expect(view.findAll('.field-row .editable-static').length).toBe(2);
+
+		view.destroy();
+	});
+});
+
+// Task 10b — connection editing. `connections:` replaces wholesale, so both
+// add and remove send the complete array the card should end up with.
+describe('CardPage connections', () => {
+	it('removes a connection by sending the array minus that handle', async () => {
+		const view = await mountCard(true);
+
+		await press(view.find('.connection-remove'));
+
+		const [, handle, patch, mtime] = api.patchCard.mock.calls[0];
+		expect(handle).toBe('API-TICKETS');
+		expect(patch).toEqual({ connections: [] });
+		expect(mtime).toBe(1700);
+
+		view.destroy();
+	});
+
+	it('adds a connection by sending the full array', async () => {
+		const view = await mountCard(true);
+
+		await press(view.find('.conn-add .ghost-add'));
+		const input = view.find('.conn-add input.inline-edit');
+		await typeInto(input, 'doc-orphan');
+		key(input, { key: 'Enter' });
+		await settled();
+
+		expect(api.patchCard.mock.calls[0][2]).toEqual({
+			connections: ['DB-TICKETS', 'DOC-ORPHAN'],
+		});
+		view.destroy();
+	});
+
+	it('offers only the handles that are not already neighbours', async () => {
+		const view = await mountCard(true);
+
+		await press(view.find('.conn-add .ghost-add'));
+		const options = view.findAll('.conn-add datalist option').map((option) => option.value);
+
+		expect(options).toEqual(['DOC-ORPHAN']);
+		view.destroy();
+	});
+
+	it('refuses a handle that is not a card in this plan', async () => {
+		const view = await mountCard(true);
+
+		await press(view.find('.conn-add .ghost-add'));
+		const input = view.find('.conn-add input.inline-edit');
+		await typeInto(input, 'API-NOPE');
+		key(input, { key: 'Enter' });
+		await settled();
+
+		expect(api.patchCard).not.toHaveBeenCalled();
+		view.destroy();
+	});
+
+	it('offers no × and no "+ connect" when the plan is read-only', async () => {
+		const view = await mountCard(false);
+
+		expect(view.find('.connection-chip')).toBeTruthy();
+		expect(view.find('.connection-remove')).toBeFalsy();
+		expect(view.find('.conn-add')).toBeFalsy();
 
 		view.destroy();
 	});
