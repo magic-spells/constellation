@@ -1,0 +1,12 @@
+<puzzle-view class="flex flex-col min-h-screen bg-page text-body">
+  <!-- Stub shell — the real sidebar/topbar lands in a later task. -->
+  <main class="flex-1 min-w-0">
+    <Slot/>
+  </main>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+export default class AppShell extends PuzzleView {}
+</script>

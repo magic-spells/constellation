@@ -1,0 +1,7 @@
+<puzzle-view><div class="p-8 text-muted">Constellation graph — coming in a later task</div></puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+export default class ConstellationView extends PuzzleView {}
+</script>

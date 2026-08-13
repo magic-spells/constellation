@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+
+/* Tailwind v4 content detection — paths are relative to this stylesheet
+   (app/styles/), so "../" is the app root. */
+@source "../**/*.pzl";
+@source "../**/*.js";
+@source "../public/**/*.html";
+
+/* Placeholder tokens — the real pieces token + scheme system lands in Task 2. */
+@theme {
+	--color-page: #07080f;
+	--color-body: #c3cbe0;
+	--color-muted: #7c86a2;
+}
+
+@layer base {
+	html,
+	body {
+		background-color: var(--color-page);
+		color: var(--color-body);
+	}
+
+	/* <puzzle-view> is a custom element (display:inline by default). */
+	puzzle-view {
+		display: block;
+	}
+
+	a {
+		color: inherit;
+		text-decoration: none;
+	}
+}
