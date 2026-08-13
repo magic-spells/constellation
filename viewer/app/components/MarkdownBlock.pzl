@@ -1,0 +1,60 @@
+<puzzle-view>
+  <div island ref="host" class={ rootClass }></div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import { renderMarkdown, renderMermaidBlocks } from '../lib/markdown.js';
+import { onThemeChange } from '../lib/theme.js';
+
+export default class MarkdownBlock extends PuzzleView {
+	data(params, props) {
+		return { rootClass: ['md-block', props.class || ''].join(' ') };
+	}
+
+	_render(force = false) {
+		const host = this.refs.host;
+		if (!host) return;
+		const src = String(this.props.src ?? '');
+		if (!force && src === this._renderedSrc) return;
+		host.innerHTML = renderMarkdown(src);
+		this._renderedSrc = src;
+		void renderMermaidBlocks(host);
+	}
+
+	mounted() {
+		this._render();
+		this._unsubscribeTheme = onThemeChange(() => this._render(true));
+	}
+
+	afterUpdate() {
+		this._render();
+	}
+
+	destroyed() {
+		this._unsubscribeTheme?.();
+		this._unsubscribeTheme = null;
+	}
+}
+</script>
+
+<style>
+.md-block { color: var(--color-body); font-size: 1rem; line-height: 1.7; }
+.md-block h1, .md-block h2, .md-block h3 { color: var(--color-ink); font-weight: 650; line-height: 1.25; }
+.md-block h1 { margin: 1.6rem 0 0.6rem; font-size: 1.45rem; }
+.md-block h2 { margin: 1.5rem 0 0.5rem; font-size: 1.2rem; }
+.md-block h3 { margin: 1.3rem 0 0.4rem; font-size: 1.02rem; }
+.md-block p { margin: 0.7rem 0; }
+.md-block ul, .md-block ol { padding-left: 1.4rem; }
+.md-block li { margin: 0.25rem 0; }
+.md-block pre { overflow-x: auto; border: 1px solid var(--color-border); border-radius: 0.5rem; background: var(--color-surface-sunken); padding: 0.85rem 1rem; }
+.md-block code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.md-block code:not(pre code) { border-radius: 0.3rem; background: var(--color-surface-sunken); padding: 0.1rem 0.3rem; font-size: 0.88em; }
+.md-block blockquote { margin: 1rem 0; border-left: 3px solid var(--color-border); padding-left: 1rem; color: var(--color-muted); }
+.md-block table { border-collapse: collapse; font-size: 0.88rem; }
+.md-block th, .md-block td { border: 1px solid var(--color-border); padding: 0.35rem 0.7rem; text-align: left; }
+.md-block a { color: var(--color-brand); text-underline-offset: 0.18em; }
+.md-block a.wiki { border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface-sunken); padding: 0.08rem 0.45rem; color: var(--color-brand); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.82em; text-decoration: none; }
+.md-block a.wiki:hover { border-color: var(--color-brand); }
+.md-block .mermaid-block { overflow-x: auto; }
+</style>

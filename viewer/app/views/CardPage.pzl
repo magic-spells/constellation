@@ -1,7 +1,155 @@
-<puzzle-view><div class="p-8 text-muted">Card — coming in a later task</div></puzzle-view>
+<puzzle-view>
+  <main class="card-page">
+    {#if card}
+      <header class="card-header">
+        <div class="card-eyebrow">
+          <span class="card-handle">{ card.handle }</span>
+          <span class="type-chip" style={ typeStyle }>{ card.type }</span>
+        </div>
+        <h1>{ displayName }</h1>
+        <div class="card-meta">
+          {#if status}
+            <Badge variant={ statusVariant } class={ statusTint }>{ status }</Badge>
+          {/if}
+          {#if kind}<span class="card-kind">{ kind }</span>{/if}
+        </div>
+      </header>
+
+      <!-- STYLE tokens: Task 11 -->
+
+      {#if fields.length > 0}
+        <section class="card-section">
+          <h2>Fields</h2>
+          <div class="field-list">
+            {#for field in fields}
+              <div class="field-row">
+                <DescriptionList items={ field.label } size="sm" />
+                <div class="field-value"><FmValue value={ field.value } /></div>
+              </div>
+            {/for}
+          </div>
+        </section>
+      {/if}
+
+      {#if body}
+        <section class="card-section card-body">
+          <MarkdownBlock src={ body } />
+        </section>
+      {/if}
+
+      {#if neighbors.length > 0}
+        <section class="card-section">
+          <h2>Connections</h2>
+          <ConnectionChips handles={ neighbors } />
+        </section>
+      {/if}
+
+      {#if constellationMarkdown}
+        <section class="card-section">
+          <h2>Neighborhood</h2>
+          <MarkdownBlock src={ constellationMarkdown } />
+        </section>
+      {/if}
+    {:else}
+      <Empty
+        title="Card not found"
+        description={ emptyDescription }
+        class="min-h-[22rem]"
+      />
+    {/if}
+  </main>
+</puzzle-view>
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import Badge from '../components/ui/Badge.pzl';
+import DescriptionList from '../components/ui/DescriptionList.pzl';
+import Empty from '../components/ui/Empty.pzl';
+import ConnectionChips from '../components/ConnectionChips.pzl';
+import FmValue from '../components/FmValue.pzl';
+import MarkdownBlock from '../components/MarkdownBlock.pzl';
+import { planIndex } from '../lib/plan-index.js';
+import { TYPE_META } from '../lib/types.js';
 
-export default class CardPage extends PuzzleView {}
+const RESERVED = new Set(['name', 'kind', 'status', 'connections']);
+
+const STATUS = {
+	planned: { variant: 'outline', tint: 'text-muted!' },
+	building: { variant: 'default', tint: 'bg-warning-tint! text-warning!' },
+	built: { variant: 'brand', tint: '' },
+	verified: { variant: 'default', tint: 'bg-success-tint! text-success!' },
+};
+
+export default class CardPage extends PuzzleView {
+	data() {
+		const handle = String(this.route.params.handle ?? '').toUpperCase();
+		const store = this.ctx.store;
+		const card = store.findOne('card', handle);
+		const plan = store.findOne('plan', 'plan');
+		const index = plan ? planIndex(store) : null;
+		const meta = card ? TYPE_META[card.type] : null;
+
+		if (!card || !meta) {
+			return {
+				card: null,
+				handle,
+				emptyDescription: `${handle || 'This card'} is not in this plan.`,
+			};
+		}
+
+		const neighbors = index?.neighbors.get(handle) ?? [];
+		const constellationSrc =
+			neighbors.length < 2
+				? null
+				: ['flowchart LR', ...neighbors.map((neighbor) => `  ${handle} --- ${neighbor}`)].join('\n');
+		const status = card.status ?? '';
+		const statusMeta = STATUS[status] ?? { variant: 'default', tint: '' };
+		const fields =
+			card.type === 'STYLE'
+				? []
+				: Object.entries(card.frontmatter ?? {})
+						.filter(([key]) => !RESERVED.has(key))
+						.map(([key, value]) => ({
+							key,
+							value,
+							label: [{ term: key, description: '' }],
+						}));
+
+		return {
+			card,
+			displayName: card.name || card.handle,
+			kind: card.kind ?? '',
+			status,
+			statusVariant: statusMeta.variant,
+			statusTint: statusMeta.tint,
+			typeStyle: `--c: var(--t-${card.type})`,
+			fields,
+			body: String(card.body ?? '').trim() ? card.body : '',
+			neighbors,
+			constellationMarkdown: constellationSrc
+				? ['```mermaid', constellationSrc, '```'].join('\n')
+				: '',
+		};
+	}
+}
 </script>
+
+<style>
+.card-page { width: min(100%, 62rem); margin: 0 auto; padding: 2rem clamp(1.25rem, 4vw, 3.5rem) 4rem; }
+.card-header { margin-bottom: 2.75rem; }
+.card-eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; margin-bottom: 0.65rem; }
+.card-handle, .card-kind { color: var(--color-muted); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.75rem; letter-spacing: 0.035em; }
+.type-chip { --c: var(--color-brand); display: inline-flex; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--color-border)); border-radius: 999px; background: color-mix(in srgb, var(--c) 12%, var(--color-surface)); padding: 0.12rem 0.5rem; color: var(--c); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; }
+.card-header h1 { color: var(--color-ink); font-size: clamp(1.8rem, 4vw, 2.65rem); font-weight: 650; letter-spacing: -0.035em; line-height: 1.08; }
+.card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; margin-top: 0.85rem; }
+.card-section { margin: 2.2rem 0; }
+.card-section > h2 { margin-bottom: 0.85rem; color: var(--color-muted); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.card-body { border-top: 1px solid var(--color-border); padding-top: 1.4rem; }
+.field-list { overflow: hidden; border: 1px solid var(--color-border); border-radius: 0.75rem; background: color-mix(in srgb, var(--color-surface) 88%, transparent); }
+.field-row { display: grid; grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr); align-items: start; gap: 1rem; padding: 0 0.9rem; }
+.field-row + .field-row { border-top: 1px solid var(--color-border); }
+.field-row dl { margin: 0; }
+.field-row dd { display: none; }
+.field-value { min-width: 0; padding: 0.55rem 0; color: var(--color-ink); font-size: 0.86rem; }
+@media (max-width: 640px) { .card-page { padding-inline: 1rem; } .field-row { grid-template-columns: 1fr; gap: 0; padding-block: 0.35rem; } .field-value { padding-top: 0; } }
+</style>

@@ -1,0 +1,54 @@
+<puzzle-view>
+  <div class="connection-groups">
+    {#for group in groups}
+      <div class="connection-group">
+        <span class="connection-type">{ group.label }</span>
+        <span class="connection-chips">
+          {#for chip in group.chips}
+            <a class="connection-chip" href="{ chip.href | link }" style={ chip.style }>
+              <span aria-hidden="true">✦</span>{ chip.handle }
+            </a>
+          {/for}
+        </span>
+      </div>
+    {/for}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import { TYPE_META } from '../lib/types.js';
+
+export default class ConnectionChips extends PuzzleView {
+	data(params, props) {
+		const grouped = new Map();
+		for (const handle of Array.isArray(props.handles) ? props.handles : []) {
+			const type = String(handle).split('-')[0];
+			if (!grouped.has(type)) grouped.set(type, []);
+			grouped.get(type).push(String(handle));
+		}
+
+		return {
+			groups: [...grouped.entries()].map(([type, handles]) => ({
+				type,
+				label: TYPE_META[type]?.label ?? type,
+				chips: handles.map((handle) => ({
+					handle,
+					href: `/card/${handle}`,
+					style: `--c: var(--t-${type})`,
+				})),
+			})),
+		};
+	}
+}
+</script>
+
+<style>
+.connection-groups { display: grid; gap: 0.7rem; }
+.connection-group { display: grid; grid-template-columns: minmax(7rem, 10rem) 1fr; align-items: start; gap: 0.75rem; }
+.connection-type { padding-top: 0.22rem; color: var(--color-muted); font-size: 0.76rem; font-weight: 600; }
+.connection-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.connection-chip { --c: var(--color-brand); display: inline-flex; align-items: center; gap: 0.3rem; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--color-border)); border-radius: 999px; background: color-mix(in srgb, var(--c) 12%, var(--color-surface)); padding: 0.18rem 0.58rem; color: var(--c); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.75rem; font-weight: 600; text-decoration: none; }
+.connection-chip:hover { border-color: var(--c); }
+@media (max-width: 640px) { .connection-group { grid-template-columns: 1fr; gap: 0.35rem; } }
+</style>
