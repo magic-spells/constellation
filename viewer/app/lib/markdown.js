@@ -119,6 +119,32 @@ function colorNodesByType(svg, panel) {
   }
 }
 
+/**
+ * Load mermaid lazily as a static asset rather than a bundled import. The
+ * puzzle build emits a single app.js (no dynamic-import splitting), so a
+ * bundled `import('mermaid')` would inline ~3 MB of mermaid+KaTeX that most
+ * page loads never use. Instead `scripts/copy-mermaid.mjs` vendors the
+ * self-contained UMD build into app/public/vendor/ (copied verbatim into
+ * dist/), and this injects it on first use; window.mermaid is the handle.
+ */
+let mermaidLoader = null;
+function loadMermaid() {
+  if (window.mermaid) return Promise.resolve(window.mermaid);
+  if (!mermaidLoader) {
+    mermaidLoader = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = '/vendor/mermaid.min.js';
+      s.onload = () => resolve(window.mermaid);
+      s.onerror = () => {
+        mermaidLoader = null;
+        reject(new Error('failed to load /vendor/mermaid.min.js'));
+      };
+      document.head.appendChild(s);
+    });
+  }
+  return mermaidLoader;
+}
+
 /** Render all .mermaid-block placeholders inside a container, tinted to the active theme. */
 export async function renderMermaidBlocks(container) {
   const blocks = container.querySelectorAll('.mermaid-block');
@@ -140,7 +166,7 @@ export async function renderMermaidBlocks(container) {
   const fill = mix(panel, accent, 0.15);
   const nodeBorder = mix(panel, accent, 0.55);
 
-  const mermaid = (await import('mermaid')).default;
+  const mermaid = await loadMermaid();
   mermaid.initialize({
     startOnLoad: false,
     theme: 'base',
