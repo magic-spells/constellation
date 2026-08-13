@@ -1,0 +1,114 @@
+<puzzle-view>
+  <div class="flex items-center gap-2">
+    <Select
+      class="w-36"
+      options={ schemeOptions }
+      value={ scheme }
+      indicator="chevrons"
+      @change={ pickScheme }/>
+
+    <div class="flex items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5" role="group" aria-label="Light or dark">
+      {#for opt in themeOptions}
+        <button
+          type="button"
+          key={ opt.id }
+          class={ opt.class }
+          title={ opt.title }
+          aria-pressed={ opt.active ? 'true' : 'false' }
+          @click={ pickTheme(opt.id) }>
+          <svg
+            class="size-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true">
+            <path d={ opt.icon }/>
+          </svg>
+          <span class="sr-only">{ opt.label }</span>
+        </button>
+      {/for}
+    </div>
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Select from './ui/Select.pzl';
+import { schemes, themes, getScheme, getTheme, setScheme, setTheme, onThemeChange } from '../lib/theme.js';
+
+// ThemeControls — the topbar's two appearance axes (see lib/theme.js):
+//   * scheme — which palette (observatory | default | warm | void | dim), a Select.
+//   * theme  — system / light / dark, a three-way segmented toggle.
+//
+// Neither value lives in the store: `lib/theme.js` owns them on <html> +
+// localStorage, so `data()` reads them straight back out of the DOM and we
+// re-render off its change notifications (which also fire on OS light/dark
+// flips while the mode is `system`).
+//
+// Observatory pins `color-scheme: dark`, so while it is active the light/dark
+// toggle is a visual no-op — the choice is still stored and takes effect the
+// moment another scheme is picked. The tooltips say so rather than disabling
+// the buttons, which would hide the stored preference.
+
+const ICON = {
+	system: 'M4 5h16v10H4zM9 19h6M12 15v4',
+	light:
+		'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4',
+	dark: 'M20.5 14.4A8.6 8.6 0 019.6 3.5a8.6 8.6 0 1010.9 10.9z',
+};
+
+const BTN =
+	'flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors ' +
+	'outline-ring focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
+const BTN_IDLE = 'text-muted hover:bg-surface-sunken hover:text-ink';
+const BTN_ACTIVE = 'bg-brand-tint text-brand';
+
+export default class ThemeControls extends PuzzleView {
+	created() {
+		this._unsub = null;
+	}
+
+	data() {
+		const scheme = getScheme();
+		const theme = getTheme();
+		const observatory = scheme === 'observatory';
+
+		return {
+			scheme,
+			schemeOptions: schemes().map((s) => ({ value: s.id, label: s.label })),
+			themeOptions: themes().map((t) => {
+				const active = t.id === theme;
+				return {
+					id: t.id,
+					label: t.label,
+					icon: ICON[t.id],
+					active,
+					title: observatory
+						? `${t.label} — Observatory is always dark, so this applies to other schemes`
+						: t.label,
+					class: [BTN, active ? BTN_ACTIVE : BTN_IDLE].join(' '),
+				};
+			}),
+		};
+	}
+
+	// theme.js notifies on every scheme/theme change (ours or an OS flip); the
+	// controls read the DOM, so a plain refresh() is the whole sync story.
+	mounted() {
+		this._unsub = onThemeChange(() => this.refresh());
+	}
+
+	destroyed() {
+		this._unsub?.();
+		this._unsub = null;
+	}
+
+	events = {
+		pickScheme: (value) => setScheme(value),
+		pickTheme: (mode) => setTheme(mode),
+	};
+}
+</script>

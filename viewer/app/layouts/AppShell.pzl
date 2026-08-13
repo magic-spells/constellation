@@ -1,12 +1,156 @@
-<puzzle-view class="flex flex-col min-h-screen bg-page text-body">
-  <!-- Stub shell — the real sidebar/topbar lands in a later task. -->
-  <main class="flex-1 min-w-0">
-    <Slot/>
-  </main>
+<puzzle-view class="flex h-screen overflow-hidden bg-page text-body">
+  <Sidebar class="cnav shrink-0" label="Plan navigation" items={ navItems } activePath={ activePath }>
+    <div slot="header" class="flex items-center gap-2.5 overflow-hidden px-3 pb-1 pt-4">
+      <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-tint text-brand">
+        <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3l1.7 4.1L18 8.8l-4.3 1.7L12 14.6l-1.7-4.1L6 8.8l4.3-1.7zM18.5 15l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8zM5.5 14l.6 1.5 1.5.6-1.5.6L5.5 18l-.6-1.3L3.4 16l1.5-.5z"/>
+        </svg>
+      </span>
+      <span class="min-w-0 truncate text-sm font-semibold tracking-tight text-ink">Constellation</span>
+    </div>
+  </Sidebar>
+
+  <div class="flex min-w-0 flex-1 flex-col">
+    <header class="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface px-4">
+      <h1 class="min-w-0 truncate text-sm font-semibold text-ink">{ projectName }</h1>
+      <SyncBadge/>
+
+      <div class="ml-auto flex shrink-0 items-center gap-3">
+        <span class="hidden items-center gap-1.5 text-xs text-muted md:flex">
+          Search
+          <Kbd>⌘</Kbd>
+          <Kbd>K</Kbd>
+        </span>
+        <ThemeControls/>
+      </div>
+    </header>
+
+    <main class="min-h-0 min-w-0 flex-1 overflow-auto">
+      <Slot/>
+    </main>
+  </div>
+
+  <Toaster/>
 </puzzle-view>
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import Sidebar from '../components/ui/Sidebar.pzl';
+import Kbd from '../components/ui/Kbd.pzl';
+import Toaster from '../components/ui/Toaster.pzl';
+import SyncBadge from '../components/SyncBadge.pzl';
+import ThemeControls from '../components/ThemeControls.pzl';
+import { planIndex } from '../lib/plan-index.js';
+import { GROUPS, TYPE_META, folderForType } from '../lib/types.js';
 
-export default class AppShell extends PuzzleView {}
+// AppShell — the persistent chrome every route renders inside: the pieces
+// Sidebar rail on the left, a topbar carrying the plan's name + freshness +
+// appearance controls, and the single Toaster host.
+//
+// The nav is derived, not authored: `planIndex(store)` gives per-type card
+// counts, so a type with no cards simply is not in the rail and each visible
+// one carries its count as a badge. That is the Svelte viewer's Nav.svelte
+// semantics minus its coloured ✦ bullets — the type's hue now shows up only as
+// a 2px accent bar on the ACTIVE row (the `.cnav` rules in styles/styles.css;
+// the Sidebar piece is config-first and has no per-item style hook).
+//
+// Hrefs are mode-encoded through `router.url()` — the exact function the `link`
+// formatter wraps. The template can't pipe them because they live in the
+// Sidebar's `items` config rather than in markup.
+
+// Icons are SVG path `d` strings on a 24×24 stroked grid (the Sidebar's icon
+// contract). Every row needs one: the collapsed rail shows nothing else.
+const PAGE_ICON = {
+	overview: 'M3 11l9-7 9 7M5 9.5V20h14V9.5M9.5 20v-6h5v6',
+	constellation:
+		'M5 5a2 2 0 100 4 2 2 0 100-4M19 7a2 2 0 100 4 2 2 0 100-4M11 16a2 2 0 100 4 2 2 0 100-4M7 6.5l10 1.5M17.5 10.8L12.5 15M9.6 15.2L6.2 9',
+	features: 'M6 4v16M6 5h11l-2 3.5L17 12H6',
+	style:
+		'M12 3a9 9 0 100 18c1.6 0 2-1 1.3-1.9-.7-.9-.2-2.1 1-2.1H17a4 4 0 004-4c0-4.9-4-10-9-10M7.5 12.5h.01M9.5 8.5h.01M14 7.5h.01',
+};
+
+const TYPE_ICON = {
+	PLAN: 'M8 4h8a1 1 0 011 1v15l-5-2.5L7 20V5a1 1 0 011-1M9.5 9h5',
+	FEATURE: 'M6 4v16M6 5h11l-2 3.5L17 12H6',
+	RELEASE: 'M3.5 12.5l9-9H20v7.5l-9 9zM16.5 7.5h.01',
+	DIAGRAM: 'M9 3h6v4H9zM3 17h6v4H3zM15 17h6v4h-6zM12 7v5M6 17v-3h12v3',
+	DOC: 'M7 3h7l4 4v14H7zM14 3v4h4M10 12h6M10 16h4',
+	DECISION: 'M12 3v18M4 9l8-6 8 6M2 15l2-6 2 6a2.5 2.5 0 01-4 0M18 15l2-6 2 6a2.5 2.5 0 01-4 0',
+	AGENT: 'M8 7h8a3 3 0 013 3v5a3 3 0 01-3 3H8a3 3 0 01-3-3v-5a3 3 0 013-3M12 3.5V7M9.5 12h.01M14.5 12h.01',
+	API: 'M4 12h5M15 12h5M9.5 7.5L5 12l4.5 4.5M14.5 7.5L19 12l-4.5 4.5',
+	DB: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3',
+	DATATYPE: 'M8 4c-2 0-2 2-2 4s-1 4-2 4c1 0 2 2 2 4s0 4 2 4M16 4c2 0 2 2 2 4s1 4 2 4c-1 0-2 2-2 4s0 4-2 4',
+	EVENT: 'M13 3L5 14h6l-1 7 8-11h-6z',
+	JOB: 'M12 4a8 8 0 100 16 8 8 0 000-16M12 8v4.2l2.8 1.8',
+	FLOW: 'M4 4h6v5H4zM14 15h6v5h-6zM7 9v3.5a2 2 0 002 2h5M11.5 12l2.5 2.5-2.5 2.5',
+	STATE: 'M6 5a3 3 0 100 6 3 3 0 100-6M18 13a3 3 0 100 6 3 3 0 100-6M9.5 9.5h4a3 3 0 013 3v.5M13.5 9.5l-2-2M13.5 9.5l-2 2',
+	ROLE: 'M12 12a4 4 0 100-8 4 4 0 000 8M4.5 20a7.5 7.5 0 0115 0',
+	EXTERNAL: 'M14 4h6v6M20 4l-8.5 8.5M18 13.5V19a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5.5',
+	PAGE: 'M3.5 5h17v14h-17zM3.5 9.5h17M6.5 7.2h.01M9 7.2h.01',
+	COMPONENT: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+	STYLE:
+		'M12 3a9 9 0 100 18c1.6 0 2-1 1.3-1.9-.7-.9-.2-2.1 1-2.1H17a4 4 0 004-4c0-4.9-4-10-9-10M7.5 12.5h.01M9.5 8.5h.01M14 7.5h.01',
+	FILE: 'M14 3H7a1 1 0 00-1 1v16a1 1 0 001 1h10a1 1 0 001-1V7zM14 3v4h4M9 13h6M9 17h4',
+	TEST: 'M9 3h6M10 3v6.2L5.3 18a2 2 0 001.8 3h9.8a2 2 0 001.8-3L14 9.2V3M7.5 15h9',
+};
+
+export default class AppShell extends PuzzleView {
+	data() {
+		const index = planIndex(this.ctx.store);
+		// The `link` formatter's own encoder — hash mode here, so '/x' → '#/x'.
+		const url = (path) => this.ctx.router.url(path);
+		const count = (type) => index.byType.get(type)?.length ?? 0;
+
+		const navItems = [
+			{ label: 'Overview', href: url('/'), icon: PAGE_ICON.overview },
+			{ label: 'Constellation', href: url('/constellation'), icon: PAGE_ICON.constellation },
+		];
+		if (count('FEATURE') > 0) {
+			navItems.push({ label: 'Features', href: url('/features'), icon: PAGE_ICON.features });
+		}
+		if (count('STYLE') > 0) {
+			navItems.push({ label: 'Style guide', href: url('/style-guide'), icon: PAGE_ICON.style });
+		}
+
+		for (const group of GROUPS) {
+			const types = Object.keys(TYPE_META).filter(
+				(type) => TYPE_META[type].group === group && count(type) > 0,
+			);
+			if (types.length === 0) continue;
+			navItems.push({ group });
+			for (const type of types) {
+				navItems.push({
+					label: TYPE_META[type].label,
+					href: url(`/type/${TYPE_META[type].folder}`),
+					icon: TYPE_ICON[type],
+					badge: count(type),
+				});
+			}
+		}
+
+		const project = index.projectCard;
+
+		return {
+			navItems,
+			activePath: this._activePath(index, url),
+			projectName: project?.frontmatter?.name || project?.name || 'Constellation',
+		};
+	}
+
+	// The Sidebar matches `activePath` against an item's href byte-for-byte, so
+	// this resolves the current route to the href of the row that owns it: a
+	// card page highlights its TYPE row (the Svelte Nav's `activeFolder` prop).
+	_activePath(index, url) {
+		const name = this.route.route?.name;
+		const params = this.route.params || {};
+
+		if (name === 'type') return url(`/type/${params.folder}`);
+		if (name === 'card') {
+			const card = index.byHandle.get(String(params.handle || '').toUpperCase());
+			const folder = folderForType(card?.type);
+			return folder ? url(`/type/${folder}`) : '';
+		}
+		return url(this.route.pathname || '/');
+	}
+}
 </script>

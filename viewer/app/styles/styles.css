@@ -68,3 +68,41 @@
 		text-decoration: none;
 	}
 }
+
+@layer components {
+	/*
+	 * Sidebar active accent (AppShell's `.cnav`). The old viewer put a coloured ✦
+	 * in front of every nav row; the type hue now shows up only on the ACTIVE row,
+	 * as a 2px inset bar. The Sidebar piece is config-first — `items` carries no
+	 * style hook — so the hue is attached by href rather than by editing the piece.
+	 * Hrefs are hash-encoded (`#/type/api`), hence the suffix match.
+	 */
+	.cnav a[aria-current='page'] {
+		box-shadow: inset 2px 0 0 0 var(--nav-accent, var(--color-brand));
+	}
+
+	.cnav a[href$='/features'] { --nav-accent: var(--t-FEATURE); }
+	.cnav a[href$='/style-guide'] { --nav-accent: var(--t-STYLE); }
+
+	.cnav a[href$='/type/plan'] { --nav-accent: var(--t-PLAN); }
+	.cnav a[href$='/type/feature'] { --nav-accent: var(--t-FEATURE); }
+	.cnav a[href$='/type/release'] { --nav-accent: var(--t-RELEASE); }
+	.cnav a[href$='/type/diagram'] { --nav-accent: var(--t-DIAGRAM); }
+	.cnav a[href$='/type/doc'] { --nav-accent: var(--t-DOC); }
+	.cnav a[href$='/type/decision'] { --nav-accent: var(--t-DECISION); }
+	.cnav a[href$='/type/agent'] { --nav-accent: var(--t-AGENT); }
+	.cnav a[href$='/type/api'] { --nav-accent: var(--t-API); }
+	.cnav a[href$='/type/db'] { --nav-accent: var(--t-DB); }
+	.cnav a[href$='/type/datatype'] { --nav-accent: var(--t-DATATYPE); }
+	.cnav a[href$='/type/event'] { --nav-accent: var(--t-EVENT); }
+	.cnav a[href$='/type/job'] { --nav-accent: var(--t-JOB); }
+	.cnav a[href$='/type/flow'] { --nav-accent: var(--t-FLOW); }
+	.cnav a[href$='/type/state'] { --nav-accent: var(--t-STATE); }
+	.cnav a[href$='/type/role'] { --nav-accent: var(--t-ROLE); }
+	.cnav a[href$='/type/external'] { --nav-accent: var(--t-EXTERNAL); }
+	.cnav a[href$='/type/page'] { --nav-accent: var(--t-PAGE); }
+	.cnav a[href$='/type/component'] { --nav-accent: var(--t-COMPONENT); }
+	.cnav a[href$='/type/style'] { --nav-accent: var(--t-STYLE); }
+	.cnav a[href$='/type/file'] { --nav-accent: var(--t-FILE); }
+	.cnav a[href$='/type/test'] { --nav-accent: var(--t-TEST); }
+}
