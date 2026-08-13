@@ -1,0 +1,25 @@
+<puzzle-view>
+  <kbd class={ classes }><Slot/></kbd>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// Kbd — a keyboard hint rendered in a real <kbd>. The inset bottom shadow gives
+// it a subtle keycap lift; a `class` prop appends the caller's utilities. Slot
+// content is the key or chord text.
+//
+//   Press <Kbd>Esc</Kbd> to close.
+//   Save with <Kbd>⌘</Kbd> <Kbd>S</Kbd>.
+const BASE =
+  'inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-px ' +
+  'font-sans text-xs text-muted shadow-[inset_0_-1px_0_var(--color-border)]';
+
+export default class Kbd extends PuzzleView {
+  data(params, props) {
+    return {
+      classes: [BASE, props.class || ''].join(' '),
+    };
+  }
+}
+</script>

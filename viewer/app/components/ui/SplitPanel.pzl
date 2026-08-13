@@ -1,0 +1,708 @@
+<puzzle-view>
+  <div
+    class={ rootClass }
+    id={ rootId }
+    @pointerdown={ onPointerDown(event) }
+    @dblclick={ onDoubleClick(event) }
+    @keydown={ onKeyDown(event) }>
+
+    <div class={ paneClass } style={ firstStyle } data-split-pane="first">
+      <Slot name="first"/>
+    </div>
+
+    <div
+      class={ dividerClass }
+      data-split-divider
+      role="separator"
+      tabindex={ dividerTabindex }
+      aria-label="Resize panels"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow={ ariaValueNow }
+      aria-disabled={ ariaDisabled }
+      aria-orientation={ ariaOrientation }>
+      <span class={ hitClass } aria-hidden="true"></span>
+      <span class={ lineClass } aria-hidden="true"></span>
+    </div>
+
+    <div class={ paneClass } style={ secondStyle } data-split-pane="second">
+      <Slot name="second"/>
+    </div>
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// SplitPanel — a resizable binary layout ported from the
+// @magic-spells/split-panel web component. It owns two pane wrappers around
+// named `first` / `second` slots, with a draggable, keyboard-accessible
+// separator between them. Nest another SplitPanel inside either pane for 3+
+// panes; flat N-panel groups were deliberately dropped for a smaller API.
+//
+// Props
+//   direction ('horizontal')  'horizontal' side-by-side | 'vertical' stacked
+//   sizes                      [number, number] — PRESENCE = controlled mode
+//   defaultSizes ([50, 50])    initial/reset shares for uncontrolled mode
+//   min / max                  [first, second] — px number, '240px', '25%', or null
+//   snap                       true = [0, 50, 100], or an array of 0–100 travel points
+//   disabled                   blocks pointer + keyboard resizing
+//   storageKey                 persists committed sizes at split-panel:<key>
+//   class                      extra utilities merged onto the flex root
+//   id                         passed through to the flex root
+//
+// Callbacks (value-first)
+//   @resize(sizes)     live during drag and keyboard/reset changes
+//   @resizeEnd(sizes)  commit on release, keyboard step, or reset
+//
+// A committed-plus-draft overlay keeps controlled rendering responsive while a
+// gesture is live and until parent props catch up. Pointer geometry is measured
+// once per gesture: pane padding/border is removed from distributable flex
+// space, then both panes' opposing min/max constraints are folded into the
+// first pane's allowed percent range. Snapping happens on pointer release only.
+//
+// Pane constraints are also mirrored to inline min/max width/height so flexbox
+// enforces them natively when the container resizes. A pane with `max` receives
+// `--split-panel-visible` (0 at its effective min → 1 at its effective max).
+// Percent constraints stay exact; px constraints use the last client
+// measurement and are approximate until that measurement exists.
+//
+// Deliberately dropped from the web-component version: flat N-panel authoring
+// (use nesting), opt-in animation controls (v1 always uses a subtle settle),
+// and px `size` authoring (sizes are normalized percent shares).
+
+const STORAGE_PREFIX = 'split-panel:';
+const ROOT_BASE = 'flex w-full min-w-0 min-h-0';
+const PANE_BASE = 'min-w-0 min-h-0 overflow-auto';
+const DIVIDER_BASE =
+  'group relative z-10 flex flex-none select-none touch-none items-center justify-center ' +
+  'outline-ring focus-visible:outline-2 focus-visible:outline-offset-2';
+
+function roundShare(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function normalizePair(raw, fallback) {
+  const source = Array.isArray(raw) && raw.length === 2 ? raw : fallback;
+  const firstRaw = Number(source && source[0]);
+  const secondRaw = Number(source && source[1]);
+  const first = Number.isFinite(firstRaw) ? Math.max(0, firstRaw) : 0;
+  const second = Number.isFinite(secondRaw) ? Math.max(0, secondRaw) : 0;
+  const total = first + second;
+  if (total <= 0) return [50, 50];
+  const normalizedFirst = roundShare((first / total) * 100);
+  return [normalizedFirst, roundShare(100 - normalizedFirst)];
+}
+
+function samePair(a, b) {
+  return !!a && !!b && a[0] === b[0] && a[1] === b[1];
+}
+
+function formatConstraint(raw) {
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'number') return Number.isFinite(raw) ? `${raw}px` : '';
+  const value = String(raw).trim();
+  return value;
+}
+
+function parseConstraint(raw, extra, flexSpace, fallback) {
+  if (raw == null || raw === '') return fallback;
+  const stringValue = String(raw).trim();
+  const value = parseFloat(stringValue);
+  if (!Number.isFinite(value)) return fallback;
+  return stringValue.endsWith('%') ? value : ((value - extra) / flexSpace) * 100;
+}
+
+export default class SplitPanel extends PuzzleView {
+  created() {
+    this._drag = null;
+    this._listening = false;
+    this._overlayTimer = null;
+    this._pendingClearCheck = false;
+    this._lastMeasure = null;
+    this._onWinMove = (event) => this._pointerMove(event);
+    this._onWinEnd = (event) => this._pointerEnd(event);
+    this.setData({
+      uncontrolledSizes: null,
+      draftSizes: null,
+      dragging: false,
+    });
+  }
+
+  mounted() {
+    const measure = this._measurePair(this._currentSizes(this.props));
+    if (measure) this.refresh();
+  }
+
+  destroyed() {
+    this._removeWindowListeners();
+    if (this._overlayTimer) clearTimeout(this._overlayTimer);
+  }
+
+  data(params, props) {
+    const local = this.getData();
+    const authored = this._defaultSizes(props);
+    let uncontrolledSizes = local.uncontrolledSizes;
+
+    // Props are unavailable in created(). Seed the uncontrolled layer here so
+    // the same guarded path works during Node prerender and in the browser.
+    if (!Array.isArray(uncontrolledSizes)) {
+      uncontrolledSizes = this._restore(props) || authored;
+      this.setData('uncontrolledSizes', uncontrolledSizes);
+    }
+
+    const committed = props.sizes !== undefined
+      ? normalizePair(props.sizes, authored)
+      : normalizePair(uncontrolledSizes, authored);
+    const draft = Array.isArray(local.draftSizes) ? local.draftSizes : null;
+    const sizes = draft || committed;
+    const direction = props.direction === 'vertical' ? 'vertical' : 'horizontal';
+    const vertical = direction === 'vertical';
+    const dragging = !!local.dragging;
+    const disabled = !!props.disabled;
+    const transition = dragging
+      ? 'transition-none'
+      : 'transition-[flex-grow] duration-150 ease-out';
+    const paneClass = `${PANE_BASE} ${transition}`;
+    const constraints = this._constraints(props);
+    const visibleMeasure = this._lastMeasure || this._fallbackMeasure(props);
+
+    return {
+      rootId: props.id || false,
+      rootClass: [
+        ROOT_BASE,
+        vertical ? 'flex-col' : 'flex-row',
+        dragging ? (vertical ? 'cursor-row-resize' : 'cursor-col-resize') : '',
+        props.class || '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      paneClass,
+      firstStyle: this._paneStyle(
+        0,
+        sizes[0],
+        direction,
+        constraints,
+        visibleMeasure
+      ),
+      secondStyle: this._paneStyle(
+        1,
+        sizes[1],
+        direction,
+        constraints,
+        visibleMeasure
+      ),
+      dividerClass: [
+        DIVIDER_BASE,
+        vertical ? 'h-2 w-full' : 'h-full w-2',
+        disabled
+          ? 'cursor-default'
+          : vertical
+            ? 'cursor-row-resize'
+            : 'cursor-col-resize',
+      ].join(' '),
+      hitClass: vertical
+        ? 'absolute inset-x-0 -inset-y-1 any-pointer-coarse:-inset-y-3'
+        : 'absolute inset-y-0 -inset-x-1 any-pointer-coarse:-inset-x-3',
+      lineClass: [
+        'pointer-events-none rounded-full transition-colors',
+        vertical ? 'h-0.5 w-full' : 'h-full w-0.5',
+        dragging
+          ? 'bg-brand'
+          : disabled
+            ? 'bg-border'
+            : 'bg-border group-hover:bg-border-strong',
+      ].join(' '),
+      dividerTabindex: disabled ? '-1' : '0',
+      ariaDisabled: disabled ? 'true' : 'false',
+      ariaOrientation: vertical ? 'horizontal' : 'vertical',
+      ariaValueNow: String(Math.round(sizes[0])),
+    };
+  }
+
+  afterUpdate() {
+    const local = this.getData();
+    if (
+      this._pendingClearCheck ||
+      local.dragging ||
+      !Array.isArray(local.draftSizes)
+    ) {
+      return;
+    }
+    const committed = this._committed(this.props);
+    if (!samePair(committed, local.draftSizes)) return;
+    this._pendingClearCheck = true;
+    queueMicrotask(() => {
+      this._pendingClearCheck = false;
+      const now = this.getData();
+      if (
+        Array.isArray(now.draftSizes) &&
+        !now.dragging &&
+        samePair(this._committed(this.props), now.draftSizes)
+      ) {
+        this.setData('draftSizes', null);
+        this.refresh();
+      }
+    });
+  }
+
+  // ---- committed / draft state --------------------------------------------
+
+  _defaultSizes(props) {
+    return normalizePair(props.defaultSizes, [50, 50]);
+  }
+
+  _controlled() {
+    return this.props.sizes !== undefined;
+  }
+
+  _committed(props) {
+    const authored = this._defaultSizes(props);
+    if (props.sizes !== undefined) return normalizePair(props.sizes, authored);
+    return normalizePair(this.getData().uncontrolledSizes, authored);
+  }
+
+  _currentSizes(props) {
+    const draft = this.getData().draftSizes;
+    return Array.isArray(draft) ? [...draft] : this._committed(props);
+  }
+
+  _applyDraft(next, emitResize) {
+    const normalized = normalizePair(next, [50, 50]);
+    const current = this._currentSizes(this.props);
+    if (samePair(current, normalized)) return false;
+    this.setData('draftSizes', normalized);
+    this.refresh();
+    if (emitResize) this._emit('resize', normalized);
+    return true;
+  }
+
+  _commit(next) {
+    const normalized = normalizePair(next, [50, 50]);
+    const update = { dragging: false, draftSizes: normalized };
+    if (!this._controlled()) update.uncontrolledSizes = normalized;
+    this.setData(update);
+    this.refresh();
+    this._persist(normalized);
+    this._emit('resizeEnd', normalized);
+    this._scheduleOverlayClear();
+  }
+
+  _emit(name, sizes) {
+    const fn = this.props[name];
+    if (typeof fn === 'function') fn([...sizes]);
+  }
+
+  _scheduleOverlayClear() {
+    if (this._overlayTimer) clearTimeout(this._overlayTimer);
+    this._overlayTimer = setTimeout(() => {
+      this._overlayTimer = null;
+      const local = this.getData();
+      if (Array.isArray(local.draftSizes) && !local.dragging) {
+        this.setData('draftSizes', null);
+        this.refresh();
+      }
+    }, 100);
+  }
+
+  // ---- persistence ---------------------------------------------------------
+
+  _restore(props) {
+    if (!props.storageKey || typeof localStorage === 'undefined') return null;
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(`${STORAGE_PREFIX}${props.storageKey}`)
+      );
+      if (
+        Array.isArray(saved) &&
+        saved.length === 2 &&
+        saved.every((size) => Number.isFinite(size) && size >= 0)
+      ) {
+        return normalizePair(saved, [50, 50]);
+      }
+    } catch (_) {
+      // Corrupt/unavailable storage is best-effort; keep authored defaults.
+    }
+    return null;
+  }
+
+  _persist(sizes) {
+    const key = this.props.storageKey;
+    if (!key || typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(`${STORAGE_PREFIX}${key}`, JSON.stringify(sizes));
+    } catch (_) {
+      // Storage can be unavailable in private/locked-down browsing contexts.
+    }
+  }
+
+  // ---- constraints / inline rendering -------------------------------------
+
+  _constraints(props) {
+    const min = Array.isArray(props.min) ? props.min : [];
+    const max = Array.isArray(props.max) ? props.max : [];
+    return {
+      min: [min[0], min[1]],
+      max: [max[0], max[1]],
+    };
+  }
+
+  _paneStyle(index, share, direction, constraints, measure) {
+    const horizontal = direction === 'horizontal';
+    const min = formatConstraint(constraints.min[index]);
+    const max = formatConstraint(constraints.max[index]);
+    const declarations = [`flex:${share} 1 0px`];
+
+    if (horizontal) {
+      if (min) declarations.push(`min-width:${min}`);
+      if (max) declarations.push(`max-width:${max}`);
+    } else {
+      if (min) declarations.push(`min-height:${min}`);
+      if (max) declarations.push(`max-height:${max}`);
+    }
+
+    if (max) {
+      declarations.push(
+        `--split-panel-visible:${this._visible(index, share, measure)}`
+      );
+    }
+    return declarations.join(';');
+  }
+
+  _visible(index, share, measure) {
+    const min = index === 0
+      ? measure.minPrevious
+      : measure.pairPercent - measure.maxPrevious;
+    const max = index === 0
+      ? measure.maxPrevious
+      : measure.pairPercent - measure.minPrevious;
+    const travel = max - min;
+    const visible = travel > 0 ? clamp((share - min) / travel, 0, 1) : 1;
+    return Math.round(visible * 1000) / 1000;
+  }
+
+  _fallbackMeasure(props) {
+    return this._constraintMeasure(
+      this._currentSizes(props),
+      props,
+      100,
+      0,
+      0
+    );
+  }
+
+  _constraintMeasure(sizes, props, flexSpace, firstExtra, secondExtra) {
+    const constraints = this._constraints(props);
+    const pairPercent = sizes[0] + sizes[1];
+    const clampToPair = (value) => clamp(value, 0, pairPercent);
+    const minPrevious = clampToPair(
+      Math.max(
+        parseConstraint(
+          constraints.min[0],
+          firstExtra,
+          flexSpace,
+          0
+        ),
+        pairPercent -
+          parseConstraint(
+            constraints.max[1],
+            secondExtra,
+            flexSpace,
+            Infinity
+          )
+      )
+    );
+    const maxPrevious = clampToPair(
+      Math.min(
+        parseConstraint(
+          constraints.max[0],
+          firstExtra,
+          flexSpace,
+          Infinity
+        ),
+        pairPercent -
+          parseConstraint(
+            constraints.min[1],
+            secondExtra,
+            flexSpace,
+            0
+          )
+      )
+    );
+    return { pairPercent, flexSpace, minPrevious, maxPrevious };
+  }
+
+  _panelExtra(panel, horizontal) {
+    if (typeof window === 'undefined' || !panel) return 0;
+    const style = window.getComputedStyle(panel);
+    const sides = horizontal
+      ? ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']
+      : ['paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth'];
+    return sides.reduce(
+      (total, side) => total + (parseFloat(style[side]) || 0),
+      0
+    );
+  }
+
+  _measurePair(sizes) {
+    if (typeof window === 'undefined' || !this.element) return null;
+    const children = Array.from(this.element.children);
+    const first = children.find(
+      (child) => child.getAttribute('data-split-pane') === 'first'
+    );
+    const second = children.find(
+      (child) => child.getAttribute('data-split-pane') === 'second'
+    );
+    if (!first || !second) return null;
+    const horizontal = this.props.direction !== 'vertical';
+    const dimension = horizontal ? 'width' : 'height';
+    const firstExtra = this._panelExtra(first, horizontal);
+    const secondExtra = this._panelExtra(second, horizontal);
+    const flexSpace =
+      first.getBoundingClientRect()[dimension] -
+      firstExtra +
+      second.getBoundingClientRect()[dimension] -
+      secondExtra;
+    if (flexSpace <= 0) return null;
+    const measure = this._constraintMeasure(
+      sizes,
+      this.props,
+      flexSpace,
+      firstExtra,
+      secondExtra
+    );
+    this._lastMeasure = measure;
+    return measure;
+  }
+
+  _sizesForFirst(first, measure) {
+    const clamped = clamp(
+      first,
+      measure.minPrevious,
+      measure.maxPrevious
+    );
+    const firstShare = roundShare(clamped);
+    return [
+      firstShare,
+      roundShare(measure.pairPercent - firstShare),
+    ];
+  }
+
+  // ---- pointer gesture -----------------------------------------------------
+
+  _resolveDivider(event) {
+    const divider =
+      event.target.closest && event.target.closest('[data-split-divider]');
+    if (!divider || divider.parentElement !== this.element) return null;
+    if (this.props.disabled) return null;
+    return divider;
+  }
+
+  _addWindowListeners() {
+    if (this._listening || typeof window === 'undefined') return;
+    this._listening = true;
+    window.addEventListener('pointermove', this._onWinMove);
+    window.addEventListener('pointerup', this._onWinEnd);
+    window.addEventListener('pointercancel', this._onWinEnd);
+    window.addEventListener('lostpointercapture', this._onWinEnd);
+  }
+
+  _removeWindowListeners() {
+    if (!this._listening || typeof window === 'undefined') return;
+    this._listening = false;
+    window.removeEventListener('pointermove', this._onWinMove);
+    window.removeEventListener('pointerup', this._onWinEnd);
+    window.removeEventListener('pointercancel', this._onWinEnd);
+    window.removeEventListener('lostpointercapture', this._onWinEnd);
+  }
+
+  _capturePointer(divider, event) {
+    if (event.pointerType === 'touch') return;
+    try {
+      divider.setPointerCapture(event.pointerId);
+    } catch (_) {
+      // Capture is best-effort.
+    }
+  }
+
+  _releasePointer(divider, event) {
+    try {
+      if (
+        divider &&
+        divider.hasPointerCapture &&
+        divider.hasPointerCapture(event.pointerId)
+      ) {
+        divider.releasePointerCapture(event.pointerId);
+      }
+    } catch (_) {
+      // Release is best-effort.
+    }
+  }
+
+  _teardownGesture(event) {
+    const drag = this._drag;
+    this._drag = null;
+    this._removeWindowListeners();
+    if (drag && event) this._releasePointer(drag.divider, event);
+    return drag;
+  }
+
+  _pointerMove(event) {
+    const drag = this._drag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (event.pointerType !== 'touch' && event.buttons === 0) {
+      this._pointerEnd(event);
+      return;
+    }
+    const coordinate =
+      this.props.direction === 'vertical' ? event.clientY : event.clientX;
+    const deltaShare =
+      ((coordinate - drag.startCoordinate) * 100) / drag.measure.flexSpace;
+    const next = this._sizesForFirst(
+      drag.startSizes[0] + deltaShare,
+      drag.measure
+    );
+    this._applyDraft(next, true);
+  }
+
+  _pointerEnd(event) {
+    const active = this._drag;
+    if (!active || event.pointerId !== active.pointerId) return;
+    const drag = this._teardownGesture(event);
+    const current = this._currentSizes(this.props);
+    const moved = !samePair(current, drag.startSizes);
+
+    if (!moved) {
+      this.setData('dragging', false);
+      this.refresh();
+      this._scheduleOverlayClear();
+      return;
+    }
+
+    let finalSizes = current;
+    const snappedFirst = this._snapShare(current[0], drag.measure);
+    if (snappedFirst !== null) {
+      finalSizes = this._sizesForFirst(snappedFirst, drag.measure);
+      this.setData('dragging', false);
+      this._applyDraft(finalSizes, true);
+    }
+    this._commit(finalSizes);
+  }
+
+  _snapShare(firstShare, measure) {
+    let points = null;
+    if (this.props.snap === true) {
+      points = [0, 50, 100];
+    } else if (Array.isArray(this.props.snap)) {
+      points = this.props.snap
+        .map(Number)
+        .filter(
+          (point) =>
+            Number.isFinite(point) && point >= 0 && point <= 100
+        );
+    }
+    if (!points || points.length === 0) return null;
+    const travel = measure.maxPrevious - measure.minPrevious;
+    if (travel <= 0) return null;
+    const fraction =
+      ((firstShare - measure.minPrevious) / travel) * 100;
+    const nearest = points.reduce((best, point) =>
+      Math.abs(point - fraction) < Math.abs(best - fraction)
+        ? point
+        : best
+    );
+    return measure.minPrevious + (nearest / 100) * travel;
+  }
+
+  // ---- keyboard / reset ----------------------------------------------------
+
+  _reset() {
+    const current = this._currentSizes(this.props);
+    const measure = this._measurePair(current);
+    if (!measure) return;
+    const authored = this._defaultSizes(this.props);
+    const target = this._sizesForFirst(authored[0], measure);
+    this._applyDraft(target, true);
+    this._commit(target);
+  }
+
+  events = {
+    onPointerDown: (event) => {
+      const divider = this._resolveDivider(event);
+      if (!divider || this._drag) return;
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (this._overlayTimer) {
+        clearTimeout(this._overlayTimer);
+        this._overlayTimer = null;
+      }
+
+      const sizes = this._currentSizes(this.props);
+      const measure = this._measurePair(sizes);
+      if (!measure) return;
+      event.preventDefault();
+      this._drag = {
+        pointerId: event.pointerId,
+        divider,
+        startCoordinate:
+          this.props.direction === 'vertical'
+            ? event.clientY
+            : event.clientX,
+        startSizes: [...sizes],
+        measure,
+      };
+      this.setData({ dragging: true, draftSizes: [...sizes] });
+      this.refresh();
+      if (divider.focus) divider.focus({ preventScroll: true });
+      this._capturePointer(divider, event);
+      this._addWindowListeners();
+    },
+
+    onDoubleClick: (event) => {
+      if (!this._resolveDivider(event)) return;
+      this._reset();
+    },
+
+    onKeyDown: (event) => {
+      if (!this._resolveDivider(event)) return;
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        this._reset();
+        return;
+      }
+
+      const current = this._currentSizes(this.props);
+      const measure = this._measurePair(current);
+      if (!measure) return;
+      const vertical = this.props.direction === 'vertical';
+      const step = event.shiftKey ? 10 : 1;
+      let target = null;
+
+      switch (event.key) {
+        case vertical ? 'ArrowUp' : 'ArrowLeft':
+          target = current[0] - step;
+          break;
+        case vertical ? 'ArrowDown' : 'ArrowRight':
+          target = current[0] + step;
+          break;
+        case 'Home':
+          target = measure.minPrevious;
+          break;
+        case 'End':
+          target = measure.maxPrevious;
+          break;
+        default:
+          return;
+      }
+
+      event.preventDefault();
+      const next = this._sizesForFirst(target, measure);
+      if (!this._applyDraft(next, true)) return;
+      this._commit(next);
+    },
+  };
+}
+</script>

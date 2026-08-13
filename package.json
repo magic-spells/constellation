@@ -65,6 +65,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@magic-spells/morph-engine": "^0.1.2",
     "@magic-spells/puzzle": "file:../puzzle/magic-spells-puzzle-0.6.0.tgz",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tailwindcss/cli": "^4.3.3",

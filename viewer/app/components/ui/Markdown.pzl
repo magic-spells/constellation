@@ -1,0 +1,282 @@
+<puzzle-view>
+  <div class={ rootClass }>
+    <div island ref="host"></div>
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import { Lexer } from 'marked';
+import { MARKDOWN_CLASSES as C, isEmpty, decodeEntities, safeUrl, safeImageUrl, safeLang } from '../../lib/markdown-doc.js';
+
+// Markdown — renders a markdown string as semantic HTML. CommonMark plus GFM
+// tables, task lists, and strikethrough are tokenized by marked's Lexer only;
+// a DOM walker owns rendering. Re-render checks use the string itself, so
+// RichText's "pass a NEW object" caveat does not apply here.
+//
+//   <Markdown value={ article.body } />
+//   <Markdown value={ body } newTab={ true } class="max-w-prose" />
+//
+// Props:
+//   value   markdown string; null/empty renders nothing
+//   class   appended to the root
+//   newTab  when true, external scheme-bearing links open in a new tab
+//
+// The walk happens in mounted()/afterUpdate() inside an `island` (built DOM
+// lives outside the vdom), which means content renders CLIENT-SIDE ONLY —
+// prerendered (static/hybrid) pages show it after takeover, not in the baked
+// markup.
+//
+// Security: every node is built only with document.createElement and
+// createTextNode, so markdown can never inject markup. The only user-controlled
+// writes that reach a URL or class context are href/src (guarded by
+// safeUrl/safeImageUrl) and the code language class (regex-filtered after
+// taking the first whitespace-delimited word). Title/alt are inert attribute
+// values; ordered-list start and checkbox checked are numeric/boolean. Raw HTML
+// renders as literal visible text by design.
+
+function isExternal(href) {
+	const value = String(href ?? '').replace(/[\t\n\r]/g, '');
+	return /^[a-z][a-z\d+.-]*:/i.test(value);
+}
+
+function inlineDom(tokens, newTab = false) {
+	const frag = document.createDocumentFragment();
+	for (const tok of tokens || []) {
+		switch (tok.type) {
+			case 'text':
+				frag.appendChild(
+					tok.tokens
+						? inlineDom(tok.tokens, newTab)
+						: document.createTextNode(decodeEntities(tok.text))
+				);
+				break;
+			case 'escape':
+				frag.appendChild(document.createTextNode(decodeEntities(tok.text)));
+				break;
+			case 'strong':
+			case 'em':
+			case 'del': {
+				const tag = tok.type === 'del' ? 's' : tok.type;
+				const el = document.createElement(tag);
+				el.appendChild(inlineDom(tok.tokens, newTab));
+				frag.appendChild(el);
+				break;
+			}
+			case 'codespan': {
+				const code = document.createElement('code');
+				code.className = C.inlineCode;
+				code.textContent = tok.text;
+				frag.appendChild(code);
+				break;
+			}
+			case 'br':
+				frag.appendChild(document.createElement('br'));
+				break;
+			case 'link': {
+				const a = document.createElement('a');
+				const href = safeUrl(tok.href);
+				a.className = C.link;
+				a.href = href;
+				if (tok.title) a.title = decodeEntities(tok.title);
+				if (newTab && href !== '#' && isExternal(tok.href)) {
+					a.target = '_blank';
+					a.rel = 'noopener noreferrer';
+				}
+				a.appendChild(inlineDom(tok.tokens, newTab));
+				frag.appendChild(a);
+				break;
+			}
+			case 'image': {
+				// safeImageUrl returns null for a rejected or empty source —
+				// emit nothing rather than an <img> that GETs the page itself.
+				const src = safeImageUrl(tok.href);
+				if (src === null) break;
+				const img = document.createElement('img');
+				img.className = C.image;
+				img.src = src;
+				img.alt = decodeEntities(tok.text || '');
+				if (tok.title) img.title = decodeEntities(tok.title);
+				img.loading = 'lazy';
+				img.decoding = 'async';
+				frag.appendChild(img);
+				break;
+			}
+			case 'html':
+				frag.appendChild(document.createTextNode(tok.raw));
+				break;
+		}
+	}
+	return frag;
+}
+
+function alignClass(align) {
+	if (align === 'center') return C.alignCenter;
+	if (align === 'right') return C.alignRight;
+	return C.alignLeft;
+}
+
+function listDom(tok, newTab) {
+	const ordered = !!tok.ordered;
+	const isTask = (tok.items || []).some((item) => item.task);
+	const list = document.createElement(ordered ? 'ol' : 'ul');
+	list.className = isTask
+		? C.taskList
+		: `${C.list} ${ordered ? C.orderedList : C.bulletList}`;
+	if (ordered && tok.start !== '' && tok.start !== 1) list.start = tok.start;
+
+	for (const item of tok.items || []) {
+		const li = document.createElement('li');
+		li.className = item.task ? C.taskItem : C.listItem;
+		let body = li;
+		if (item.task) {
+			const checkbox = document.createElement('input');
+			checkbox.type = 'checkbox';
+			checkbox.disabled = true;
+			checkbox.checked = !!item.checked;
+			checkbox.className = C.taskCheckbox;
+			li.appendChild(checkbox);
+			body = document.createElement('span');
+			body.className = item.checked ? C.taskBodyDone : C.taskBody;
+			li.appendChild(body);
+		}
+		// A list item can mix tight inline text, loose blocks, and nested lists;
+		// append each token in order so no nesting boundary is flattened.
+		for (const child of item.tokens || []) {
+			if (child.type === 'text') {
+				body.appendChild(inlineDom(child.tokens || [child], newTab));
+			} else {
+				body.appendChild(blockDom(child, newTab));
+			}
+		}
+		list.appendChild(li);
+	}
+	return list;
+}
+
+function tableDom(tok, newTab) {
+	const wrap = document.createElement('div');
+	wrap.className = C.tableWrap;
+	const table = document.createElement('table');
+	table.className = C.table;
+	const thead = document.createElement('thead');
+	const headRow = document.createElement('tr');
+	headRow.className = C.tableHeadRow;
+	for (let i = 0; i < (tok.header || []).length; i += 1) {
+		const th = document.createElement('th');
+		th.scope = 'col';
+		th.className = `${C.tableHead} ${alignClass(tok.align?.[i])}`;
+		th.appendChild(inlineDom(tok.header[i].tokens, newTab));
+		headRow.appendChild(th);
+	}
+	thead.appendChild(headRow);
+	table.appendChild(thead);
+
+	const tbody = document.createElement('tbody');
+	for (const cells of tok.rows || []) {
+		const row = document.createElement('tr');
+		row.className = C.tableRow;
+		for (let i = 0; i < (tok.header || []).length; i += 1) {
+			const td = document.createElement('td');
+			td.className = `${C.tableCell} ${alignClass(tok.align?.[i])}`;
+			if (cells[i]) td.appendChild(inlineDom(cells[i].tokens, newTab));
+			row.appendChild(td);
+		}
+		tbody.appendChild(row);
+	}
+	table.appendChild(tbody);
+	wrap.appendChild(table);
+	return wrap;
+}
+
+function blockDom(tok, newTab = false) {
+	switch (tok.type) {
+		case 'space':
+		case 'def':
+			return document.createDocumentFragment();
+		case 'text':
+			return inlineDom(tok.tokens || [tok], newTab);
+		case 'heading': {
+			const depth = Math.min(6, Math.max(1, Math.round(tok.depth) || 1));
+			const heading = document.createElement(`h${depth}`);
+			heading.className = C[`heading${depth}`];
+			heading.appendChild(inlineDom(tok.tokens, newTab));
+			return heading;
+		}
+		case 'paragraph': {
+			const p = document.createElement('p');
+			p.className = C.paragraph;
+			p.appendChild(inlineDom(tok.tokens, newTab));
+			return p;
+		}
+		case 'hr': {
+			const hr = document.createElement('hr');
+			hr.className = C.rule;
+			return hr;
+		}
+		case 'blockquote': {
+			const blockquote = document.createElement('blockquote');
+			blockquote.className = C.blockquote;
+			for (const child of tok.tokens || []) blockquote.appendChild(blockDom(child, newTab));
+			return blockquote;
+		}
+		case 'code': {
+			const pre = document.createElement('pre');
+			pre.className = C.codeBlock;
+			const code = document.createElement('code');
+			code.textContent = tok.text;
+			const lang = safeLang(String(tok.lang ?? '').trim().split(/\s+/)[0]);
+			if (lang) code.className = `language-${lang}`;
+			pre.appendChild(code);
+			return pre;
+		}
+		case 'html': {
+			const literal = document.createElement('p');
+			literal.className = C.htmlLiteral;
+			literal.textContent = tok.raw;
+			return literal;
+		}
+		case 'list':
+			return listDom(tok, newTab);
+		case 'table':
+			return tableDom(tok, newTab);
+		default:
+			return document.createDocumentFragment();
+	}
+}
+
+export default class Markdown extends PuzzleView {
+	data(params, props) {
+		return {
+			rootClass: props.class || '',
+		};
+	}
+
+	_render() {
+		const host = this.refs.host;
+		if (!host) return;
+		const md = String(this.props.value ?? '');
+		const newTab = this.props.newTab === true;
+		const key = `${newTab ? '1' : '0'}|${md}`;
+		if (key === this._renderedKey) return;
+		host.textContent = '';
+		if (isEmpty(md)) {
+			this._renderedKey = key;
+			return;
+		}
+		const tokens = Lexer.lex(md, { gfm: true, breaks: false });
+		const frag = document.createDocumentFragment();
+		for (const token of tokens) frag.appendChild(blockDom(token, newTab));
+		host.appendChild(frag);
+		this._renderedKey = key;
+	}
+
+	mounted() {
+		this._render();
+	}
+
+	afterUpdate() {
+		this._render();
+	}
+}
+</script>

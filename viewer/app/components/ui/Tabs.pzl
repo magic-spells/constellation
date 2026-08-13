@@ -1,0 +1,200 @@
+<puzzle-view>
+  <div id={ rootId } class={ rootClass }>
+    <div role="tablist" class={ listClass }>
+      {#for tab in tabs}
+        <button
+          type="button"
+          role="tab"
+          key={ tab.value }
+          id="{ rootId }-tab-{ tab.value }"
+          aria-controls="{ rootId }-panel-{ tab.value }"
+          aria-selected={ tab.value === value ? 'true' : 'false' }
+          tabindex={ tab.value === rovingValue ? '0' : '-1' }
+          disabled={ tab.disabled }
+          class="{ tabBase } {#if tab.value === value}{ tabActive }{/if}{#if tab.value !== value}{ tabInactive }{/if}"
+          @click={ selectTab(tab.value, event) }
+          @keydown={ handleKeydown(tab.value, event) }>
+          { tab.label }
+        </button>
+      {/for}
+    </div>
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// Tabs — an accessible ARIA tablist ported from @magic-spells/tab-group
+// (tablist role, roving tabindex, arrow/Home/End keyboard nav, activation
+// FOLLOWS focus like the source: an arrow move both selects and focuses in one
+// step). Config-first: the whole strip renders from a `tabs` array.
+//
+// IT RENDERS ONLY THE TABLIST — NOT the panels. This is deliberate. Puzzle's
+// named slots are static (one fixed insertion point per name), so a component
+// cannot host N dynamic per-tab panels. Panels stay PARENT-OWNED: the parent
+// tracks the active value and shows the matching panel itself with {#if}. Each
+// tab button carries id `{id}-tab-{value}` and aria-controls
+// `{id}-panel-{value}`, so the parent wires role="tabpanel" panels to match:
+//
+//   <Tabs tabs={ tabs } value={ tab } @change={ setTab }/>
+//   {#if tab === 'account'}
+//     <div role="tabpanel"
+//          id="mytabs-panel-account"
+//          aria-labelledby="mytabs-tab-account"
+//          tabindex="0">
+//       …account panel markup…
+//     </div>
+//   {/if}
+//
+// (Pass id="mytabs" to Tabs so the panel ids line up; without it a stable
+// module-counter fallback id is used — read it off the rendered buttons if you
+// need to reference it.)
+//
+// Props:
+//   tabs     [{ value, label, disabled? }]
+//   value    the active tab's value (controlled by the parent)
+//   variant  'underline' (default) | 'pills'
+//   class    appended to the root element
+//   id       root id + the base for each tab/panel id (counter fallback)
+// Callback:
+//   @change(value, event)  fired on click or keyboard activation
+const ROOT = 'w-full';
+
+// Per-variant class fragments. `list` styles the role="tablist" strip; `base`
+// is every tab button; `active`/`inactive` swap on the selected tab.
+const VARIANT = {
+  underline: {
+    list: 'flex items-stretch gap-4 border-b border-border',
+    base:
+      'inline-flex items-center gap-2 whitespace-nowrap select-none cursor-pointer ' +
+      'px-1 pb-2 -mb-px border-b-2 text-sm font-medium transition-colors ' +
+      'focus-visible:outline-2 focus-visible:outline-offset-2 outline-ring focus-visible:outline-ring ' +
+      'disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed',
+    active: 'text-brand border-brand',
+    inactive: 'text-body border-transparent hover:text-ink',
+  },
+  pills: {
+    list: 'inline-flex items-center gap-1 rounded-lg bg-surface-sunken p-1',
+    base:
+      'inline-flex items-center gap-2 whitespace-nowrap select-none cursor-pointer ' +
+      'rounded-md px-3 py-1.5 text-sm font-medium transition-colors ' +
+      'focus-visible:outline-2 focus-visible:outline-offset-2 outline-ring focus-visible:outline-ring ' +
+      'disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed',
+    active: 'bg-surface text-ink shadow-sm',
+    inactive: 'text-body hover:text-ink',
+  },
+};
+
+// Module-level counter for a stable fallback id when `id` is omitted, so a
+// parent that doesn't pass one still gets predictable-per-instance tab ids.
+let uid = 0;
+
+export default class Tabs extends PuzzleView {
+  data(params, props) {
+    const rootId = props.id || (this._id ??= `pieces-tabs-${++uid}`);
+    const tabs = props.tabs || [];
+    const value = props.value;
+    const variant = VARIANT[props.variant] || VARIANT.underline;
+
+    // Roving tabindex lands on the selected tab; if `value` matches no tab (or
+    // is unset), the first non-disabled tab stays reachable so the strip keeps
+    // a Tab stop. aria-selected still tracks the real `value` only.
+    const selected = tabs.some((t) => t.value === value);
+    const rovingValue = selected
+      ? value
+      : (tabs.find((t) => !t.disabled) || {}).value;
+
+    return {
+      rootId,
+      tabs,
+      value,
+      rovingValue,
+      rootClass: [ROOT, props.class || ''].join(' '),
+      listClass: variant.list,
+      tabBase: variant.base,
+      tabActive: variant.active,
+      tabInactive: variant.inactive,
+    };
+  }
+
+  // ---- keyboard nav helpers (regular methods; the arrow handlers call them) --
+
+  // Next non-disabled index from `from` stepping by `dir`, wrapping around; null
+  // if every other tab is disabled.
+  adjacentIndex(from, dir) {
+    const { tabs } = this.getData();
+    const n = tabs.length;
+    for (let step = 1; step <= n; step++) {
+      const i = (((from + dir * step) % n) + n) % n;
+      if (!tabs[i].disabled) return i;
+    }
+    return null;
+  }
+
+  edgeIndex(dir) {
+    const { tabs } = this.getData();
+    if (dir > 0) {
+      for (let i = 0; i < tabs.length; i++) if (!tabs[i].disabled) return i;
+    } else {
+      for (let i = tabs.length - 1; i >= 0; i--) if (!tabs[i].disabled) return i;
+    }
+    return null;
+  }
+
+  // Move DOM focus to the tab button at `index`. The buttons are live in the
+  // DOM already, so focusing works before the parent-driven re-render lands.
+  focusTab(index) {
+    const btns = this.element ? this.element.querySelectorAll('[role="tab"]') : null;
+    if (btns && btns[index]) btns[index].focus();
+  }
+
+  activate(index, event) {
+    const { tabs } = this.getData();
+    const tab = tabs[index];
+    if (!tab) return;
+    const { change } = this.props;
+    if (typeof change === 'function') change(tab.value, event);
+    this.focusTab(index);
+  }
+
+  events = {
+    selectTab: (value, event) => {
+      const { change } = this.props;
+      if (typeof change === 'function') change(value, event);
+    },
+
+    handleKeydown: (currentValue, event) => {
+      const { tabs } = this.getData();
+      const idx = tabs.findIndex((t) => t.value === currentValue);
+      if (idx === -1) return;
+
+      let target = null;
+      switch (event.key) {
+        case 'ArrowLeft':
+        case 'ArrowUp':
+          target = this.adjacentIndex(idx, -1);
+          event.preventDefault();
+          break;
+        case 'ArrowRight':
+        case 'ArrowDown':
+          target = this.adjacentIndex(idx, 1);
+          event.preventDefault();
+          break;
+        case 'Home':
+          target = this.edgeIndex(1);
+          event.preventDefault();
+          break;
+        case 'End':
+          target = this.edgeIndex(-1);
+          event.preventDefault();
+          break;
+        default:
+          return;
+      }
+
+      if (target === null || target === idx) return;
+      this.activate(target, event);
+    },
+  };
+}
+</script>

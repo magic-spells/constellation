@@ -1,0 +1,37 @@
+<puzzle-view>
+  <span class={ classes }><Slot/></span>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// Badge — a small status chip. Variants are plain lookup maps composed into one
+// class string in data(); a `class` prop appends the caller's utilities. Slot
+// content is the label (text, or text beside a tiny inline SVG).
+//
+//   <Badge>Draft</Badge>
+//   <Badge variant="brand">New</Badge>
+//   <Badge variant="danger">Overdue</Badge>
+//   <Badge variant="outline">v1.2</Badge>
+const BASE =
+  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap';
+
+const VARIANT = {
+  default: 'bg-surface-sunken text-body',
+  brand: 'bg-brand-tint text-brand',
+  danger: 'bg-danger-tint text-danger',
+  outline: 'border border-border bg-transparent text-body',
+};
+
+export default class Badge extends PuzzleView {
+  data(params, props) {
+    return {
+      classes: [
+        BASE,
+        VARIANT[props.variant] || VARIANT.default,
+        props.class || '',
+      ].join(' '),
+    };
+  }
+}
+</script>

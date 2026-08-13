@@ -1,0 +1,424 @@
+<puzzle-view>
+  <dialog
+    class={ panelClass }
+    role="dialog"
+    aria-modal="true"
+    aria-label={ ariaLabel }
+    @cancel={ onCancel(event) }
+    @click={ onBackdrop(event) }>
+    <div class="flex items-center gap-2 border-b border-border px-3">
+      <svg
+        class="size-4 shrink-0 text-muted"
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        aria-hidden="true">
+        <circle cx="9" cy="9" r="6" />
+        <path d="M14 14l4 4" stroke-linecap="round" />
+      </svg>
+      <input
+        data-command-input
+        id={ inputId }
+        type="text"
+        class="h-11 w-full bg-transparent text-sm text-ink placeholder:text-muted focus:outline-none"
+        role="combobox"
+        aria-expanded="true"
+        aria-controls={ listId }
+        aria-activedescendant={ activeId }
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder={ placeholder }
+        value={ query }
+        @input={ onInput(event) }
+        @keydown:down:prevent={ moveDown }
+        @keydown:up:prevent={ moveUp }
+        @keydown:enter:prevent={ onEnter(event) } />
+    </div>
+
+    <div class="max-h-72 overflow-y-auto p-1" id={ listId } role="listbox">
+      {#if empty}
+        <p class="py-6 text-center text-sm text-muted">{ emptyText }</p>
+      {:else}
+        {#for row in rows}
+          <div
+            id={ row.id }
+            role={ row.role }
+            data-opt-index={ row.optIndex }
+            aria-selected={ row.ariaSelected }
+            aria-disabled={ row.ariaDisabled }
+            class={ row.cls }
+            @click={ choose(row, event) }
+            @mouseenter={ hover(row) }>
+            {#if row.kind === 'option'}
+              <span class="truncate">{ row.label }</span>
+              {#if row.hint}
+                <span class="shrink-0 text-xs text-muted">{ row.hint }</span>
+              {/if}
+            {:else}
+              { row.label }
+            {/if}
+          </div>
+        {/for}
+      {/if}
+    </div>
+  </dialog>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// Command — a command palette, self-contained: no other pieces imported. Built
+// on the native <dialog> element so the browser does the hard parts —
+// showModal() traps focus and inerts the page, the top layer and ::backdrop
+// come free, and Escape arrives as the `cancel` event. Filtering,
+// grouping, ranking, and roving keyboard navigation are Puzzle-native: local UI
+// state (query, activeIndex) via setData + refresh(), imperative DOM only for the
+// native APIs (showModal/close/focus/scrollIntoView).
+//
+//   <Command
+//     open={ open }
+//     items={ commands }
+//     @select={ (value) => runCommand(value) }
+//     @close={ () => this.setData('open', false) } />
+//
+// Each `items` entry is { value, label, group?, keywords?, disabled?, hint? }:
+//   value     — passed back to @select on activation
+//   label     — visible text (falls back to String(value))
+//   group?    — optional heading; ungrouped items render first, then each group
+//   keywords? — string[] of extra terms that also match the query
+//   disabled? — rendered but not selectable, skipped by keyboard nav
+//   hint?     — right-aligned kbd-ish hint text (⌘K, ⏎, "Recent"…)
+//
+// CONTROLLED BY THE PARENT. The parent owns `open`; Command syncs the native
+// element to it (showModal()/close() in mounted()/afterUpdate(), exactly like a
+// modal). Command never sets `open` itself — it only *asks* the parent to close
+// via the `close` callback.
+//
+// TWO CALLBACKS, TWO MEANINGS:
+//   @select(value, event) — fires when an item is activated (Enter or click).
+//     The parent decides what happens next, INCLUDING whether to close (flip
+//     `open`). Command does NOT auto-close after a select — a palette often runs
+//     an action and stays open, so that call belongs to the parent.
+//   @close() — fires ONLY for user-driven dismissal: Escape (native `cancel`)
+//     or a backdrop click. The parent flips `open` false, which routes back
+//     through afterUpdate() → close().
+//
+// GLOBAL HOTKEY IS NOT THIS COMPONENT'S JOB — the parent (usually a layout) binds
+// it and flips `open`. A layout-level idea:
+//   <div @keydown={ onHotkey(event) }> … <Command open={ cmdOpen } … /> </div>
+//   onHotkey: (e) => {
+//     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+//       e.preventDefault();
+//       this.setData('cmdOpen', true);
+//     }
+//   }
+let uid = 0;
+
+const PANEL_BASE =
+  'm-auto mt-[15vh] w-full max-w-lg rounded-xl border border-border bg-surface p-0 ' +
+  'text-body shadow-xl overflow-hidden ' +
+  '[&::backdrop]:bg-black/50';
+
+const OPTION_BASE =
+  'flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm select-none';
+const GROUP_CLS = 'px-2 pt-2 pb-1 text-xs font-medium text-muted';
+
+// A query "matches" a term as a word-prefix (query starts the term, or any
+// space-delimited word within it) or, more loosely, as a substring anywhere.
+function wordPrefix(text, q) {
+  if (text.startsWith(q)) return true;
+  return text.split(/\s+/).some((w) => w.startsWith(q));
+}
+
+export default class Command extends PuzzleView {
+  created() {
+    this._uid = ++uid;
+    this._base = `pp-command-${this._uid}`;
+    this._scrollActive = false; // scroll the active option into view after next render
+    // Seed local UI state so the first data() run can read it back.
+    this.setData({ query: '', activeIndex: -1 });
+  }
+
+  // Normalize `items` into a flat render list (`rows` — a mix of group headings
+  // and options) plus the option-only list keyboard nav walks (`options`).
+  // Filtering is case-insensitive against label + keywords; ranking is a stable
+  // two-tier sort (word-prefix matches above substring-only matches); grouping
+  // renders ungrouped items first, then each group (ordered by first appearance
+  // in the ranked list) with its heading.
+  _build(props, query) {
+    const base = this._base;
+    const raw = Array.isArray(props.items) ? props.items : [];
+    const q = String(query || '').trim().toLowerCase();
+
+    const matched = [];
+    raw.forEach((entry, i) => {
+      if (entry == null) return;
+      const label = entry.label != null ? String(entry.label) : String(entry.value ?? '');
+      const keywords = Array.isArray(entry.keywords) ? entry.keywords.map(String) : [];
+      let tier;
+      if (!q) {
+        tier = 0;
+      } else {
+        const hay = [label, ...keywords].map((t) => t.toLowerCase());
+        if (hay.some((t) => wordPrefix(t, q))) tier = 0;
+        else if (hay.some((t) => t.includes(q))) tier = 1;
+        else return; // no match — drop it
+      }
+      matched.push({
+        value: entry.value,
+        label,
+        hint: entry.hint != null ? String(entry.hint) : '',
+        group: entry.group != null ? String(entry.group) : null,
+        disabled: !!entry.disabled,
+        tier,
+        order: i,
+      });
+    });
+
+    // Stable two-tier sort: word-prefix (0) before substring (1); original
+    // order preserved within a tier (Array.sort is stable).
+    matched.sort((a, b) => a.tier - b.tier || a.order - b.order);
+
+    // Partition: ungrouped first, then groups in first-appearance order.
+    const ungrouped = [];
+    const groupOrder = [];
+    const groupMap = new Map();
+    matched.forEach((m) => {
+      if (m.group == null) {
+        ungrouped.push(m);
+        return;
+      }
+      if (!groupMap.has(m.group)) {
+        groupMap.set(m.group, []);
+        groupOrder.push(m.group);
+      }
+      groupMap.get(m.group).push(m);
+    });
+
+    const rows = [];
+    const options = [];
+    let optIndex = 0;
+    const pushOption = (m) => {
+      const row = {
+        kind: 'option',
+        id: `${base}-opt-${optIndex}`,
+        optIndex,
+        value: m.value,
+        label: m.label,
+        hint: m.hint,
+        disabled: m.disabled,
+        active: false,
+      };
+      rows.push(row);
+      options.push(row);
+      optIndex++;
+    };
+
+    ungrouped.forEach(pushOption);
+    groupOrder.forEach((g, gi) => {
+      rows.push({ kind: 'group', id: `${base}-grp-${gi}`, label: g });
+      groupMap.get(g).forEach(pushOption);
+    });
+
+    return { rows, options };
+  }
+
+  data(params, props) {
+    const prev = this.getData();
+    const query = prev.query ?? '';
+    const activeIndex = prev.activeIndex ?? -1;
+
+    const { rows, options } = this._build(props, query);
+    const activeOpt =
+      activeIndex >= 0 && options[activeIndex] && !options[activeIndex].disabled
+        ? options[activeIndex]
+        : null;
+    if (activeOpt) activeOpt.active = true;
+
+    // Precompute per-row presentation. The template renders every row through
+    // one shared <div> wrapper (a {#for} body needs a single element root), so
+    // role / class / aria-* are resolved here where the dynamic `active` state
+    // is known. Group rows report presentation-only fields; their click/hover
+    // handlers are inert (guarded in JS by row.kind).
+    rows.forEach((r) => {
+      if (r.kind === 'group') {
+        r.role = 'presentation';
+        r.cls = GROUP_CLS;
+        r.optIndex = false;
+        r.ariaSelected = false;
+        r.ariaDisabled = false;
+        r.hint = '';
+      } else {
+        r.role = 'option';
+        r.cls =
+          OPTION_BASE +
+          (r.disabled ? ' text-faint pointer-events-none' : ' cursor-pointer text-body') +
+          (r.active ? ' bg-surface-sunken text-ink' : '');
+        r.ariaSelected = r.active ? 'true' : 'false';
+        r.ariaDisabled = r.disabled ? 'true' : false;
+      }
+    });
+
+    return {
+      rows,
+      options,
+      query,
+      activeIndex,
+      activeId: activeOpt ? activeOpt.id : false,
+      empty: options.length === 0,
+      inputId: `${this._base}-input`,
+      listId: `${this._base}-list`,
+      placeholder: props.placeholder || 'Type a command or search…',
+      emptyText: props.emptyText || 'No results found.',
+      ariaLabel: props.label || 'Command palette',
+      panelClass: [PANEL_BASE, props.class || ''].join(' '),
+    };
+  }
+
+  // ---- open / close (native <dialog> reconciled with the `open` prop) -------
+
+  mounted() {
+    this.syncOpen();
+  }
+
+  afterUpdate() {
+    this.syncOpen();
+    if (this._scrollActive) {
+      this._scrollActive = false;
+      this._scrollActiveIntoView();
+    }
+  }
+
+  // Idempotent: the dialog.open guards make repeat calls (any afterUpdate) safe
+  // and keep showModal() from throwing on an already-open dialog. On the
+  // closed→open edge we clear the query, seat the active row on the first
+  // enabled result, and focus the input.
+  syncOpen() {
+    const dialog = this.element;
+    if (!dialog) return;
+    const shouldOpen = !!this.props.open;
+    if (shouldOpen && !dialog.open) {
+      dialog.showModal();
+      this._resetForOpen();
+      dialog.querySelector('[data-command-input]')?.focus();
+      this._playEnter(dialog);
+    } else if (!shouldOpen && dialog.open) {
+      dialog.close();
+    }
+  }
+
+  _resetForOpen() {
+    const { options } = this._build(this.props, '');
+    this._scrollActive = false;
+    this.setData({ query: '', activeIndex: this._firstEnabled(options) });
+    this.refresh();
+  }
+
+  _playEnter(dialog) {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    dialog.animate(
+      [
+        { opacity: 0, transform: 'scale(0.98)' },
+        { opacity: 1, transform: 'scale(1)' },
+      ],
+      { duration: 150, easing: 'ease-out' }
+    );
+  }
+
+  // ---- active-row movement --------------------------------------------------
+
+  _firstEnabled(options) {
+    for (let i = 0; i < options.length; i++) if (!options[i].disabled) return i;
+    return -1;
+  }
+
+  // Move the active row by `dir`, wrapping around the ends and skipping disabled
+  // rows. Starts one step past the current index (or from either edge when
+  // nothing is active yet).
+  _move(dir) {
+    const { options, activeIndex } = this.getData();
+    const n = options.length;
+    if (!n) return;
+    let i = activeIndex;
+    for (let step = 0; step < n; step++) {
+      i = (i + dir + n) % n;
+      if (!options[i].disabled) {
+        this._setActive(i, true);
+        return;
+      }
+    }
+  }
+
+  _setActive(i, scroll) {
+    if (i < 0) return;
+    this._scrollActive = !!scroll;
+    this.setData({ activeIndex: i });
+    this.refresh();
+  }
+
+  _scrollActiveIntoView() {
+    const { activeIndex } = this.getData();
+    if (activeIndex < 0 || !this.element) return;
+    this.element
+      .querySelector(`[data-opt-index="${activeIndex}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }
+
+  events = {
+    // Every keystroke re-filters and reseats the active row on the first enabled
+    // result (per spec). setData writes the local layer; refresh() re-runs data()
+    // so the ranked/grouped rows recompute.
+    onInput: (event) => {
+      const query = event.target.value;
+      const { options } = this._build(this.props, query);
+      this._scrollActive = false;
+      this.setData({ query, activeIndex: this._firstEnabled(options) });
+      this.refresh();
+    },
+
+    moveDown: () => this._move(1),
+    moveUp: () => this._move(-1),
+
+    onEnter: (event) => {
+      const { options, activeIndex } = this.getData();
+      const opt = options[activeIndex];
+      if (!opt || opt.disabled) return;
+      const { select } = this.props;
+      if (typeof select === 'function') select(opt.value, event);
+    },
+
+    // Pointer hover seats the active row (no scroll — the pointer is already
+    // there). Click activates.
+    hover: (row) => {
+      if (row.kind !== 'option' || row.disabled) return;
+      if (this.getData().activeIndex === row.optIndex) return;
+      this._setActive(row.optIndex, false);
+    },
+
+    choose: (row, event) => {
+      if (row.kind !== 'option' || row.disabled) return;
+      const { select } = this.props;
+      if (typeof select === 'function') select(row.value, event);
+    },
+
+    // Escape (native `cancel`). Always preventDefault so the browser can't close
+    // the element behind the vdom's back; then ask the parent to close.
+    onCancel: (event) => {
+      event.preventDefault();
+      const { close } = this.props;
+      if (typeof close === 'function') close(event);
+    },
+
+    // Backdrop click: the click lands on the <dialog> element itself only when it
+    // hit the ::backdrop (clicks on inner content have a deeper target).
+    onBackdrop: (event) => {
+      if (event.target !== this.element) return;
+      const { close } = this.props;
+      if (typeof close === 'function') close(event);
+    },
+  };
+}
+</script>

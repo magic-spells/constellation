@@ -1,23 +1,61 @@
 @import 'tailwindcss';
 
+/* puzzle-pieces design tokens (the `default` scheme) — copied in by
+   `puzzle add piece`. Must come after the Tailwind import. */
+@import './pieces.css';
+
+/* Palette overrides per `data-scheme` (observatory is the default) + the 21
+   card-type hues. */
+@import './schemes.css';
+
 /* Tailwind v4 content detection — paths are relative to this stylesheet
    (app/styles/), so "../" is the app root. */
 @source "../**/*.pzl";
 @source "../**/*.js";
 @source "../public/**/*.html";
 
-/* Placeholder tokens — the real pieces token + scheme system lands in Task 2. */
 @theme {
-	--color-page: #07080f;
-	--color-body: #c3cbe0;
-	--color-muted: #7c86a2;
+	/* Old viewer's mono stack, kept for the handle/code typography. */
+	--font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
 }
 
 @layer base {
-	html,
+	/*
+	 * Tailwind v4 prunes `@theme` variables that no generated utility references,
+	 * so a token nothing has styled with yet (`--color-success`, the chart slots)
+	 * would be missing from `:root` in the DEFAULT scheme while every
+	 * `data-scheme` block in schemes.css still declares it — an invisible
+	 * scheme-dependent hole for anything reading tokens through
+	 * `getComputedStyle` (the canvas graph, mermaid tinting). Referencing the
+	 * whole palette once keeps it emitted whole.
+	 */
+	:root {
+		--palette-guard:
+			var(--color-ink) var(--color-body) var(--color-muted) var(--color-faint)
+			var(--color-page) var(--color-surface) var(--color-surface-sunken)
+			var(--color-brand) var(--color-brand-dark) var(--color-brand-tint) var(--color-brand-ink)
+			var(--color-danger) var(--color-danger-dark) var(--color-danger-tint) var(--color-danger-ink)
+			var(--color-success) var(--color-success-tint)
+			var(--color-warning) var(--color-warning-tint)
+			var(--color-chart-1) var(--color-chart-2) var(--color-chart-3) var(--color-chart-4)
+			var(--color-chart-5) var(--color-chart-6) var(--color-chart-7) var(--color-chart-8)
+			var(--color-border) var(--color-border-strong) var(--color-ring);
+	}
+
 	body {
+		-webkit-font-smoothing: antialiased;
+		font-family: var(--font-sans);
 		background-color: var(--color-page);
 		color: var(--color-body);
+	}
+
+	h1,
+	h2,
+	h3,
+	h4 {
+		font-family: var(--font-display, var(--font-sans));
+		line-height: 1.25;
+		letter-spacing: -0.01em;
 	}
 
 	/* <puzzle-view> is a custom element (display:inline by default). */
