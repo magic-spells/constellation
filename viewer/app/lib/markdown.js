@@ -124,24 +124,24 @@ function colorNodesByType(svg, panel) {
  * Load mermaid lazily as a static asset rather than a bundled import. The
  * puzzle build emits a single app.js (no dynamic-import splitting), so a
  * bundled `import('mermaid')` would inline ~3 MB of mermaid+KaTeX that most
- * page loads never use. Instead `scripts/copy-mermaid.mjs` vendors the
- * self-contained UMD build into app/public/vendor/ (copied verbatim into
- * dist/), and this injects it on first use; window.mermaid is the handle.
+ * page loads never use. Instead `scripts/copy-mermaid.mjs` vendors mermaid's
+ * chunked ESM build into app/public/vendor/mermaid/ (copied verbatim into
+ * dist/), and this imports the 28KB entry on first use; mermaid then lazily
+ * fetches only the chunks for the diagram types actually rendered. The URL
+ * lives in a variable so esbuild treats the import() as an opaque runtime
+ * expression and leaves it to the browser.
  */
 let mermaidLoader = null;
 function loadMermaid() {
-  if (window.mermaid) return Promise.resolve(window.mermaid);
   if (!mermaidLoader) {
-    mermaidLoader = new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = '/vendor/mermaid.min.js';
-      s.onload = () => resolve(window.mermaid);
-      s.onerror = () => {
+    const url = '/vendor/mermaid/mermaid.esm.min.mjs';
+    mermaidLoader = import(url).then(
+      (mod) => mod.default,
+      (err) => {
         mermaidLoader = null;
-        reject(new Error('failed to load /vendor/mermaid.min.js'));
-      };
-      document.head.appendChild(s);
-    });
+        throw new Error(`failed to load ${url}: ${err.message}`);
+      },
+    );
   }
   return mermaidLoader;
 }
