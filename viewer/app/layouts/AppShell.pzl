@@ -16,11 +16,15 @@
       <SyncBadge/>
 
       <div class="ml-auto flex shrink-0 items-center gap-3">
-        <span class="hidden items-center gap-1.5 text-xs text-muted md:flex">
+        <button
+          type="button"
+          class="hidden cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface-sunken px-2 py-1 text-xs text-muted transition-colors hover:text-ink md:flex outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          aria-label="Open the command palette"
+          @click={ openPalette }>
           Search
           <Kbd>⌘</Kbd>
           <Kbd>K</Kbd>
-        </span>
+        </button>
         <ThemeControls/>
       </div>
     </header>
@@ -44,6 +48,7 @@
     </main>
   </div>
 
+  <CommandPalette open={ paletteOpen } @close={ closePalette }/>
   <Toaster/>
 </puzzle-view>
 
@@ -54,6 +59,7 @@ import SplitPanel from '../components/ui/SplitPanel.pzl';
 import Kbd from '../components/ui/Kbd.pzl';
 import Toaster from '../components/ui/Toaster.pzl';
 import CardList from '../components/CardList.pzl';
+import CommandPalette from '../components/CommandPalette.pzl';
 import SyncBadge from '../components/SyncBadge.pzl';
 import ThemeControls from '../components/ThemeControls.pzl';
 import { planIndex } from '../lib/plan-index.js';
@@ -94,6 +100,12 @@ import { GROUPS, TYPE_META, folderForType } from '../lib/types.js';
 // pane renders nothing. Leaving `sizes` undefined hands the panel back to its
 // own uncontrolled state, which is what restores the dragged width from
 // localStorage.
+//
+// The shell also owns the ⌘K palette's OPEN state, because it owns the two
+// things that set it: the window-level hotkey (bound in mounted(), released in
+// destroyed()) and the topbar's Search button. CommandPalette owns everything
+// else about the palette. That state is local UI, so it lives in setData and
+// data() reads it back — never in the store.
 
 // Icons are SVG path `d` strings on a 24×24 stroked grid (the Sidebar's icon
 // contract). Every row needs one: the collapsed rail shows nothing else.
@@ -172,6 +184,7 @@ export default class AppShell extends PuzzleView {
 		return {
 			navItems,
 			activePath: this._activePath(region, url),
+			paletteOpen: this.getData().paletteOpen === true,
 			projectName: project?.frontmatter?.name || project?.name || 'Constellation',
 
 			split,
@@ -193,6 +206,31 @@ export default class AppShell extends PuzzleView {
 			detailClass:
 				region.mode === 'bleed' ? 'shell-bleed h-full overflow-hidden' : 'min-h-full',
 		};
+	}
+
+	// ⌘K / Ctrl+K from anywhere in the app. The listener is on `window` because
+	// the palette must open no matter what has focus — including the canvas graph
+	// and the split-panel divider, neither of which is inside a form control the
+	// browser would route a key event through to us.
+	mounted() {
+		this._onHotkey = (event) => {
+			if (event.altKey || !(event.metaKey || event.ctrlKey)) return;
+			if ((event.key || '').toLowerCase() !== 'k') return;
+			event.preventDefault();
+			this._setPalette(true);
+		};
+		window.addEventListener('keydown', this._onHotkey);
+	}
+
+	destroyed() {
+		if (this._onHotkey) window.removeEventListener('keydown', this._onHotkey);
+		this._onHotkey = null;
+	}
+
+	_setPalette(open) {
+		if (this.getData().paletteOpen === open) return;
+		this.setData('paletteOpen', open);
+		this.refresh();
 	}
 
 	// Which content shape the current route wants, plus what the list column
@@ -227,6 +265,9 @@ export default class AppShell extends PuzzleView {
 	}
 
 	events = {
+		openPalette: () => this._setPalette(true),
+		closePalette: () => this._setPalette(false),
+
 		// TODO(T10): open CreateCardDialog for `type`. The seam is wired now so the
 		// list's "+ new" row is real on an editable plan; the dialog is the only
 		// piece still missing.
