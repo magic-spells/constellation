@@ -50,7 +50,7 @@ import { PuzzleView } from '@magic-spells/puzzle';
 import Button from './ui/Button.pzl';
 import Dialog from './ui/Dialog.pzl';
 import { saveNewCard } from '../lib/edit.js';
-import { TYPE_META } from '../lib/types.js';
+import { hrefForHandle, TYPE_META } from '../lib/types.js';
 
 // CreateCardDialog — "+ new <type>" from the card list. The TYPE is fixed by
 // the list you opened it from (a card's type is its handle prefix, so the type
@@ -161,7 +161,7 @@ export default class CreateCardDialog extends PuzzleView {
 		this._error = '';
 		this.refresh();
 		this.props.close?.();
-		void this.ctx.router.push(`/card/${handle}`);
+		void this.ctx.router.push(hrefForHandle(handle));
 	}
 
 	_fail(message) {

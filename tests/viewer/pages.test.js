@@ -76,9 +76,9 @@ describe('Home dashboard', () => {
 		const tiles = view.findAll('.tile');
 		expect(tiles).toHaveLength(3);
 		expect(tiles.map((t) => t.getAttribute('href'))).toEqual([
-			'/type/plan',
-			'/type/api',
-			'/type/db',
+			'/plan',
+			'/api',
+			'/db',
 		]);
 		expect(tiles[1].textContent).toContain('API endpoints');
 		expect(tiles[1].textContent).toContain('2 cards');
@@ -145,8 +145,8 @@ describe('Home dashboard', () => {
 		expect(view.findAll('.activity .ac-row')).toHaveLength(2);
 		expect(view.find('.ac-tag').textContent).toBe('sync');
 		expect(view.findAll('.ac-card').map((a) => a.getAttribute('href'))).toEqual([
-			'/card/API-TICKETS',
-			'/card/DB-TICKETS',
+			'/api/API-TICKETS',
+			'/db/DB-TICKETS',
 		]);
 
 		view.destroy();
@@ -195,7 +195,7 @@ describe('FeaturesPanel', () => {
 		const shipped = view.findAll('.feat-section')[1];
 		const chips = [...shipped.querySelectorAll('.feat-chip')].map((c) => c.textContent.trim());
 		expect(chips).toEqual(['✦ RELEASE-1-0', '⎇ feat/inbox', 'PR 42']);
-		expect(shipped.querySelector('a.feat-chip').getAttribute('href')).toBe('/card/RELEASE-1-0');
+		expect(shipped.querySelector('a.feat-chip').getAttribute('href')).toBe('/release/RELEASE-1-0');
 
 		view.destroy();
 	});
@@ -267,7 +267,7 @@ describe('StyleGuide', () => {
 			'Colors',
 			'Spacing',
 		]);
-		expect(sections[0].querySelector('h2 a').getAttribute('href')).toBe('/card/STYLE-FONTS');
+		expect(sections[0].querySelector('h2 a').getAttribute('href')).toBe('/style/STYLE-FONTS');
 
 		// Per-category layouts: a specimen for fonts, proportional bars for spacing.
 		expect(sections[0].querySelector('.specimen-name').textContent).toBe('display');

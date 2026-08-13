@@ -65,7 +65,7 @@ import CreateCardDialog from '../components/CreateCardDialog.pzl';
 import SyncBadge from '../components/SyncBadge.pzl';
 import ThemeControls from '../components/ThemeControls.pzl';
 import { planIndex } from '../lib/plan-index.js';
-import { GROUPS, TYPE_META, folderForType } from '../lib/types.js';
+import { GROUPS, TYPE_META, typeForFolder } from '../lib/types.js';
 
 // AppShell — the persistent chrome every route renders inside: the pieces
 // Sidebar rail on the left, a topbar carrying the plan's name + freshness +
@@ -84,7 +84,7 @@ import { GROUPS, TYPE_META, folderForType } from '../lib/types.js';
 //
 // The content region has three shapes, picked from the route (`_region`):
 //
-//   split      /type/:folder and /card/:handle — a resizable CardList | <Slot/>
+//   split      /:folder and /:folder/:handle — a resizable CardList | <Slot/>
 //              pair. The list is hosted HERE rather than inside the views so it
 //              survives navigation between the cards it lists (filter text and
 //              scroll position included) and so both routes get it from one
@@ -172,7 +172,7 @@ export default class AppShell extends PuzzleView {
 			for (const type of types) {
 				navItems.push({
 					label: TYPE_META[type].label,
-					href: url(`/type/${TYPE_META[type].folder}`),
+					href: url(`/${TYPE_META[type].folder}`),
 					icon: TYPE_ICON[type],
 					badge: count(type),
 				});
@@ -180,7 +180,7 @@ export default class AppShell extends PuzzleView {
 		}
 
 		const project = index.projectCard;
-		const region = this._region(index);
+		const region = this._region();
 		const split = region.mode === 'split';
 
 		return {
@@ -240,33 +240,33 @@ export default class AppShell extends PuzzleView {
 	}
 
 	// Which content shape the current route wants, plus what the list column
-	// should be showing. A card whose handle isn't in the plan has no type and
-	// therefore no list to sit beside, so it falls back to the wide layout and
-	// lets CardPage own the whole box for its "not in this plan" state.
-	_region(index) {
-		const name = this.route.route?.name;
-		const params = this.route.params || {};
+	// should be showing. Both list-bearing routes start with a folder segment
+	// (`/api`, `/api/API-TICKETS`), so the FIRST path param decides: a known type
+	// folder gets the list, anything else falls back to the wide layout and lets
+	// the view own the whole box (TypeIntro's "unknown type", CardPage's "not in
+	// this plan").
+	_region() {
+		if (this.route.route?.name === 'graph') {
+			return { mode: 'bleed', folder: null, handle: null };
+		}
 
-		if (name === 'type') {
-			return { mode: 'split', folder: params.folder, handle: null };
-		}
-		if (name === 'card') {
-			const handle = String(params.handle || '').toUpperCase();
-			const folder = folderForType(index.byHandle.get(handle)?.type);
-			return folder
-				? { mode: 'split', folder, handle }
-				: { mode: 'wide', folder: null, handle };
-		}
-		if (name === 'graph') return { mode: 'bleed', folder: null, handle: null };
-		return { mode: 'wide', folder: null, handle: null };
+		const params = this.route.params || {};
+		const folder = params.folder ? String(params.folder) : '';
+		const handle = params.handle ? String(params.handle).toUpperCase() : null;
+
+		if (folder && typeForFolder(folder)) return { mode: 'split', folder, handle };
+		return { mode: 'wide', folder: null, handle };
 	}
 
 	// The Sidebar matches `activePath` against an item's href byte-for-byte, so
 	// this resolves the current route to the href of the row that owns it: a
-	// card page highlights its TYPE row (the Svelte Nav's `activeFolder` prop).
+	// card page highlights its TYPE row (the Svelte Nav's `activeFolder` prop),
+	// which is now simply the first segment of its own URL.
 	_activePath(region, url) {
-		if (region.folder) return url(`/type/${region.folder}`);
-		if (this.route.route?.name === 'card') return '';
+		if (region.folder) return url(`/${region.folder}`);
+		// A folder segment we don't recognise owns no row — highlight nothing
+		// rather than falling through and matching a page.
+		if (this.route.params?.folder) return '';
 		return url(this.route.pathname || '/');
 	}
 

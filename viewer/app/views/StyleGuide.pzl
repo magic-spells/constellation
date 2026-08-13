@@ -27,6 +27,7 @@ import Empty from '../components/ui/Empty.pzl';
 import MarkdownBlock from '../components/MarkdownBlock.pzl';
 import StyleTokens from '../components/StyleTokens.pzl';
 import { planIndex } from '../lib/plan-index.js';
+import { hrefForHandle } from '../lib/types.js';
 
 // StyleGuide — every STYLE card's tokens on one page, in reading order:
 // fonts, then colors, then the measurements. Ported from the Svelte viewer's
@@ -49,7 +50,7 @@ export default class StyleGuide extends PuzzleView {
 				card,
 				handle: card.handle,
 				title: card.name || card.handle,
-				path: `/card/${card.handle}`,
+				path: hrefForHandle(card.handle),
 				body: String(card.body ?? '').trim() ? card.body : '',
 			}));
 

@@ -154,7 +154,7 @@ describe('CommandPalette', () => {
 		await view.type('input', 'users');
 		await view.click('[role="option"]');
 
-		expect(pushed).toEqual(['/card/API-USERS']);
+		expect(pushed).toEqual(['/api/API-USERS']);
 		expect(closes).toHaveLength(1);
 		view.destroy();
 	});

@@ -15,7 +15,7 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import Command from './ui/Command.pzl';
 import { planIndex } from '../lib/plan-index.js';
-import { GROUPS, TYPE_META } from '../lib/types.js';
+import { GROUPS, hrefForHandle, TYPE_META } from '../lib/types.js';
 import { schemes, getScheme, setScheme } from '../lib/theme.js';
 
 // CommandPalette — everything in the plan, one ⌘K away: every card (grouped by
@@ -160,7 +160,7 @@ export default class CommandPalette extends PuzzleView {
 			const kind = raw.slice(0, split);
 			const arg = raw.slice(split + 1);
 
-			if (kind === 'card') this.ctx.router.push(`/card/${arg}`);
+			if (kind === 'card') this.ctx.router.push(hrefForHandle(arg));
 			else if (kind === 'page') this.ctx.router.push(arg);
 			else if (kind === 'scheme') setScheme(arg);
 		},

@@ -70,7 +70,7 @@ import MarkdownBlock from '../components/MarkdownBlock.pzl';
 import { savePatch } from '../lib/edit.js';
 import { relTime, SYNC_META } from '../lib/format.js';
 import { planIndex } from '../lib/plan-index.js';
-import { GROUPS, TYPE_META } from '../lib/types.js';
+import { GROUPS, hrefForHandle, TYPE_META } from '../lib/types.js';
 
 // Home — the Overview dashboard, ported from the Svelte viewer's Home.svelte:
 // the git-derived sync panel (state, marker age, recent plan activity), a stats
@@ -144,7 +144,7 @@ export default class Home extends PuzzleView {
 			type,
 			label: meta.label,
 			count: `${count} card${count === 1 ? '' : 's'}`,
-			path: `/type/${meta.folder}`,
+			path: `/${meta.folder}`,
 			style: `--c: var(--t-${type}); --i: ${i}`,
 		}));
 
@@ -164,7 +164,7 @@ export default class Home extends PuzzleView {
 				rowClass: entry.is_sync_point ? 'ac-row sync' : 'ac-row',
 				cards: (entry.cards ?? []).slice(0, 4).map((handle) => ({
 					handle,
-					path: `/card/${handle}`,
+					path: hrefForHandle(handle),
 				})),
 				more: (entry.cards?.length ?? 0) > 4 ? `+${entry.cards.length - 4}` : '',
 			})),

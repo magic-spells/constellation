@@ -33,8 +33,8 @@ const neighbors = [
 
 async function mountCardPage(handle = 'api-alpha') {
 	const view = await mountView(CardPage, {
-		params: { handle },
-		route: { params: { handle } },
+		params: { folder: 'api', handle },
+		route: { params: { folder: 'api', handle } },
 		models,
 	});
 
@@ -58,7 +58,7 @@ describe('CardPage read path', () => {
 		expect(view.element.textContent).toContain('response_schema');
 		expect(view.element.textContent).toContain('GET');
 		expect(view.element.textContent).toContain('200');
-		const schemaChip = view.find('a[href="/card/DATATYPE-ALPHA"]');
+		const schemaChip = view.find('a[href="/datatype/DATATYPE-ALPHA"]');
 		expect(schemaChip?.textContent).toContain('DATATYPE-ALPHA');
 		expect(view.element.textContent).toContain('Data types');
 
@@ -70,7 +70,7 @@ describe('CardPage read path', () => {
 
 		const wikilink = view.find('a.wiki');
 		expect(wikilink?.textContent).toBe('DOC-ALPHA');
-		expect(wikilink?.getAttribute('href')).toBe('#/card/DOC-ALPHA');
+		expect(wikilink?.getAttribute('href')).toBe('#/doc/DOC-ALPHA');
 
 		view.destroy();
 	});

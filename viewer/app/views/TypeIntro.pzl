@@ -16,7 +16,7 @@ import { PuzzleView } from '@magic-spells/puzzle';
 import { planIndex } from '../lib/plan-index.js';
 import { TYPE_META, typeForFolder } from '../lib/types.js';
 
-// TypeIntro — what `/type/:folder` shows in the detail pane: the type's name,
+// TypeIntro — what `/:folder` shows in the detail pane: the type's name,
 // how many cards it holds, and a nudge toward the list beside it. Ported from
 // the Svelte viewer's TypeIntro.svelte, hint string included (TYPE_META carries
 // no per-type prose).

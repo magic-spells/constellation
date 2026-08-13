@@ -109,8 +109,8 @@ async function mountCard(editable) {
 	const view = await mountView(CardPage, {
 		store: storeFake({ editable }),
 		router: routerFake([]),
-		params: { handle: 'api-tickets' },
-		route: { params: { handle: 'api-tickets' } },
+		params: { folder: 'api', handle: 'api-tickets' },
+		route: { params: { folder: 'api', handle: 'api-tickets' } },
 		models,
 	});
 	await settled();
@@ -377,7 +377,7 @@ describe('CreateCardDialog', () => {
 		expect(api.createCard).toHaveBeenCalledTimes(1);
 		expect(api.createCard.mock.calls[0][1]).toEqual({ handle: 'API-NEW-TICKET' });
 		expect(closes).toHaveLength(1);
-		expect(pushed).toEqual(['/card/API-NEW-TICKET']);
+		expect(pushed).toEqual(['/api/API-NEW-TICKET']);
 
 		view.destroy();
 	});
@@ -480,7 +480,7 @@ describe('DeleteCardDialog', () => {
 		expect(api.deleteCard).toHaveBeenCalledTimes(1);
 		expect(api.deleteCard.mock.calls[0][1]).toBe('API-TICKETS');
 		expect(closes).toHaveLength(1);
-		expect(pushed).toEqual(['/type/api']);
+		expect(pushed).toEqual(['/api']);
 
 		view.destroy();
 	});

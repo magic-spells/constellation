@@ -27,7 +27,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
-import { TYPE_META } from '../lib/types.js';
+import { hrefForHandle, TYPE_META } from '../lib/types.js';
 
 // ConnectionChips — a card's neighbours as type-tinted chips.
 //
@@ -57,7 +57,7 @@ export default class ConnectionChips extends PuzzleView {
 				label: TYPE_META[type]?.label ?? type,
 				chips: handles.map((handle) => ({
 					handle,
-					href: `/card/${handle}`,
+					href: hrefForHandle(handle),
 					style: `--c: var(--t-${type})`,
 					removable: removable.has(handle),
 					removeLabel: `Remove connection to ${handle}`,

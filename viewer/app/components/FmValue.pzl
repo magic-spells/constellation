@@ -51,7 +51,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
-import { isHandle } from '../lib/types.js';
+import { hrefForHandle, isHandle } from '../lib/types.js';
 
 export default class FmValue extends PuzzleView {
 	data(params, props) {
@@ -76,7 +76,7 @@ export default class FmValue extends PuzzleView {
 			isString: typeof value === 'string',
 			isHandleValue,
 			stringValue,
-			cardHref: isHandleValue ? `/card/${value}` : '',
+			cardHref: isHandleValue ? hrefForHandle(value) : '',
 			chipStyle: isHandleValue ? `--c: var(--t-${value.split('-')[0]})` : '',
 			isNullish: value === null || value === undefined,
 			isScalar: typeof value === 'number' || typeof value === 'boolean',

@@ -77,7 +77,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
-import { TYPE_META } from '../lib/types.js';
+import { hrefForHandle, TYPE_META } from '../lib/types.js';
 import { planIndex } from '../lib/plan-index.js';
 import { cssColor, darken as darkenHex, mix as mixHex, luminance as relLum } from '../lib/colors.js';
 import { onThemeChange } from '../lib/theme.js';
@@ -224,7 +224,7 @@ export default class ConstellationView extends PuzzleView {
           status: focusedRecord.status,
           displayName: focusedRecord.name ?? focusedRecord.handle,
           typeStyle: `color: var(--t-${focusedRecord.type})`,
-          href: `/card/${focusedRecord.handle}`,
+          href: hrefForHandle(focusedRecord.handle),
         }
       : null;
 
@@ -1174,7 +1174,7 @@ export default class ConstellationView extends PuzzleView {
 
   onDblClick(event) {
     const hit = this.findNodeAt(event.clientX, event.clientY);
-    if (hit) this.ctx.router.push('/card/' + hit.handle);
+    if (hit) this.ctx.router.push(hrefForHandle(hit.handle));
   }
 
   onCanvasKey(event) {

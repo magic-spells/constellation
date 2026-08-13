@@ -51,3 +51,29 @@ export function isHandle(value) {
   if (!HANDLE.test(value)) return false;
   return value.split('-')[0] in TYPE_META;
 }
+
+// Longest name first so a prefix match can never be shadowed by a shorter type
+// that happens to start the same way (DATATYPE- is tried before DB-).
+const TYPES_LONGEST_FIRST = Object.keys(TYPE_META).sort((a, b) => b.length - a.length);
+
+/**
+ * Card type for a handle by longest-prefix match (`DATATYPE-USER` → `DATATYPE`);
+ * null when the prefix is not one of the 21 types.
+ */
+export function typeForHandle(handle) {
+  const value = String(handle ?? '').toUpperCase();
+  return TYPES_LONGEST_FIRST.find((type) => value.startsWith(`${type}-`)) ?? null;
+}
+
+/**
+ * The app path a card handle lives at — `/<folder>/<HANDLE>`, mirroring the
+ * plan's layout on disk (`constellation/api/API-TICKETS.md` → `/api/API-TICKETS`).
+ * A handle with no recognisable type prefix has no card page, so it falls back
+ * to the overview. This is the ONE place the path shape is spelled out: build
+ * every card href/push through it rather than re-deriving the folder.
+ */
+export function hrefForHandle(handle) {
+  const value = String(handle ?? '').toUpperCase();
+  const folder = folderForType(typeForHandle(value));
+  return folder ? `/${folder}/${value}` : '/';
+}

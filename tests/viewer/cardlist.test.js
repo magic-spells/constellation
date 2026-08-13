@@ -97,8 +97,8 @@ describe('CardList', () => {
 		const rows = view.findAll('.clist-row');
 
 		expect(rows.map((row) => row.getAttribute('href'))).toEqual([
-			'/card/API-TICKETS',
-			'/card/API-USERS',
+			'/api/API-TICKETS',
+			'/api/API-USERS',
 		]);
 		expect(rows[0].className).not.toContain('is-active');
 		expect(rows[1].className).toContain('is-active');

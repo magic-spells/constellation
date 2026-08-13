@@ -40,13 +40,13 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import SearchField from './ui/SearchField.pzl';
 import { planIndex } from '../lib/plan-index.js';
-import { TYPE_META, typeForFolder } from '../lib/types.js';
+import { hrefForHandle, TYPE_META, typeForFolder } from '../lib/types.js';
 
 // CardList — the middle column: every card of ONE type, filterable, with the
 // active one highlighted. Ported from the Svelte viewer's CardList.svelte.
 //
 // It lives in AppShell (not in a view) so it survives navigation between the
-// cards it lists: `/type/api` → `/card/API-TICKETS` keeps the same instance, so
+// cards it lists: `/api` → `/api/API-TICKETS` keeps the same instance, so
 // the filter text and scroll position stay put. AppShell decides which folder
 // is showing and hands it down.
 //
@@ -127,7 +127,7 @@ export default class CardList extends PuzzleView {
 					handle: card.handle,
 					name: card.name || card.handle,
 					status: card.status || '',
-					path: `/card/${card.handle}`,
+					path: hrefForHandle(card.handle),
 					current: current ? 'page' : false,
 					class: current ? `${ROW} is-active` : ROW,
 					dotClass: DOT[card.status] || 'clist-dot',

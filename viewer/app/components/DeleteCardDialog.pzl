@@ -71,7 +71,7 @@ export default class DeleteCardDialog extends PuzzleView {
 					? { message: `Deleted ${handle} — ${dangling.join(', ')} now link to nothing.` }
 					: { message: `Deleted ${handle}.`, variant: 'success' },
 			);
-			void this.ctx.router.push(folder ? `/type/${folder}` : '/');
+			void this.ctx.router.push(folder ? `/${folder}` : '/');
 		},
 	};
 }

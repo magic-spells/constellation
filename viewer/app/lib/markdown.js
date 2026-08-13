@@ -1,5 +1,6 @@
 import { Marked } from 'marked';
 import { cssColor } from './colors.js';
+import { hrefForHandle } from './types.js';
 
 const HANDLE_LINK = /^\[\[([A-Z][A-Z0-9]*-[A-Z0-9][A-Z0-9-]*)\]\]/;
 
@@ -51,7 +52,7 @@ marked.use({
       renderer(token) {
         // Plain hash href — the app runs the router in hash mode, so a static
         // string is all a card link needs (no router call at render time).
-        return `<a class="wiki" href="#/card/${token.handle}">${token.handle}</a>`;
+        return `<a class="wiki" href="#${hrefForHandle(token.handle)}">${token.handle}</a>`;
       },
     },
   ],

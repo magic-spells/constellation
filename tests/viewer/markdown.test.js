@@ -3,7 +3,7 @@ import { renderMarkdown } from '../../viewer/app/lib/markdown.js';
 
 describe('viewer markdown rendering', () => {
   it('renders [[API-TICKETS]] as a hash wikilink', () => {
-    expect(renderMarkdown('see [[API-TICKETS]]')).toContain('href="#/card/API-TICKETS"');
+    expect(renderMarkdown('see [[API-TICKETS]]')).toContain('href="#/api/API-TICKETS"');
   });
 
   it('escapes raw HTML in markdown', () => {

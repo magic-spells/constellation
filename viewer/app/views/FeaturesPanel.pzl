@@ -52,6 +52,7 @@ import { PuzzleView } from '@magic-spells/puzzle';
 import Badge from '../components/ui/Badge.pzl';
 import { relTime } from '../lib/format.js';
 import { planIndex } from '../lib/plan-index.js';
+import { hrefForHandle } from '../lib/types.js';
 
 // FeaturesPanel — every FEATURE card, split into what is still ahead and what
 // has shipped. Ported from the Svelte viewer's FeaturesPanel.svelte.
@@ -90,9 +91,9 @@ function rowFor(card) {
 	return {
 		handle: card.handle,
 		name: card.name || card.handle,
-		path: `/card/${card.handle}`,
+		path: hrefForHandle(card.handle),
 		release,
-		releasePath: release ? `/card/${release}` : '',
+		releasePath: release ? hrefForHandle(release) : '',
 		branch: str(card, 'branch'),
 		pr,
 		prIsUrl: isUrl(pr),

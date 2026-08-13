@@ -237,9 +237,30 @@ export default class CardPage extends PuzzleView {
 		};
 	}
 
+	mounted() {
+		this._canonicalize();
+	}
+
+	// The card's folder segment is decoration as far as routing goes — the handle
+	// alone identifies the card — so `/db/API-TICKETS` would happily render. Snap
+	// it back to the card's real folder instead, because the URL is supposed to
+	// mirror the file on disk and a wrong folder also lights up the wrong sidebar
+	// row. replace() keeps the bad URL out of history. This can't live in data():
+	// the plan hydrates asynchronously, so the card usually appears a render or
+	// two after the view mounts — hence mounted() AND afterUpdate(), guarded so
+	// the corrected URL doesn't bounce again.
+	_canonicalize() {
+		const card = this.getData().card;
+		if (!card) return;
+		const folder = TYPE_META[card.type]?.folder;
+		if (!folder || this.route.params?.folder === folder) return;
+		void this.ctx.router?.replace?.(`/${folder}/${card.handle}`);
+	}
+
 	// The ghost inputs mount inside an {#if}, so focus lands after the render
 	// that created them — same shape as Editable's afterUpdate.
 	afterUpdate() {
+		this._canonicalize();
 		if (!this._focusRef) return;
 		const field = this.refs[this._focusRef];
 		if (!field) return;
