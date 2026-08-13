@@ -1,0 +1,80 @@
+<puzzle-view>
+  <span class="status-select">
+    {#if canEdit}
+      <Select
+        class="w-36"
+        options={ options }
+        value={ status }
+        indicator="caret"
+        @change={ pick }/>
+    {:else if status}
+      <Badge variant={ variant } class={ tint }>{ status }</Badge>
+    {/if}
+  </span>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Badge from './ui/Badge.pzl';
+import Select from './ui/Select.pzl';
+import { savePatch } from '../lib/edit.js';
+
+// StatusSelect — a card's `status:`, as a read-only Badge on a read-only plan
+// and a Select when the plan is editable. The four statuses are Constellation's
+// canonical ladder (planned → building → built → verified, from the Svelte
+// viewer's StatusPill); "no status" clears the key, which is legal on every
+// type.
+//
+// It owns the write rather than reporting up: the patch is a one-field
+// optimistic-locked PATCH with nothing for the card page to add, and keeping it
+// here means the same three lines aren't repeated at every call site.
+//
+// Props: handle, status (''|planned|building|built|verified), mtime (if_mtime
+// baseline). The store record is the source of truth — the plan reload that
+// follows a successful write re-renders this from the file on disk, so there is
+// no local copy of the value to drift.
+
+const STATUSES = ['planned', 'building', 'built', 'verified'];
+
+const BADGE = {
+	planned: { variant: 'outline', tint: 'text-muted!' },
+	building: { variant: 'default', tint: 'bg-warning-tint! text-warning!' },
+	built: { variant: 'brand', tint: '' },
+	verified: { variant: 'default', tint: 'bg-success-tint! text-success!' },
+};
+
+export default class StatusSelect extends PuzzleView {
+	data(params, props) {
+		const status = props.status || '';
+		const badge = BADGE[status] ?? { variant: 'default', tint: '' };
+
+		return {
+			status,
+			canEdit: this.ctx.store?.findOne('plan', 'plan')?.editable === true,
+			variant: badge.variant,
+			tint: badge.tint,
+			options: [
+				{ value: '', label: 'no status' },
+				...STATUSES.map((value) => ({ value, label: value })),
+			],
+		};
+	}
+
+	events = {
+		pick: (value) => {
+			const next = value || null;
+			if ((next ?? '') === this.getData().status) return;
+			void savePatch(
+				this.ctx.store,
+				this.props.handle,
+				{ status: next },
+				this.props.mtime,
+			);
+		},
+	};
+}
+</script>
+
+<style>
+.status-select { display: inline-flex; }
+</style>

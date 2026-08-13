@@ -39,7 +39,9 @@
     </div>
 
     {#if hasPlanCard}
-      <MarkdownBlock src={ planBody } />
+      <Editable multiline value={ planBody } ignore="a, .mermaid-block" @save={ savePlanBody }>
+        <MarkdownBlock src={ planBody } />
+      </Editable>
     {:else}
       <p class="empty">No plan.md yet — run `constellation init`.</p>
     {/if}
@@ -63,7 +65,9 @@
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
 import ConnectedRepos from '../components/ConnectedRepos.pzl';
+import Editable from '../components/Editable.pzl';
 import MarkdownBlock from '../components/MarkdownBlock.pzl';
+import { savePatch } from '../lib/edit.js';
 import { relTime, SYNC_META } from '../lib/format.js';
 import { planIndex } from '../lib/plan-index.js';
 import { GROUPS, TYPE_META } from '../lib/types.js';
@@ -77,7 +81,9 @@ import { GROUPS, TYPE_META } from '../lib/types.js';
 // poll and the SSE plan reload both re-run it. `no-git` plans hide the sync panel
 // entirely (there is no freshness to report), matching SyncBadge in the topbar.
 //
-// Editing the plan body is Task 10's job; this renders it read-only.
+// PLAN-PROJECT's body is editable in place (the Svelte viewer's behaviour):
+// saving PATCHes plan.md's body with the record's mtime as the optimistic-lock
+// baseline. On a read-only plan Editable renders as inert text.
 
 /** `connected_repos:` entries, minus anything missing a name or a path. */
 function reposOf(card) {
@@ -169,6 +175,14 @@ export default class Home extends PuzzleView {
 			tiles,
 		};
 	}
+
+	events = {
+		savePlanBody: (body) => {
+			const card = planIndex(this.ctx.store).projectCard;
+			if (!card) return;
+			void savePatch(this.ctx.store, card.handle, { body }, card.mtime);
+		},
+	};
 }
 </script>
 

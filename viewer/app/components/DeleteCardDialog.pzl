@@ -1,0 +1,78 @@
+<puzzle-view>
+  <span class="delete-dialog">
+    <AlertDialog
+      open={ open }
+      title={ title }
+      description={ description }
+      confirmLabel="Delete card"
+      destructive
+      @confirm={ confirm }
+      @cancel={ cancel }/>
+  </span>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import AlertDialog from './ui/AlertDialog.pzl';
+import { toast } from './ui/toast.js';
+import { removeCard } from '../lib/edit.js';
+import { planIndex } from '../lib/plan-index.js';
+import { folderForType } from '../lib/types.js';
+
+// DeleteCardDialog — the confirm step in front of DELETE /api/card/:handle.
+//
+// Deleting a card is the one viewer write that can damage the graph: every
+// connection pointing at it becomes an E005 dangling reference. So the prompt
+// names the neighbours BEFORE the delete (from planIndex — the same undirected
+// connection set the graph draws), not after: the server's `referenced_by` only
+// arrives with the response, by which point the file is already gone.
+//
+// Props: open, handle. Callback: @close (the parent owns `open`).
+//
+// On success the plan reloads (lib/api's write path) and we land on the type
+// list the card was in — where the card list is already mounted and now one row
+// shorter.
+
+export default class DeleteCardDialog extends PuzzleView {
+	data(params, props) {
+		const handle = String(props.handle || '');
+		const store = this.ctx.store;
+		const card = handle ? store.findOne('card', handle) : null;
+		const neighbors = handle ? (planIndex(store).neighbors.get(handle) ?? []) : [];
+
+		const where = card?.relPath ? ` (${card.relPath})` : '';
+		const description = neighbors.length
+			? `Deletes ${handle}${where}. Referenced by ${neighbors.join(', ')} — ` +
+				`${neighbors.length === 1 ? 'that connection' : 'those connections'} will dangle.`
+			: `Deletes ${handle}${where}. Nothing else in the plan links to it.`;
+
+		return {
+			open: !!props.open,
+			handle,
+			title: handle ? `Delete ${handle}?` : 'Delete card?',
+			description,
+			folder: folderForType(card?.type) || '',
+		};
+	}
+
+	events = {
+		cancel: () => this.props.close?.(),
+
+		confirm: async () => {
+			const { handle, folder } = this.getData();
+			this.props.close?.();
+
+			const result = await removeCard(this.ctx.store, handle);
+			if (!result.ok) return;
+
+			const dangling = result.value?.referenced_by ?? [];
+			toast(
+				dangling.length
+					? { message: `Deleted ${handle} — ${dangling.join(', ')} now link to nothing.` }
+					: { message: `Deleted ${handle}.`, variant: 'success' },
+			);
+			void this.ctx.router.push(folder ? `/type/${folder}` : '/');
+		},
+	};
+}
+</script>

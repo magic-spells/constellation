@@ -5,13 +5,22 @@
         <div class="card-eyebrow">
           <span class="card-handle">{ card.handle }</span>
           <span class="type-chip" style={ typeStyle }>{ card.type }</span>
-        </div>
-        <h1>{ displayName }</h1>
-        <div class="card-meta">
-          {#if status}
-            <Badge variant={ statusVariant } class={ statusTint }>{ status }</Badge>
+          {#if editable}
+            <button type="button" class="card-delete" @click={ askDelete }>delete</button>
           {/if}
-          {#if kind}<span class="card-kind">{ kind }</span>{/if}
+        </div>
+        <h1>
+          <Editable value={ name } placeholder={ card.handle } @save={ saveName }>{ displayName }</Editable>
+        </h1>
+        <div class="card-meta">
+          <StatusSelect handle={ card.handle } status={ status } mtime={ card.mtime }/>
+          {#if editable}
+            <span class="card-kind">
+              <Editable mono value={ kind } placeholder="+ kind" @save={ saveKind }/>
+            </span>
+          {:else if kind}
+            <span class="card-kind">{ kind }</span>
+          {/if}
         </div>
       </header>
 
@@ -35,9 +44,15 @@
         </section>
       {/if}
 
-      {#if body}
+      {#if hasBody}
         <section class="card-section card-body">
-          <MarkdownBlock src={ body } />
+          <Editable multiline value={ body } ignore="a, .mermaid-block" @save={ saveBody }>
+            <MarkdownBlock src={ body } />
+          </Editable>
+        </section>
+      {:else if editable}
+        <section class="card-section card-body">
+          <Editable multiline value="" placeholder="+ write something" @save={ saveBody }/>
         </section>
       {/if}
 
@@ -54,6 +69,10 @@
           <MarkdownBlock src={ constellationMarkdown } />
         </section>
       {/if}
+
+      {#if editable}
+        <DeleteCardDialog open={ deleting } handle={ card.handle } @close={ closeDelete }/>
+      {/if}
     {:else}
       <Empty
         title="Card not found"
@@ -66,24 +85,20 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
-import Badge from '../components/ui/Badge.pzl';
 import DescriptionList from '../components/ui/DescriptionList.pzl';
 import Empty from '../components/ui/Empty.pzl';
 import ConnectionChips from '../components/ConnectionChips.pzl';
+import DeleteCardDialog from '../components/DeleteCardDialog.pzl';
+import Editable from '../components/Editable.pzl';
 import FmValue from '../components/FmValue.pzl';
 import MarkdownBlock from '../components/MarkdownBlock.pzl';
+import StatusSelect from '../components/StatusSelect.pzl';
 import StyleTokens from '../components/StyleTokens.pzl';
+import { savePatch } from '../lib/edit.js';
 import { planIndex } from '../lib/plan-index.js';
 import { TYPE_META } from '../lib/types.js';
 
 const RESERVED = new Set(['name', 'kind', 'status', 'connections']);
-
-const STATUS = {
-	planned: { variant: 'outline', tint: 'text-muted!' },
-	building: { variant: 'default', tint: 'bg-warning-tint! text-warning!' },
-	built: { variant: 'brand', tint: '' },
-	verified: { variant: 'default', tint: 'bg-success-tint! text-success!' },
-};
 
 export default class CardPage extends PuzzleView {
 	data() {
@@ -108,7 +123,7 @@ export default class CardPage extends PuzzleView {
 				? null
 				: ['flowchart LR', ...neighbors.map((neighbor) => `  ${handle} --- ${neighbor}`)].join('\n');
 		const status = card.status ?? '';
-		const statusMeta = STATUS[status] ?? { variant: 'default', tint: '' };
+		const body = String(card.body ?? '');
 		const fields =
 			card.type === 'STYLE'
 				? []
@@ -125,20 +140,45 @@ export default class CardPage extends PuzzleView {
 			// STYLE cards render their `tokens:` as swatches/specimens instead of a
 			// frontmatter field row (`fields` is empty for them, just above).
 			isStyle: card.type === 'STYLE',
+			name: card.name ?? '',
 			displayName: card.name || card.handle,
 			kind: card.kind ?? '',
 			status,
-			statusVariant: statusMeta.variant,
-			statusTint: statusMeta.tint,
 			typeStyle: `--c: var(--t-${card.type})`,
 			fields,
-			body: String(card.body ?? '').trim() ? card.body : '',
+			body,
+			hasBody: body.trim().length > 0,
 			neighbors,
 			constellationMarkdown: constellationSrc
 				? ['```mermaid', constellationSrc, '```'].join('\n')
 				: '',
+			editable: plan?.editable === true,
+			deleting: this.getData().deleting === true,
 		};
 	}
+
+	// Every write carries the record's `mtime` as `if_mtime`, so a card edited
+	// on disk (an MCP write, a hand edit) since this page loaded is refused with
+	// 409 STALE rather than silently overwritten — lib/edit turns that into a
+	// toast and reloads the plan.
+	_patch(patch) {
+		const card = this.getData().card;
+		if (!card) return;
+		void savePatch(this.ctx.store, card.handle, patch, card.mtime);
+	}
+
+	_setDeleting(deleting) {
+		this.setData('deleting', deleting);
+		this.refresh();
+	}
+
+	events = {
+		saveName: (next) => this._patch({ name: next.trim() || null }),
+		saveKind: (next) => this._patch({ kind: next.trim() || null }),
+		saveBody: (next) => this._patch({ body: next }),
+		askDelete: () => this._setDeleting(true),
+		closeDelete: () => this._setDeleting(false),
+	};
 }
 </script>
 
@@ -148,6 +188,20 @@ export default class CardPage extends PuzzleView {
 .card-eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; margin-bottom: 0.65rem; }
 .card-handle, .card-kind { color: var(--color-muted); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.75rem; letter-spacing: 0.035em; }
 .type-chip { --c: var(--color-brand); display: inline-flex; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--color-border)); border-radius: 999px; background: color-mix(in srgb, var(--c) 12%, var(--color-surface)); padding: 0.12rem 0.5rem; color: var(--c); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; }
+.card-delete {
+	margin-left: auto;
+	border-radius: 5px;
+	background: none;
+	padding: 0.1rem 0.4rem;
+	color: var(--color-faint);
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.15s, color 0.15s;
+}
+.card-header:hover .card-delete, .card-delete:focus-visible { opacity: 1; }
+.card-delete:hover { background: var(--color-danger-tint); color: var(--color-danger); }
 .card-header h1 { color: var(--color-ink); font-size: clamp(1.8rem, 4vw, 2.65rem); font-weight: 650; letter-spacing: -0.035em; line-height: 1.08; }
 .card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; margin-top: 0.85rem; }
 .card-section { margin: 2.2rem 0; }

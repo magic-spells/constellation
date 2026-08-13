@@ -49,6 +49,7 @@
   </div>
 
   <CommandPalette open={ paletteOpen } @close={ closePalette }/>
+  <CreateCardDialog open={ createOpen } type={ createType } @close={ closeCreate }/>
   <Toaster/>
 </puzzle-view>
 
@@ -60,6 +61,7 @@ import Kbd from '../components/ui/Kbd.pzl';
 import Toaster from '../components/ui/Toaster.pzl';
 import CardList from '../components/CardList.pzl';
 import CommandPalette from '../components/CommandPalette.pzl';
+import CreateCardDialog from '../components/CreateCardDialog.pzl';
 import SyncBadge from '../components/SyncBadge.pzl';
 import ThemeControls from '../components/ThemeControls.pzl';
 import { planIndex } from '../lib/plan-index.js';
@@ -185,6 +187,10 @@ export default class AppShell extends PuzzleView {
 			navItems,
 			activePath: this._activePath(region, url),
 			paletteOpen: this.getData().paletteOpen === true,
+			// The create dialog lives here rather than in CardList because the list
+			// is unmounted the moment we navigate to the card it just created.
+			createOpen: this.getData().createOpen === true,
+			createType: this.getData().createType || '',
 			projectName: project?.frontmatter?.name || project?.name || 'Constellation',
 
 			split,
@@ -268,11 +274,13 @@ export default class AppShell extends PuzzleView {
 		openPalette: () => this._setPalette(true),
 		closePalette: () => this._setPalette(false),
 
-		// TODO(T10): open CreateCardDialog for `type`. The seam is wired now so the
-		// list's "+ new" row is real on an editable plan; the dialog is the only
-		// piece still missing.
 		createCard: (type) => {
-			void type;
+			this.setData({ createType: type, createOpen: true });
+			this.refresh();
+		},
+		closeCreate: () => {
+			this.setData('createOpen', false);
+			this.refresh();
 		},
 	};
 }

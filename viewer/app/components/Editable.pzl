@@ -1,0 +1,233 @@
+<puzzle-view>
+  <span class={ rootClass }>
+    {#if editing}
+      {#if multiline}
+        <span class="editing-wrap">
+          <textarea
+            ref="area"
+            class={ fieldClass }
+            value={ draft }
+            spellcheck="false"
+            @input={ onInput(event) }
+            @keydown={ onKey(event) }
+            @blur={ onBlur }></textarea>
+          <span class="edit-hint">⌘↩ save · esc cancel</span>
+        </span>
+      {:else}
+        <input
+          ref="line"
+          class={ fieldClass }
+          value={ draft }
+          placeholder={ placeholder }
+          spellcheck="false"
+          @input={ onInput(event) }
+          @keydown={ onKey(event) }
+          @blur={ onBlur }/>
+      {/if}
+    {/if}
+
+    <span
+      class={ viewClass }
+      role={ viewRole }
+      tabindex={ viewTabIndex }
+      title={ viewTitle }
+      @click={ onViewClick(event) }
+      @keydown={ onViewKey(event) }>
+      <Children>{#if value}{ value }{:else}<span class="editable-empty">{ placeholder }</span>{/if}</Children>
+    </span>
+  </span>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// Editable — click-to-edit text, ported from the Svelte viewer's
+// Editable.svelte. Click (or Enter on the focused text) swaps the rendered
+// content for a bare input/textarea sized like the text it replaces; ⌘↩ / Ctrl↩
+// (or plain ↩ when single-line) saves, Escape cancels, blur saves.
+//
+// Props
+//   value        the text being edited — also the default rendered content
+//   multiline    textarea instead of input (⌘↩ to save, plain ↩ inserts a line)
+//   mono         monospace edit buffer (YAML, handles, kinds)
+//   placeholder  shown, italic + faint, when `value` is empty
+//   ignore       CSS selector of click targets that must NOT start an edit
+//                (default 'a' — following a link beats editing the prose)
+//
+// Callbacks
+//   @save(next)  fired on commit, only when the text actually changed
+//
+// Children are the rendered (non-editing) content: pass a <MarkdownBlock/> or
+// an <FmValue/> to edit rich content as its source text. With no children the
+// marker's fallback renders `value` (or the placeholder) as plain text.
+//
+// GATED ON THE PLAN. A read-only server (`constellation serve --readonly`) sends
+// `editable: false`, and then this renders as inert text: no button role, no tab
+// stop, no hover affordance, clicks do nothing. Every edit affordance in the
+// viewer asks the plan record the same way, so one flag turns them all off.
+//
+// EDIT-BUFFER SEMANTICS, NOT TWO-WAY BINDING. The draft lives on an instance
+// field and the author @input handler owns the write (which is also what stops
+// the compiler synthesizing a binding): typing must not re-render, and Escape
+// must be able to throw the buffer away. `value={ draft }` still lands on the
+// element as a property, so an unrelated re-render mid-edit keeps the text.
+//
+// Only ONE marker is allowed per template, so the rendered content stays
+// mounted (hidden) while the editor is open instead of living in the {:else}
+// branch of an {#if}.
+
+export default class Editable extends PuzzleView {
+	created() {
+		this._editing = false;
+		this._draft = '';
+		this._focusPending = false;
+	}
+
+	data(params, props) {
+		const canEdit = this.ctx.store?.findOne('plan', 'plan')?.editable === true;
+		const editing = canEdit && this._editing;
+		const multiline = !!props.multiline;
+		const block = multiline ? ' is-block' : '';
+
+		return {
+			canEdit,
+			editing,
+			multiline,
+			draft: this._draft,
+			value: String(props.value ?? ''),
+			placeholder: props.placeholder ?? 'empty — click to edit',
+			rootClass: `editable-root${block}`,
+			fieldClass: `inline-edit${props.mono ? ' is-mono' : ''}`,
+			viewClass:
+				(canEdit ? 'editable' : 'editable-static') + block + (editing ? ' is-editing' : ''),
+			viewRole: canEdit ? 'button' : false,
+			viewTabIndex: canEdit ? 0 : false,
+			viewTitle: canEdit ? 'Click to edit' : false,
+		};
+	}
+
+	// The field only exists after the {#if} has re-rendered, so focus lands here
+	// rather than in the handler that opened it.
+	afterUpdate() {
+		if (!this._focusPending) return;
+		const field = this._field();
+		if (!field) return;
+		this._focusPending = false;
+		field.focus();
+		this._autosize();
+		if (typeof field.setSelectionRange === 'function' && this.props.multiline) {
+			const end = field.value.length;
+			field.setSelectionRange(end, end);
+		}
+	}
+
+	// One name per branch: the compiler rejects the same ref on two elements,
+	// even mutually exclusive ones.
+	_field() {
+		return this.refs.area || this.refs.line || null;
+	}
+
+	_autosize() {
+		const field = this.refs.area;
+		if (!field) return;
+		field.style.height = 'auto';
+		field.style.height = `${field.scrollHeight + 2}px`;
+	}
+
+	_begin(event) {
+		if (!this.getData().canEdit || this._editing) return;
+		const ignore = this.props.ignore ?? 'a';
+		const target = event?.target;
+		if (ignore && typeof target?.closest === 'function' && target.closest(ignore)) return;
+		this._draft = String(this.props.value ?? '');
+		this._editing = true;
+		this._focusPending = true;
+		this.refresh();
+	}
+
+	// Guarded on `_editing` because cancelling unmounts the field, which fires a
+	// blur on the way out — without the guard Escape would save.
+	_commit() {
+		if (!this._editing) return;
+		const next = this._draft;
+		this._close();
+		if (next !== String(this.props.value ?? '')) this.props.save?.(next);
+	}
+
+	_close() {
+		this._editing = false;
+		this._draft = '';
+		this._focusPending = false;
+		this.refresh();
+	}
+
+	events = {
+		onViewClick: (event) => this._begin(event),
+		onViewKey: (event) => {
+			if (event.key !== 'Enter' || this._editing) return;
+			event.preventDefault();
+			this._begin(event);
+		},
+		onInput: (event) => {
+			this._draft = event.target.value;
+			this._autosize();
+		},
+		onBlur: () => this._commit(),
+		onKey: (event) => {
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				this._close();
+				return;
+			}
+			if (event.key !== 'Enter') return;
+			if (this.props.multiline && !event.metaKey && !event.ctrlKey) return;
+			event.preventDefault();
+			this._commit();
+		},
+	};
+}
+</script>
+
+<style>
+.editable-root { position: relative; border-radius: 6px; }
+.editable-root.is-block { display: block; }
+
+.editable, .editable-static { border-radius: 6px; }
+.editable.is-block, .editable-static.is-block { display: block; }
+.editable { cursor: text; transition: background 0.12s, box-shadow 0.12s; }
+.editable:hover, .editable:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-brand) 7%, transparent);
+	background: color-mix(in oklab, var(--color-brand) 7%, transparent);
+}
+.editable.is-editing, .editable-static.is-editing { display: none; }
+.editable-empty { color: var(--color-faint); font-size: 0.85em; font-style: italic; }
+
+.editing-wrap { position: relative; display: block; width: 100%; }
+.inline-edit {
+	width: 100%;
+	max-width: 100%;
+	margin: -0.05em -0.3em;
+	border: none;
+	border-radius: 6px;
+	background: transparent;
+	padding: 0.05em 0.3em;
+	color: inherit;
+	font: inherit;
+	outline: none;
+	box-shadow:
+		0 0 0 1px color-mix(in oklab, var(--color-brand) 45%, transparent),
+		0 0 0 4px color-mix(in oklab, var(--color-brand) 8%, transparent);
+}
+.inline-edit.is-mono { font-family: var(--font-mono); font-size: 0.84rem; line-height: 1.55; }
+textarea.inline-edit { display: block; overflow: hidden; line-height: inherit; resize: none; }
+.edit-hint {
+	position: absolute;
+	right: 0.4rem;
+	bottom: -1.3rem;
+	color: var(--color-faint);
+	font-family: var(--font-mono);
+	font-size: 0.66rem;
+	pointer-events: none;
+}
+</style>
