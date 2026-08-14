@@ -52,6 +52,7 @@ import { PuzzleView } from '@magic-spells/puzzle';
 import Badge from '../components/ui/Badge.pzl';
 import { relTime } from '../lib/format.js';
 import { planIndex } from '../lib/plan-index.js';
+import { SHIPPED, STATUS } from '../lib/status.js';
 import { hrefForHandle } from '../lib/types.js';
 
 // FeaturesPanel — every FEATURE card, split into what is still ahead and what
@@ -61,18 +62,6 @@ import { hrefForHandle } from '../lib/types.js';
 // status at all) is future work. Each section sorts by file mtime, freshest
 // edit first. The Shipped section only appears once something has shipped;
 // "Up next" always renders, with an empty line when it is clear.
-
-const SHIPPED = new Set(['built', 'verified']);
-
-// Same status → Badge mapping CardPage uses, so a status reads identically on
-// both pages (Badge has no success/warning variant — those arrive as `!` token
-// utilities that win on source order).
-const STATUS = {
-	planned: { variant: 'outline', tint: 'text-muted!' },
-	building: { variant: 'default', tint: 'bg-warning-tint! text-warning!' },
-	built: { variant: 'brand', tint: '' },
-	verified: { variant: 'default', tint: 'bg-success-tint! text-success!' },
-};
 
 /** A non-empty string frontmatter value, or '' — chips render on truthiness. */
 function str(card, key) {
