@@ -294,7 +294,12 @@ export default class Sidebar extends PuzzleView {
     this._lastActive = undefined;
     // Per-region open state the animation loop diffs against (keyed by data-index).
     this._regionState = {};
-    this.setData({ uncontrolledCollapsed: false });
+    // Uncontrolled collapsed state — instance field, NOT view data: the visible
+    // layout (rail width, icon-only rows) is derived from it inside data(), so
+    // the toggle must refresh() to re-run data(). A setData key would update
+    // silently without re-deriving the render model (setData never re-runs
+    // data()), leaving the click with no visible effect.
+    this._uncontrolledCollapsed = false;
   }
 
   // ---- collapsed: optional-controlled resolution ---------------------------
@@ -306,7 +311,7 @@ export default class Sidebar extends PuzzleView {
   _collapsed() {
     return this._collapsedControlled()
       ? !!this.props.collapsed
-      : !!this.getData().uncontrolledCollapsed;
+      : !!this._uncontrolledCollapsed;
   }
 
   // ---- render model --------------------------------------------------------
@@ -464,9 +469,11 @@ export default class Sidebar extends PuzzleView {
       const next = !this._collapsed();
       const { collapse } = this.props;
       if (typeof collapse === 'function') collapse(next);
-      // Uncontrolled: own the flip. Controlled: the parent's prop change drives it.
+      // Uncontrolled: own the flip and refresh() so data() re-derives the
+      // layout. Controlled: the parent's prop change drives it.
       if (!this._collapsedControlled()) {
-        this.setData({ uncontrolledCollapsed: next });
+        this._uncontrolledCollapsed = next;
+        this.refresh();
       }
     },
   };
