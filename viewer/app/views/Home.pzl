@@ -278,7 +278,12 @@ export default class Home extends PuzzleView {
 /* mission-control panel grid — the frame is shared by the four *Panel.pzl
    components; .pzl <style> blocks collect into one sheet, so it resolves for
    them here, the way .home-section does for ConnectedRepos. */
-.panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; margin: 0 0 2.4rem; }
+/* minmax(0, 1fr), not 1fr: a bare 1fr track floors at min-content, and the
+   commit/note rows are `white-space: nowrap`, so their min-content is the whole
+   untruncated line (~690px). That pinned the grid at ~1411px, overflowing the
+   container below 1920px and clipping the right column instead of ellipsizing.
+   The 0 minimum lets the tracks shrink so text-overflow can do its job. */
+.panel-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.9rem; margin: 0 0 2.4rem; }
 .panel {
 	border: 1px solid var(--color-border);
 	border-radius: 10px;
@@ -356,7 +361,7 @@ export default class Home extends PuzzleView {
 .tile .t-count { display: block; margin-top: 0.15rem; color: var(--color-muted); font-family: var(--font-mono); font-size: 0.72rem; }
 
 @media (max-width: 900px) {
-	.panel-grid { grid-template-columns: 1fr; }
+	.panel-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 640px) {
