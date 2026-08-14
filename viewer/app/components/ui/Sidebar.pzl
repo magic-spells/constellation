@@ -100,13 +100,9 @@
               {:else}
                 <span class="size-5 shrink-0" aria-hidden="true"></span>
               {/if}
-              {#if collapsed}
-                <span class="sr-only">{ item.label }</span>
-              {:else}
-                <span class="min-w-0 flex-1 truncate text-left">{ item.label }</span>
-                {#if item.badge}
-                  <span class={ badgeClass }>{ item.badge }</span>
-                {/if}
+              <span class="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left transition-opacity duration-200 motion-reduce:transition-none {#if collapsed}opacity-0{/if}">{ item.label }</span>
+              {#if item.badge}
+                <span class={ badgeClass }>{ item.badge }</span>
               {/if}
             </a>
           {/if}
@@ -136,9 +132,7 @@
           aria-hidden="true">
           <path d="M13 6l-6 6 6 6M19 6l-6 6 6 6"/>
         </svg>
-        {#if !collapsed}
-          <span class="min-w-0 flex-1 truncate text-left">Collapse</span>
-        {/if}
+        <span class="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left transition-opacity duration-200 motion-reduce:transition-none {#if collapsed}opacity-0{/if}">Collapse</span>
       </button>
     </div>
   </nav>
@@ -218,16 +212,19 @@ const NAV_BASE =
 // Shared row chrome. Unconditional outline COLOR (outline-ring) sits alongside the
 // focus-visible reveal so the outline never flashes from the default on focus.
 const ROW_BASE =
-  'group flex items-center gap-3 rounded-md text-sm transition-colors ' +
+  'group flex items-center gap-3 rounded-md text-sm overflow-hidden ' +
+  'transition-[padding,color,background-color] duration-200 ease-out motion-reduce:transition-none ' +
   'outline-ring focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
 const IDLE = 'text-muted hover:bg-surface-sunken hover:text-ink';
 const ACTIVE = 'bg-brand-tint text-ink font-medium';
 const BADGE =
   'shrink-0 rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-medium text-muted';
 
-// A top-level link/button pad: comfortable when expanded, centered + tightened when
-// collapsed so the icon sits mid-rail.
-const rowPad = (collapsed) => (collapsed ? 'justify-center px-2 py-2' : 'px-3 py-2');
+// A top-level link/button pad: comfortable when expanded; when collapsed the
+// LEFT padding centers the size-5 icon in the w-16 rail ((4rem − 1.25rem)/2)
+// instead of a justify-center swap — alignment can't animate, padding can, so
+// the icon slides into place with the width transition.
+const rowPad = (collapsed) => (collapsed ? 'pl-[1.375rem] pr-2 py-2' : 'px-3 py-2');
 
 const linkClass = (active, collapsed) =>
   [ROW_BASE, rowPad(collapsed), active ? ACTIVE : IDLE].join(' ');
@@ -355,7 +352,12 @@ export default class Sidebar extends PuzzleView {
       items,
       collapsed,
       navLabel: props.label || 'Main',
-      badgeClass: BADGE,
+      // Badges ride the same fade as labels — kept mounted, clipped by the row.
+      badgeClass: [
+        BADGE,
+        'transition-opacity duration-200 motion-reduce:transition-none',
+        collapsed ? 'opacity-0' : '',
+      ].join(' '),
       toggleLabel,
       toggleClass: [
         ROW_BASE,
