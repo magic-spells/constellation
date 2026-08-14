@@ -221,10 +221,11 @@ const BADGE =
   'shrink-0 rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-medium text-muted';
 
 // A top-level link/button pad: comfortable when expanded; when collapsed the
-// LEFT padding centers the size-5 icon in the w-16 rail ((4rem − 1.25rem)/2)
-// instead of a justify-center swap — alignment can't animate, padding can, so
-// the icon slides into place with the width transition.
-const rowPad = (collapsed) => (collapsed ? 'pl-[1.375rem] pr-2 py-2' : 'px-3 py-2');
+// LEFT padding centers the size-5 icon in the row box — the rail is w-16 but
+// the list wraps rows in p-2, so the row spans 3rem: (3rem − 1.25rem)/2 =
+// 0.875rem. Padding (unlike justify-center) animates, so the icon slides
+// into place with the width transition.
+const rowPad = (collapsed) => (collapsed ? 'pl-[0.875rem] pr-2 py-2' : 'px-3 py-2');
 
 const linkClass = (active, collapsed) =>
   [ROW_BASE, rowPad(collapsed), active ? ACTIVE : IDLE].join(' ');
