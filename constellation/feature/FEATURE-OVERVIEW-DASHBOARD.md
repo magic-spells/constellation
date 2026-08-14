@@ -1,9 +1,11 @@
 ---
 name: Overview mission-control dashboard
 release: RELEASE-V0-5-0
-status: building
+status: built
+branch: feat/overview-dashboard
 connections:
   - PAGE-VIEWER-HOME
+  - FILE-SERVE
 ---
 
 # Overview mission-control dashboard
