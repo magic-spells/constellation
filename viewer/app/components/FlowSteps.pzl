@@ -1,0 +1,99 @@
+<puzzle-view>
+  <div island ref="host" class="flow-steps"></div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// FlowSteps — a FLOW card's numbered body list rendered as a vertical stepper:
+// one tinted box per step with a number badge, arrow connectors between them,
+// and the step's nested bullet items as dim branch lines inside the box.
+//
+// props.steps: [{ html, branches: [html] }] from extractFlowSteps — HTML that
+// already went through the sanitized markdown pipeline (wikilinks included),
+// which is why innerHTML is safe here and why this is an island.
+export default class FlowSteps extends PuzzleView {
+	_render() {
+		const host = this.refs.host;
+		if (!host) return;
+		const steps = Array.isArray(this.props.steps) ? this.props.steps : [];
+		const key = JSON.stringify(steps);
+		if (key === this._renderedKey) return;
+		this._renderedKey = key;
+		host.innerHTML = steps
+			.map((step, i) => {
+				const branches = (step.branches ?? [])
+					.map((b) => `<div class="flow-branch">${b}</div>`)
+					.join('');
+				const arrow =
+					i < steps.length - 1
+						? '<div class="flow-arrow" aria-hidden="true">↓</div>'
+						: '';
+				return (
+					`<div class="flow-step">` +
+					`<span class="flow-step-num" aria-hidden="true">${i + 1}</span>` +
+					`<div class="flow-step-body">${step.html}${branches}</div>` +
+					`</div>${arrow}`
+				);
+			})
+			.join('');
+	}
+
+	mounted() {
+		this._render();
+	}
+
+	afterUpdate() {
+		this._render();
+	}
+}
+</script>
+
+<style>
+.flow-steps { --c: var(--t-FLOW, var(--color-brand)); display: flex; flex-direction: column; margin: 0.9rem 0; }
+.flow-step {
+	display: flex;
+	gap: 0.85rem;
+	align-items: flex-start;
+	border: 1px solid color-mix(in srgb, var(--c) 38%, var(--color-border));
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--c) 10%, var(--color-surface));
+	padding: 0.85rem 1rem;
+}
+.flow-step-num {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.55rem;
+	height: 1.55rem;
+	margin-top: 0.1rem;
+	border-radius: 999px;
+	background: var(--c);
+	color: #fff;
+	font-size: 0.8rem;
+	font-weight: 700;
+}
+.flow-step-body { min-width: 0; color: var(--color-body); line-height: 1.55; }
+.flow-step-body p { margin: 0; }
+.flow-step-body p + p { margin-top: 0.4rem; }
+.flow-step-body code { border-radius: 0.3rem; background: color-mix(in srgb, var(--c) 10%, var(--color-surface-sunken)); padding: 0.1rem 0.3rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.88em; }
+.flow-step-body a { color: var(--color-brand); text-underline-offset: 0.18em; }
+.flow-step-body a.wiki { border: 1px solid color-mix(in srgb, var(--c) 40%, var(--color-border)); border-radius: 999px; background: var(--color-surface); padding: 0.08rem 0.45rem; color: var(--c); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.82em; font-weight: 600; text-decoration: none; }
+.flow-step-body a.wiki:hover { border-color: var(--c); }
+.flow-branch {
+	margin-top: 0.45rem;
+	border-left: 2px solid color-mix(in srgb, var(--c) 45%, transparent);
+	padding-left: 0.6rem;
+	color: var(--color-muted);
+	font-size: 0.9rem;
+}
+.flow-branch p { margin: 0; }
+.flow-arrow {
+	align-self: center;
+	margin: 0.2rem 0;
+	color: color-mix(in srgb, var(--c) 70%, var(--color-muted));
+	font-size: 1.05rem;
+	line-height: 1;
+}
+</style>

@@ -73,6 +73,36 @@ export function renderMarkdown(md) {
   return marked.parse(md, { async: false });
 }
 
+/**
+ * FLOW cards: split the body around its first top-level ordered list so the
+ * viewer can render the steps as a visual stepper. Returns null when the body
+ * has no top-level ordered list. `before`/`after` are RAW markdown slices
+ * (MarkdownBlock renders them as usual, mermaid included); each step is
+ * pre-rendered HTML through this same pipeline (wikilinks, sanitized links),
+ * with `branches` holding the step's nested bullet items — the edge-case
+ * annotations ("invalid → 422") that render as dim lines inside the step box.
+ */
+export function extractFlowSteps(md) {
+  const tokens = marked.lexer(md);
+  const idx = tokens.findIndex((t) => t.type === 'list' && t.ordered);
+  if (idx === -1) return null;
+  const rawSlice = (slice) => slice.map((t) => t.raw).join('').trim();
+  const render = (src) => marked.parse(src, { async: false });
+  const steps = tokens[idx].items.map((item) => {
+    const main = [];
+    const branches = [];
+    for (const t of item.tokens) {
+      if (t.type === 'list') {
+        for (const b of t.items) branches.push(render(b.tokens.map((x) => x.raw).join('')));
+      } else {
+        main.push(t.raw);
+      }
+    }
+    return { html: render(main.join('')), branches };
+  });
+  return { before: rawSlice(tokens.slice(0, idx)), steps, after: rawSlice(tokens.slice(idx + 1)) };
+}
+
 let mermaidCounter = 0;
 
 /**

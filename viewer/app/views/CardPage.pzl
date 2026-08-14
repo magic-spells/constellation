@@ -73,8 +73,14 @@
 
       {#if hasBody}
         <section class="card-section card-body">
-          <Editable multiline value={ body } ignore="a, .mermaid-block" @save={ saveBody }>
-            <MarkdownBlock src={ body } />
+          <Editable multiline value={ body } ignore="a, .mermaid-block, .flow-steps" @save={ saveBody }>
+            {#if flowSteps}
+              {#if flowBefore}<MarkdownBlock src={ flowBefore } />{/if}
+              <FlowSteps steps={ flowSteps } />
+              {#if flowAfter}<MarkdownBlock src={ flowAfter } />{/if}
+            {:else}
+              <MarkdownBlock src={ body } />
+            {/if}
           </Editable>
         </section>
       {:else if editable}
@@ -135,12 +141,14 @@ import Empty from '../components/ui/Empty.pzl';
 import ConnectionChips from '../components/ConnectionChips.pzl';
 import DeleteCardDialog from '../components/DeleteCardDialog.pzl';
 import Editable from '../components/Editable.pzl';
+import FlowSteps from '../components/FlowSteps.pzl';
 import FmValue from '../components/FmValue.pzl';
 import MarkdownBlock from '../components/MarkdownBlock.pzl';
 import StatusSelect from '../components/StatusSelect.pzl';
 import StyleTokens from '../components/StyleTokens.pzl';
 import { toast } from '../components/ui/toast.js';
 import { savePatch } from '../lib/edit.js';
+import { extractFlowSteps } from '../lib/markdown.js';
 import { planIndex } from '../lib/plan-index.js';
 import { isHandle, TYPE_META } from '../lib/types.js';
 
@@ -196,6 +204,11 @@ export default class CardPage extends PuzzleView {
 				editValue: isPrimitive(value) ? String(value ?? '') : yaml.dump(value).trimEnd(),
 			}));
 
+		// FLOW cards render their first top-level ordered list as a visual
+		// stepper; the markdown before/after that list renders normally. The
+		// list is the source of truth — nothing structured is stored.
+		const flow = card.type === 'FLOW' && body ? extractFlowSteps(body) : null;
+
 		const editable = plan?.editable === true;
 		const ownConnections = Array.isArray(card.frontmatter?.connections)
 			? card.frontmatter.connections.map(String)
@@ -218,6 +231,9 @@ export default class CardPage extends PuzzleView {
 			fieldDraft: this._fieldDraft,
 			body,
 			hasBody: body.trim().length > 0,
+			flowSteps: flow?.steps ?? null,
+			flowBefore: flow?.before ?? '',
+			flowAfter: flow?.after ?? '',
 			neighbors,
 			showConnections: neighbors.length > 0 || editable,
 			// Only a connection this card DECLARES can be removed from this card —
