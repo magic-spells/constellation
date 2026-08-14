@@ -1942,8 +1942,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     },
     withPlan(async (root, { base }) => {
       const lint = await lintPlan(root);
-      const status = await computeSyncStatus(root, { lint });
+      // Compute the drift verdict once, honoring an explicit `base`, and hand
+      // both it and the lint result to computeSyncStatus — it would otherwise
+      // redo the whole claim-card pass (stat per bound path + a git diff per
+      // baseline) for a `status.stale` this tool never reads.
       const r = await computeStaleCards(root, lint.index, base);
+      const status = await computeSyncStatus(root, { lint, stale: r });
       return ok({
         advisory:
           'Advisory only — the MCP server reports sync state, it cannot block. Use as a definition-of-done gate before calling work complete.',

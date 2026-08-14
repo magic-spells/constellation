@@ -71,10 +71,12 @@ async function packageVersion(planRoot: string): Promise<string | null> {
  */
 export async function computeSyncStatus(
   planRoot: string,
-  options: { activityLimit?: number; lint?: LintResult } = {},
+  options: { activityLimit?: number; lint?: LintResult; stale?: StaleResult } = {},
 ): Promise<SyncStatus> {
   // Callers that already linted (check_sync) pass the result in — the plan
-  // must not be re-read from disk twice in one tool call.
+  // must not be re-read from disk twice in one tool call. Same for `stale`:
+  // check_sync computes the drift verdict itself (with its own `base`), so it
+  // hands it over rather than paying for a second claim-card pass + git diffs.
   const lint = options.lint ?? (await lintPlan(planRoot));
   const orphans = [...lint.index.cards.keys()].filter(
     (h) => (lint.index.connectedHandles.get(h)?.size ?? 0) === 0,
@@ -113,7 +115,7 @@ export async function computeSyncStatus(
     code_activity = await recentCodeActivity(planRoot, options.activityLimit ?? 6);
     latest_tag = await latestTag(planRoot);
     pkg_version = await packageVersion(planRoot);
-    stale = await computeStaleCards(planRoot, lint.index);
+    stale = options.stale ?? (await computeStaleCards(planRoot, lint.index));
     if (marker) {
       try {
         const diff = await diffPlan(planRoot, marker.synced_sha, 'HEAD');
