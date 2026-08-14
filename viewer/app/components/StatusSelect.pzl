@@ -86,7 +86,9 @@ export default class StatusSelect extends PuzzleView {
 	border: 1px solid color-mix(in srgb, var(--sc) 40%, transparent);
 	border-radius: 99px;
 	background: color-mix(in srgb, var(--sc) 8%, transparent);
-	padding: 0.16rem 0.6rem;
+	min-width: 7rem;
+	justify-content: center;
+	padding: 0.24rem 1.1rem;
 	color: var(--sc);
 	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 	font-size: 0.66rem;
