@@ -45,13 +45,15 @@
       {/for}
     </div>
 
-    {#if hasPlanCard}
-      <Editable multiline value={ planBody } ignore="a, .mermaid-block" @save={ savePlanBody }>
-        <MarkdownBlock src={ planBody } />
-      </Editable>
-    {:else}
-      <p class="empty">No plan.md yet — run `constellation init`.</p>
-    {/if}
+    <div class="plan-body">
+      {#if hasPlanCard}
+        <Editable multiline value={ planBody } ignore="a, .mermaid-block" @save={ savePlanBody }>
+          <MarkdownBlock src={ planBody } />
+        </Editable>
+      {:else}
+        <p class="empty">No plan.md yet — run `constellation init`.</p>
+      {/if}
+    </div>
 
     <ConnectedRepos repos={ repos } />
 
@@ -311,6 +313,13 @@ export default class Home extends PuzzleView {
 .stats .stat .label { color: var(--color-muted); font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; }
 .stats .stat.bad .n { color: var(--color-danger); }
 .stats .stat.good .n { color: var(--color-success); }
+
+/* PLAN-PROJECT's markdown body. The page is 96rem wide for the panel grid, but
+   prose is not — cap the measure at 70rem and keep it LEFT-aligned (no auto
+   margins) so its left edge stays flush with the panels and sections around
+   it. Scoped here on purpose: MarkdownBlock is used on card pages too, and
+   those layouts set their own width. */
+.plan-body { max-width: 70rem; }
 
 .home .empty { color: var(--color-faint); font-size: 0.88rem; font-style: italic; }
 
