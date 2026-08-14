@@ -374,6 +374,56 @@ export async function recentPlanActivity(
 }
 
 /**
+ * Recent commits that touched ONLY files outside the plan folder, newest first —
+ * the code half of the activity story (recentPlanActivity is the plan half; a
+ * commit touching both counts as plan activity and is excluded here). Scans up
+ * to limit*5 commits to find `limit` code-only ones; merge commits (no listed
+ * files) are skipped. Returns [] when the plan root is the repo root — there is
+ * no "outside the plan" to report.
+ */
+export async function recentCodeActivity(
+  planRoot: string,
+  limit = 6,
+): Promise<SyncActivity[]> {
+  const realRoot = await realpath(planRoot);
+  const repoRoot = await repoRootFor(realRoot);
+  const planRel = path.relative(repoRoot, realRoot) || '.';
+  if (planRel === '.') return [];
+  const prefix = `${planRel.split(path.sep).join('/')}/`;
+  const out = await git(
+    repoRoot,
+    'log',
+    `-n${limit * 5}`,
+    '--pretty=format:%x1e%H%x1f%aI%x1f%s',
+    '--name-only',
+  );
+  const activity: SyncActivity[] = [];
+  for (const record of out.split('\x1e')) {
+    if (activity.length >= limit) break;
+    if (!record.trim()) continue;
+    const newline = record.indexOf('\n');
+    const header = newline === -1 ? record : record.slice(0, newline);
+    const [sha, date, subject] = header.split('\x1f');
+    if (!sha) continue;
+    const files = (newline === -1 ? '' : record.slice(newline + 1))
+      .split('\n')
+      .map((f) => f.trim())
+      .filter(Boolean);
+    if (files.length === 0) continue; // merge commits list no files
+    if (files.some((f) => f.startsWith(prefix))) continue; // plan activity's job
+    activity.push({
+      sha,
+      short_sha: sha.slice(0, 8),
+      date: date ?? '',
+      subject: subject ?? '',
+      cards: [],
+      is_sync_point: false,
+    });
+  }
+  return activity;
+}
+
+/**
  * How many commits between `sinceSha` and HEAD touch files OUTSIDE the plan folder
  * — i.e. how far the code has moved since the plan was last reconciled.
  */
