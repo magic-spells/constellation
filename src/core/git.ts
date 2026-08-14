@@ -395,3 +395,11 @@ export async function countCodeCommitsSince(
   );
   return Number.parseInt(out.trim(), 10) || 0;
 }
+
+/** Most recent tag by creation date, or null when the repo has no tags. */
+export async function latestTag(planRoot: string): Promise<string | null> {
+  const realRoot = await realpath(planRoot);
+  const repoRoot = await repoRootFor(realRoot);
+  const out = await git(repoRoot, 'tag', '--sort=-creatordate');
+  return out.split('\n').map((t) => t.trim()).filter(Boolean)[0] ?? null;
+}
