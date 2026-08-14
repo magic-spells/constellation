@@ -1,0 +1,35 @@
+<puzzle-view>
+  <div class={ classes } role="separator" aria-orientation={ ariaOrientation }></div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// Separator — a hairline divider. Horizontal (the default) is a full-width rule;
+// vertical is a full-height rule that also carries aria-orientation="vertical"
+// (a separator's implicit orientation is horizontal, so only the vertical case
+// needs to say so). A `class` prop appends the caller's utilities — e.g. margins.
+//
+//   <Separator class="my-4" />
+//   <Separator orientation="vertical" class="mx-2 h-4" />
+const BASE = 'bg-border';
+
+const ORIENTATION = {
+  horizontal: 'h-px w-full',
+  vertical: 'w-px self-stretch',
+};
+
+export default class Separator extends PuzzleView {
+  data(params, props) {
+    const vertical = props.orientation === 'vertical';
+    return {
+      classes: [
+        BASE,
+        vertical ? ORIENTATION.vertical : ORIENTATION.horizontal,
+        props.class || '',
+      ].join(' '),
+      ariaOrientation: vertical ? 'vertical' : false,
+    };
+  }
+}
+</script>

@@ -1,0 +1,171 @@
+<puzzle-view>
+  <div class="contents" @input={ onQuery(event) }>
+    <Command
+      open={ open }
+      items={ items }
+      label="Command palette"
+      placeholder="Search cards, pages and actions…"
+      emptyText="Nothing matches that."
+      @select={ run }
+      @close={ close }/>
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Command from './ui/Command.pzl';
+import { planIndex } from '../lib/plan-index.js';
+import { GROUPS, hrefForHandle, TYPE_META } from '../lib/types.js';
+import { schemes, getScheme, setScheme } from '../lib/theme.js';
+
+// CommandPalette — everything in the plan, one ⌘K away: every card (grouped by
+// type), the four standing pages, and the five schemes.
+//
+// CONTROLLED BY THE SHELL. AppShell owns `open` (it binds the global hotkey and
+// the topbar's Search button) and this component owns what is IN the palette.
+// The Command piece owns the dialog, the roving keyboard nav, and its own
+// filtering — see components/ui/Command.pzl.
+//
+// Props
+//   open   whether the dialog is showing
+// Callbacks
+//   @close()  asked for on Escape, a backdrop click, or any activation
+//
+// WHY WE MIRROR THE QUERY. Command filters internally and never reports the
+// query out, so the "at most 8 rows per type" cap could not be applied to the
+// items we hand it — capping an unfiltered list would make the 9th API card
+// permanently unsearchable. Instead we listen for the input event bubbling out
+// of the dialog (it is a plain DOM child of this root), filter the cards
+// ourselves with the same substring rule Command uses, and cap each type at
+// PER_GROUP. Command then re-filters a list that already matches, which is a
+// no-op, and does the ranking and grouping.
+//
+// Item values are `kind:arg` strings so one `select` handler covers all three
+// kinds of row; a card's label is its name with the handle as the right-hand
+// hint, and the handle also rides along in `keywords` so typing "API-TIC"
+// matches a card whose name says nothing of the sort.
+
+const PER_GROUP = 8;
+
+const PAGES = [
+	{ path: '/', label: 'Overview' },
+	{ path: '/constellation', label: 'Constellation' },
+	// Shown only when the plan has cards behind them, exactly like the sidebar.
+	{ path: '/features', label: 'Features', needs: 'FEATURE' },
+	{ path: '/style-guide', label: 'Style guide', needs: 'STYLE' },
+];
+
+// Types in sidebar order: group by group, and within a group the order they are
+// declared in TYPE_META.
+const TYPES_IN_ORDER = GROUPS.flatMap((group) =>
+	Object.keys(TYPE_META).filter((type) => TYPE_META[type].group === group),
+);
+
+export default class CommandPalette extends PuzzleView {
+	created() {
+		this._wasOpen = false;
+		this.setData({ query: '' });
+	}
+
+	data(params, props) {
+		const open = props.open === true;
+		const query = this.getData().query ?? '';
+		const q = query.trim().toLowerCase();
+		const index = planIndex(this.ctx.store);
+		const items = [];
+
+		for (const page of PAGES) {
+			if (page.needs && !(index.byType.get(page.needs)?.length > 0)) continue;
+			items.push({
+				value: `page:${page.path}`,
+				label: page.label,
+				// Not "Pages": that is the PAGE type's own label, and two groups of
+				// the same name would merge into one list.
+				group: 'Go to',
+				keywords: ['page', page.path],
+			});
+		}
+
+		for (const type of TYPES_IN_ORDER) {
+			const cards = index.byType.get(type);
+			if (!cards?.length) continue;
+			const matched = cards
+				.filter((card) => !q || this._matches(card, q))
+				.sort((a, b) => a.handle.localeCompare(b.handle))
+				.slice(0, PER_GROUP);
+
+			for (const card of matched) {
+				items.push({
+					value: `card:${card.handle}`,
+					label: card.name || card.handle,
+					hint: card.handle,
+					group: TYPE_META[type].label,
+					keywords: [card.handle],
+				});
+			}
+		}
+
+		const scheme = getScheme();
+		for (const option of schemes()) {
+			items.push({
+				value: `scheme:${option.id}`,
+				label: option.label,
+				group: 'Scheme',
+				hint: option.id === scheme ? 'Active' : '',
+				keywords: ['scheme', 'theme', 'palette', option.id],
+			});
+		}
+
+		return { open, items };
+	}
+
+	_matches(card, q) {
+		return (
+			card.handle.toLowerCase().includes(q) || (card.name ?? '').toLowerCase().includes(q)
+		);
+	}
+
+	mounted() {
+		this._wasOpen = this.props.open === true;
+	}
+
+	// Command clears its own query on the closed→open edge; ours has to follow or
+	// the first paint of a reopened palette would be filtered by last time's text.
+	afterUpdate() {
+		const open = this.props.open === true;
+		if (open === this._wasOpen) return;
+		this._wasOpen = open;
+		if (open && this.getData().query) {
+			this.setData('query', '');
+			this.refresh();
+		}
+	}
+
+	events = {
+		onQuery: (event) => {
+			const target = event.target;
+			if (!target || target.tagName !== 'INPUT') return;
+			if (this.getData().query === target.value) return;
+			this.setData('query', target.value);
+			this.refresh();
+		},
+
+		// Activation always dismisses first — the palette is a launcher, not a
+		// workspace — then does the thing. Closing before navigating also hands
+		// focus back before the router moves it to the incoming view.
+		run: (value) => {
+			this.props.close?.();
+			const raw = String(value);
+			const split = raw.indexOf(':');
+			const kind = raw.slice(0, split);
+			const arg = raw.slice(split + 1);
+
+			if (kind === 'card') this.ctx.router.push(hrefForHandle(arg));
+			else if (kind === 'page') this.ctx.router.push(arg);
+			else if (kind === 'scheme') setScheme(arg);
+		},
+
+		close: () => this.props.close?.(),
+	};
+}
+</script>

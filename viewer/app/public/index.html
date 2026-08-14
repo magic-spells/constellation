@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Constellation</title>
+  <script>
+    // Apply the saved scheme + theme before first paint to avoid a flash.
+    // Observatory is the default scheme; theme is unset ("system") unless chosen.
+    (function () {
+      try {
+        var scheme = localStorage.getItem('constellation-scheme') || 'observatory';
+        var theme = localStorage.getItem('constellation-theme'); // 'light' | 'dark' | null (system)
+        document.documentElement.dataset.scheme = scheme;
+        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+      } catch (e) {}
+    })();
+  </script>
+  <!-- Relative asset paths so the bundle works when served from a sub-path. -->
+  <link href="./styles.css" rel="stylesheet">
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

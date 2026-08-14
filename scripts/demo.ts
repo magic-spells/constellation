@@ -15,7 +15,7 @@ const pkgRoot = fileURLToPath(new URL('..', import.meta.url));
 
 if (!existsSync(path.join(pkgRoot, 'viewer', 'dist', 'index.html'))) {
   console.log('building viewer assets…');
-  execFileSync('npx', ['vite', 'build', 'viewer'], { cwd: pkgRoot, stdio: 'inherit' });
+  execFileSync('npm', ['run', 'build:viewer'], { cwd: pkgRoot, stdio: 'inherit' });
 }
 
 const sandbox = await mkdtemp(path.join(tmpdir(), 'constellation-demo-'));

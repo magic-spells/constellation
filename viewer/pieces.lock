@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "registry": "/Users/coryschulz/Code/@magic-spells/puzzle-pieces/registry",
+  "puzzle": "dev+v0.5.0-70-gd4f5029",
+  "pieces": {
+    "alert-dialog": {
+      "files": {
+        "app/components/ui/AlertDialog.pzl": "sha256:c918507879f61637f4e644a9119f0199c51792149a0d59f4d601be0050c09fdd"
+      }
+    },
+    "badge": {
+      "files": {
+        "app/components/ui/Badge.pzl": "sha256:0d18280ee03d89afe02960db9f558f5d546fb1cb66746a4f71b7ac8e05770c9a"
+      }
+    },
+    "button": {
+      "files": {
+        "app/components/ui/Button.pzl": "sha256:6563a9f3c31e9a66a0d902a64fdcc3b4147e072fec710a6f9eaa5e23abb776f1"
+      }
+    },
+    "command": {
+      "files": {
+        "app/components/ui/Command.pzl": "sha256:52824396867963fb0077c455c178b2d02dd4e64a329d3ba3f79ced6746e56309"
+      }
+    },
+    "description-list": {
+      "files": {
+        "app/components/ui/DescriptionList.pzl": "sha256:5f0cb4c1f0443943c66f813d26165096a881b280fa3daeb2823b9b27d8d795ec"
+      }
+    },
+    "dialog": {
+      "files": {
+        "app/components/ui/Dialog.pzl": "sha256:3bd37c7340ffc02cd8e10d69f6a6127c1496a4eace80e53921d7c93e7a41bec3"
+      }
+    },
+    "empty": {
+      "files": {
+        "app/components/ui/Empty.pzl": "sha256:9508da2a54c7de6d95e1a26bfbbcc23dcf83a8e7fcca1b4f003c5dedf39c3c29"
+      }
+    },
+    "kbd": {
+      "files": {
+        "app/components/ui/Kbd.pzl": "sha256:f42f3cea2d7e88d551e0ddc93c290492a79024b920b09f67f97a43bb1d15babd"
+      }
+    },
+    "lib/markdown-doc.js": {
+      "files": {
+        "app/lib/markdown-doc.js": "sha256:3b67cf1d63cfd89e4696400dbf1eeb1597bca54c3dc299079535ef697b6ca524"
+      }
+    },
+    "markdown": {
+      "files": {
+        "app/components/ui/Markdown.pzl": "sha256:f43812bcb7d83cdf489aab761ae9205f36e8f3fda48dc9a43dad2830aad187f3"
+      }
+    },
+    "search-field": {
+      "files": {
+        "app/components/ui/SearchField.pzl": "sha256:c86fb353c11b8e93856ce6c0e6639b139e80984168876ddeb4cf80faecfa6097"
+      }
+    },
+    "select": {
+      "files": {
+        "app/components/ui/Select.pzl": "sha256:d3d4833a62fd7c2de5f71e115c9fb0c56386cfe2d9ef90ff4341ad2a0fa2cde5"
+      }
+    },
+    "separator": {
+      "files": {
+        "app/components/ui/Separator.pzl": "sha256:ecf4bf4cfb0bc12df35537311b3e55e59530e2195b0906f803120abd0152a5e8"
+      }
+    },
+    "sidebar": {
+      "files": {
+        "app/components/ui/Sidebar.pzl": "sha256:3e6c22c9b246440f1c93a605f1df9c884e63f9755e6394657d3c1c948b29cc2e"
+      }
+    },
+    "skeleton": {
+      "files": {
+        "app/components/ui/Skeleton.pzl": "sha256:d5a542438998b2f13a5ecadc6f2d7d44affd1df4f76106591c0f6eb93c67bae6"
+      }
+    },
+    "split-panel": {
+      "files": {
+        "app/components/ui/SplitPanel.pzl": "sha256:52ac5d52b7f681c104454263884b10cfdb210f5df6eda224c8bdb7927a092539"
+      }
+    },
+    "tabs": {
+      "files": {
+        "app/components/ui/Tabs.pzl": "sha256:ee91031675aef566772bb04880e6f778b37f5dc3b06eee0be918af0d1fd0d9bf"
+      }
+    },
+    "theme/pieces.css": {
+      "files": {
+        "app/styles/pieces.css": "sha256:84290f1d7ca1312dc611be673440bafa1a2652ebefc6d9abe5c42b52c2b0f211"
+      }
+    },
+    "toast": {
+      "files": {
+        "app/components/ui/Toaster.pzl": "sha256:56f218d50f19b1308e9f9ac012dbee7970013ea0e5714dae7714066502cd9db9",
+        "app/components/ui/toast.js": "sha256:5f643acbeffc74d58e2cb20cb4fbd97f7b312e6f5d292f282601bab9f9b47a16"
+      }
+    },
+    "tooltip": {
+      "files": {
+        "app/components/ui/Tooltip.pzl": "sha256:3b305b38f37d72a9ff1684b6c61b31f64242d11b5e673fd926c5d2aac74f6999"
+      }
+    }
+  }
+}

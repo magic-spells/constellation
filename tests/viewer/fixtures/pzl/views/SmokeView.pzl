@@ -1,0 +1,12 @@
+<puzzle-view>
+	<div class="smoke">
+		<Widget label="from-view" />
+	</div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Widget from '../components/Widget.pzl';
+
+export default class SmokeView extends PuzzleView {}
+</script>

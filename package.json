@@ -1,84 +1,84 @@
 {
-  "name": "@magic-spells/constellation",
-  "version": "0.5.0",
-  "description": "Files-first architecture planning for AI-assisted development. Your project plan as markdown cards in the repo — typed, connected, queryable, and diffable with git.",
-  "type": "module",
-  "license": "GPL-3.0-or-later",
-  "author": "Cory Schulz <coryschulz@gmail.com>",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/magic-spells/constellation.git"
-  },
-  "homepage": "https://github.com/magic-spells/constellation#readme",
-  "bugs": "https://github.com/magic-spells/constellation/issues",
-  "files": [
-    "dist",
-    "schemas",
-    "skill",
-    "constellation",
-    "examples",
-    "viewer/dist"
-  ],
-  "publishConfig": {
-    "access": "public"
-  },
-  "engines": {
-    "node": ">=22"
-  },
-  "bin": {
-    "constellation": "./dist/cli/index.js"
-  },
-  "main": "./dist/core/index.js",
-  "types": "./dist/core/index.d.ts",
-  "keywords": [
-    "architecture",
-    "planning",
-    "documentation",
-    "markdown",
-    "diagram",
-    "knowledge-graph",
-    "mcp",
-    "cli",
-    "ai",
-    "llm"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "prepublishOnly": "npm run build && npm run build:viewer",
-    "dev": "tsx src/cli/index.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "lint:examples": "tsx src/cli/index.ts lint examples",
-    "check:viewer": "svelte-check --workspace viewer --tsconfig tsconfig.json",
-    "build:viewer": "vite build viewer",
-    "demo": "tsx scripts/demo.ts",
-    "dev:viewer": "vite viewer",
-    "serve:examples": "tsx src/cli/index.ts serve examples --no-open"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "ajv": "^8.17.1",
-    "commander": "^15.0.0",
-    "gray-matter": "^4.0.3",
-    "js-yaml": "^4.2.0",
-    "picocolors": "^1.1.1",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^7.1.2",
-    "@tailwindcss/vite": "^4.3.1",
-    "@types/d3-force": "^3.0.10",
-    "@types/js-yaml": "^4.0.9",
-    "@types/node": "^25.9.3",
-    "d3-force": "^3.0.0",
-    "marked": "^18.0.5",
-    "mermaid": "^11.15.0",
-    "svelte": "^5.56.3",
-    "svelte-check": "^4.6.0",
-    "tailwindcss": "^4.3.1",
-    "tsx": "^4.22.0",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.0",
-    "vitest": "^4.1.8"
-  }
+	"name": "@magic-spells/constellation",
+	"version": "0.5.0",
+	"description": "Files-first architecture planning for AI-assisted development. Your project plan as markdown cards in the repo — typed, connected, queryable, and diffable with git.",
+	"type": "module",
+	"license": "GPL-3.0-or-later",
+	"author": "Cory Schulz <coryschulz@gmail.com>",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/magic-spells/constellation.git"
+	},
+	"homepage": "https://github.com/magic-spells/constellation#readme",
+	"bugs": "https://github.com/magic-spells/constellation/issues",
+	"files": [
+		"dist",
+		"schemas",
+		"skill",
+		"constellation",
+		"examples",
+		"viewer/dist"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"bin": {
+		"constellation": "./dist/cli/index.js"
+	},
+	"main": "./dist/core/index.js",
+	"types": "./dist/core/index.d.ts",
+	"keywords": [
+		"architecture",
+		"planning",
+		"documentation",
+		"markdown",
+		"diagram",
+		"knowledge-graph",
+		"mcp",
+		"cli",
+		"ai",
+		"llm"
+	],
+	"scripts": {
+		"build": "tsc",
+		"prepublishOnly": "npm run build && npm run build:viewer",
+		"dev": "tsx src/cli/index.ts",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"lint:examples": "tsx src/cli/index.ts lint examples",
+		"build:viewer": "npm run copy:mermaid && cd viewer && puzzle build --mode production",
+		"demo": "tsx scripts/demo.ts",
+		"dev:viewer": "npm run copy:mermaid && cd viewer && puzzle dev",
+		"serve:examples": "tsx src/cli/index.ts serve examples --no-open",
+		"copy:mermaid": "node scripts/copy-mermaid.mjs"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.29.0",
+		"ajv": "^8.17.1",
+		"commander": "^15.0.0",
+		"gray-matter": "^4.0.3",
+		"js-yaml": "^4.2.0",
+		"picocolors": "^1.1.1",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@magic-spells/morph-engine": "^0.1.2",
+		"@magic-spells/puzzle": "file:../puzzle/magic-spells-puzzle-0.6.0.tgz",
+		"@magic-spells/puzzle-darwin-arm64": "file:../puzzle/npm/puzzle-darwin-arm64",
+		"@tailwindcss/cli": "^4.3.3",
+		"@types/d3-force": "^3.0.10",
+		"@types/js-yaml": "^4.0.9",
+		"@types/node": "^25.9.3",
+		"d3-force": "^3.0.0",
+		"jsdom": "^29.1.1",
+		"marked": "^18.0.5",
+		"mermaid": "^11.15.0",
+		"tailwindcss": "^4.3.1",
+		"tsx": "^4.22.0",
+		"typescript": "^6.0.3",
+		"vitest": "^4.1.8"
+	}
 }

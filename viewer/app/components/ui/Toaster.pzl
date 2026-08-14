@@ -1,0 +1,140 @@
+<puzzle-view>
+  <div
+    class={ containerClasses }
+    role="region"
+    aria-label="Notifications"
+    @pointerenter={ pauseTimers(event) }
+    @pointerleave={ resumeTimers(event) }>
+    {#for item in items}
+      <div
+        class="pointer-events-auto flex items-start gap-3 rounded-lg border bg-surface p-4 shadow-lg text-sm transition-all duration-[180ms] motion-reduce:transition-none starting:opacity-0 starting:scale-95 { item.border } {#if item.leaving}pointer-events-none opacity-0 scale-95{/if}"
+        role={ item.role }
+        aria-live={ item.ariaLive }>
+        {#case item.variant}
+          {:when 'success'}
+            <span class="mt-0.5 shrink-0 text-brand">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M5.5 8.25 7.25 10l3.25-4"/></svg>
+            </span>
+          {:when 'danger'}
+            <span class="mt-0.5 shrink-0 text-danger">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="m6 6 4 4M10 6l-4 4"/></svg>
+            </span>
+        {/case}
+
+        <div class="min-w-0 flex-1">
+          {#if item.title}
+            <div class="font-medium text-ink">{ item.title }</div>
+          {/if}
+          {#if item.message}
+            <div class="text-body {#if item.title}mt-0.5{/if}">{ item.message }</div>
+          {/if}
+        </div>
+
+        <button
+          type="button"
+          class="-m-1 shrink-0 rounded p-1 text-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 outline-ring focus-visible:outline-ring"
+          aria-label="Dismiss"
+          @click={ close(item.id) }>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="h-3.5 w-3.5" aria-hidden="true"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7"/></svg>
+        </button>
+      </div>
+    {/for}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import { getToasts, subscribe, dismiss, pauseAll, resumeAll } from './toast.js';
+
+// Toaster — the toast host. Mount it ONCE, in your app layout:
+//
+//   <Toaster/>                         bottom-right, up to 4 visible
+//   <Toaster position="top-left" maxVisible={ 3 }/>
+//
+// It renders nothing until toast() is called. The store carries no reactivity,
+// so we subscribe() in mounted() and refresh() on every change, unsubscribing
+// in destroyed(). The keyed {#for} (item.id) is what makes the enter animation
+// work: a newly-pushed toast is a genuine DOM insert, so the browser applies
+// the Tailwind `starting:` (@starting-style) from-state once and transitions to
+// rest — a reused/patched node would never re-trigger it. `leaving` toasts flip
+// to opacity-0/scale-95 over the same transition; the store keeps them ~180ms
+// (LEAVE_MS) so the exit plays before removal. `motion-reduce:transition-none`
+// honors prefers-reduced-motion (both enter and leave snap).
+//
+// Hovering anywhere over the container pauses every timer (pauseAll) and
+// leaving resumes them (resumeAll), mirroring notification-stack's hover pause.
+// Pointer (not mouse) enter/leave, gated to real mice: a touch tap fires
+// synthetic mouseenter with no matching mouseleave, which would pause every
+// toast timer forever — pointerType keeps pause-on-hover mouse-only.
+
+// Container corner + column direction. Bottom corners stack downward
+// (flex-col) and top corners upward (flex-col-reverse) so the newest toast —
+// always last in the visible slice — sits nearest the screen corner.
+const POSITION = {
+  'bottom-right': 'bottom-4 right-4 flex-col',
+  'bottom-left': 'bottom-4 left-4 flex-col',
+  'top-right': 'top-4 right-4 flex-col-reverse',
+  'top-left': 'top-4 left-4 flex-col-reverse',
+};
+
+const BORDER = {
+  default: 'border-border',
+  success: 'border-brand',
+  danger: 'border-danger',
+};
+
+export default class Toaster extends PuzzleView {
+  created() {
+    this._unsub = null;
+  }
+
+  data(params, props) {
+    const n = Number(props.maxVisible);
+    const maxVisible = Number.isFinite(n) && n >= 1 ? Math.floor(n) : 4;
+
+    const all = getToasts();
+    // Render only the newest `maxVisible`; older ones surface as these leave.
+    const items = all.slice(Math.max(0, all.length - maxVisible)).map((t) => ({
+      id: t.id,
+      title: t.title,
+      message: t.message,
+      variant: t.variant,
+      leaving: t.leaving,
+      border: BORDER[t.variant] || BORDER.default,
+      // danger asserts (role=alert ⇒ implicit assertive); the rest announce
+      // politely — mirrors notification-card's status/alert split.
+      role: t.variant === 'danger' ? 'alert' : 'status',
+      ariaLive: t.variant === 'danger' ? false : 'polite',
+    }));
+
+    return {
+      items,
+      containerClasses: [
+        'pointer-events-none fixed z-[100] flex gap-2 w-80 max-w-[calc(100vw-2rem)]',
+        POSITION[props.position] || POSITION['bottom-right'],
+        props.class || '',
+      ].join(' '),
+    };
+  }
+
+  mounted() {
+    this._unsub = subscribe(() => this.refresh());
+  }
+
+  destroyed() {
+    this._unsub?.();
+  }
+
+  events = {
+    close: (id) => dismiss(id),
+    pauseTimers: (event) => {
+      if (event.pointerType !== 'mouse') return;
+      pauseAll();
+    },
+    resumeTimers: (event) => {
+      if (event.pointerType !== 'mouse') return;
+      resumeAll();
+    },
+  };
+}
+</script>

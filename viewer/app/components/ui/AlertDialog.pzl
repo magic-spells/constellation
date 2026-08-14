@@ -1,0 +1,164 @@
+<puzzle-view>
+  <dialog
+    role="alertdialog"
+    class={ panelClass }
+    aria-labelledby={ labelledby }
+    aria-describedby={ describedby }
+    @cancel={ handleCancel(event) }>
+    {#if title}
+      <h2 id={ titleId } class="text-lg font-semibold text-ink">{ title }</h2>
+    {/if}
+    {#if description}
+      <p id={ descId } class="mt-1.5 text-sm text-muted">{ description }</p>
+    {/if}
+    <div class="mt-6 flex justify-end gap-3">
+      <button type="button" class={ cancelClass } autofocus @click={ handleCancel(event) }>
+        { cancelLabel }
+      </button>
+      <button type="button" class={ confirmClass } @click={ handleConfirm(event) }>
+        { confirmLabel }
+      </button>
+    </div>
+  </dialog>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// AlertDialog — a confirm/cancel modal for destructive or consequential actions,
+// built on the native <dialog role="alertdialog"> element. An independent thin
+// piece (NOT a composition of Dialog): it follows Dialog's native-<dialog>
+// discipline — showModal()/close() synced in mounted()/afterUpdate(), the
+// `cancel` event always preventDefault'd — but its deltas touch those internals,
+// so they live here rather than in Dialog.
+//
+// DELIBERATE DIFFERENCES FROM Dialog:
+//   - role="alertdialog" (assertive; requires an accessible name — wire `title`).
+//   - No close (X) button.
+//   - The backdrop is INERT: the backdrop-click handler is not wired at all, so
+//     clicking outside does nothing. A consequential choice must be made, not
+//     dismissed by a stray click.
+//   - Escape still cancels — a11y requires an exit. The native `cancel` event is
+//     preventDefault'd (so the browser never closes the element behind the vdom)
+//     and then routed through the SAME path as the Cancel button: props.cancel.
+//   - Initial focus lands on the Cancel button (autofocus), the safe default for
+//     a destructive prompt. showModal() honors the autofocus attribute.
+//
+// CONTROLLED BY THE PARENT. The parent owns `open` and flips it false in BOTH
+// @confirm and @cancel; AlertDialog syncs the native element to `open` in
+// mounted()/afterUpdate() (showModal when true, close when false) and never sets
+// `open` itself — it only asks the parent to confirm or cancel.
+//
+//   <AlertDialog
+//     open={ open }
+//     title="Delete this project?"
+//     description="This permanently removes the project and all its files."
+//     confirmLabel="Delete"
+//     destructive
+//     @confirm={ () => { remove(); this.setData({ open: false }); } }
+//     @cancel={ () => this.setData({ open: false }) } />
+//
+// The `destructive` boolean swaps the confirm button from Button's primary recipe
+// to its destructive recipe. The two footer buttons reuse Button.pzl's exact
+// class strings so the piece matches the rest of the library. No exit animation
+// in v1 (native close is instant) — a subtle scale+fade plays on enter, skipped
+// under prefers-reduced-motion, mirroring Dialog.
+let uid = 0;
+
+// Panel styling mirrors Dialog's, capped at max-w-md (a prompt is narrow). No
+// bare display utility on the <dialog> — the stacked block content needs none,
+// and a bare `flex` would defeat the UA `dialog:not([open]) { display: none }`
+// rule and render the closed dialog in-flow.
+const PANEL =
+  'm-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-border bg-surface p-6 ' +
+  'shadow-xl text-body overscroll-contain ' +
+  '[&::backdrop]:bg-black/50 [&::backdrop]:backdrop-blur-sm';
+
+// Button recipes copied verbatim from Button.pzl so the footer buttons render
+// identically to <Button>. BASE + size md, then the per-variant surface.
+const BTN_BASE =
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap select-none ' +
+  'rounded-lg font-medium cursor-pointer transition-colors ' +
+  'focus-visible:outline-2 focus-visible:outline-offset-2 outline-ring focus-visible:outline-ring ' +
+  'disabled:opacity-50 disabled:pointer-events-none h-9 px-4 text-sm';
+const BTN_PRIMARY = 'bg-brand text-brand-ink hover:bg-brand-dark';
+const BTN_DESTRUCTIVE = 'bg-danger text-danger-ink hover:bg-danger-dark';
+const BTN_OUTLINE =
+  'border border-border bg-surface text-ink hover:border-border-strong hover:bg-surface-sunken';
+
+export default class AlertDialog extends PuzzleView {
+  data(params, props) {
+    // Stable id generated once per instance so label/description wiring survives
+    // re-renders.
+    const id = (this._id ??= `pp-alertdialog-${++uid}`);
+    const title = props.title || '';
+    const description = props.description || '';
+    return {
+      // `open` is read imperatively in syncOpen(), not by the template — returning
+      // it keeps the afterUpdate() cycle firing when the parent flips it.
+      open: !!props.open,
+      title,
+      description,
+      titleId: `${id}-title`,
+      descId: `${id}-desc`,
+      labelledby: title ? `${id}-title` : false,
+      describedby: description ? `${id}-desc` : false,
+      panelClass: [PANEL, props.class || ''].filter(Boolean).join(' '),
+      confirmLabel: props.confirmLabel || 'Continue',
+      cancelLabel: props.cancelLabel || 'Cancel',
+      cancelClass: [BTN_BASE, BTN_OUTLINE].join(' '),
+      confirmClass: [BTN_BASE, props.destructive ? BTN_DESTRUCTIVE : BTN_PRIMARY].join(' '),
+    };
+  }
+
+  // Reconcile the native element with the controlled `open` prop. Idempotent: the
+  // dialog.open guards make repeat afterUpdate() calls safe and stop showModal()
+  // from throwing on an already-open dialog.
+  syncOpen() {
+    const dialog = this.element;
+    if (!dialog) return;
+    const shouldOpen = !!this.props.open;
+    if (shouldOpen && !dialog.open) {
+      dialog.showModal();
+      this.playEnter(dialog);
+    } else if (!shouldOpen && dialog.open) {
+      dialog.close();
+    }
+  }
+
+  playEnter(dialog) {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    dialog.animate(
+      [
+        { opacity: 0, transform: 'scale(0.96)' },
+        { opacity: 1, transform: 'scale(1)' },
+      ],
+      { duration: 180, easing: 'ease-out' }
+    );
+  }
+
+  mounted() {
+    this.syncOpen();
+  }
+
+  afterUpdate() {
+    this.syncOpen();
+  }
+
+  events = {
+    // Escape (native `cancel`) and the Cancel button both land here. Always
+    // preventDefault the native cancel so the browser can't close the element
+    // behind the vdom's back, then ask the parent to cancel. a11y requires an
+    // exit, so — unlike a plain non-dismissible dialog — this is never swallowed.
+    handleCancel: (event) => {
+      if (event?.type === 'cancel') event.preventDefault();
+      const { cancel } = this.props;
+      if (typeof cancel === 'function') cancel(event);
+    },
+    handleConfirm: (event) => {
+      const { confirm } = this.props;
+      if (typeof confirm === 'function') confirm(event);
+    },
+  };
+}
+</script>

@@ -1,0 +1,59 @@
+<puzzle-view>
+  <div class={ classes }>
+    <div class="mb-4 flex items-center justify-center text-muted [&>svg]:size-10 empty:hidden">
+      <Slot name="icon"/>
+    </div>
+    {#if title}
+      <p class="font-medium text-ink">{ title }</p>
+    {/if}
+    {#if description}
+      <p class="mt-1.5 max-w-sm text-sm text-muted">{ description }</p>
+    {/if}
+    <div class="mt-6 flex flex-wrap items-center justify-center gap-2 empty:hidden">
+      <Slot/>
+    </div>
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// Empty — an empty-state block for "no results / nothing here yet" moments.
+// A centered, muted column: an optional icon, a title, a description, and a
+// row of action buttons. Everything is optional and every gap collapses when
+// its slot is unused (`empty:hidden` on the icon and actions wrappers, `{#if}`
+// on the text), so the same piece reads correctly whether it's icon+title+CTA
+// or just a bare line of copy.
+//
+// The named `slot:icon` takes a STATIC inline SVG from the consumer — its
+// wrapper tints it `text-muted` (the SVG should stroke/fill `currentColor`)
+// and sizes a bare `<svg>` to size-10 as a sensible default. When no icon is
+// slotted the wrapper is `:empty` and disappears, taking its margin with it.
+// The default `<Slot/>` holds action buttons; leave it empty for a static
+// empty-state. `class` is appended to the root last, so callers can widen the
+// column, change padding, or add a border.
+//
+//   <Empty title="No results" description="Try adjusting your filters." />
+//
+//   <Empty title="No projects yet"
+//          description="Create your first project to get started.">
+//     <svg slot="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+//          stroke-width="1.5" aria-hidden="true">
+//       <rect x="3" y="4" width="18" height="16" rx="2" />
+//       <path d="M3 9h18" stroke-linecap="round" />
+//     </svg>
+//     <Button @press={ create }>New project</Button>
+//     <Button variant="outline" @press={ importItems }>Import</Button>
+//   </Empty>
+const BASE = 'flex flex-col items-center justify-center px-6 py-12 text-center';
+
+export default class Empty extends PuzzleView {
+  data(params, props) {
+    return {
+      classes: [BASE, props.class || ''].join(' '),
+      title: props.title || '',
+      description: props.description || '',
+    };
+  }
+}
+</script>

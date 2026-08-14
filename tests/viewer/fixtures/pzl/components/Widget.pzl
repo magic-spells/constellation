@@ -1,0 +1,13 @@
+<puzzle-view>
+	<span class="widget">{ label }</span>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+export default class Widget extends PuzzleView {
+	data(params, props) {
+		return { label: props.label || 'widget' };
+	}
+}
+</script>

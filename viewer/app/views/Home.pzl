@@ -1,0 +1,306 @@
+<puzzle-view>
+  <div class="home">
+    {#if sync}
+      <section class="sync-dash">
+        <div class={ syncHeadClass }>
+          <span class="sd-dot"></span>
+          <span class="sd-state">{ syncLabel }</span>
+          <span class="sd-meta">{ syncMeta }</span>
+        </div>
+        {#if activity.length > 0}
+          <ul class="activity">
+            {#for item in activity}
+              <li key={ item.key } class={ item.rowClass }>
+                <span class="ac-when">{ item.when }</span>
+                <span class="ac-subject">{ item.subject }</span>
+                {#if item.isSyncPoint}<span class="ac-tag">sync</span>{/if}
+                {#if item.cards.length > 0}
+                  <span class="ac-cards">
+                    {#for chip in item.cards}
+                      <a key={ chip.handle } class="ac-card" href="{ chip.path | link }">{ chip.handle }</a>
+                    {/for}
+                    {#if item.more}<span class="ac-more">{ item.more }</span>{/if}
+                  </span>
+                {/if}
+              </li>
+            {/for}
+          </ul>
+        {/if}
+      </section>
+    {/if}
+
+    <div class="stats">
+      {#for stat in stats}
+        <div key={ stat.label } class={ stat.class }>
+          <span class="n">{ stat.n }</span>
+          <span class="label">{ stat.label }</span>
+        </div>
+      {/for}
+    </div>
+
+    {#if hasPlanCard}
+      <Editable multiline value={ planBody } ignore="a, .mermaid-block" @save={ savePlanBody }>
+        <MarkdownBlock src={ planBody } />
+      </Editable>
+    {:else}
+      <p class="empty">No plan.md yet — run `constellation init`.</p>
+    {/if}
+
+    <ConnectedRepos repos={ repos } />
+
+    <div class="home-section">
+      <h3>Browse</h3>
+      <div class="tiles">
+        {#for tile in tiles}
+          <a key={ tile.type } class="tile" href="{ tile.path | link }" style={ tile.style }>
+            <span class="star">✦</span><span class="t-label">{ tile.label }</span>
+            <span class="t-count">{ tile.count }</span>
+          </a>
+        {/for}
+      </div>
+    </div>
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import ConnectedRepos from '../components/ConnectedRepos.pzl';
+import Editable from '../components/Editable.pzl';
+import MarkdownBlock from '../components/MarkdownBlock.pzl';
+import { savePatch } from '../lib/edit.js';
+import { relTime, SYNC_META } from '../lib/format.js';
+import { planIndex } from '../lib/plan-index.js';
+import { GROUPS, hrefForHandle, TYPE_META } from '../lib/types.js';
+
+// Home — the Overview dashboard, ported from the Svelte viewer's Home.svelte:
+// the git-derived sync panel (state, marker age, recent plan activity), a stats
+// row, PLAN-PROJECT's markdown body, the connected-repo list, and a tile per
+// non-empty card type.
+//
+// Everything comes from the store, so `data()` auto-subscribes: the 20s /api/sync
+// poll and the SSE plan reload both re-run it. `no-git` plans hide the sync panel
+// entirely (there is no freshness to report), matching SyncBadge in the topbar.
+//
+// PLAN-PROJECT's body is editable in place (the Svelte viewer's behaviour):
+// saving PATCHes plan.md's body with the record's mtime as the optimistic-lock
+// baseline. On a read-only plan Editable renders as inert text.
+
+/** `connected_repos:` entries, minus anything missing a name or a path. */
+function reposOf(card) {
+	const raw = card?.frontmatter?.connected_repos;
+	if (!Array.isArray(raw)) return [];
+	return raw
+		.filter((entry) => !!entry && typeof entry === 'object')
+		.map((entry) => ({
+			name: String(entry.name ?? ''),
+			path: String(entry.path ?? ''),
+			description: typeof entry.description === 'string' ? entry.description : '',
+		}))
+		.filter((entry) => entry.name && entry.path);
+}
+
+/** The one-line detail under the sync state: marker age, drift, dirtiness. */
+function syncMetaLine(sync) {
+	let line = sync.marker ? `last synced ${relTime(sync.marker.synced_at)}` : 'no sync point yet';
+
+	if (sync.state === 'drifted') {
+		if (sync.marker_error) {
+			line += ` · ${sync.marker_error}`;
+		} else {
+			const commits = sync.code_commits_since_marker ?? 0;
+			const changes = sync.plan_changes_since_marker ?? 0;
+			line += ` · ${commits} code commit${commits === 1 ? '' : 's'} / ${changes} plan change${changes === 1 ? '' : 's'} since`;
+		}
+	}
+
+	if (sync.plan_dirty) line += ' · uncommitted plan edits';
+	return line;
+}
+
+export default class Home extends PuzzleView {
+	data() {
+		const store = this.ctx.store;
+		const plan = store.findOne('plan', 'plan');
+		const index = planIndex(store);
+		const planCard = index.projectCard;
+		const errors = plan?.errors ?? [];
+		const warnings = plan?.warnings ?? [];
+
+		const stats = [
+			{ label: 'cards', n: index.byHandle.size, class: 'stat' },
+			{ label: 'connections', n: index.connections.length, class: 'stat' },
+			errors.length === 0
+				? { label: 'integrity', n: '✓', class: 'stat good' }
+				: { label: 'errors', n: errors.length, class: 'stat bad' },
+		];
+		if (warnings.length > 0) stats.push({ label: 'warnings', n: warnings.length, class: 'stat' });
+
+		const tiles = GROUPS.flatMap((group) =>
+			Object.entries(TYPE_META)
+				.filter(([, meta]) => meta.group === group)
+				.map(([type, meta]) => ({ type, meta, count: index.byType.get(type)?.length ?? 0 }))
+				.filter((tile) => tile.count > 0),
+		).map(({ type, meta, count }, i) => ({
+			type,
+			label: meta.label,
+			count: `${count} card${count === 1 ? '' : 's'}`,
+			path: `/${meta.folder}`,
+			style: `--c: var(--t-${type}); --i: ${i}`,
+		}));
+
+		// `no-git` has no freshness verdict — the whole panel stays hidden.
+		const sync = plan?.sync && plan.sync.state !== 'no-git' ? plan.sync : null;
+
+		return {
+			sync: !!sync,
+			syncLabel: sync ? SYNC_META[sync.state]?.label ?? '' : '',
+			syncMeta: sync ? syncMetaLine(sync) : '',
+			syncHeadClass: sync ? `sd-head ${sync.state}` : 'sd-head',
+			activity: (sync?.activity ?? []).map((entry, key) => ({
+				key,
+				when: relTime(entry.date),
+				subject: entry.subject,
+				isSyncPoint: !!entry.is_sync_point,
+				rowClass: entry.is_sync_point ? 'ac-row sync' : 'ac-row',
+				cards: (entry.cards ?? []).slice(0, 4).map((handle) => ({
+					handle,
+					path: hrefForHandle(handle),
+				})),
+				more: (entry.cards?.length ?? 0) > 4 ? `+${entry.cards.length - 4}` : '',
+			})),
+			stats,
+			hasPlanCard: !!planCard,
+			planBody: planCard?.body ?? '',
+			repos: reposOf(planCard),
+			tiles,
+		};
+	}
+
+	events = {
+		savePlanBody: (body) => {
+			const card = planIndex(this.ctx.store).projectCard;
+			if (!card) return;
+			void savePatch(this.ctx.store, card.handle, { body }, card.mtime);
+		},
+	};
+}
+</script>
+
+<style>
+.home { width: min(100%, 62rem); margin: 0 auto; padding: 2rem clamp(1.25rem, 4vw, 3.5rem) 4rem; }
+
+@keyframes cst-rise {
+	from { opacity: 0; transform: translateY(6px); }
+	to { opacity: 1; transform: none; }
+}
+
+/* sync dashboard */
+.sync-dash {
+	margin: 0 0 2rem;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	background: var(--color-surface);
+	padding: 1.1rem 1.4rem;
+	animation: cst-rise 0.35s ease both;
+}
+.sd-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.sd-head .sd-dot { flex: none; width: 9px; height: 9px; border-radius: 99px; background: var(--color-faint); }
+.sd-head.in-sync .sd-dot { background: var(--color-success); }
+.sd-head.drifted .sd-dot { background: var(--color-warning); }
+.sd-head.dirty .sd-dot { background: var(--color-brand); }
+.sd-state { color: var(--color-ink); font-family: var(--font-display, var(--font-sans)); font-size: 0.98rem; font-weight: 600; }
+.sd-head.in-sync .sd-state { color: var(--color-success); }
+.sd-head.drifted .sd-state { color: var(--color-warning); }
+.sd-head.dirty .sd-state { color: var(--color-brand); }
+.sd-meta { color: var(--color-muted); font-family: var(--font-mono); font-size: 0.76rem; }
+
+.activity {
+	display: flex;
+	flex-direction: column;
+	gap: 0.1rem;
+	margin: 1rem 0 0;
+	border-top: 1px solid var(--color-border);
+	padding: 0.7rem 0 0;
+	list-style: none;
+}
+.activity .ac-row { display: flex; align-items: baseline; gap: 0.7rem; min-width: 0; padding: 0.32rem 0; font-size: 0.85rem; }
+.activity .ac-when { flex: none; width: 5.5rem; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
+.activity .ac-subject { flex: 1; overflow: hidden; min-width: 0; color: var(--color-body); text-overflow: ellipsis; white-space: nowrap; }
+.activity .ac-row.sync .ac-subject { color: var(--color-muted); }
+.activity .ac-tag {
+	flex: none;
+	border: 1px solid color-mix(in oklab, var(--color-brand) 40%, transparent);
+	border-radius: 99px;
+	padding: 0.05rem 0.45rem;
+	color: var(--color-brand);
+	font-family: var(--font-mono);
+	font-size: 0.6rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.activity .ac-cards { flex: none; display: inline-flex; gap: 0.3rem; }
+.activity .ac-card {
+	border: 1px solid var(--color-border);
+	border-radius: 5px;
+	padding: 0.04rem 0.4rem;
+	color: var(--color-faint);
+	font-family: var(--font-mono);
+	font-size: 0.66rem;
+}
+.activity .ac-card:hover { border-color: var(--color-border-strong); color: var(--color-muted); }
+.activity .ac-more { align-self: center; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.66rem; }
+
+/* stats row */
+.stats {
+	display: flex;
+	gap: 2.4rem;
+	margin: 0 0 2.4rem;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	background: var(--color-surface);
+	padding: 1.1rem 1.4rem;
+}
+.stats .stat .n { display: block; color: var(--color-ink); font-family: var(--font-display, var(--font-sans)); font-size: 1.5rem; font-weight: 600; }
+.stats .stat .label { color: var(--color-muted); font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.stats .stat.bad .n { color: var(--color-danger); }
+.stats .stat.good .n { color: var(--color-success); }
+
+.home .empty { color: var(--color-faint); font-size: 0.88rem; font-style: italic; }
+
+/* section frame — shared with ConnectedRepos.pzl */
+.home-section { margin: 2.2rem 0; }
+.home-section > h3 {
+	margin: 0 0 0.8rem;
+	border-bottom: 1px solid var(--color-border);
+	padding-bottom: 0.45rem;
+	color: var(--color-muted);
+	font-family: var(--font-mono);
+	font-size: 0.76rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+/* type tiles */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.7rem; margin-top: 1rem; }
+.tile {
+	display: block;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	background: var(--color-surface);
+	padding: 0.85rem 1rem;
+	color: var(--color-body);
+	animation: cst-rise 0.35s ease both;
+	animation-delay: calc(var(--i) * 22ms);
+	transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.tile:hover { transform: translateY(-2px); border-color: color-mix(in oklab, var(--c) 45%, var(--color-border)); }
+.tile .star { color: var(--c, var(--color-brand)); font-size: 0.8rem; }
+.tile .t-label { margin-left: 0.4rem; color: var(--color-ink); font-size: 0.86rem; font-weight: 600; }
+.tile .t-count { display: block; margin-top: 0.15rem; color: var(--color-muted); font-family: var(--font-mono); font-size: 0.72rem; }
+
+@media (max-width: 640px) {
+	.home { padding-inline: 1rem; }
+	.stats { flex-wrap: wrap; gap: 1.2rem 2rem; }
+}
+</style>

@@ -1,0 +1,90 @@
+<puzzle-view>
+  <div class={ rootClass }>
+    <div class="relative">
+      <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted" aria-hidden="true">
+        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.3-4.3"/>
+        </svg>
+      </span>
+      <input
+        id={ id }
+        type="search"
+        class={ inputClass }
+        value={ value }
+        placeholder={ placeholder }
+        name={ name }
+        disabled={ disabled }
+        @input={ handleInput(event) }
+        @keydown:enter={ handleSubmit(event) } />
+      {#if hasValue}
+        <button
+          type="button"
+          class="absolute inset-y-0 right-0 flex items-center rounded-r-lg px-3 text-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 outline-ring focus-visible:outline-ring disabled:opacity-50 disabled:pointer-events-none"
+          aria-label="Clear search"
+          disabled={ disabled }
+          @click={ handleClear(event) }>
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18"/>
+            <path d="m6 6 12 12"/>
+          </svg>
+        </button>
+      {/if}
+    </div>
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// SearchField — a type="search" input with a leading (decorative) magnifier and
+// a trailing clear button that appears only while there's a value. Clearing
+// fires `change('', event)` and refocuses the input; pressing Enter fires
+// `submit(value, event)`. The native WebKit cancel button is suppressed so the
+// custom clear button is the only one. Value is controlled via `@change`.
+//
+//   <SearchField value={ q } @change={ setQuery } @submit={ runSearch } />
+//   <SearchField value={ q } placeholder="Filter results…" @change={ setQuery } />
+let uid = 0;
+
+const INPUT_CLASS =
+  'h-9 w-full rounded-lg border border-border bg-surface pl-9 pr-9 text-sm text-ink placeholder:text-muted ' +
+  'transition-colors ' +
+  'focus-visible:outline-2 focus-visible:outline-offset-2 outline-ring focus-visible:outline-ring ' +
+  'disabled:opacity-50 ' +
+  '[&::-webkit-search-cancel-button]:appearance-none';
+
+export default class SearchField extends PuzzleView {
+  data(params, props) {
+    const value = props.value ?? '';
+    return {
+      id: props.id || (this._fallbackId ??= `pp-search-${++uid}`),
+      value,
+      placeholder: props.placeholder || 'Search…',
+      name: props.name,
+      disabled: !!props.disabled,
+      hasValue: String(value).length > 0,
+      rootClass: props.class || '',
+      inputClass: INPUT_CLASS,
+    };
+  }
+
+  events = {
+    handleInput: (event) => {
+      const { change } = this.props;
+      if (typeof change === 'function') change(event.target.value, event);
+    },
+    handleSubmit: (event) => {
+      const { submit } = this.props;
+      if (typeof submit === 'function') submit(event.target.value, event);
+    },
+    handleClear: (event) => {
+      // The clear button and input share the .relative wrapper.
+      const input = event.currentTarget.parentElement?.querySelector('input');
+      const { change } = this.props;
+      if (typeof change === 'function') change('', event);
+      if (input) input.focus();
+    },
+  };
+}
+</script>

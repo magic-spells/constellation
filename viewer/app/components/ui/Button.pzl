@@ -1,0 +1,71 @@
+<puzzle-view>
+  <button
+    class={ classes }
+    type={ type }
+    disabled={ disabled }
+    aria-busy={ busy }
+    @click={ handleClick }>
+    {#if loading}
+      <span class="inline-block size-4 animate-spin rounded-full border-2 border-current/30 border-t-current" aria-hidden="true"></span>
+    {/if}
+    <Slot/>
+  </button>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// Button — the puzzle-pieces exemplar. Variants and sizes are plain lookup
+// maps composed into one class string in data(); a `class` prop appends the
+// caller's utilities. `loading` disables the button and prepends a
+// currentColor spinner ring, so it reads correctly on every variant.
+//
+//   <Button @press={ save }>Save</Button>
+//   <Button variant="destructive" size="sm" @press={ remove }>Delete</Button>
+//   <Button variant="outline" loading={ saving }>Saving…</Button>
+const BASE =
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap select-none ' +
+  'rounded-lg font-medium cursor-pointer transition-colors ' +
+  'focus-visible:outline-2 focus-visible:outline-offset-2 outline-ring focus-visible:outline-ring ' +
+  'disabled:opacity-50 disabled:pointer-events-none';
+
+const VARIANT = {
+  primary: 'bg-brand text-brand-ink hover:bg-brand-dark',
+  secondary: 'bg-surface-sunken text-ink hover:bg-border',
+  outline: 'border border-border bg-surface text-ink hover:border-border-strong hover:bg-surface-sunken',
+  ghost: 'text-body hover:bg-surface-sunken hover:text-ink',
+  destructive: 'bg-danger text-danger-ink hover:bg-danger-dark',
+};
+
+const SIZE = {
+  sm: 'h-8 px-3 text-sm',
+  md: 'h-9 px-4 text-sm',
+  lg: 'h-10 px-5 text-base',
+};
+
+export default class Button extends PuzzleView {
+  data(params, props) {
+    const loading = !!props.loading;
+    return {
+      classes: [
+        BASE,
+        VARIANT[props.variant] || VARIANT.primary,
+        SIZE[props.size] || SIZE.md,
+        props.class || '',
+      ].join(' '),
+      type: props.type || 'button',
+      disabled: !!props.disabled || loading,
+      busy: loading ? 'true' : false,
+      loading,
+    };
+  }
+
+  events = {
+    handleClick: (event) => {
+      if (this.getData().disabled) return;
+      const { press } = this.props;
+      if (typeof press === 'function') press(event);
+    },
+  };
+}
+</script>

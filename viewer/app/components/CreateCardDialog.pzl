@@ -1,0 +1,210 @@
+<puzzle-view>
+  <span class="create-dialog">
+    <Dialog
+      open={ open }
+      size="sm"
+      title={ title }
+      description="Handles are uppercase. The type prefix is fixed by the folder you are in."
+      @close={ requestClose }>
+
+      <label class="cd-field">
+        <span class="cd-label">Handle</span>
+        <span class="cd-handle">
+          <span class="cd-prefix">{ prefix }</span>
+          <input
+            ref="suffix"
+            class="cd-input cd-mono"
+            value={ suffix }
+            placeholder="TICKETS"
+            spellcheck="false"
+            autocomplete="off"
+            @input={ onSuffix(event) }
+            @keydown={ onKey(event) }/>
+        </span>
+      </label>
+
+      <label class="cd-field">
+        <span class="cd-label">Name <span class="cd-hint">optional</span></span>
+        <input
+          class="cd-input"
+          value={ name }
+          placeholder="What this card is"
+          @input={ onName(event) }
+          @keydown={ onKey(event) }/>
+      </label>
+
+      {#if error}
+        <p class="cd-error" role="alert">{ error }</p>
+      {:else}
+        <p class="cd-preview">Creates <b>{ preview }</b></p>
+      {/if}
+
+      <Button slot="footer" variant="ghost" @press={ requestClose }>Cancel</Button>
+      <Button slot="footer" loading={ busy } @press={ submit }>Create card</Button>
+    </Dialog>
+  </span>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Button from './ui/Button.pzl';
+import Dialog from './ui/Dialog.pzl';
+import { saveNewCard } from '../lib/edit.js';
+import { hrefForHandle, TYPE_META } from '../lib/types.js';
+
+// CreateCardDialog — "+ new <type>" from the card list. The TYPE is fixed by
+// the list you opened it from (a card's type is its handle prefix, so the type
+// and the handle can't disagree); the author supplies only the rest of the
+// handle, plus an optional display name.
+//
+// The suffix is normalised the way the Svelte viewer's inline ghost row did it:
+// trimmed, upper-cased, whitespace collapsed to dashes. What survives must
+// match /^[A-Z0-9][A-Z0-9-]*$/ — the server's own handle grammar, checked here
+// first so a typo costs no round trip.
+//
+// Props: open, type ('API', 'DB', …). Callback: @close — the parent owns `open`
+// (AppShell, which also owns the list that asks for it).
+//
+// The server is still the authority: INVALID_HANDLE and CARD_EXISTS come back
+// as inline errors under the field (not toasts) because they are about the
+// input the user is still looking at. Everything else toasts through lib/edit.
+// On success the plan reloads and we navigate to the new card.
+
+const QUIET = ['INVALID_HANDLE', 'CARD_EXISTS'];
+const HANDLE_PART = /^[A-Z0-9][A-Z0-9-]*$/;
+
+export function normalizeSuffix(raw) {
+	return String(raw ?? '')
+		.trim()
+		.toUpperCase()
+		.replace(/\s+/g, '-');
+}
+
+export default class CreateCardDialog extends PuzzleView {
+	created() {
+		this._suffix = '';
+		this._name = '';
+		this._error = '';
+		this._busy = false;
+		this._wasOpen = false;
+	}
+
+	data(params, props) {
+		const type = props.type || '';
+		const open = !!props.open;
+
+		// Each opening starts clean — the dialog is a one-shot form, not a draft
+		// the user comes back to.
+		if (open && !this._wasOpen) {
+			this._suffix = '';
+			this._name = '';
+			this._error = '';
+			this._busy = false;
+		}
+		this._wasOpen = open;
+
+		const label = TYPE_META[type]?.label ?? type;
+		const suffix = normalizeSuffix(this._suffix);
+
+		return {
+			open,
+			type,
+			prefix: type ? `${type}-` : '',
+			title: type ? `New ${label.toLowerCase().replace(/s$/, '')} card` : 'New card',
+			suffix: this._suffix,
+			name: this._name,
+			error: this._error,
+			busy: this._busy,
+			preview: suffix ? `${type}-${suffix}` : `${type}-…`,
+		};
+	}
+
+	// The native <dialog> takes focus on showModal(); put the caret in the field
+	// the author has to fill in.
+	afterUpdate() {
+		if (!this.props.open) {
+			this._focused = false;
+			return;
+		}
+		if (this._focused) return;
+		this._focused = true;
+		this.refs.suffix?.focus();
+	}
+
+	async _submit() {
+		if (this._busy) return;
+		const type = this.props.type;
+		const suffix = normalizeSuffix(this._suffix);
+
+		if (!type) return;
+		if (!suffix) return this._fail('Enter a handle.');
+		if (!HANDLE_PART.test(suffix)) {
+			return this._fail('Handles use A–Z, 0–9 and dashes only.');
+		}
+
+		const handle = `${type}-${suffix}`;
+		const payload = { handle };
+		const name = this._name.trim();
+		if (name) payload.name = name;
+
+		this._busy = true;
+		this._error = '';
+		this.refresh();
+
+		const result = await saveNewCard(this.ctx.store, payload, QUIET);
+		this._busy = false;
+
+		if (!result.ok) {
+			return this._fail(result.error?.message || 'Could not create the card.');
+		}
+
+		this._error = '';
+		this.refresh();
+		this.props.close?.();
+		void this.ctx.router.push(hrefForHandle(handle));
+	}
+
+	_fail(message) {
+		this._error = message;
+		this.refresh();
+	}
+
+	events = {
+		// Typing refreshes so the handle preview keeps up (and clears a stale
+		// server error); the field is controlled by `_suffix`, so the caret stays.
+		onSuffix: (event) => {
+			this._suffix = event.target.value;
+			this._error = '';
+			this.refresh();
+		},
+		onName: (event) => {
+			this._name = event.target.value;
+		},
+		onKey: (event) => {
+			if (event.key !== 'Enter') return;
+			event.preventDefault();
+			void this._submit();
+		},
+		submit: () => {
+			void this._submit();
+		},
+		requestClose: () => this.props.close?.(),
+	};
+}
+</script>
+
+<style>
+.cd-field { display: block; margin-bottom: 0.9rem; }
+.cd-label { display: block; margin-bottom: 0.3rem; color: var(--color-muted); font-size: 0.76rem; font-weight: 600; letter-spacing: 0.04em; }
+.cd-hint { color: var(--color-faint); font-weight: 400; }
+.cd-handle { display: flex; align-items: center; gap: 0; border: 1px solid var(--color-border); border-radius: 0.5rem; background: var(--color-surface-sunken); padding-left: 0.6rem; }
+.cd-prefix { color: var(--color-muted); font-family: var(--font-mono); font-size: 0.85rem; }
+.cd-input { width: 100%; border: 1px solid var(--color-border); border-radius: 0.5rem; background: var(--color-surface-sunken); padding: 0.45rem 0.6rem; color: var(--color-ink); font-size: 0.88rem; outline: none; }
+.cd-input:focus-visible { border-color: var(--color-ring); box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-ring) 22%, transparent); }
+.cd-handle .cd-input { border: none; background: transparent; padding-left: 0; }
+.cd-handle:focus-within { border-color: var(--color-ring); box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-ring) 22%, transparent); }
+.cd-mono { font-family: var(--font-mono); text-transform: uppercase; }
+.cd-preview { color: var(--color-faint); font-family: var(--font-mono); font-size: 0.75rem; }
+.cd-preview b { color: var(--color-muted); font-weight: 600; }
+.cd-error { color: var(--color-danger); font-size: 0.78rem; }
+</style>

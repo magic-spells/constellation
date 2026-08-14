@@ -1,0 +1,93 @@
+<puzzle-view>
+  <div class="contents">
+    {#if visible}
+      <a
+        href={ homeHref }
+        title="Plan freshness — derived live from git. Click for the activity dashboard."
+        class="inline-flex rounded-full outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+        <Badge variant={ variant } class={ tint }>
+          <span aria-hidden="true">{ icon }</span>
+          <span>{ label }</span>
+          {#if detail}<span class="font-normal opacity-70">{ detail }</span>{/if}
+        </Badge>
+      </a>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Badge from './ui/Badge.pzl';
+import { relTime } from '../lib/format.js';
+
+// SyncBadge — the topbar freshness pill, ported from the Svelte viewer's
+// SyncPill.svelte. It reads the `sync` object the plan singleton carries
+// (GET /api/sync, refreshed every 20s by lib/api.js `startLive`) and renders
+// one Badge whose tint encodes the state. Clicking it goes to the Overview
+// dashboard, which shows the full sync panel.
+//
+// Reactivity: `data()` queries the store, so the plan record's next upsert
+// re-runs it — no polling or subscription of our own.
+//
+// `no-git` (and a missing sync object, i.e. the request failed) render nothing:
+// a plan outside a git repo has no freshness to report.
+
+// Glyph + label per state — the same pairs the Svelte viewer used, so the two
+// read identically while both exist.
+const META = {
+	'in-sync': { icon: '✓', label: 'In sync' },
+	drifted: { icon: '⚠', label: 'Drifted' },
+	dirty: { icon: '●', label: 'Uncommitted edits' },
+	'never-synced': { icon: '○', label: 'Not synced' },
+};
+
+// Badge exposes brand/danger/outline/default variants only, so success and
+// warning arrive as token utilities. The `!` suffix is load-bearing: without it
+// these would race Badge's own `bg-*`/`text-*` for source order.
+const TINT = {
+	'in-sync': 'bg-success-tint! text-success!',
+	drifted: 'bg-warning-tint! text-warning!',
+	dirty: '',
+	'never-synced': 'text-muted!',
+};
+
+const VARIANT = {
+	'in-sync': 'default',
+	drifted: 'default',
+	dirty: 'brand',
+	'never-synced': 'outline',
+};
+
+/** Secondary text: what drifted, or how long ago the sync point was stamped. */
+function detailFor(sync) {
+	if (sync.state === 'drifted') {
+		if (sync.marker_error) return 'marker unreachable';
+		const parts = [];
+		const commits = sync.code_commits_since_marker ?? 0;
+		const cards = sync.plan_changes_since_marker ?? 0;
+		if (commits > 0) parts.push(`${commits} commit${commits === 1 ? '' : 's'} behind`);
+		if (cards > 0) parts.push(`${cards} card${cards === 1 ? '' : 's'} ahead`);
+		return parts.join(' · ');
+	}
+	if (sync.state === 'in-sync' && sync.marker) return relTime(sync.marker.synced_at);
+	return '';
+}
+
+export default class SyncBadge extends PuzzleView {
+	data() {
+		const sync = this.ctx.store.findOne('plan', 'plan')?.sync ?? null;
+		const meta = sync ? META[sync.state] : null;
+		if (!meta) return { visible: false };
+
+		return {
+			visible: true,
+			icon: meta.icon,
+			label: meta.label,
+			detail: detailFor(sync),
+			variant: VARIANT[sync.state],
+			tint: TINT[sync.state],
+			homeHref: this.ctx.router.url('/'),
+		};
+	}
+}
+</script>
