@@ -1,0 +1,88 @@
+<puzzle-view>
+  <section class="panel panel-release">
+    <h3>Release</h3>
+    <p class="rel-versions">
+      {#if latestTag}<span class="rel-tag">{ latestTag } tagged</span>{/if}
+      {#if packageVersion}<span class="rel-pkg">{ packageVersion } in package.json</span>{/if}
+      {#if noVersions}<span class="rel-none">no tags yet</span>{/if}
+    </p>
+    {#if current}
+      <a class="rel-name" href="{ current.path | link }">✦ { current.name }</a>
+      {#if hasFeatures}
+        <div class="rel-progress"><div class="rel-bar" style={ barStyle }></div></div>
+        <p class="rel-count">{ current.shippedCount } of { current.totalCount } features shipped</p>
+        <ul class="rel-features">
+          {#for f in current.features}
+            <li key={ f.handle }>
+              <a href="{ f.path | link }">{ f.name }</a>
+              <Badge variant={ f.statusVariant } class={ f.statusTint }>{ f.status }</Badge>
+            </li>
+          {/for}
+        </ul>
+      {:else}
+        <p class="panel-empty">No FEATURE cards target this release yet.</p>
+      {/if}
+    {:else}
+      <p class="panel-empty">No RELEASE cards yet — a RELEASE marks a version milestone; FEATURE cards target it via <code>release:</code>.</p>
+    {/if}
+  </section>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Badge from './ui/Badge.pzl';
+
+// ReleasePanel — the release the project is currently pushing on, with the two
+// version numbers the repo itself reports (newest git tag, package.json).
+// Presentational only: one `model` prop, shaped by `releaseModel()` in
+// ../lib/dashboard.js.
+//
+// Unlike DriftPanel this always renders: with no RELEASE cards the empty state
+// teaches what a RELEASE card is for.
+
+export default class ReleasePanel extends PuzzleView {
+	data(params, props) {
+		const model = props.model ?? {};
+		const latestTag = model.latestTag ?? '';
+		const packageVersion = model.packageVersion ?? '';
+		const raw = model.current ?? null;
+
+		const current = raw
+			? {
+					handle: raw.handle ?? '',
+					path: raw.path ?? '',
+					name: raw.name ?? '',
+					version: raw.version ?? '',
+					features: Array.isArray(raw.features) ? raw.features : [],
+					shippedCount: raw.shippedCount ?? 0,
+					totalCount: raw.totalCount ?? 0,
+					pct: raw.pct ?? 0,
+				}
+			: null;
+
+		return {
+			latestTag,
+			packageVersion,
+			noVersions: !latestTag && !packageVersion,
+			current,
+			hasFeatures: (current?.totalCount ?? 0) > 0,
+			barStyle: `width: ${current?.pct ?? 0}%`,
+		};
+	}
+}
+</script>
+
+<style>
+.rel-versions { display: flex; flex-wrap: wrap; gap: 0.7rem; margin: 0 0 0.7rem; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
+.rel-name { display: inline-block; margin-bottom: 0.6rem; color: var(--color-ink); font-size: 0.95rem; font-weight: 600; }
+.rel-name:hover { text-decoration: underline; }
+
+.rel-progress { overflow: hidden; height: 6px; border-radius: 99px; background: var(--color-surface-sunken, var(--color-border)); }
+.rel-bar { height: 100%; border-radius: 99px; background: var(--color-brand); transition: width 0.3s ease; }
+.rel-count { margin: 0.4rem 0 0.7rem; color: var(--color-muted); font-family: var(--font-mono); font-size: 0.72rem; }
+
+.rel-features { display: flex; flex-direction: column; gap: 0.1rem; margin: 0; padding: 0; list-style: none; }
+.rel-features li { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; min-width: 0; padding: 0.28rem 0; }
+.rel-features li a { overflow: hidden; min-width: 0; color: var(--color-body); font-size: 0.85rem; text-overflow: ellipsis; white-space: nowrap; }
+.rel-features li a:hover { color: var(--color-ink); text-decoration: underline; }
+</style>
