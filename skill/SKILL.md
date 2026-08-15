@@ -90,10 +90,10 @@ connected at all (below).
   `referenced_by` — the cards that still point at the deleted handle, now dangling E005
   errors. Fix those references (usually `remove_connection` or an `update_card` field
   patch) in the same pass.
-- **`remove_connection` only strips the `connections:` list.** If the edge also lives in a
-  handle-shaped frontmatter field, a `[[link]]`, or a mermaid node ID, the cards stay
-  connected — the tool tells you which source remains; clear it with `edit_section` or a
-  field patch.
+- **`remove_connection` only strips the `connections:` list.** If the edge is also declared
+  by a handle-shaped value in another frontmatter field, the cards stay connected — the tool
+  tells you which source remains; clear it with a field patch. A leftover `[[link]]` or
+  mermaid node ID never keeps them connected.
 - **Verify:** `npx constellation lint` (errors break the graph and must be fixed; warnings
   are quality signals). `check_integrity` runs the same checks plus orphans.
 
@@ -116,11 +116,9 @@ Retrieval defaults are lean, and every default is a token decision:
 
 - **Summaries unless you name the card.** Full content is for cards you asked for, not for
   everything within two hops of them.
-- **Walks travel structured edges.** `traverse` and `assemble` default to
-  `edges: "structured"` — `connections:` entries and handle-shaped frontmatter values. So a
-  relationship you want an agent to *follow* belongs in `connections:`; `[[links]]` and
-  mermaid node IDs stay perfectly good as aspirational pointers and still show on the card,
-  but they only steer a walk under `edges: "both"` (or `"prose"`).
+- **Walks travel the connection graph**, which is frontmatter-derived (see *Connections*).
+  `traverse` and `assemble` follow the relationships you declared; a `[[link]]` steers
+  nothing.
 - **`assemble` returns an index.** `hydration: "index"` (the default) gives units, seeds,
   bound paths and neighbor summaries with no bodies — read the index, then pull the three
   or four cards a unit actually needs. `hydration: "full"` restores hydrated neighbors under
@@ -162,22 +160,20 @@ importing a new type for one card usually doesn't earn it.
 
 ## Connections
 
-Undirected, and derived from four equal sources: the `connections:` list, handle-shaped
+**Connections come only from frontmatter** — the `connections:` list and handle-shaped
 values in other frontmatter fields (`response_schema: DATATYPE-TICKET` connects — don't
-repeat it), `[[HANDLE]]` links in the body, and handle-shaped mermaid node IDs. Declare a
-connection on whichever card you're editing; the other side sees it via the index. Never
-edit two cards to record one connection.
+repeat it). **A prose `[[link]]` is a hyperlink and a pointer for readers, never an edge**:
+so is a handle used as a mermaid node ID. Put every relationship you want the graph to know
+in `connections:` — the API a FLOW crosses, the DATATYPE a table materializes, the FILE a
+DOC specifies. Connections are undirected: declare one on whichever card you're editing and
+the other side sees it via the index; never edit two cards to record one connection.
 
 **Structured refs are contracts; prose refs are aspirational.** A `connections:` entry or a
 handle-shaped frontmatter value pointing at a card that doesn't exist is an **error
 (E005)** — it breaks the graph. A body `[[link]]` or mermaid ID with no target is only a
 **warning (W004)**, because prose may legitimately point at a card not yet written; that's
-how you mark future work.
-
-That distinction now has a retrieval cost too: walks default to structured edges, so a
-relationship you want later agents to *follow* — the API a FLOW crosses, the DATATYPE a
-table materializes — belongs in `connections:` (or a typed frontmatter field), not only in
-prose. Keep `[[links]]` for the aspirational and the merely mentioned.
+how you mark future work. Keep `[[links]]` for exactly that — the aspirational and the
+merely mentioned — and remember they still render as clickable links in the viewer.
 
 Body conventions: DATATYPE = the type declaration in a fenced block; FLOW = a numbered list
 (real branching becomes a STATE card or a mermaid flowchart); STATE = `stateDiagram-v2`;

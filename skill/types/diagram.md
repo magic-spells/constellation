@@ -5,7 +5,8 @@ Architecture diagrams, three tiers — always prefer the cheapest that works:
 1. **Don't author at all**: node neighborhoods can be rendered from the real
    connection graph on demand. Only author a diagram for *conceptual* views.
 2. **Mermaid in the body** (the default): use **handles as Mermaid node IDs** so
-   the diagram joins the graph automatically.
+   every box is a working link. Drawing an arrow is not a connection — list the
+   cards the diagram is about in `connections:` if the graph should know.
 3. **Pinned layout** (rare): structured `nodes`/`edges`/`phases` frontmatter with
    explicit positions — see `schemas/diagram.json`. Only when layout carries meaning;
    positions make noisy diffs.

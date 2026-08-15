@@ -14,10 +14,11 @@ constellation/
   ...
 ```
 
-Each card is frontmatter (structure) + markdown (narrative). Connections are a
-plain list of handles — plus `[[HANDLE]]` links in prose, handle-shaped values in
-frontmatter fields, and handles used as Mermaid node IDs. The indexer derives the
-graph; nothing derived is ever stored.
+Each card is frontmatter (structure) + markdown (narrative). Connections come from
+frontmatter: a plain `connections:` list of handles, plus handle-shaped values in
+other frontmatter fields. A `[[HANDLE]]` link in prose or a handle used as a Mermaid
+node ID is a hyperlink — clickable, linted, but never a graph edge. The indexer
+derives the graph; nothing derived is ever stored.
 
 **Why files?** Plans drift from code when they live somewhere else. Here a plan
 change is a commit: it rides the same branch and PR as the code it describes,

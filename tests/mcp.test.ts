@@ -78,7 +78,7 @@ describe('hydrated retrieval', () => {
     expect(byHandle['DATATYPE-TICKET'].body).toContain('interface Ticket');
     expect(byHandle['DB-TICKETS'].frontmatter.columns.length).toBeGreaterThan(0);
     expect(byHandle['TEST-CREATE-TICKET'].body).toContain('happy path');
-    expect(byHandle['DOC-TICKET-LIFECYCLE']).toBeDefined();
+    expect(byHandle['ROLE-SUPPORT-AGENT']).toBeDefined();
   });
 
   it('search can hydrate matches with connected cards', async () => {

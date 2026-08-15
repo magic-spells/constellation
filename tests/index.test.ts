@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { loadPlan, neighborsOf } from '../src/core/indexer.js';
@@ -48,21 +51,42 @@ describe('loadPlan on the golden example', () => {
     );
   });
 
-  it('derives connections from mermaid node IDs (reverse view answers "what points at X")', async () => {
-    const index = await loadPlan(GOLDEN);
-    expect(index.connectedHandles.get('EXTERNAL-EMAIL-PROVIDER')).toContain(
-      'DIAGRAM-SYSTEM-OVERVIEW',
-    );
+  it('does NOT derive connections from body links or mermaid node IDs', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'constellation-links-'));
+    try {
+      await mkdir(path.join(dir, 'api'), { recursive: true });
+      await mkdir(path.join(dir, 'db'), { recursive: true });
+      await mkdir(path.join(dir, 'diagram'), { recursive: true });
+      await writeFile(
+        path.join(dir, 'api', 'API-THINGS.md'),
+        '---\nname: Things\n---\n\nReads [[DB-THINGS]] on every call.\n',
+      );
+      await writeFile(path.join(dir, 'db', 'DB-THINGS.md'), '---\nname: things\n---\n\nA table.\n');
+      await writeFile(
+        path.join(dir, 'diagram', 'DIAGRAM-OVERVIEW.md'),
+        '---\nname: Overview\n---\n\n```mermaid\nflowchart TD\n  API-THINGS --> DB-THINGS\n```\n',
+      );
+
+      const index = await loadPlan(dir);
+      // A prose mention is a link, not a connection: the graph stays empty.
+      expect(index.connections).toEqual([]);
+      expect(neighborsOf(index, 'API-THINGS').size).toBe(0);
+      expect(neighborsOf(index, 'DIAGRAM-OVERVIEW').size).toBe(0);
+      // The refs are still extracted — the viewer renders them and lint checks them.
+      expect(index.cards.get('API-THINGS')!.refs.body).toEqual(['DB-THINGS']);
+      expect(index.cards.get('DIAGRAM-OVERVIEW')!.refs.mermaid).toEqual([
+        'API-THINGS',
+        'DB-THINGS',
+      ]);
+      // Every ref resolves here, so nothing to report; a dangling one would be
+      // W004 (see lint.test.ts), never E005 — links are not contracts.
+      expect(index.issues).toEqual([]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
-  it('derives connections from body wiki-links', async () => {
-    const index = await loadPlan(GOLDEN);
-    expect(index.connectedHandles.get('FLOW-CREATE-TICKET')).toContain(
-      'EVENT-TICKET-CREATED',
-    );
-  });
-
-  it('dedupes connections declared from both sides and multiple sources', async () => {
+  it('dedupes a connection declared from both sides', async () => {
     const index = await loadPlan(GOLDEN);
     const between = index.connections.filter(
       (e) =>
@@ -72,38 +96,11 @@ describe('loadPlan on the golden example', () => {
     expect(between).toHaveLength(1);
   });
 
-  it('records where each connection came from', async () => {
+  it('neighborsOf agrees with the adjacency map', async () => {
     const index = await loadPlan(GOLDEN);
-    const sources = (a: string, b: string) =>
-      index.connections.find(
-        (e) => (e.a === a && e.b === b) || (e.a === b && e.b === a),
-      )?.sources;
-    // connections: only.
-    expect(sources('API-TICKETS', 'DB-TICKETS')).toEqual(['structured']);
-    // connections: plus a [[link]] — one edge carrying both sources.
-    expect(sources('API-TICKETS', 'FILE-TICKETS-ROUTE')).toEqual([
-      'structured',
-      'prose',
-    ]);
-    // A mermaid node ID only.
-    expect(sources('API-TICKETS', 'DIAGRAM-SYSTEM-OVERVIEW')).toEqual(['prose']);
-  });
-
-  it('splits the adjacency by source so a walk can skip prose edges', async () => {
-    const index = await loadPlan(GOLDEN);
-    expect(neighborsOf(index, 'API-TICKETS', 'structured')).toContain('DB-TICKETS');
-    expect(neighborsOf(index, 'API-TICKETS', 'structured')).not.toContain(
-      'DIAGRAM-SYSTEM-OVERVIEW',
-    );
-    expect(neighborsOf(index, 'API-TICKETS', 'prose')).toContain(
-      'DIAGRAM-SYSTEM-OVERVIEW',
-    );
-    expect(neighborsOf(index, 'API-TICKETS', 'both')).toEqual(
+    expect(neighborsOf(index, 'API-TICKETS')).toEqual(
       index.connectedHandles.get('API-TICKETS'),
     );
-    // Every structured/prose neighbor is also in the union.
-    for (const h of neighborsOf(index, 'API-TICKETS', 'prose')) {
-      expect(index.connectedHandles.get('API-TICKETS')).toContain(h);
-    }
+    expect(neighborsOf(index, 'API-TICKETS')).toContain('DB-TICKETS');
   });
 });

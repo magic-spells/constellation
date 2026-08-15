@@ -12,13 +12,7 @@ import {
   extractMermaidRefs,
   extractWikiLinks,
 } from './extract.js';
-import type {
-  Card,
-  Connection,
-  EdgeFilter,
-  Issue,
-  PlanIndex,
-} from './types.js';
+import type { Card, Connection, Issue, PlanIndex } from './types.js';
 
 /** Load a plan folder into an index: cards, edges, and structural issues. */
 export async function loadPlan(root: string): Promise<PlanIndex> {
@@ -48,19 +42,11 @@ export async function loadPlan(root: string): Promise<PlanIndex> {
   resolveRefs(cards, issues);
   const connections = buildConnections(cards);
 
-  const connectedHandles = adjacency(connections);
-  const structuredHandles = adjacency(
-    connections.filter((c) => c.sources.includes('structured')),
-  );
-  const proseHandles = adjacency(connections.filter((c) => c.sources.includes('prose')));
-
   return {
     root: absRoot,
     cards,
     connections,
-    connectedHandles,
-    structuredHandles,
-    proseHandles,
+    connectedHandles: adjacency(connections),
     issues,
   };
 }
@@ -77,36 +63,9 @@ function adjacency(connections: Connection[]): Map<string, Set<string>> {
   return map;
 }
 
-/**
- * A card's neighbors over the requested edge kinds. `structured` is the walking
- * default for tools that expand a neighborhood: prose links are aspirational
- * pointers, and a mermaid diagram would otherwise drag half the plan in as a
- * supernode. `both` is the union — the whole graph, as the viewer draws it.
- */
-export function neighborsOf(
-  index: PlanIndex,
-  handle: string,
-  edges: EdgeFilter = 'both',
-): Set<string> {
-  const map =
-    edges === 'structured'
-      ? index.structuredHandles
-      : edges === 'prose'
-        ? index.proseHandles
-        : index.connectedHandles;
-  return map.get(handle) ?? new Set();
-}
-
-/** The provenance of the edge between two handles, or null if they aren't connected. */
-export function edgeSourcesBetween(
-  index: PlanIndex,
-  a: string,
-  b: string,
-): Connection['sources'] | null {
-  const structured = index.structuredHandles.get(a)?.has(b) ?? false;
-  const prose = index.proseHandles.get(a)?.has(b) ?? false;
-  if (!structured && !prose) return null;
-  return [...(structured ? (['structured'] as const) : []), ...(prose ? (['prose'] as const) : [])];
+/** A card's neighbors in the connection graph — the whole graph, as the viewer draws it. */
+export function neighborsOf(index: PlanIndex, handle: string): Set<string> {
+  return index.connectedHandles.get(handle) ?? new Set();
 }
 
 function readCard(
@@ -222,7 +181,8 @@ function resolveRefs(cards: Map<string, Card>, issues: Issue[]): void {
         });
       }
     }
-    // Prose references may point at cards not yet written: warnings.
+    // Prose links are hyperlinks, not edges, and may point at cards not yet
+    // written — a dangling one is still a dead link, so: warning, never error.
     for (const target of [...card.refs.body, ...card.refs.mermaid]) {
       if (target !== card.handle && !cards.has(target)) {
         issues.push({
@@ -237,34 +197,22 @@ function resolveRefs(cards: Map<string, Card>, issues: Issue[]): void {
 }
 
 /**
- * Undirected, deduped edges carrying their PROVENANCE. Declaring the same edge
- * from both sides, or by two different mechanisms, still yields exactly one
- * connection — but it remembers every source it was declared by, so a walk can
- * travel only the structured (contractual) edges and leave prose pointers to
- * one-hop reads. Provenance changes nothing about lint: E005 vs W004 is still
- * decided per-ref in resolveRefs, over refs that may never become an edge.
+ * Undirected, deduped edges — from FRONTMATTER ONLY: the `connections:` list and
+ * handle-shaped values in other frontmatter fields. A `[[HANDLE]]` body link or a
+ * mermaid node ID is a hyperlink and a pointer for readers, never an edge: the
+ * graph is the set of relationships an author declared on purpose. Declaring the
+ * same edge from both sides still yields exactly one connection. This changes
+ * nothing about lint: E005 vs W004 is still decided per-ref in resolveRefs, over
+ * link refs that never become an edge.
  */
 function buildConnections(cards: Map<string, Card>): Connection[] {
   const byKey = new Map<string, Connection>();
   for (const card of cards.values()) {
-    const targets: Array<readonly [string, Connection['sources'][number]]> = [
-      ...card.refs.connections.map((t) => [t, 'structured'] as const),
-      ...card.refs.frontmatter.map((t) => [t, 'structured'] as const),
-      ...card.refs.body.map((t) => [t, 'prose'] as const),
-      ...card.refs.mermaid.map((t) => [t, 'prose'] as const),
-    ];
-    for (const [target, source] of targets) {
+    for (const target of [...card.refs.connections, ...card.refs.frontmatter]) {
       if (target === card.handle || !cards.has(target)) continue;
       const [a, b] =
         card.handle < target ? [card.handle, target] : [target, card.handle];
-      const key = `${a}\u0000${b}`;
-      const existing = byKey.get(key);
-      if (!existing) {
-        byKey.set(key, { a, b, sources: [source] });
-      } else if (!existing.sources.includes(source)) {
-        // Declared both ways: report in a fixed order so the value is stable.
-        existing.sources = ['structured', 'prose'];
-      }
+      byKey.set(`${a}\u0000${b}`, { a, b });
     }
   }
   return [...byKey.values()];

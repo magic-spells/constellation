@@ -49,10 +49,9 @@ times over:
 - **Budgeted** — 24 KB per card, 96 KB per response (mirroring [[FILE-CODE]]'s file caps).
   Past that, remaining neighbors degrade to summaries. Nothing is ever silently truncated:
   every omission is named in `hydration_budget` (`deduped`, `degraded`, `budget_exhausted`).
-- **Structured edges by default** — walks (`traverse`, `assemble`) travel `connections:` and
-  frontmatter refs only; `edges: "prose" | "both"` opts `[[links]]` and mermaid IDs back in.
-  `get_card` still lists *every* connection — one hop is informative — each tagged with
-  `edge_sources` ([[FILE-INDEXER]] carries the provenance).
+- **One kind of edge** — the connection graph comes from frontmatter only ([[FILE-INDEXER]]),
+  so walks (`traverse`, `assemble`) travel declared relationships and a `[[link]]` or mermaid
+  node ID steers nothing. There is no edge filter to pass.
 
 ## Tool surface
 
@@ -73,8 +72,7 @@ times over:
   `list_cards`/`traverse` filter by status (value or list; `"none"` = unset), so
   `["planned","building","none"]` is the backlog view. On `traverse` status is a
   *post-filter* — the walk passes through non-matching cards so a built hub never hides
-  planned work — while `types` prunes the walk itself. `traverse` / `assemble` also take
-  `edges: structured | prose | both` (default `structured`).
+  planned work — while `types` prunes the walk itself.
   The flat list tools — `search`, `list_cards`, `list_notes` — page statelessly on
   `limit` + `offset` (defaults 20 / 100 / 50). There are no cursors and no server state:
   the index is rebuilt from files every call, so a cursor could only lie. Truncation is

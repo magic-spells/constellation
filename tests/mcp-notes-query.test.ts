@@ -113,6 +113,9 @@ describe('notes tail on hydrated reads', () => {
         text: `lifecycle note ${i}`,
       });
     }
+    // The doc names API-TICKETS in prose, which is a link and not an edge — the
+    // hydrated-neighbor case below needs a declared connection.
+    await call('add_connection', { from: 'API-TICKETS', to: 'DOC-TICKET-LIFECYCLE' });
   });
 
   it('returns only the newest 5 notes by default, and says how many were cut', async () => {

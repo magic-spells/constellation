@@ -11,16 +11,10 @@ import {
   TYPE_FOLDERS,
   typeForHandle,
 } from '../core/handles.js';
-import { edgeSourcesBetween, loadPlan, neighborsOf } from '../core/indexer.js';
+import { loadPlan, neighborsOf } from '../core/indexer.js';
 import { lintPlan } from '../core/lint.js';
 import { resolvePlanDir } from '../core/resolve.js';
-import type {
-  Card,
-  EdgeFilter,
-  Issue,
-  PlanIndex,
-  TypeName,
-} from '../core/types.js';
+import type { Card, Issue, PlanIndex, TypeName } from '../core/types.js';
 import { TYPE_NAMES } from '../core/types.js';
 import type { RunningServer } from '../serve/server.js';
 import {
@@ -70,11 +64,12 @@ The plan in constellation/ is this project's durable, cross-session memory. Read
 you change code there — you recover prior agents' understanding instead of starting fresh — and bring them back into
 line after; that is part of "done." A card you can't trust is worse than no card.
 
-One file = one card; the filename is the handle (api/API-TICKETS.md = API-TICKETS). Connections are undirected,
-from connections:, handle-shaped frontmatter values, [[HANDLE]] body links, and mermaid IDs. Cards hold what
-code can't say — intent, rejected alternatives, current state, gotchas, cross-cutting rules; never duplicate DDL or
-code, never write index cards enumerating others. If tools return NO_PLAN_FOUND, call init_plan once — never create
-constellation/ or hand-write plan.md yourself.
+One file = one card; the filename is the handle (api/API-TICKETS.md = API-TICKETS). Connections are undirected and
+come from frontmatter ONLY — the connections: list and handle-shaped frontmatter values; a [[HANDLE]] body link or a
+mermaid node ID is a hyperlink for readers, never an edge, so put every relationship the graph should know in
+connections:. Cards hold what code can't say — intent, rejected alternatives, current state, gotchas, cross-cutting
+rules; never duplicate DDL or code, never write index cards enumerating others. If tools return NO_PLAN_FOUND, call
+init_plan once — never create constellation/ or hand-write plan.md yourself.
 
 The rule: all card writes go through the Constellation tools; never edit a card file directly — hand-edits invent
 fields and formats the schema doesn't support, feeding bad data to the viewer and to every future agent that loads
@@ -90,14 +85,13 @@ use edit_section, and never bulk-rewrite plan.md. Batch scaffolds with create_ca
 pass; intra-batch refs resolve). rename_card rewrites every reference plan-wide — never delete-and-recreate to
 rename; for bulk changes loop the singular tools (CLI: constellation rename), never search-and-replace the plan
 folder. delete_card does NOT rewrite references: it returns referenced_by and leaves E005s to clean up;
-remove_connection strips only the connections: list — an edge also in a frontmatter field, a [[link]], or
-mermaid needs edit_section. Call describe_type before authoring an unfamiliar type, and author in the types the plan
+remove_connection strips only the connections: list — an edge also declared by a handle-shaped frontmatter field
+needs edit_section. Call describe_type before authoring an unfamiliar type, and author in the types the plan
 already uses.
 
 Call orient once at session start: one small read-only briefing on the plan's shape, drift and newest notes.
-Retrieve lean: summaries by default, full content only for cards you name. traverse and assemble walk STRUCTURED
-edges by default (connections: entries and frontmatter values), so a load-bearing relationship belongs in
-connections:; [[links]] and mermaid IDs remain aspirational pointers, walked only with edges: "both". assemble
+Retrieve lean: summaries by default, full content only for cards you name. traverse and assemble walk the connection
+graph, so a load-bearing relationship belongs in connections:, not only in a [[link]]. assemble
 returns an INDEX by default (units, seeds, bound paths, no bodies); ask hydration: "full" only when you need
 bodies. Hydration never truncates silently: repeats (hydrated_elsewhere), supernodes (DIAGRAM / PLAN-PROJECT as
 neighbors) and over-budget cards degrade to summaries — everything held back is named in hydration_budget and
@@ -375,18 +369,18 @@ function connectedCards(
   index: PlanIndex,
   handle: string,
   detail: Detail,
-  opts: { hydrator?: Hydrator; edges?: EdgeFilter } = {},
+  opts: { hydrator?: Hydrator } = {},
 ) {
   if (detail === 'none') return undefined;
   const hydrator = opts.hydrator ?? new Hydrator();
-  const handles = [...neighborsOf(index, handle, opts.edges ?? 'both')].sort();
+  const handles = [...neighborsOf(index, handle)].sort();
   const out: CardView[] = [];
   for (const h of handles) {
     const card = index.cards.get(h);
     if (!card) continue;
     const view = hydrator.view(card, detail);
     if (!view) continue;
-    out.push({ ...view, edge_sources: edgeSourcesBetween(index, handle, h) ?? [] });
+    out.push(view);
   }
   return out;
 }
@@ -626,11 +620,6 @@ function statusSetOf(status?: StatusFilter | StatusFilter[]): Set<string> | null
   if (status === undefined) return null;
   return new Set(Array.isArray(status) ? status : [status]);
 }
-// Which edges a walk may travel. Structured edges are contracts (connections: +
-// handle-shaped frontmatter values); prose edges ([[links]], mermaid node IDs)
-// are aspirational — informative one hop out, ruinous to expand through.
-const edgesSchema = z.enum(['structured', 'prose', 'both']);
-
 /**
  * Stateless paging for the flat list tools. No cursors and no server-side state:
  * the index is rebuilt from files on every call, so a cursor could only lie.
@@ -850,7 +839,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Fetch one card by handle, optionally with all connected cards hydrated. Lists EVERY connection — structured and prose alike — each tagged with edge_sources: ["structured"] (a connections: entry or frontmatter value — a contract) and/or ["prose"] (a [[link]] or mermaid node — aspirational). connected: "full" returns the complete frontmatter and body of every connected card — use it when about to work on an area. Hydration is capped and deduped: a card\'s full content appears at most once per response, DIAGRAM cards and PLAN-PROJECT are never hydrated as neighbors (ask for them directly instead), and anything past the text budget comes back as a summary with degraded_to_summary — see hydration_budget; nothing is ever silently truncated. code: "paths" returns the resolved file paths the card is bound to (connected FILE cards plus code_refs); code: "direct" attaches their contents (over-cap files truncated with truncated:true; binaries/lockfiles/generated skipped) so a background coder starts from intent + current code in one call. Notes come back as the newest 5 per card with notes_truncated: N when older ones were left out — raise notes_limit (0 = all) for a card\'s full history, or use list_notes. The card file itself is untouched either way.',
+        'Fetch one card by handle, optionally with all connected cards hydrated. Connections come from frontmatter only — the connections: list and handle-shaped field values; a [[link]] or mermaid node ID in the body is a hyperlink for readers, not a connection, so it is not listed here. connected: "full" returns the complete frontmatter and body of every connected card — use it when about to work on an area. Hydration is capped and deduped: a card\'s full content appears at most once per response, DIAGRAM cards and PLAN-PROJECT are never hydrated as neighbors (ask for them directly instead), and anything past the text budget comes back as a summary with degraded_to_summary — see hydration_budget; nothing is ever silently truncated. code: "paths" returns the resolved file paths the card is bound to (connected FILE cards plus code_refs); code: "direct" attaches their contents (over-cap files truncated with truncated:true; binaries/lockfiles/generated skipped) so a background coder starts from intent + current code in one call. Notes come back as the newest 5 per card with notes_truncated: N when older ones were left out — raise notes_limit (0 = all) for a card\'s full history, or use list_notes. The card file itself is untouched either way.',
       inputSchema: {
         handle: z.string(),
         connected: detailSchema.optional().describe('default: summary'),
@@ -877,8 +866,6 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       const hydrator = new Hydrator(notes_limit ?? DEFAULT_NOTES_TAIL);
       const result: Record<string, unknown> = {
         card: hydrator.primary(card, notes_kind),
-        // One hop is informative, so get_card shows EVERY connection (prose
-        // included) — the edge_sources tag says which kind each one is.
         connected_cards: connectedCards(index, card.handle, connected ?? 'summary', {
           hydrator,
         }),
@@ -991,12 +978,11 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Breadth-first walk of the connection graph from one or more starting handles. Seed it with diff_plan output for impact analysis. The walk travels STRUCTURED edges by default (connections: entries and frontmatter values — the contracts); [[links]] and mermaid node IDs are aspirational pointers and a diagram would otherwise act as a supernode pulling in half the plan, so pass edges: "both" (or "prose") to include them. detail: "full" includes frontmatter and body of every reached card, deduped and capped: each card is spelled out at most once, DIAGRAM cards and PLAN-PROJECT are never hydrated as neighbors, and anything past the budget degrades to a summary (degraded_to_summary, see hydration_budget) rather than being truncated. status filters the RESULT only — the walk still passes through non-matching cards, so a built hub never hides the planned work behind it (status: ["planned", "building", "none"] = open work in this neighborhood). types, by contrast, prunes the walk itself.',
+        'Breadth-first walk of the connection graph from one or more starting handles. Seed it with diff_plan output for impact analysis. Connections come from frontmatter only (the connections: list and handle-shaped field values), so the walk travels declared relationships; a [[link]] or mermaid node ID is a hyperlink, not an edge, and is never walked. detail: "full" includes frontmatter and body of every reached card, deduped and capped: each card is spelled out at most once, DIAGRAM cards and PLAN-PROJECT are never hydrated as neighbors, and anything past the budget degrades to a summary (degraded_to_summary, see hydration_budget) rather than being truncated. status filters the RESULT only — the walk still passes through non-matching cards, so a built hub never hides the planned work behind it (status: ["planned", "building", "none"] = open work in this neighborhood). types, by contrast, prunes the walk itself.',
       inputSchema: {
         start: z.union([z.string(), z.array(z.string()).min(1)]),
         depth: z.number().int().min(0).max(5).optional().describe('default: 2'),
         types: z.array(typeSchema).optional(),
-        edges: edgesSchema.optional().describe('which edges the walk travels (default: structured)'),
         status: statusesSchema.describe(
           'post-filter on returned cards; "none" = no status set. The walk passes through non-matching cards.',
         ),
@@ -1004,7 +990,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         repo: repoSchema,
       },
     },
-    withPlan(async (root, { start, depth, types, status, detail, edges }) => {
+    withPlan(async (root, { start, depth, types, status, detail }) => {
       const index = await loadPlan(root);
       const starts = (Array.isArray(start) ? start : [start]).map((s) =>
         s.toUpperCase(),
@@ -1015,7 +1001,6 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       }
       const typeFilter = types && types.length > 0 ? new Set(types) : null;
       const maxDepth = depth ?? 2;
-      const edgeFilter: EdgeFilter = edges ?? 'structured';
 
       const distance = new Map<string, number>();
       let frontier = starts.filter((s) => index.cards.has(s));
@@ -1023,7 +1008,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       for (let d = 1; d <= maxDepth && frontier.length > 0; d++) {
         const next: string[] = [];
         for (const handle of frontier) {
-          for (const neighbor of neighborsOf(index, handle, edgeFilter)) {
+          for (const neighbor of neighborsOf(index, handle)) {
             if (distance.has(neighbor)) continue;
             const card = index.cards.get(neighbor);
             if (!card) continue;
@@ -1063,15 +1048,11 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         .sort((a, b) => a.distance - b.distance || a.handle.localeCompare(b.handle));
       const surviving = new Set(cards.map((c) => c.handle));
       const connections = index.connections.filter(
-        (c) =>
-          surviving.has(c.a) &&
-          surviving.has(c.b) &&
-          (edgeFilter === 'both' || c.sources.includes(edgeFilter)),
+        (c) => surviving.has(c.a) && surviving.has(c.b),
       );
       const result: Record<string, unknown> = {
         cards,
         connections,
-        edges: edgeFilter,
         not_found: missing,
       };
       const hydration = hydrator.report();
@@ -1085,7 +1066,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Turn a set of cards (or the plan delta since a base) into a work INDEX for orchestration: the seeds split into FILE-DISJOINT units you can hand one sub-agent each with no risk of two agents editing the same file, the code each seed is bound to, a heuristic build order (data → contracts → surfaces), and a deduped summary list of the surrounding neighbors. Omit handles to assemble everything changed since base (default: the sync marker). This is the orchestration bridge: diff_plan + traverse + code binding in one call. hydration defaults to "index" — NO card bodies: read the index, then pull the 3–5 cards a unit actually needs with get_card (connected: "full"). hydration: "full" also spells out each seed and its DIRECT connections, deduped (a card appears in full once per response, later mentions are summaries with hydrated_elsewhere: true) and capped (DIAGRAM cards and PLAN-PROJECT never hydrate as neighbors; anything past the budget degrades to a summary — see hydration_budget), plus the newest 5 notes per card (notes_limit: 0 = all). depth controls only the WALK — which handles appear in reached_handles, neighbors and suggested_order. It never widens what gets spelled out: full mode serializes each seed plus its direct connections, and units/files are computed from the seeds alone. edges controls which connections that walk travels (default: structured — connections: entries and frontmatter values, not [[links]] or mermaid IDs).',
+        'Turn a set of cards (or the plan delta since a base) into a work INDEX for orchestration: the seeds split into FILE-DISJOINT units you can hand one sub-agent each with no risk of two agents editing the same file, the code each seed is bound to, a heuristic build order (data → contracts → surfaces), and a deduped summary list of the surrounding neighbors. Omit handles to assemble everything changed since base (default: the sync marker). This is the orchestration bridge: diff_plan + traverse + code binding in one call. hydration defaults to "index" — NO card bodies: read the index, then pull the 3–5 cards a unit actually needs with get_card (connected: "full"). hydration: "full" also spells out each seed and its DIRECT connections, deduped (a card appears in full once per response, later mentions are summaries with hydrated_elsewhere: true) and capped (DIAGRAM cards and PLAN-PROJECT never hydrate as neighbors; anything past the budget degrades to a summary — see hydration_budget), plus the newest 5 notes per card (notes_limit: 0 = all). depth controls only the WALK — which handles appear in reached_handles, neighbors and suggested_order. It never widens what gets spelled out: full mode serializes each seed plus its direct connections, and units/files are computed from the seeds alone. The walk travels the connection graph, which comes from frontmatter only (the connections: list and handle-shaped field values) — [[links]] and mermaid IDs are hyperlinks, not edges.',
       inputSchema: {
         handles: z
           .array(z.string())
@@ -1108,9 +1089,6 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .enum(['index', 'full'])
           .optional()
           .describe('index (default) = no card bodies; full = seeds + direct connections, deduped and capped'),
-        edges: edgesSchema
-          .optional()
-          .describe('which edges the walk travels (default: structured)'),
         code: codeModeSchema.optional().describe('attach bound code per SEED card (default: paths)'),
         notes_limit: z
           .number()
@@ -1122,9 +1100,8 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         repo: repoSchema,
       },
     },
-    withPlan(async (root, { handles, base, depth, code, notes_limit, edges, hydration }) => {
+    withPlan(async (root, { handles, base, depth, code, notes_limit, hydration }) => {
       const index = await loadPlan(root);
-      const edgeFilter: EdgeFilter = edges ?? 'structured';
       const hydrationMode = hydration ?? 'index';
 
       let seeds: string[];
@@ -1172,7 +1149,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       for (let d = 1; d <= maxDepth && frontier.length > 0; d++) {
         const next: string[] = [];
         for (const h of frontier) {
-          for (const n of neighborsOf(index, h, edgeFilter)) {
+          for (const n of neighborsOf(index, h)) {
             if (distance.has(n) || !index.cards.has(n)) continue;
             distance.set(n, d);
             next.push(n);
@@ -1220,10 +1197,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
             hydrationMode === 'full'
               ? {
                   ...seedViews.get(h)!,
-                  connected_cards: connectedCards(index, h, 'full', {
-                    hydrator,
-                    edges: edgeFilter,
-                  }),
+                  connected_cards: connectedCards(index, h, 'full', { hydrator }),
                 }
               : { ...summary(card) };
           if (codeMode !== 'none') {
@@ -1237,7 +1211,6 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       const seedSet = new Set(seeds);
       const result: Record<string, unknown> = {
         hydration: hydrationMode,
-        edges: edgeFilter,
         base: delta,
         seeds,
         not_found: notFound,
@@ -1904,7 +1877,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'add_connection',
     {
       description:
-        'Connect two cards by appending `to` to `from`’s connections list. No-op if they are already connected through any source.',
+        'Connect two cards by appending `to` to `from`’s connections list. Connections are undirected, so declaring it on one side is enough; no-op if they are already connected (by either card’s connections list or a handle-shaped frontmatter value). A [[link]] between the two is a hyperlink, not a connection — promote it here if the graph should know about the relationship.',
       inputSchema: { from: z.string(), to: z.string(), repo: repoSchema },
     },
     withPlan(async (root, args) => {
@@ -1943,7 +1916,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'remove_connection',
     {
       description:
-        'Remove a connection by deleting it from either card’s connections list. Reports if the cards remain connected through other sources (frontmatter fields, body links, mermaid) that must be edited manually.',
+        'Remove a connection by deleting it from either card’s connections list. Reports if the cards remain connected through a handle-shaped value in another frontmatter field, which must be edited manually. Body [[links]] and mermaid node IDs are hyperlinks, not connections, so they never keep two cards connected.',
       inputSchema: { a: z.string(), b: z.string(), repo: repoSchema },
     },
     withPlan(async (root, args) => {
@@ -1987,12 +1960,10 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           [after.cards.get(cardA.handle)!, cardB.handle],
           [after.cards.get(cardB.handle)!, cardA.handle],
         ] as const) {
+          // Only frontmatter makes an edge — a [[link]] or mermaid node ID left
+          // behind is a hyperlink, and never keeps two cards connected.
           if (card.refs.frontmatter.includes(other))
             remainingSources.push(`frontmatter field on ${card.handle}`);
-          if (card.refs.body.includes(other))
-            remainingSources.push(`[[link]] in body of ${card.handle}`);
-          if (card.refs.mermaid.includes(other))
-            remainingSources.push(`mermaid block in ${card.handle}`);
         }
       }
       const touched = new Set(

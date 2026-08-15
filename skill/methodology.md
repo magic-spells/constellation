@@ -90,11 +90,11 @@ files and trace the data paths; never judge a system from filenames or folder st
 - From that alone, name the **stack**, the **surfaces** (web app, public API, admin,
   background workers, CLI), and the **domains** (the 3–8 nouns the product is about).
   Write these into `PLAN-PROJECT` (`plan.md`) — *Current state* and *Conventions* — and
-  draft one system-level `DIAGRAM`. Using real handles as its mermaid node IDs joins it to
-  the graph, at a cost: a diagram of the whole system connects to everything it draws, so
-  it becomes a supernode that widens every walk passing through it. Worth it for the one
-  orientation diagram; for anything larger, or a diagram that would touch most of the plan,
-  use plain labels and keep the structural edges on the cards themselves.
+  draft one system-level `DIAGRAM`. Using real handles as its mermaid node IDs makes every
+  box a working link in the viewer — but **connections come only from frontmatter** (the
+  `connections:` list and handle-shaped field values); a `[[HANDLE]]` link or a mermaid node
+  ID is a hyperlink and a pointer for readers, never an edge. Put every relationship you
+  want the graph to know in `connections:`, and let the diagram illustrate it.
 - Give `PLAN-PROJECT` a human-readable `name:` (folder `pyramid-server` → `Pyramid Server`).
   `init_plan` seeds a title-cased default; propose it, confirm with the user, and refine it.
   It's the viewer's title and is editable anytime (`update_card` on `PLAN-PROJECT`).
@@ -154,8 +154,8 @@ Now, and only now, descend — and only into areas that are central, complex, or
 - Hydrate before you edit: `get_card` / `traverse` with `connected: "full"` so you see a
   card with all its neighbors at once.
 - Add the granular cards, the detailed `FLOW`s, the `STATE` machines, and the focused
-  `DIAGRAM`s for that neighborhood. Handles as mermaid node IDs are good here — a
-  neighborhood diagram connects to a handful of cards, not the whole plan.
+  `DIAGRAM`s for that neighborhood. Handles as mermaid node IDs are good here — each box
+  becomes a link — but wire the DIAGRAM into the graph with `connections:`, not by drawing.
 - Resist detailing quiet, stable areas to the same depth. Detail is a cost; spend it where
   it changes a reader's understanding.
 

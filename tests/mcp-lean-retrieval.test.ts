@@ -50,58 +50,41 @@ afterAll(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-describe('edge provenance', () => {
-  it('get_card lists every connection, tagged with where it came from', async () => {
+describe('connections come from frontmatter only', () => {
+  it('get_card lists frontmatter connections, never a prose mention', async () => {
     const { data } = await call('get_card', { handle: 'API-TICKETS' });
     const conns = byHandle(data.connected_cards);
-    // A connections: entry only.
-    expect(conns['DB-TICKETS'].edge_sources).toEqual(['structured']);
-    // Declared in connections: AND written as a [[link]] — one edge, both sources.
-    expect(conns['FILE-TICKETS-ROUTE'].edge_sources).toEqual(['structured', 'prose']);
-    // Only a mermaid node ID.
-    expect(conns['DIAGRAM-SYSTEM-OVERVIEW'].edge_sources).toEqual(['prose']);
+    // A connections: entry — a declared relationship.
+    expect(conns['DB-TICKETS']).toBeDefined();
+    // The system diagram names API-TICKETS as a mermaid node ID only, and
+    // FILE-TICKETS-ROUTE's body links it — links, not connections.
+    expect(conns['DIAGRAM-SYSTEM-OVERVIEW']).toBeUndefined();
   });
 
-  it('traverse walks structured edges by default and prose only on request', async () => {
-    const structured = await call('traverse', { start: 'API-TICKETS', depth: 1 });
-    const handles = structured.data.cards.map((c: View) => c.handle);
-    expect(structured.data.edges).toBe('structured');
+  it('traverse walks declared connections and never a [[link]] or mermaid ID', async () => {
+    const { data } = await call('traverse', { start: 'API-TICKETS', depth: 1 });
+    const handles = data.cards.map((c: View) => c.handle);
     expect(handles).toContain('DB-TICKETS');
-    // The system diagram names API-TICKETS in mermaid only — a prose edge, and
-    // the supernode that used to drag half the plan into a depth-2 walk.
+    // The diagram was the supernode that used to drag half the plan into a walk.
     expect(handles).not.toContain('DIAGRAM-SYSTEM-OVERVIEW');
     expect(handles).not.toContain('DOC-TICKET-LIFECYCLE');
-
-    const both = await call('traverse', {
-      start: 'API-TICKETS',
-      depth: 1,
-      edges: 'both',
-    });
-    const bothHandles = both.data.cards.map((c: View) => c.handle);
-    expect(bothHandles).toContain('DIAGRAM-SYSTEM-OVERVIEW');
-    expect(bothHandles).toContain('DOC-TICKET-LIFECYCLE');
-    expect(both.data.cards.length).toBeGreaterThan(structured.data.cards.length);
-  });
-
-  it('returned connections carry their sources', async () => {
-    const { data } = await call('traverse', {
-      start: 'API-TICKETS',
-      depth: 1,
-      edges: 'both',
-    });
-    const edge = data.connections.find(
-      (c: { a: string; b: string; sources: string[] }) =>
-        (c.a === 'API-TICKETS' && c.b === 'DIAGRAM-SYSTEM-OVERVIEW') ||
-        (c.b === 'API-TICKETS' && c.a === 'DIAGRAM-SYSTEM-OVERVIEW'),
-    );
-    expect(edge.sources).toEqual(['prose']);
+    // No edge filter to report any more — there is one kind of edge.
+    expect(data.edges).toBeUndefined();
+    for (const conn of data.connections as Array<Record<string, unknown>>) {
+      expect(Object.keys(conn).sort()).toEqual(['a', 'b']);
+    }
   });
 });
 
 describe('neighbor hydration limits', () => {
   it('never hydrates a DIAGRAM as a neighbor, but hands it over in full when asked directly', async () => {
+    await call('create_card', {
+      handle: 'DOC-DIAGRAM-NEIGHBOR',
+      body: 'Declares a connection to the system diagram.',
+      connections: ['DIAGRAM-SYSTEM-OVERVIEW'],
+    });
     const neighbor = await call('get_card', {
-      handle: 'API-TICKETS',
+      handle: 'DOC-DIAGRAM-NEIGHBOR',
       connected: 'full',
     });
     const diagram = byHandle(neighbor.data.connected_cards)['DIAGRAM-SYSTEM-OVERVIEW'];
@@ -114,13 +97,16 @@ describe('neighbor hydration limits', () => {
   });
 
   it('never hydrates PLAN-PROJECT as a neighbor', async () => {
-    const { data } = await call('traverse', {
-      start: 'PAGE-INBOX',
-      depth: 2,
-      detail: 'full',
-      edges: 'both',
+    await call('create_card', {
+      handle: 'DOC-PLAN-NEIGHBOR',
+      body: 'Declares a connection to the root plan card.',
+      connections: ['PLAN-PROJECT'],
     });
-    const plan = byHandle(data.cards)['PLAN-PROJECT'];
+    const { data } = await call('get_card', {
+      handle: 'DOC-PLAN-NEIGHBOR',
+      connected: 'full',
+    });
+    const plan = byHandle(data.connected_cards)['PLAN-PROJECT'];
     expect(plan).toBeDefined();
     expect(plan.body).toBeUndefined();
     expect(plan.degraded_to_summary).toBe('supernode');
@@ -224,7 +210,7 @@ describe('assemble is an index by default', () => {
       depth: 1,
     });
     expect(data.hydration).toBe('index');
-    expect(data.edges).toBe('structured');
+    expect(data.edges).toBeUndefined();
     const cards = data.units.flatMap((u: { cards: View[] }) => u.cards);
     for (const card of cards) {
       expect(card.body).toBeUndefined();

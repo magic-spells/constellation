@@ -149,9 +149,12 @@ const RULES: Array<{ id: string; patterns: RegExp[]; in: readonly CopyName[] }> 
     in: ['SKILL.md', 'methodology.md'],
   },
   {
-    id: 'walks travel structured edges by default',
-    patterns: [/structured edge|edges: "structured"|STRUCTURED/],
-    in: ['INSTRUCTIONS', 'SKILL.md'],
+    id: 'connections come only from frontmatter; a prose link is not an edge',
+    patterns: [
+      /connections come (only )?from frontmatter|come from frontmatter ONLY/i,
+      /never an edge/i,
+    ],
+    in: ALL,
   },
   {
     id: 'hydration degrades explicitly rather than truncating',
@@ -236,6 +239,12 @@ const RETIRED: Array<{ id: string; pattern: RegExp }> = [
   },
   { id: 'never auto-compact', pattern: /never auto-compact/i },
   { id: 'set_sync_point as a required step', pattern: /then set_sync_point/i },
+  {
+    // Prose mentions were briefly walkable edges under an `edges` param. They are
+    // not edges at all now, and no tool takes `edges`.
+    id: 'the edges param / prose edges',
+    pattern: /edges: "(structured|prose|both)"|prose edge|structured edge/i,
+  },
 ];
 
 describe.each(RETIRED)('retired: $id', ({ pattern }) => {

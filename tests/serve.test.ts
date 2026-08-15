@@ -23,7 +23,7 @@ describe('constellation serve', () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.cards).toHaveLength(25);
-    expect(data.connections).toHaveLength(64);
+    expect(data.connections).toHaveLength(26);
     expect(data.errors).toEqual([]);
     const api = data.cards.find((c: { handle: string }) => c.handle === 'API-TICKETS');
     expect(api.frontmatter.path).toBe('/api/v1/tickets');

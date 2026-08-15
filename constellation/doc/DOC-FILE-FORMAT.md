@@ -31,14 +31,19 @@ hand-authored: `code_refs` (code binding, `path` or `path:symbol`), `verified_sh
 typed memory `{kind,text,sha?}`). Everything else is a type-specific field. Schemas are
 permissive: almost nothing is required; unknown fields warn (W003) rather than fail.
 
-## The graph (four connection sources)
+## The graph (frontmatter only)
 
-[[FILE-INDEXER]] derives the connection set, in all cards, from: (1) the `connections:` list;
-(2) any handle-shaped string elsewhere in frontmatter (so `response_schema: DATATYPE-TICKET`
-connects automatically); (3) `[[HANDLE]]` wiki-links in the body; (4) handle-shaped IDs inside
-mermaid blocks. Connections are **undirected** and deduped by pair — declare on whichever card
-you're editing; the reverse view is the indexer's job, never written to disk. Extraction lives
-in [[FILE-EXTRACT]].
+[[FILE-INDEXER]] derives the connection set, in all cards, from **frontmatter alone**: (1) the
+`connections:` list; (2) any handle-shaped string elsewhere in frontmatter (so
+`response_schema: DATATYPE-TICKET` connects automatically). Connections are **undirected** and
+deduped by pair — declare on whichever card you're editing; the reverse view is the indexer's
+job, never written to disk.
+
+**A prose mention is a link, not a connection.** `[[HANDLE]]` wiki-links in the body and
+handle-shaped IDs inside mermaid blocks are hyperlinks: the viewer renders them clickable and
+lint checks that they resolve (W004), but they are never graph edges. Every relationship the
+graph should know belongs in `connections:`. All four reference kinds are extracted in
+[[FILE-EXTRACT]]; only the first two build edges.
 
 ## Body conventions
 
