@@ -32,7 +32,7 @@ import {
   resolveCommit,
   writeSyncPoint,
 } from '../core/git.js';
-import { computeSyncStatus } from '../core/sync.js';
+import { computeSyncStatus, packageVersion } from '../core/sync.js';
 import { boundPathsForCard, boundPathsOverlap, resolveCodeForCard } from '../core/code.js';
 import { computeStaleCards } from '../core/stale.js';
 import { queryNeedles, searchCards } from './search.js';
@@ -593,6 +593,162 @@ function partitionByFiles(
   }));
 }
 
+/* ── orient: the session-start briefing ─────────────────────────────────── */
+
+const ORIENT_SUMMARY_CHARS = 300;
+const ORIENT_NOTE_CHARS = 120;
+const ORIENT_NOTE_LIMIT = 10;
+const ORIENT_STALE_LIMIT = 5;
+
+/** One-line preview: collapse whitespace, cut at `max`, mark the cut. */
+function clip(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  return flat.length <= max ? flat : `${flat.slice(0, max).trimEnd()}…`;
+}
+
+/** PLAN-PROJECT's `summary` field, else the opening prose of its body. */
+function projectSummary(card: Card | undefined): string | null {
+  if (!card) return null;
+  const declared = card.frontmatter.summary;
+  if (typeof declared === 'string' && declared.trim()) {
+    return clip(declared, ORIENT_SUMMARY_CHARS);
+  }
+  const prose = card.body
+    .split('\n')
+    .filter((line) => line.trim() && !line.trimStart().startsWith('#'))
+    .join(' ');
+  return prose.trim() ? clip(prose, ORIENT_SUMMARY_CHARS) : null;
+}
+
+/** Numeric semver comparison (prerelease suffixes ignored). */
+function compareVersions(a: string, b: string): number {
+  const parts = (v: string) =>
+    v
+      .replace(/^v/, '')
+      .split('.')
+      .map((p) => Number.parseInt(p, 10) || 0);
+  const [x, y] = [parts(a), parts(b)];
+  for (let i = 0; i < 3; i++) {
+    const d = (x[i] ?? 0) - (y[i] ?? 0);
+    if (d !== 0) return Math.sign(d);
+  }
+  return 0;
+}
+
+/**
+ * The whole plan at a glance — what `orient` returns. Deliberately small: counts
+ * and handles, never card bodies. Everything here is computed live from the
+ * files and git; nothing is stored.
+ */
+async function orientReport(root: string): Promise<Record<string, unknown>> {
+  const index = await loadPlan(root);
+  const cards = [...index.cards.values()];
+
+  const byType: Record<string, number> = {};
+  const byStatus: Record<string, number> = {
+    planned: 0,
+    building: 0,
+    built: 0,
+    verified: 0,
+    none: 0,
+  };
+  for (const card of cards) {
+    byType[card.type] = (byType[card.type] ?? 0) + 1;
+    const status = card.status ?? 'none';
+    byStatus[status] = (byStatus[status] ?? 0) + 1;
+  }
+
+  const project = index.cards.get('PLAN-PROJECT');
+
+  // Notes carry no timestamp, so "newest" is the newest-touched card files
+  // first, and within a card its latest appended notes first.
+  const mtimes = new Map<string, number>();
+  await Promise.all(
+    cards.map(async (card) => {
+      try {
+        mtimes.set(card.handle, (await stat(card.filePath)).mtimeMs);
+      } catch {
+        mtimes.set(card.handle, 0);
+      }
+    }),
+  );
+  const noteRows: Array<{
+    handle: string;
+    kind: string;
+    text: string;
+    mtime: number;
+    order: number;
+  }> = [];
+  for (const card of cards) {
+    const list = Array.isArray(card.frontmatter.notes) ? card.frontmatter.notes : [];
+    list.forEach((raw, order) => {
+      if (!raw || typeof raw !== 'object') return;
+      const note = raw as Record<string, unknown>;
+      if (typeof note.text !== 'string') return;
+      noteRows.push({
+        handle: card.handle,
+        kind: typeof note.kind === 'string' ? note.kind : 'note',
+        text: note.text,
+        mtime: mtimes.get(card.handle) ?? 0,
+        order,
+      });
+    });
+  }
+  noteRows.sort((a, b) => b.mtime - a.mtime || b.order - a.order);
+  const recentNotes = noteRows
+    .slice(0, ORIENT_NOTE_LIMIT)
+    .map((n) => ({ handle: n.handle, kind: n.kind, text: clip(n.text, ORIENT_NOTE_CHARS) }));
+
+  let stale: Record<string, unknown> | null = null;
+  try {
+    const result = await computeStaleCards(root, index);
+    const handles = result.stale.slice(0, ORIENT_STALE_LIMIT).map((s) => s.handle);
+    stale = {
+      count: result.stale.length,
+      handles,
+      ...(result.stale.length > handles.length
+        ? { note: 'Truncated — stale_report has the full table.' }
+        : {}),
+    };
+  } catch {
+    stale = null;
+  }
+
+  let repos: Array<{ name: string; path: string }> = [];
+  try {
+    repos = (await readConnectedRepos(root)).map((r) => ({ name: r.name, path: r.path }));
+  } catch {
+    repos = [];
+  }
+
+  const workspace = await packageVersion(root);
+  const versions: Record<string, unknown> = {
+    server: PACKAGE_VERSION,
+    workspace,
+    version_mismatch: workspace !== null && workspace !== PACKAGE_VERSION,
+  };
+  if (versions.version_mismatch) {
+    const older = compareVersions(PACKAGE_VERSION, workspace!) < 0;
+    versions.warning = older
+      ? `This MCP server is ${PACKAGE_VERSION}, older than the workspace's ${workspace} — you may be talking to a published server against an unreleased tree. Rebuild and restart it if you expect new behavior.`
+      : `This MCP server is ${PACKAGE_VERSION}, ahead of the workspace's ${workspace} — the running server includes changes this tree has not released.`;
+  }
+
+  return {
+    plan_root: index.root,
+    project: {
+      handle: 'PLAN-PROJECT',
+      name: project?.name ?? null,
+      summary: projectSummary(project),
+    },
+    cards: { total: cards.length, by_type: byType, by_status: byStatus },
+    stale,
+    recent_notes: recentNotes,
+    connected_repos: repos,
+    versions,
+  };
+}
+
 const detailSchema = z.enum(['none', 'summary', 'full']);
 const typeSchema = z.enum(TYPE_NAMES as unknown as [TypeName, ...TypeName[]]);
 const statusSchema = z.enum(['planned', 'building', 'built', 'verified']);
@@ -781,6 +937,17 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         );
       }
     },
+  );
+
+  server.registerTool(
+    'orient',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'Call ONCE at session start: the whole plan at a glance, in one small response. What the project is (PLAN-PROJECT name + summary), how big the plan is (type histogram, status rollup), what is drifting (stale count + a few handles), the newest memory across all cards (recent notes), any connected repos, and the server-vs-workspace version check. Read-only and never hydrated — no card bodies — so it costs a fraction of the list_cards/check_sync/list_notes opening ritual it replaces. Follow it with search or get_card on whatever it points you at.',
+      inputSchema: { repo: repoSchema },
+    },
+    withPlan(async (root) => ok(await orientReport(root))),
   );
 
   server.registerTool(

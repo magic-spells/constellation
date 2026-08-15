@@ -5,18 +5,6 @@ status: built
 notes:
   - kind: state
     text: >-
-      2026-07-14: server INSTRUCTIONS gained the note-stream HYGIENE paragraph — agents should
-      RECOMMEND compaction in one line when a card's notes exceed ~10 or a later note
-      supersedes/resolves an earlier one (never auto-compact, never derail the task); compaction
-      itself folds still-true state notes into the body, deletes superseded interim notes, keeps
-      unresolved gotchas / negative results / newest verified stamp / cross-cited notes, appends a
-      "compacted at <sha>" marker, and exempts DECISION cards. The full checklist lives in the new
-      "Compaction — keeping note streams lean" section of skill/SKILL.md (whose frontmatter
-      description now names compaction as a trigger). Motivated by real bloat in the puzzle repo's
-      plan: COMPONENT-ROUTER at 21 notes with superseded pairs a reader must reconcile
-      chronologically.
-  - kind: state
-    text: >-
       2026-07-28: DECISION cards flipped from compaction-exempt to living records — one card per
       decision topic, updated in place when the decision changes (old approach becomes a rejected
       Alternative; git holds the trail); the `supersedes` field was removed from
@@ -66,6 +54,13 @@ times over:
 
 ## Tool surface
 
+- **Orientation** — `orient`: the session-start briefing, one small unhydrated response —
+  plan root, PLAN-PROJECT name + summary (its `summary` field, else the body's opening prose),
+  type histogram + status rollup, stale count with ~5 handles, the newest notes across the
+  plan, connected repos, and the running server version against the workspace
+  `package.json` (`version_mismatch` + a one-line warning catches "a published server is
+  answering for an unreleased tree"). It replaces the five-tool opening ritual, so it stays
+  counts-and-handles: never card bodies.
 - **Read** — `get_card` (+ `code: none|paths|direct`, notes filters), `list_cards`,
   `list_notes` (cross-card notes query by kind/handles), `search` (AND across terms over
   bodies, notes **and** the binding frontmatter — `summary`, `path`, `code_refs`),

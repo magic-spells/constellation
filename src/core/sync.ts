@@ -50,7 +50,7 @@ const STATUS_KEYS = ['planned', 'building', 'built', 'verified'] as const;
  * Read live (never stored); null for a non-node repo, an unreadable/invalid
  * package.json, or a plan outside a git repo.
  */
-async function packageVersion(planRoot: string): Promise<string | null> {
+export async function packageVersion(planRoot: string): Promise<string | null> {
   try {
     const repoRoot = await repoRootFor(await realpath(planRoot));
     const raw = await readFile(path.join(repoRoot, 'package.json'), 'utf8');
