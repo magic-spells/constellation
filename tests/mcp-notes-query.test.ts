@@ -96,6 +96,79 @@ describe('list_notes (cross-card memory query)', () => {
   });
 });
 
+// A long-lived card accumulates a diary. Hydration should pay for the current
+// state (the newest few) and nothing more — RESPONSE SHAPING ONLY: the file on
+// disk keeps every note, and list_notes still returns them all.
+describe('notes tail on hydrated reads', () => {
+  const noteCount = async (handle: string, args: Record<string, unknown> = {}) => {
+    const res = await call('get_card', { handle, ...args });
+    return res.data.card;
+  };
+
+  beforeAll(async () => {
+    for (let i = 1; i <= 8; i++) {
+      await call('append_note', {
+        handle: 'DOC-TICKET-LIFECYCLE',
+        kind: 'state',
+        text: `lifecycle note ${i}`,
+      });
+    }
+  });
+
+  it('returns only the newest 5 notes by default, and says how many were cut', async () => {
+    const card = await noteCount('DOC-TICKET-LIFECYCLE');
+    expect(card.frontmatter.notes).toHaveLength(5);
+    expect(card.notes_truncated).toBe(3);
+    expect(card.frontmatter.notes.at(-1).text).toBe('lifecycle note 8');
+    expect(card.frontmatter.notes[0].text).toBe('lifecycle note 4');
+  });
+
+  it('notes_limit: 0 returns the whole history with no truncation flag', async () => {
+    const card = await noteCount('DOC-TICKET-LIFECYCLE', { notes_limit: 0 });
+    expect(card.frontmatter.notes).toHaveLength(8);
+    expect(card.notes_truncated).toBeUndefined();
+  });
+
+  it('leaves the card file untouched — every note is still on disk', async () => {
+    const raw = await call('list_notes', { handles: ['DOC-TICKET-LIFECYCLE'] });
+    expect(raw.data.total).toBe(8);
+  });
+
+  it('trims hydrated connected cards too', async () => {
+    const res = await call('get_card', { handle: 'API-TICKETS', connected: 'full' });
+    const neighbor = res.data.connected_cards.find(
+      (c: { handle: string }) => c.handle === 'DOC-TICKET-LIFECYCLE',
+    );
+    expect(neighbor.frontmatter.notes).toHaveLength(5);
+    expect(neighbor.notes_truncated).toBe(3);
+  });
+
+  it('assemble applies the same tail, overridable per call', async () => {
+    const res = await call('assemble', { handles: ['DOC-TICKET-LIFECYCLE'] });
+    const seed = res.data.units[0].cards[0];
+    expect(seed.frontmatter.notes).toHaveLength(5);
+    expect(seed.notes_truncated).toBe(3);
+
+    const all = await call('assemble', {
+      handles: ['DOC-TICKET-LIFECYCLE'],
+      notes_limit: 0,
+    });
+    expect(all.data.units[0].cards[0].frontmatter.notes).toHaveLength(8);
+  });
+
+  it('notes_kind still filters, and the tail applies within the kind', async () => {
+    const card = await noteCount('DOC-TICKET-LIFECYCLE', {
+      notes_kind: 'state',
+      notes_limit: 2,
+    });
+    expect(card.frontmatter.notes).toHaveLength(2);
+    expect(card.notes_truncated).toBe(6);
+    expect(card.frontmatter.notes.every((n: { kind: string }) => n.kind === 'state')).toBe(
+      true,
+    );
+  });
+});
+
 describe('concurrent appends both land (write lock)', () => {
   it('two parallel append_note calls yield two notes', async () => {
     await call('create_card', { handle: 'DOC-RACE', body: 'Race target.' });

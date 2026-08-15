@@ -362,15 +362,60 @@ function full(card: Card) {
   return { ...summary(card), frontmatter: card.frontmatter, body: card.body };
 }
 
+/**
+ * How many of a card's notes hydration returns by default. A long-lived card
+ * accumulates a diary; the last few are the current state, the rest are history
+ * `list_notes` can fetch in full. 0 means "all".
+ */
+const DEFAULT_NOTES_TAIL = 5;
+
+/**
+ * RESPONSE SHAPING ONLY — trim a card view's notes to the newest `limit` (and,
+ * optionally, to one kind), reporting how many were left out. The card FILE is
+ * never touched: this is what the caller receives, not what the plan holds.
+ */
+function withNotesTail(
+  view: ReturnType<typeof full>,
+  card: Card,
+  limit: number,
+  kind?: string,
+): Record<string, unknown> {
+  const raw = card.frontmatter.notes;
+  if (!Array.isArray(raw)) return view;
+  const notes = raw.filter(
+    (n): n is Record<string, unknown> => Boolean(n) && typeof n === 'object',
+  );
+  const selected = kind ? notes.filter((n) => n.kind === kind) : notes;
+  const shown = limit > 0 && selected.length > limit ? selected.slice(-limit) : selected;
+  if (shown.length === notes.length && !kind) return view;
+  const out: Record<string, unknown> = {
+    ...view,
+    frontmatter: { ...card.frontmatter, notes: shown },
+  };
+  if (selected.length > shown.length) out.notes_truncated = selected.length - shown.length;
+  return out;
+}
+
 type Detail = 'none' | 'summary' | 'full';
 
-function connectedCards(index: PlanIndex, handle: string, detail: Detail) {
+function connectedCards(
+  index: PlanIndex,
+  handle: string,
+  detail: Detail,
+  notesLimit?: number,
+) {
   if (detail === 'none') return undefined;
   const handles = [...(index.connectedHandles.get(handle) ?? [])].sort();
   const cards = handles
     .map((h) => index.cards.get(h))
     .filter((c): c is Card => Boolean(c));
-  return cards.map((c) => (detail === 'full' ? full(c) : summary(c)));
+  return cards.map((c) =>
+    detail === 'full'
+      ? notesLimit === undefined
+        ? full(c)
+        : withNotesTail(full(c), c, notesLimit)
+      : summary(c),
+  );
 }
 
 function issuesForFile(issues: Issue[], relPath: string): Issue[] {
@@ -628,7 +673,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Fetch one card by handle, optionally with all connected cards hydrated. connected: "full" returns the complete frontmatter and body of every connected card — use it when about to work on an area. code: "paths" returns the resolved file paths the card is bound to (connected FILE cards plus code_refs); code: "direct" attaches their contents (over-cap files truncated with truncated:true; binaries/lockfiles/generated skipped) so a background coder starts from intent + current code in one call.',
+        'Fetch one card by handle, optionally with all connected cards hydrated. connected: "full" returns the complete frontmatter and body of every connected card — use it when about to work on an area. code: "paths" returns the resolved file paths the card is bound to (connected FILE cards plus code_refs); code: "direct" attaches their contents (over-cap files truncated with truncated:true; binaries/lockfiles/generated skipped) so a background coder starts from intent + current code in one call. Notes come back as the newest 5 per card with notes_truncated: N when older ones were left out — raise notes_limit (0 = all) for a card\'s full history, or use list_notes. The card file itself is untouched either way.',
       inputSchema: {
         handle: z.string(),
         connected: detailSchema.optional().describe('default: summary'),
@@ -641,10 +686,10 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         notes_limit: z
           .number()
           .int()
-          .min(1)
-          .max(100)
+          .min(0)
+          .max(500)
           .optional()
-          .describe('return only the most recent N notes'),
+          .describe('most recent N notes per card (default 5; 0 = all)'),
         repo: repoSchema,
       },
     },
@@ -652,18 +697,10 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       const index = await loadPlan(root);
       const card = index.cards.get(handle.toUpperCase());
       if (!card) return fail('NOT_FOUND', `No card with handle ${handle}`);
-      let cardView = full(card);
-      if ((notes_kind || notes_limit) && Array.isArray(card.frontmatter.notes)) {
-        let notes = card.frontmatter.notes.filter(
-          (n): n is Record<string, unknown> => Boolean(n) && typeof n === 'object',
-        );
-        if (notes_kind) notes = notes.filter((n) => n.kind === notes_kind);
-        if (notes_limit) notes = notes.slice(-notes_limit);
-        cardView = { ...cardView, frontmatter: { ...card.frontmatter, notes } };
-      }
+      const tail = notes_limit ?? DEFAULT_NOTES_TAIL;
       const result: Record<string, unknown> = {
-        card: cardView,
-        connected_cards: connectedCards(index, card.handle, connected ?? 'summary'),
+        card: withNotesTail(full(card), card, tail, notes_kind),
+        connected_cards: connectedCards(index, card.handle, connected ?? 'summary', tail),
       };
       if (code && code !== 'none') {
         result.code = await resolveCodeForCard(root, index, card, code);
@@ -822,7 +859,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Turn a set of cards (or the plan delta since a base) into a ready-to-work package: the seed cards plus their connected neighborhood (full), the code each is bound to (code: paths|direct), a heuristic build order (data → contracts → surfaces), and — the key bit — the seeds split into FILE-DISJOINT units so you can hand one sub-agent per unit with no risk of two agents editing the same file. Omit handles to assemble everything changed since base (default: the sync marker). This is the orchestration bridge: diff_plan + traverse + code attach in one call.',
+        'Turn a set of cards (or the plan delta since a base) into a ready-to-work package: the seed cards plus their connected neighborhood (full), the code each is bound to (code: paths|direct), a heuristic build order (data → contracts → surfaces), and — the key bit — the seeds split into FILE-DISJOINT units so you can hand one sub-agent per unit with no risk of two agents editing the same file. Omit handles to assemble everything changed since base (default: the sync marker). This is the orchestration bridge: diff_plan + traverse + code attach in one call. Each card carries its newest 5 notes with notes_truncated: N when older ones were left out; raise notes_limit (0 = all) if a unit needs a card\'s full history.',
       inputSchema: {
         handles: z
           .array(z.string())
@@ -840,10 +877,17 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .optional()
           .describe('neighborhood depth around each seed (default: 1)'),
         code: codeModeSchema.optional().describe('attach bound code per card (default: paths)'),
+        notes_limit: z
+          .number()
+          .int()
+          .min(0)
+          .max(500)
+          .optional()
+          .describe('most recent N notes per card (default 5; 0 = all)'),
         repo: repoSchema,
       },
     },
-    withPlan(async (root, { handles, base, depth, code }) => {
+    withPlan(async (root, { handles, base, depth, code, notes_limit }) => {
       const index = await loadPlan(root);
 
       let seeds: string[];
@@ -913,14 +957,15 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           a.localeCompare(b),
       );
 
+      const tail = notes_limit ?? DEFAULT_NOTES_TAIL;
       const units = [];
       for (const part of partitions) {
         const cards = [];
         for (const h of part.handles) {
           const card = index.cards.get(h)!;
           const entry: Record<string, unknown> = {
-            ...full(card),
-            connected_cards: connectedCards(index, h, 'full'),
+            ...withNotesTail(full(card), card, tail),
+            connected_cards: connectedCards(index, h, 'full', tail),
           };
           if (codeMode !== 'none') {
             entry.code = await resolveCodeForCard(root, index, card, codeMode);

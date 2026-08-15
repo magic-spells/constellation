@@ -55,6 +55,9 @@ content of every card connected to it (its datatypes, table, tests, docs).
   `list_notes` (cross-card notes query by kind/handles), `search` (AND across terms over
   bodies, notes **and** the binding frontmatter — `summary`, `path`, `code_refs`),
   `traverse`, `assemble`, `describe_type` (the type reference, plan-independent).
+  `get_card` / `assemble` hydrate each card with its **newest 5 notes** and
+  `notes_truncated: N` (`notes_limit` overrides, `0` = all) — response shaping only: the
+  card file keeps every note and `list_notes` stays uncapped.
   `list_cards`/`traverse` filter by status (value or list; `"none"` = unset), so
   `["planned","building","none"]` is the backlog view. On `traverse` status is a
   *post-filter* — the walk passes through non-matching cards so a built hub never hides
