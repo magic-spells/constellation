@@ -155,6 +155,88 @@ describe('Home dashboard', () => {
 		expect(noGit.find('.sync-dash')).toBeNull();
 		noGit.destroy();
 	});
+
+	it('renders the dashboard panels from sync payload + cards', async () => {
+		const view = await mountWith(Home, [
+			card('PLAN-PROJECT', 'PLAN', { body: '# P' }),
+			card('RELEASE-V0-5-0', 'RELEASE', {
+				name: 'v0.5.0',
+				status: 'building',
+				frontmatter: { version: '0.5.0' },
+			}),
+			card('FEATURE-VIEWER', 'FEATURE', {
+				status: 'built',
+				frontmatter: { release: 'RELEASE-V0-5-0' },
+			}),
+			card('API-TICKETS', 'API', {
+				frontmatter: { notes: [{ kind: 'gotcha', text: 'watch the lock' }] },
+			}),
+		], {
+			sync: {
+				state: 'in-sync',
+				marker: null,
+				marker_error: null,
+				plan_dirty: false,
+				plan_changes_since_marker: 0,
+				code_commits_since_marker: 0,
+				activity: [],
+				integrity: { errors: 0, warnings: 0, orphans: 0 },
+				status_rollup: {},
+				total_cards: 4,
+				code_activity: [
+					{
+						sha: 'a'.repeat(40),
+						short_sha: 'aaaaaaaa',
+						date: new Date().toISOString(),
+						subject: 'feat: shiny',
+						cards: [],
+						is_sync_point: false,
+					},
+				],
+				latest_tag: 'v0.4.2',
+				package_version: '0.5.0',
+				stale: {
+					checked: 2,
+					stale: [],
+					no_baseline: [{ handle: 'DB-TICKETS', status: 'built', files: ['src/db.ts'] }],
+				},
+			},
+		});
+
+		const text = view.element.textContent;
+		expect(view.find('.panel-grid')).toBeTruthy();
+		expect(text).toContain('no drift');
+		expect(text).toContain('v0.4.2 tagged');
+		expect(text).toContain('0.5.0'); // release version chip
+		expect(text).toContain('1 of 1 features shipped');
+		expect(text).toContain('feat: shiny');
+		expect(text).toContain('watch the lock');
+
+		// Zero stale cards still owes the reader the unverifiable claims.
+		const noBase = view.findAll('.nobase-row');
+		expect(noBase).toHaveLength(1);
+		expect(noBase[0].querySelector('.nb-handle').textContent).toBe('DB-TICKETS');
+		expect(noBase[0].textContent).toContain('no verified baseline');
+
+		// Notes carry a relative time, inferred from the card's mtime.
+		expect(view.find('.note-row .n-when').textContent.trim()).not.toBe('');
+
+		view.destroy();
+	});
+
+	it('hides drift and commits panels without git data', async () => {
+		const view = await mountWith(Home, [card('PLAN-PROJECT', 'PLAN', { body: '# P' })], {
+			sync: null,
+		});
+
+		expect(view.find('.panel-drift')).toBeNull();
+		expect(view.find('.panel-commits')).toBeNull();
+		// Release and Notes still render — their empty states teach the features.
+		expect(view.find('.panel-release')).toBeTruthy();
+		expect(view.find('.panel-notes')).toBeTruthy();
+
+		view.destroy();
+	});
 });
 
 describe('FeaturesPanel', () => {

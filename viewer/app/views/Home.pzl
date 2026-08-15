@@ -29,6 +29,13 @@
       </section>
     {/if}
 
+    <div class="panel-grid">
+      {#if drift.show}<DriftPanel model={ drift } />{/if}
+      <ReleasePanel model={ release } />
+      {#if sync}<CommitsPanel model={ commits } />{/if}
+      <NotesPanel model={ notes } />
+    </div>
+
     <div class="stats">
       {#for stat in stats}
         <div key={ stat.label } class={ stat.class }>
@@ -38,13 +45,15 @@
       {/for}
     </div>
 
-    {#if hasPlanCard}
-      <Editable multiline value={ planBody } ignore="a, .mermaid-block" @save={ savePlanBody }>
-        <MarkdownBlock src={ planBody } />
-      </Editable>
-    {:else}
-      <p class="empty">No plan.md yet — run `constellation init`.</p>
-    {/if}
+    <div class="plan-body">
+      {#if hasPlanCard}
+        <Editable multiline value={ planBody } ignore="a, .mermaid-block" @save={ savePlanBody }>
+          <MarkdownBlock src={ planBody } />
+        </Editable>
+      {:else}
+        <p class="empty">No plan.md yet — run `constellation init`.</p>
+      {/if}
+    </div>
 
     <ConnectedRepos repos={ repos } />
 
@@ -64,18 +73,27 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import CommitsPanel from '../components/CommitsPanel.pzl';
 import ConnectedRepos from '../components/ConnectedRepos.pzl';
+import DriftPanel from '../components/DriftPanel.pzl';
 import Editable from '../components/Editable.pzl';
 import MarkdownBlock from '../components/MarkdownBlock.pzl';
+import NotesPanel from '../components/NotesPanel.pzl';
+import ReleasePanel from '../components/ReleasePanel.pzl';
+import { commitsModel, driftModel, notesModel, releaseModel } from '../lib/dashboard.js';
 import { savePatch } from '../lib/edit.js';
 import { relTime, SYNC_META } from '../lib/format.js';
 import { planIndex } from '../lib/plan-index.js';
 import { GROUPS, hrefForHandle, TYPE_META } from '../lib/types.js';
 
 // Home — the Overview dashboard, ported from the Svelte viewer's Home.svelte:
-// the git-derived sync panel (state, marker age, recent plan activity), a stats
+// the git-derived sync panel (state, marker age, recent plan activity), the
+// mission-control panel grid (drift, release, code commits, notes), a stats
 // row, PLAN-PROJECT's markdown body, the connected-repo list, and a tile per
 // non-empty card type.
+//
+// The panels are presentational — every one takes a single `model` prop built
+// by ../lib/dashboard.js, so the thinking is testable without a DOM.
 //
 // Everything comes from the store, so `data()` auto-subscribes: the 20s /api/sync
 // poll and the SSE plan reload both re-run it. `no-git` plans hide the sync panel
@@ -150,9 +168,16 @@ export default class Home extends PuzzleView {
 
 		// `no-git` has no freshness verdict — the whole panel stays hidden.
 		const sync = plan?.sync && plan.sync.state !== 'no-git' ? plan.sync : null;
+		// The mission-control panels read the raw payload: each model decides for
+		// itself whether it has anything to say (drift and commits self-hide).
+		const syncRaw = plan?.sync ?? null;
 
 		return {
 			sync: !!sync,
+			drift: driftModel(syncRaw),
+			release: releaseModel(index, syncRaw ?? {}),
+			commits: commitsModel(syncRaw ?? {}),
+			notes: notesModel(index),
 			syncLabel: sync ? SYNC_META[sync.state]?.label ?? '' : '',
 			syncMeta: sync ? syncMetaLine(sync) : '',
 			syncHeadClass: sync ? `sd-head ${sync.state}` : 'sd-head',
@@ -187,7 +212,7 @@ export default class Home extends PuzzleView {
 </script>
 
 <style>
-.home { width: min(100%, 62rem); margin: 0 auto; padding: 2rem clamp(1.25rem, 4vw, 3.5rem) 4rem; }
+.home { width: min(100%, 96rem); margin: 0 auto; padding: 2rem clamp(1.25rem, 4vw, 3.5rem) 4rem; }
 
 @keyframes cst-rise {
 	from { opacity: 0; transform: translateY(6px); }
@@ -250,6 +275,35 @@ export default class Home extends PuzzleView {
 .activity .ac-card:hover { border-color: var(--color-border-strong); color: var(--color-muted); }
 .activity .ac-more { align-self: center; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.66rem; }
 
+/* mission-control panel grid — the frame is shared by the four *Panel.pzl
+   components; .pzl <style> blocks collect into one sheet, so it resolves for
+   them here, the way .home-section does for ConnectedRepos. */
+/* minmax(0, 1fr), not 1fr: a bare 1fr track floors at min-content, and the
+   commit/note rows are `white-space: nowrap`, so their min-content is the whole
+   untruncated line (~690px). That pinned the grid at ~1411px, overflowing the
+   container below 1920px and clipping the right column instead of ellipsizing.
+   The 0 minimum lets the tracks shrink so text-overflow can do its job. */
+.panel-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.9rem; margin: 0 0 2.4rem; }
+.panel {
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	background: var(--color-surface);
+	padding: 1.1rem 1.4rem;
+	animation: cst-rise 0.35s ease both;
+}
+.panel > h3 {
+	margin: 0 0 0.7rem;
+	color: var(--color-muted);
+	font-family: var(--font-mono);
+	font-size: 0.76rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+.panel .panel-empty { color: var(--color-faint); font-size: 0.85rem; font-style: italic; }
+.panel .panel-ok { color: var(--color-success); font-size: 0.88rem; }
+.panel .panel-head.warn { color: var(--color-warning); font-weight: 600; font-size: 0.92rem; }
+
 /* stats row */
 .stats {
 	display: flex;
@@ -264,6 +318,13 @@ export default class Home extends PuzzleView {
 .stats .stat .label { color: var(--color-muted); font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; }
 .stats .stat.bad .n { color: var(--color-danger); }
 .stats .stat.good .n { color: var(--color-success); }
+
+/* PLAN-PROJECT's markdown body. The page is 96rem wide for the panel grid, but
+   prose is not — cap the measure at 70rem and keep it LEFT-aligned (no auto
+   margins) so its left edge stays flush with the panels and sections around
+   it. Scoped here on purpose: MarkdownBlock is used on card pages too, and
+   those layouts set their own width. */
+.plan-body { max-width: 70rem; }
 
 .home .empty { color: var(--color-faint); font-size: 0.88rem; font-style: italic; }
 
@@ -298,6 +359,10 @@ export default class Home extends PuzzleView {
 .tile .star { color: var(--c, var(--color-brand)); font-size: 0.8rem; }
 .tile .t-label { margin-left: 0.4rem; color: var(--color-ink); font-size: 0.86rem; font-weight: 600; }
 .tile .t-count { display: block; margin-top: 0.15rem; color: var(--color-muted); font-family: var(--font-mono); font-size: 0.72rem; }
+
+@media (max-width: 900px) {
+	.panel-grid { grid-template-columns: minmax(0, 1fr); }
+}
 
 @media (max-width: 640px) {
 	.home { padding-inline: 1rem; }

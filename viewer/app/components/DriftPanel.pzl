@@ -1,0 +1,125 @@
+<puzzle-view>
+  <div class="contents">
+    {#if show}
+      <section class="panel panel-drift">
+        <h3>Drift</h3>
+        {#if clean}
+          <p class="panel-ok">✓ no drift — all claims hold</p>
+        {:else}
+          <p class="panel-head warn">⚠ { headline }</p>
+          <ul class="drift-rows">
+            {#for row in rows}
+              <li key={ row.handle } class="drift-row">
+                <a class="d-handle" href="{ row.path | link }">{ row.handle }</a>
+                <Badge variant={ row.statusVariant } class={ row.statusTint }>{ row.status }</Badge>
+                <span class="d-meta">{ row.changedCount } file{ row.plural } changed · { row.baselineSource }</span>
+              </li>
+            {/for}
+          </ul>
+        {/if}
+        {#if hasNoBaseline}
+          <p class="d-nobase-head">{ noBaselineCount } claim{ noBaselinePlural } without a reachable baseline</p>
+          <ul class="nobase-rows">
+            {#for row in noBaseline}
+              <li key={ row.handle } class="nobase-row">
+                <a class="nb-handle" href="{ row.path | link }">{ row.handle }</a>
+                {#if row.status}<span class="nb-status">{ row.status }</span>{/if}
+                {#if row.reason}<span class="nb-reason">{ row.reason }</span>{/if}
+              </li>
+            {/for}
+          </ul>
+        {/if}
+      </section>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Badge from './ui/Badge.pzl';
+
+// DriftPanel — the reverse-drift verdict: cards whose bound code moved since
+// the baseline they were verified against. Presentational only: one `model`
+// prop, shaped by `driftModel()` in ../lib/dashboard.js.
+//
+// The panel disappears entirely when there is no verdict to report (no git, or
+// the sync route has not answered yet) — a repo with nothing verified still
+// renders, as the clean state.
+//
+// `.panel` itself is Home.pzl's (its only caller); .pzl <style> blocks collect
+// into one sheet, so the frame resolves there.
+
+// `baseline_source` is a wire token — say what it means instead.
+const BASELINE_COPY = {
+	verified_sha: 'since verify',
+	'sync-marker': 'since sync point',
+	argument: 'since base',
+};
+
+export default class DriftPanel extends PuzzleView {
+	data(params, props) {
+		const model = props.model ?? {};
+		const rows = Array.isArray(model.rows) ? model.rows : [];
+		const noBaseline = Array.isArray(model.noBaseline) ? model.noBaseline : [];
+
+		return {
+			show: !!model.show,
+			clean: model.clean !== false,
+			headline: model.headline ?? '',
+			rows: rows.map((row) => ({
+				handle: row.handle ?? '',
+				path: row.path ?? '',
+				name: row.name ?? '',
+				status: row.status ?? '',
+				statusVariant: row.statusVariant ?? 'default',
+				statusTint: row.statusTint ?? '',
+				changedCount: row.changedCount ?? 0,
+				plural: row.changedCount === 1 ? '' : 's',
+				baselineSource: BASELINE_COPY[row.baselineSource] ?? 'since baseline',
+			})),
+			// A plan with zero stale cards but N unverifiable claims is not silently
+			// clean — the sub-list renders under both the warn and the ✓ branch.
+			hasNoBaseline: noBaseline.length > 0,
+			noBaselineCount: noBaseline.length,
+			noBaselinePlural: noBaseline.length === 1 ? '' : 's',
+			noBaseline: noBaseline.map((row) => ({
+				handle: row.handle ?? '',
+				path: row.path ?? '',
+				status: row.status ?? '',
+				reason: row.reason ?? '',
+			})),
+		};
+	}
+}
+</script>
+
+<style>
+.drift-rows { display: flex; flex-direction: column; gap: 0.1rem; margin: 0; padding: 0; list-style: none; }
+.drift-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-width: 0; padding: 0.3rem 0; }
+.drift-row .d-handle {
+	overflow: hidden;
+	max-width: 100%;
+	color: var(--color-body);
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.drift-row .d-handle:hover { color: var(--color-ink); text-decoration: underline; }
+.drift-row .d-meta { color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; white-space: nowrap; }
+.panel-drift .d-nobase-head { margin: 0.7rem 0 0.1rem; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
+.nobase-rows { display: flex; flex-direction: column; gap: 0.1rem; margin: 0; padding: 0; list-style: none; }
+.nobase-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.45rem; min-width: 0; padding: 0.2rem 0; }
+.nobase-row .nb-handle {
+	overflow: hidden;
+	max-width: 100%;
+	color: var(--color-faint);
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.nobase-row .nb-handle:hover { color: var(--color-muted); text-decoration: underline; }
+.nobase-row .nb-status { color: var(--color-faint); font-size: 0.7rem; }
+.nobase-row .nb-reason { overflow: hidden; min-width: 0; color: var(--color-faint); font-size: 0.7rem; text-overflow: ellipsis; white-space: nowrap; }
+</style>
