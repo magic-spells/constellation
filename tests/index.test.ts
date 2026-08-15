@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { loadPlan } from '../src/core/indexer.js';
+import { loadPlan, neighborsOf } from '../src/core/indexer.js';
 
 const GOLDEN = fileURLToPath(
   new URL('../examples/constellation', import.meta.url),
@@ -70,5 +70,40 @@ describe('loadPlan on the golden example', () => {
         (e.a === 'DB-TICKETS' && e.b === 'API-TICKETS'),
     );
     expect(between).toHaveLength(1);
+  });
+
+  it('records where each connection came from', async () => {
+    const index = await loadPlan(GOLDEN);
+    const sources = (a: string, b: string) =>
+      index.connections.find(
+        (e) => (e.a === a && e.b === b) || (e.a === b && e.b === a),
+      )?.sources;
+    // connections: only.
+    expect(sources('API-TICKETS', 'DB-TICKETS')).toEqual(['structured']);
+    // connections: plus a [[link]] — one edge carrying both sources.
+    expect(sources('API-TICKETS', 'FILE-TICKETS-ROUTE')).toEqual([
+      'structured',
+      'prose',
+    ]);
+    // A mermaid node ID only.
+    expect(sources('API-TICKETS', 'DIAGRAM-SYSTEM-OVERVIEW')).toEqual(['prose']);
+  });
+
+  it('splits the adjacency by source so a walk can skip prose edges', async () => {
+    const index = await loadPlan(GOLDEN);
+    expect(neighborsOf(index, 'API-TICKETS', 'structured')).toContain('DB-TICKETS');
+    expect(neighborsOf(index, 'API-TICKETS', 'structured')).not.toContain(
+      'DIAGRAM-SYSTEM-OVERVIEW',
+    );
+    expect(neighborsOf(index, 'API-TICKETS', 'prose')).toContain(
+      'DIAGRAM-SYSTEM-OVERVIEW',
+    );
+    expect(neighborsOf(index, 'API-TICKETS', 'both')).toEqual(
+      index.connectedHandles.get('API-TICKETS'),
+    );
+    // Every structured/prose neighbor is also in the union.
+    for (const h of neighborsOf(index, 'API-TICKETS', 'prose')) {
+      expect(index.connectedHandles.get('API-TICKETS')).toContain(h);
+    }
   });
 });

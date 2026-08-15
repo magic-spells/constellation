@@ -49,6 +49,21 @@ Any read tool can return connected cards with full data in one call — `connect
 summary | full`. The acceptance test: one `get_card` returns an API card plus the complete
 content of every card connected to it (its datatypes, table, tests, docs).
 
+Hydration is **lean by construction**, because the naive version pays for the same body many
+times over:
+
+- **Deduped** — a card's full content appears at most once per response; later mentions are
+  its summary with `hydrated_elsewhere: true`.
+- **No supernodes as neighbors** — DIAGRAM cards and `PLAN-PROJECT` sit next to everything, so
+  they degrade to summaries when *reached*; requested by name they still return in full.
+- **Budgeted** — 24 KB per card, 96 KB per response (mirroring [[FILE-CODE]]'s file caps).
+  Past that, remaining neighbors degrade to summaries. Nothing is ever silently truncated:
+  every omission is named in `hydration_budget` (`deduped`, `degraded`, `budget_exhausted`).
+- **Structured edges by default** — walks (`traverse`, `assemble`) travel `connections:` and
+  frontmatter refs only; `edges: "prose" | "both"` opts `[[links]]` and mermaid IDs back in.
+  `get_card` still lists *every* connection — one hop is informative — each tagged with
+  `edge_sources` ([[FILE-INDEXER]] carries the provenance).
+
 ## Tool surface
 
 - **Read** — `get_card` (+ `code: none|paths|direct`, notes filters), `list_cards`,
@@ -61,7 +76,13 @@ content of every card connected to it (its datatypes, table, tests, docs).
   `list_cards`/`traverse` filter by status (value or list; `"none"` = unset), so
   `["planned","building","none"]` is the backlog view. On `traverse` status is a
   *post-filter* — the walk passes through non-matching cards so a built hub never hides
-  planned work — while `types` prunes the walk itself.
+  planned work — while `types` prunes the walk itself. `traverse` / `assemble` also take
+  `edges: structured | prose | both` (default `structured`).
+  `assemble` is an **index** by default (`hydration: "index" | "full"`): file-disjoint units,
+  seed handles, per-seed bound paths, and a deduped neighbor list — no bodies, because the
+  parent then pulls the handful of cards a sub-agent actually needs with `get_card`. Its
+  `depth` moves the *walk* (`reached_handles`, `neighbors`, `suggested_order`), never what
+  gets serialized: `hydration: "full"` spells out each seed plus its **direct** connections.
 - **Write** — `create_card`, `create_cards` (batched, lints once), `update_card` (+ `if_mtime`
   stale-write guard), `append_note`, `edit_section`, `set_verified`, `rename_card` (rename a
   handle and rewrite every reference plan-wide, whole-token; the file moves with the prefix —

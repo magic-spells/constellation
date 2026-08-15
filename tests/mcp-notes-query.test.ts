@@ -143,14 +143,18 @@ describe('notes tail on hydrated reads', () => {
     expect(neighbor.notes_truncated).toBe(3);
   });
 
-  it('assemble applies the same tail, overridable per call', async () => {
-    const res = await call('assemble', { handles: ['DOC-TICKET-LIFECYCLE'] });
+  it('assemble applies the same tail when hydrating, overridable per call', async () => {
+    const res = await call('assemble', {
+      handles: ['DOC-TICKET-LIFECYCLE'],
+      hydration: 'full',
+    });
     const seed = res.data.units[0].cards[0];
     expect(seed.frontmatter.notes).toHaveLength(5);
     expect(seed.notes_truncated).toBe(3);
 
     const all = await call('assemble', {
       handles: ['DOC-TICKET-LIFECYCLE'],
+      hydration: 'full',
       notes_limit: 0,
     });
     expect(all.data.units[0].cards[0].frontmatter.notes).toHaveLength(8);

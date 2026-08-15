@@ -11,10 +11,16 @@ import {
   TYPE_FOLDERS,
   typeForHandle,
 } from '../core/handles.js';
-import { loadPlan } from '../core/indexer.js';
+import { edgeSourcesBetween, loadPlan, neighborsOf } from '../core/indexer.js';
 import { lintPlan } from '../core/lint.js';
 import { resolvePlanDir } from '../core/resolve.js';
-import type { Card, Issue, PlanIndex, TypeName } from '../core/types.js';
+import type {
+  Card,
+  EdgeFilter,
+  Issue,
+  PlanIndex,
+  TypeName,
+} from '../core/types.js';
 import { TYPE_NAMES } from '../core/types.js';
 import type { RunningServer } from '../serve/server.js';
 import {
@@ -398,24 +404,129 @@ function withNotesTail(
 
 type Detail = 'none' | 'summary' | 'full';
 
+type CardView = Record<string, unknown>;
+
+/**
+ * Caps on hydrated CARD text, mirroring code.ts's caps on attached FILE text.
+ * Neighbor prose is denser than source, so the ceilings are lower: a single
+ * neighbor over the per-card cap, or anything past the response total, comes
+ * back as a summary the agent can fetch with get_card — never as silently
+ * truncated text. The explicitly requested card is exempt from both.
+ */
+export const HYDRATION_PER_CARD_MAX = 24 * 1024;
+export const HYDRATION_TOTAL_MAX = 96 * 1024;
+
+/** Rough serialized weight of a card's hydrated content. */
+function hydratedBytes(card: Card): number {
+  let fmBytes = 0;
+  try {
+    fmBytes = Buffer.byteLength(JSON.stringify(card.frontmatter) ?? '');
+  } catch {
+    fmBytes = 0;
+  }
+  return Buffer.byteLength(card.body) + fmBytes;
+}
+
+/**
+ * Cards that connect to everything. A DIAGRAM names every node it draws and
+ * PLAN-PROJECT sits next to the whole plan, so hydrating one as a NEIGHBOR
+ * drags in the response's whole budget for context nobody asked for. Ask for
+ * either directly and you still get all of it.
+ */
+function isSupernode(card: Card): boolean {
+  return card.type === 'DIAGRAM' || card.handle === 'PLAN-PROJECT';
+}
+
+/**
+ * Per-RESPONSE hydration budget and dedupe ledger. One rule, stated once in the
+ * tool descriptions: a card's full frontmatter + body appears AT MOST ONCE in a
+ * response; every later appearance is that card's summary with
+ * `hydrated_elsewhere: true`. Degradations (supernode, per-card cap, exhausted
+ * budget) are reported per card as `degraded_to_summary` and collected in the
+ * response's `hydration_budget`.
+ */
+class Hydrator {
+  private readonly emitted = new Set<string>();
+  private readonly dedupedSet = new Set<string>();
+  private readonly degradedSet = new Set<string>();
+  private used = 0;
+  private exhausted = false;
+
+  constructor(private readonly notesLimit: number = DEFAULT_NOTES_TAIL) {}
+
+  /** An explicitly requested card: full content, exempt from every cap. */
+  primary(card: Card, notesKind?: string): CardView {
+    if (this.emitted.has(card.handle)) {
+      this.dedupedSet.add(card.handle);
+      return { ...summary(card), hydrated_elsewhere: true };
+    }
+    this.emitted.add(card.handle);
+    this.used += hydratedBytes(card);
+    return withNotesTail(full(card), card, this.notesLimit, notesKind);
+  }
+
+  /** A card reached BY connection: subject to dedupe, supernode and budget rules. */
+  view(card: Card, detail: Detail): CardView | undefined {
+    if (detail === 'none') return undefined;
+    if (detail === 'summary') return summary(card);
+    if (this.emitted.has(card.handle)) {
+      this.dedupedSet.add(card.handle);
+      return { ...summary(card), hydrated_elsewhere: true };
+    }
+    const reason = this.degradeReason(card);
+    if (reason) {
+      this.degradedSet.add(card.handle);
+      return { ...summary(card), degraded_to_summary: reason };
+    }
+    this.emitted.add(card.handle);
+    this.used += hydratedBytes(card);
+    return withNotesTail(full(card), card, this.notesLimit);
+  }
+
+  private degradeReason(card: Card): string | null {
+    if (isSupernode(card)) return 'supernode';
+    const bytes = hydratedBytes(card);
+    if (bytes > HYDRATION_PER_CARD_MAX) return 'over per-card cap';
+    if (this.used + bytes > HYDRATION_TOTAL_MAX) {
+      this.exhausted = true;
+      return 'budget exhausted';
+    }
+    return null;
+  }
+
+  /** The response's hydration accounting, or undefined when nothing was held back. */
+  report(): Record<string, unknown> | undefined {
+    if (this.dedupedSet.size === 0 && this.degradedSet.size === 0) return undefined;
+    return {
+      per_card_max_bytes: HYDRATION_PER_CARD_MAX,
+      total_max_bytes: HYDRATION_TOTAL_MAX,
+      hydrated_bytes: this.used,
+      deduped: [...this.dedupedSet].sort(),
+      degraded: [...this.degradedSet].sort(),
+      budget_exhausted: this.exhausted,
+      note: 'Full content appears once per response. Cards listed here came back as summaries — fetch any you need with get_card.',
+    };
+  }
+}
+
 function connectedCards(
   index: PlanIndex,
   handle: string,
   detail: Detail,
-  notesLimit?: number,
+  opts: { hydrator?: Hydrator; edges?: EdgeFilter } = {},
 ) {
   if (detail === 'none') return undefined;
-  const handles = [...(index.connectedHandles.get(handle) ?? [])].sort();
-  const cards = handles
-    .map((h) => index.cards.get(h))
-    .filter((c): c is Card => Boolean(c));
-  return cards.map((c) =>
-    detail === 'full'
-      ? notesLimit === undefined
-        ? full(c)
-        : withNotesTail(full(c), c, notesLimit)
-      : summary(c),
-  );
+  const hydrator = opts.hydrator ?? new Hydrator();
+  const handles = [...neighborsOf(index, handle, opts.edges ?? 'both')].sort();
+  const out: CardView[] = [];
+  for (const h of handles) {
+    const card = index.cards.get(h);
+    if (!card) continue;
+    const view = hydrator.view(card, detail);
+    if (!view) continue;
+    out.push({ ...view, edge_sources: edgeSourcesBetween(index, handle, h) ?? [] });
+  }
+  return out;
 }
 
 function issuesForFile(issues: Issue[], relPath: string): Issue[] {
@@ -497,6 +608,10 @@ function statusSetOf(status?: StatusFilter | StatusFilter[]): Set<string> | null
   if (status === undefined) return null;
   return new Set(Array.isArray(status) ? status : [status]);
 }
+// Which edges a walk may travel. Structured edges are contracts (connections: +
+// handle-shaped frontmatter values); prose edges ([[links]], mermaid node IDs)
+// are aspirational — informative one hop out, ruinous to expand through.
+const edgesSchema = z.enum(['structured', 'prose', 'both']);
 const noteKindSchema = z.enum(['decision', 'gotcha', 'state', 'deviation', 'verified']);
 const codeModeSchema = z.enum(['none', 'paths', 'direct']);
 const repoSchema = z
@@ -673,7 +788,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Fetch one card by handle, optionally with all connected cards hydrated. connected: "full" returns the complete frontmatter and body of every connected card — use it when about to work on an area. code: "paths" returns the resolved file paths the card is bound to (connected FILE cards plus code_refs); code: "direct" attaches their contents (over-cap files truncated with truncated:true; binaries/lockfiles/generated skipped) so a background coder starts from intent + current code in one call. Notes come back as the newest 5 per card with notes_truncated: N when older ones were left out — raise notes_limit (0 = all) for a card\'s full history, or use list_notes. The card file itself is untouched either way.',
+        'Fetch one card by handle, optionally with all connected cards hydrated. Lists EVERY connection — structured and prose alike — each tagged with edge_sources: ["structured"] (a connections: entry or frontmatter value — a contract) and/or ["prose"] (a [[link]] or mermaid node — aspirational). connected: "full" returns the complete frontmatter and body of every connected card — use it when about to work on an area. Hydration is capped and deduped: a card\'s full content appears at most once per response, DIAGRAM cards and PLAN-PROJECT are never hydrated as neighbors (ask for them directly instead), and anything past the text budget comes back as a summary with degraded_to_summary — see hydration_budget; nothing is ever silently truncated. code: "paths" returns the resolved file paths the card is bound to (connected FILE cards plus code_refs); code: "direct" attaches their contents (over-cap files truncated with truncated:true; binaries/lockfiles/generated skipped) so a background coder starts from intent + current code in one call. Notes come back as the newest 5 per card with notes_truncated: N when older ones were left out — raise notes_limit (0 = all) for a card\'s full history, or use list_notes. The card file itself is untouched either way.',
       inputSchema: {
         handle: z.string(),
         connected: detailSchema.optional().describe('default: summary'),
@@ -697,14 +812,20 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       const index = await loadPlan(root);
       const card = index.cards.get(handle.toUpperCase());
       if (!card) return fail('NOT_FOUND', `No card with handle ${handle}`);
-      const tail = notes_limit ?? DEFAULT_NOTES_TAIL;
+      const hydrator = new Hydrator(notes_limit ?? DEFAULT_NOTES_TAIL);
       const result: Record<string, unknown> = {
-        card: withNotesTail(full(card), card, tail, notes_kind),
-        connected_cards: connectedCards(index, card.handle, connected ?? 'summary', tail),
+        card: hydrator.primary(card, notes_kind),
+        // One hop is informative, so get_card shows EVERY connection (prose
+        // included) — the edge_sources tag says which kind each one is.
+        connected_cards: connectedCards(index, card.handle, connected ?? 'summary', {
+          hydrator,
+        }),
       };
       if (code && code !== 'none') {
         result.code = await resolveCodeForCard(root, index, card, code);
       }
+      const hydration = hydrator.report();
+      if (hydration) result.hydration_budget = hydration;
       return ok(result);
     }),
   );
@@ -752,7 +873,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Scored full-text search over handles, names, kinds/types, bodies, appended notes, and the frontmatter that describes or binds a card (summary, path, code_refs) — so a source path like "src/core/stale.ts" finds the card bound to it. Matching is AND: every significant word in the query must appear on the card (common words are ignored); wrap a phrase in double quotes to match it whole. Set connected: "full" to hydrate each match with the complete content of its connected cards — fuzzy query to working context in one call.',
+        'Scored full-text search over handles, names, kinds/types, bodies, appended notes, and the frontmatter that describes or binds a card (summary, path, code_refs) — so a source path like "src/core/stale.ts" finds the card bound to it. Matching is AND: every significant word in the query must appear on the card (common words are ignored); wrap a phrase in double quotes to match it whole. Set connected: "full" to hydrate each match with the complete content of its connected cards — fuzzy query to working context in one call; hydration is shared across matches, so a card shared by two matches is spelled out once and then referenced by handle (hydrated_elsewhere: true), under the caps reported in hydration_budget.',
       inputSchema: {
         q: z.string(),
         types: z.array(typeSchema).optional(),
@@ -765,14 +886,21 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       const index = await loadPlan(root);
       const needles = queryNeedles(q);
       const hits = searchCards(index, q, types).slice(0, limit ?? 20);
+      // One hydrator across every match: neighborhoods overlap heavily, and a
+      // card's body is worth paying for once per response, not once per hit.
+      const hydrator = new Hydrator();
       const result: Record<string, unknown> = {
         matches: hits.map((hit) => ({
           card: summary(hit.card),
           score: hit.score,
           excerpt: hit.excerpt,
-          connected_cards: connectedCards(index, hit.card.handle, connected ?? 'none'),
+          connected_cards: connectedCards(index, hit.card.handle, connected ?? 'none', {
+            hydrator,
+          }),
         })),
       };
+      const hydration = hydrator.report();
+      if (hydration) result.hydration_budget = hydration;
       // Matching is AND, so a long natural-language query can match nothing.
       // Say so rather than letting it read as "the plan has nothing on this".
       if (hits.length === 0 && needles.length > 1) {
@@ -787,11 +915,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Breadth-first walk of the connection graph from one or more starting handles. Seed it with diff_plan output for impact analysis. detail: "full" includes frontmatter and body of every reached card. status filters the RESULT only — the walk still passes through non-matching cards, so a built hub never hides the planned work behind it (status: ["planned", "building", "none"] = open work in this neighborhood). types, by contrast, prunes the walk itself.',
+        'Breadth-first walk of the connection graph from one or more starting handles. Seed it with diff_plan output for impact analysis. The walk travels STRUCTURED edges by default (connections: entries and frontmatter values — the contracts); [[links]] and mermaid node IDs are aspirational pointers and a diagram would otherwise act as a supernode pulling in half the plan, so pass edges: "both" (or "prose") to include them. detail: "full" includes frontmatter and body of every reached card, deduped and capped: each card is spelled out at most once, DIAGRAM cards and PLAN-PROJECT are never hydrated as neighbors, and anything past the budget degrades to a summary (degraded_to_summary, see hydration_budget) rather than being truncated. status filters the RESULT only — the walk still passes through non-matching cards, so a built hub never hides the planned work behind it (status: ["planned", "building", "none"] = open work in this neighborhood). types, by contrast, prunes the walk itself.',
       inputSchema: {
         start: z.union([z.string(), z.array(z.string()).min(1)]),
         depth: z.number().int().min(0).max(5).optional().describe('default: 2'),
         types: z.array(typeSchema).optional(),
+        edges: edgesSchema.optional().describe('which edges the walk travels (default: structured)'),
         status: statusesSchema.describe(
           'post-filter on returned cards; "none" = no status set. The walk passes through non-matching cards.',
         ),
@@ -799,7 +928,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         repo: repoSchema,
       },
     },
-    withPlan(async (root, { start, depth, types, status, detail }) => {
+    withPlan(async (root, { start, depth, types, status, detail, edges }) => {
       const index = await loadPlan(root);
       const starts = (Array.isArray(start) ? start : [start]).map((s) =>
         s.toUpperCase(),
@@ -810,6 +939,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       }
       const typeFilter = types && types.length > 0 ? new Set(types) : null;
       const maxDepth = depth ?? 2;
+      const edgeFilter: EdgeFilter = edges ?? 'structured';
 
       const distance = new Map<string, number>();
       let frontier = starts.filter((s) => index.cards.has(s));
@@ -817,7 +947,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       for (let d = 1; d <= maxDepth && frontier.length > 0; d++) {
         const next: string[] = [];
         for (const handle of frontier) {
-          for (const neighbor of index.connectedHandles.get(handle) ?? []) {
+          for (const neighbor of neighborsOf(index, handle, edgeFilter)) {
             if (distance.has(neighbor)) continue;
             const card = index.cards.get(neighbor);
             if (!card) continue;
@@ -832,6 +962,8 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       // Status is a post-filter: the walk above passed THROUGH every card, so
       // a built hub in the middle never hides open work behind it.
       const statusFilter = statusSetOf(status);
+      // BFS insertion order, so the nearest cards claim the hydration budget first.
+      const hydrator = new Hydrator();
       const cards = [...distance.entries()]
         .filter(
           ([handle]) =>
@@ -840,17 +972,35 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         )
         .map(([handle, dist]) => {
           const card = index.cards.get(handle)!;
-          return {
-            ...(detail === 'full' ? full(card) : summary(card)),
-            distance: dist,
+          // The starting cards were asked for by name — they are never degraded.
+          const view =
+            detail === 'full'
+              ? dist === 0
+                ? hydrator.primary(card)
+                : hydrator.view(card, 'full')!
+              : summary(card);
+          return { ...view, distance: dist } as CardView & {
+            handle: string;
+            distance: number;
           };
         })
         .sort((a, b) => a.distance - b.distance || a.handle.localeCompare(b.handle));
       const surviving = new Set(cards.map((c) => c.handle));
       const connections = index.connections.filter(
-        (c) => surviving.has(c.a) && surviving.has(c.b),
+        (c) =>
+          surviving.has(c.a) &&
+          surviving.has(c.b) &&
+          (edgeFilter === 'both' || c.sources.includes(edgeFilter)),
       );
-      return ok({ cards, connections, not_found: missing });
+      const result: Record<string, unknown> = {
+        cards,
+        connections,
+        edges: edgeFilter,
+        not_found: missing,
+      };
+      const hydration = hydrator.report();
+      if (hydration) result.hydration_budget = hydration;
+      return ok(result);
     }),
   );
 
@@ -859,7 +1009,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Turn a set of cards (or the plan delta since a base) into a ready-to-work package: the seed cards plus their connected neighborhood (full), the code each is bound to (code: paths|direct), a heuristic build order (data → contracts → surfaces), and — the key bit — the seeds split into FILE-DISJOINT units so you can hand one sub-agent per unit with no risk of two agents editing the same file. Omit handles to assemble everything changed since base (default: the sync marker). This is the orchestration bridge: diff_plan + traverse + code attach in one call. Each card carries its newest 5 notes with notes_truncated: N when older ones were left out; raise notes_limit (0 = all) if a unit needs a card\'s full history.',
+        'Turn a set of cards (or the plan delta since a base) into a work INDEX for orchestration: the seeds split into FILE-DISJOINT units you can hand one sub-agent each with no risk of two agents editing the same file, the code each seed is bound to, a heuristic build order (data → contracts → surfaces), and a deduped summary list of the surrounding neighbors. Omit handles to assemble everything changed since base (default: the sync marker). This is the orchestration bridge: diff_plan + traverse + code binding in one call. hydration defaults to "index" — NO card bodies: read the index, then pull the 3–5 cards a unit actually needs with get_card (connected: "full"). hydration: "full" also spells out each seed and its DIRECT connections, deduped (a card appears in full once per response, later mentions are summaries with hydrated_elsewhere: true) and capped (DIAGRAM cards and PLAN-PROJECT never hydrate as neighbors; anything past the budget degrades to a summary — see hydration_budget), plus the newest 5 notes per card (notes_limit: 0 = all). depth controls only the WALK — which handles appear in reached_handles, neighbors and suggested_order. It never widens what gets spelled out: full mode serializes each seed plus its direct connections, and units/files are computed from the seeds alone. edges controls which connections that walk travels (default: structured — connections: entries and frontmatter values, not [[links]] or mermaid IDs).',
       inputSchema: {
         handles: z
           .array(z.string())
@@ -875,8 +1025,17 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .min(0)
           .max(3)
           .optional()
-          .describe('neighborhood depth around each seed (default: 1)'),
-        code: codeModeSchema.optional().describe('attach bound code per card (default: paths)'),
+          .describe(
+            'how far the walk goes around each seed — sets reached_handles / neighbors / suggested_order only (default: 1)',
+          ),
+        hydration: z
+          .enum(['index', 'full'])
+          .optional()
+          .describe('index (default) = no card bodies; full = seeds + direct connections, deduped and capped'),
+        edges: edgesSchema
+          .optional()
+          .describe('which edges the walk travels (default: structured)'),
+        code: codeModeSchema.optional().describe('attach bound code per SEED card (default: paths)'),
         notes_limit: z
           .number()
           .int()
@@ -887,8 +1046,10 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         repo: repoSchema,
       },
     },
-    withPlan(async (root, { handles, base, depth, code, notes_limit }) => {
+    withPlan(async (root, { handles, base, depth, code, notes_limit, edges, hydration }) => {
       const index = await loadPlan(root);
+      const edgeFilter: EdgeFilter = edges ?? 'structured';
+      const hydrationMode = hydration ?? 'index';
 
       let seeds: string[];
       let notFound: string[] = [];
@@ -914,6 +1075,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       }
       if (seeds.length === 0) {
         return ok({
+          hydration: hydrationMode,
           base: delta,
           seeds: [],
           not_found: notFound,
@@ -924,6 +1086,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         });
       }
 
+      // The walk answers "what else is in scope" — reached_handles, neighbors and
+      // suggested_order. It never decides what gets SERIALIZED: full mode spells
+      // out each seed plus its direct connections, whatever depth says.
       const maxDepth = depth ?? 1;
       const distance = new Map<string, number>();
       let frontier = seeds;
@@ -931,7 +1096,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       for (let d = 1; d <= maxDepth && frontier.length > 0; d++) {
         const next: string[] = [];
         for (const h of frontier) {
-          for (const n of index.connectedHandles.get(h) ?? []) {
+          for (const n of neighborsOf(index, h, edgeFilter)) {
             if (distance.has(n) || !index.cards.has(n)) continue;
             distance.set(n, d);
             next.push(n);
@@ -958,15 +1123,33 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       );
 
       const tail = notes_limit ?? DEFAULT_NOTES_TAIL;
+      const hydrator = new Hydrator(tail);
+      // Seeds claim their full content first, so a seed is never reduced to a
+      // back-reference because an earlier unit's neighborhood happened to reach it.
+      const seedViews = new Map<string, CardView>();
+      if (hydrationMode === 'full') {
+        for (const part of partitions) {
+          for (const h of part.handles) {
+            seedViews.set(h, hydrator.primary(index.cards.get(h)!));
+          }
+        }
+      }
+
       const units = [];
       for (const part of partitions) {
         const cards = [];
         for (const h of part.handles) {
           const card = index.cards.get(h)!;
-          const entry: Record<string, unknown> = {
-            ...withNotesTail(full(card), card, tail),
-            connected_cards: connectedCards(index, h, 'full', tail),
-          };
+          const entry: Record<string, unknown> =
+            hydrationMode === 'full'
+              ? {
+                  ...seedViews.get(h)!,
+                  connected_cards: connectedCards(index, h, 'full', {
+                    hydrator,
+                    edges: edgeFilter,
+                  }),
+                }
+              : { ...summary(card) };
           if (codeMode !== 'none') {
             entry.code = await resolveCodeForCard(root, index, card, codeMode);
           }
@@ -975,7 +1158,10 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         units.push({ handles: part.handles, files: part.files, cards });
       }
 
-      return ok({
+      const seedSet = new Set(seeds);
+      const result: Record<string, unknown> = {
+        hydration: hydrationMode,
+        edges: edgeFilter,
         base: delta,
         seeds,
         not_found: notFound,
@@ -989,7 +1175,19 @@ export function buildServer(options: ServerOptions = {}): McpServer {
               ? `${units.length} file-disjoint units — assign one sub-agent each; no two share a bound file. Still assign each card to exactly one agent.`
               : 'One unit — the seeds share bound files (or have none); do not split across agents.',
         },
-      });
+      };
+      if (hydrationMode === 'index') {
+        // The neighborhood as an index: who is nearby, deduped, no bodies.
+        result.neighbors = reached
+          .filter((h) => !seedSet.has(h))
+          .sort()
+          .map((h) => summary(index.cards.get(h)!));
+        result.next =
+          'Index only — no card bodies. Fetch the few cards a unit actually needs with get_card (connected: "full"), or re-run with hydration: "full".';
+      }
+      const hydrationReport = hydrator.report();
+      if (hydrationReport) result.hydration_budget = hydrationReport;
+      return ok(result);
     }),
   );
 

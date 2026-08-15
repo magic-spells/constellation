@@ -12,7 +12,13 @@ import {
   extractMermaidRefs,
   extractWikiLinks,
 } from './extract.js';
-import type { Card, Connection, Issue, PlanIndex } from './types.js';
+import type {
+  Card,
+  Connection,
+  EdgeFilter,
+  Issue,
+  PlanIndex,
+} from './types.js';
 
 /** Load a plan folder into an index: cards, edges, and structural issues. */
 export async function loadPlan(root: string): Promise<PlanIndex> {
@@ -42,15 +48,65 @@ export async function loadPlan(root: string): Promise<PlanIndex> {
   resolveRefs(cards, issues);
   const connections = buildConnections(cards);
 
-  const connectedHandles = new Map<string, Set<string>>();
-  for (const conn of connections) {
-    if (!connectedHandles.has(conn.a)) connectedHandles.set(conn.a, new Set());
-    if (!connectedHandles.has(conn.b)) connectedHandles.set(conn.b, new Set());
-    connectedHandles.get(conn.a)!.add(conn.b);
-    connectedHandles.get(conn.b)!.add(conn.a);
-  }
+  const connectedHandles = adjacency(connections);
+  const structuredHandles = adjacency(
+    connections.filter((c) => c.sources.includes('structured')),
+  );
+  const proseHandles = adjacency(connections.filter((c) => c.sources.includes('prose')));
 
-  return { root: absRoot, cards, connections, connectedHandles, issues };
+  return {
+    root: absRoot,
+    cards,
+    connections,
+    connectedHandles,
+    structuredHandles,
+    proseHandles,
+    issues,
+  };
+}
+
+/** handle -> neighbors, both directions, over the given connections. */
+function adjacency(connections: Connection[]): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
+  for (const conn of connections) {
+    if (!map.has(conn.a)) map.set(conn.a, new Set());
+    if (!map.has(conn.b)) map.set(conn.b, new Set());
+    map.get(conn.a)!.add(conn.b);
+    map.get(conn.b)!.add(conn.a);
+  }
+  return map;
+}
+
+/**
+ * A card's neighbors over the requested edge kinds. `structured` is the walking
+ * default for tools that expand a neighborhood: prose links are aspirational
+ * pointers, and a mermaid diagram would otherwise drag half the plan in as a
+ * supernode. `both` is the union — the whole graph, as the viewer draws it.
+ */
+export function neighborsOf(
+  index: PlanIndex,
+  handle: string,
+  edges: EdgeFilter = 'both',
+): Set<string> {
+  const map =
+    edges === 'structured'
+      ? index.structuredHandles
+      : edges === 'prose'
+        ? index.proseHandles
+        : index.connectedHandles;
+  return map.get(handle) ?? new Set();
+}
+
+/** The provenance of the edge between two handles, or null if they aren't connected. */
+export function edgeSourcesBetween(
+  index: PlanIndex,
+  a: string,
+  b: string,
+): Connection['sources'] | null {
+  const structured = index.structuredHandles.get(a)?.has(b) ?? false;
+  const prose = index.proseHandles.get(a)?.has(b) ?? false;
+  if (!structured && !prose) return null;
+  return [...(structured ? (['structured'] as const) : []), ...(prose ? (['prose'] as const) : [])];
 }
 
 function readCard(
@@ -180,27 +236,38 @@ function resolveRefs(cards: Map<string, Card>, issues: Issue[]): void {
   }
 }
 
+/**
+ * Undirected, deduped edges carrying their PROVENANCE. Declaring the same edge
+ * from both sides, or by two different mechanisms, still yields exactly one
+ * connection — but it remembers every source it was declared by, so a walk can
+ * travel only the structured (contractual) edges and leave prose pointers to
+ * one-hop reads. Provenance changes nothing about lint: E005 vs W004 is still
+ * decided per-ref in resolveRefs, over refs that may never become an edge.
+ */
 function buildConnections(cards: Map<string, Card>): Connection[] {
-  const seen = new Set<string>();
-  const connections: Connection[] = [];
+  const byKey = new Map<string, Connection>();
   for (const card of cards.values()) {
-    const targets = [
-      ...card.refs.connections,
-      ...card.refs.frontmatter,
-      ...card.refs.body,
-      ...card.refs.mermaid,
+    const targets: Array<readonly [string, Connection['sources'][number]]> = [
+      ...card.refs.connections.map((t) => [t, 'structured'] as const),
+      ...card.refs.frontmatter.map((t) => [t, 'structured'] as const),
+      ...card.refs.body.map((t) => [t, 'prose'] as const),
+      ...card.refs.mermaid.map((t) => [t, 'prose'] as const),
     ];
-    for (const target of targets) {
+    for (const [target, source] of targets) {
       if (target === card.handle || !cards.has(target)) continue;
       const [a, b] =
         card.handle < target ? [card.handle, target] : [target, card.handle];
       const key = `${a}\u0000${b}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      connections.push({ a, b });
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, { a, b, sources: [source] });
+      } else if (!existing.sources.includes(source)) {
+        // Declared both ways: report in a fixed order so the value is stable.
+        existing.sources = ['structured', 'prose'];
+      }
     }
   }
-  return connections;
+  return [...byKey.values()];
 }
 
 async function listMarkdownFiles(root: string): Promise<string[]> {
