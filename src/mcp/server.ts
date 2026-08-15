@@ -29,7 +29,7 @@ import {
 import { computeSyncStatus } from '../core/sync.js';
 import { boundPathsForCard, boundPathsOverlap, resolveCodeForCard } from '../core/code.js';
 import { computeStaleCards } from '../core/stale.js';
-import { searchCards } from './search.js';
+import { queryNeedles, searchCards } from './search.js';
 import {
   applyCardPatch,
   bodyHeadingTexts,
@@ -715,7 +715,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Scored full-text search over handles, names, kinds, and bodies. Set connected: "full" to hydrate each match with the complete content of its connected cards — fuzzy query to working context in one call.',
+        'Scored full-text search over handles, names, kinds/types, bodies, appended notes, and the frontmatter that describes or binds a card (summary, path, code_refs) — so a source path like "src/core/stale.ts" finds the card bound to it. Matching is AND: every significant word in the query must appear on the card (common words are ignored); wrap a phrase in double quotes to match it whole. Set connected: "full" to hydrate each match with the complete content of its connected cards — fuzzy query to working context in one call.',
       inputSchema: {
         q: z.string(),
         types: z.array(typeSchema).optional(),
@@ -726,15 +726,22 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     },
     withPlan(async (root, { q, types, limit, connected }) => {
       const index = await loadPlan(root);
+      const needles = queryNeedles(q);
       const hits = searchCards(index, q, types).slice(0, limit ?? 20);
-      return ok({
+      const result: Record<string, unknown> = {
         matches: hits.map((hit) => ({
           card: summary(hit.card),
           score: hit.score,
           excerpt: hit.excerpt,
           connected_cards: connectedCards(index, hit.card.handle, connected ?? 'none'),
         })),
-      });
+      };
+      // Matching is AND, so a long natural-language query can match nothing.
+      // Say so rather than letting it read as "the plan has nothing on this".
+      if (hits.length === 0 && needles.length > 1) {
+        result.note = `No card matched all of: ${needles.join(', ')}. Search is AND — retry with fewer words, or quote a phrase to match it verbatim.`;
+      }
+      return ok(result);
     }),
   );
 

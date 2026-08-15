@@ -52,7 +52,8 @@ content of every card connected to it (its datatypes, table, tests, docs).
 ## Tool surface
 
 - **Read** — `get_card` (+ `code: none|paths|direct`, notes filters), `list_cards`,
-  `list_notes` (cross-card notes query by kind/handles), `search` (bodies **and** notes),
+  `list_notes` (cross-card notes query by kind/handles), `search` (AND across terms over
+  bodies, notes **and** the binding frontmatter — `summary`, `path`, `code_refs`),
   `traverse`, `assemble`, `describe_type` (the type reference, plan-independent).
   `list_cards`/`traverse` filter by status (value or list; `"none"` = unset), so
   `["planned","building","none"]` is the backlog view. On `traverse` status is a
