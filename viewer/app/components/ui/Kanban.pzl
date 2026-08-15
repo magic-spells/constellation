@@ -1,0 +1,106 @@
+<puzzle-view>
+  <div class={ rootClass }>
+    <div class={ boardClass } role="group" aria-label={ boardLabel }>
+      {#for column in viewColumns}
+        <section class={ columnClass } data-kb-col={ column.id } aria-label={ column.title } key={ column.id }>
+          <header class="flex items-center gap-2 px-3 py-2.5">
+            {#if column.dotClass}
+              <span class={ column.dotClass } aria-hidden="true"></span>
+            {/if}
+            <h3 class="text-sm font-semibold text-ink">{ column.title }</h3>
+            <span class="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-surface px-1.5 text-xs font-medium text-muted">{ column.count }</span>
+          </header>
+
+          {#if column.count === 0}
+            <p class="px-3 pb-3.5 text-xs italic text-faint" data-kb-empty>{ column.empty }</p>
+          {:else}
+            <ul class={ column.listClass } role="list" data-kb-list>
+              {#for item in column.items}
+                <li class="list-none" key={ item.key }>
+                  <KanbanCard card={ item.card }/>
+                </li>
+              {/for}
+            </ul>
+          {/if}
+        </section>
+      {/for}
+    </div>
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import KanbanCard from './KanbanCard.pzl';
+
+// Kanban — a config-first, READ-ONLY Kanban board: horizontal columns, each a
+// vertical list of cards. The parent owns the board data; this component owns
+// the column chrome and nothing else. It holds no state, mounts no listeners,
+// and never mutates what it is handed.
+//
+//   <Kanban columns={ columns } label="Feature board" />
+//
+// ADAPTED PIECE — the registry's `kanban` ships pointer drag-and-drop plus a
+// full keyboard move model (grab / arrow / drop) and emits a `@move` intent for
+// the parent to apply. Constellation's board is read-only for now: a card's
+// column IS its `status:` frontmatter, and moving one has to land as a
+// byte-preserving PATCH through the viewer's write API before the gesture can
+// mean anything. Carrying ~500 lines of dormant drag machinery — with the
+// role="button" / tabindex / aria-grabbed semantics it implies on every card,
+// which fight the plain links a read-only board wants — would have been dead
+// weight that lies about what the board does. So the drag half was removed
+// rather than disabled. To bring it back when status-flip-on-drop lands, take
+// the original from the registry (`puzzle add piece kanban --overwrite`, then
+// re-merge these read-only additions: per-column empty hints, the column dot,
+// and the anchor-based KanbanCard).
+//
+// DATA SHAPE (cards live inside their column):
+//   columns: [
+//     {
+//       id: 'planned',              // stable column id (required)
+//       title: 'Planned',           // column heading (required)
+//       dotClass: 'size-1.5 ...',   // optional tone dot before the heading
+//       empty: 'Nothing planned.',  // optional per-column empty hint
+//       cards: [ /* KanbanCard card objects — see KanbanCard.pzl */ ],
+//     },
+//   ]
+//
+// CARD RENDERING lives in the sibling KanbanCard.pzl, not here: it takes the
+// raw card object and decides every pixel of it. Edit that file to change what
+// a card looks like or to read extra fields off your own card objects.
+//
+// Props
+//   columns   the board data (array described above)
+//   label     accessible name for the board region (default 'Board')
+//   empty     fallback empty hint for a column that declares none
+//   class     merged onto the root
+
+const EMPTY = 'Nothing here yet.';
+
+export default class Kanban extends PuzzleView {
+  data(params, props) {
+    const cols = Array.isArray(props.columns) ? props.columns : [];
+    const fallbackEmpty = props.empty || EMPTY;
+
+    const viewColumns = cols.map((col) => {
+      const cards = Array.isArray(col.cards) ? col.cards : [];
+      return {
+        id: col.id,
+        title: col.title || '',
+        dotClass: col.dotClass || '',
+        empty: col.empty || fallbackEmpty,
+        count: cards.length,
+        items: cards.map((card) => ({ key: card.id, card })),
+        listClass: 'flex min-h-12 flex-1 flex-col gap-2 px-2 pb-3',
+      };
+    });
+
+    return {
+      rootClass: ['w-full', props.class || ''].filter(Boolean).join(' '),
+      boardClass: 'flex items-start gap-4 overflow-x-auto pb-2',
+      columnClass: 'flex w-72 shrink-0 flex-col rounded-xl border border-border bg-surface-sunken',
+      boardLabel: props.label || 'Board',
+      viewColumns,
+    };
+  }
+}
+</script>

@@ -1,5 +1,6 @@
 import AppShell from './layouts/AppShell.pzl';
 import Home from './views/Home.pzl';
+import BoardPage from './views/BoardPage.pzl';
 import ConstellationView from './views/ConstellationView.pzl';
 import FeaturesPanel from './views/FeaturesPanel.pzl';
 import StyleGuide from './views/StyleGuide.pzl';
@@ -25,6 +26,13 @@ const legacyType = ({ to }) => `/${to.params.folder}`;
 
 export default [
 	{ path: '/', name: 'home', view: Home, layout: AppShell, meta: { title: 'Constellation' } },
+	{
+		path: '/board',
+		name: 'board',
+		view: BoardPage,
+		layout: AppShell,
+		meta: { title: 'Constellation — Board' },
+	},
 	{
 		path: '/constellation',
 		name: 'graph',
