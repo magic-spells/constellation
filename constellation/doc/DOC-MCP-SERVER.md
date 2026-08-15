@@ -29,7 +29,9 @@ writes, and git-powered change tracking over a plan folder. It is a thin layer o
 realistic sizes), so it is always correct while files are edited in parallel — no watcher, no
 cache invalidation. Bootstrap is folder discovery, bounded by the repo root ([[FILE-RESOLVE]]);
 a repo with no plan returns `NO_PLAN_FOUND`. The agent-facing INSTRUCTIONS string is embedded
-in the server — one of three guidance copies, see [[AGENT-GUIDANCE]].
+in the server — one of three guidance copies, capped at 55 lines because every session pays
+for it, and held in step with the other two by `tests/guidance-consistency.test.ts`. See
+[[AGENT-GUIDANCE]].
 
 ## Hydrated retrieval
 
