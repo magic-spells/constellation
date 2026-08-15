@@ -2,6 +2,11 @@
 name: Change tracking & sync
 kind: spec
 status: built
+connections:
+  - FILE-GIT
+  - FILE-SYNC
+  - FILE-STALE
+  - DOC-MCP-UPGRADES
 ---
 
 # Change tracking & sync

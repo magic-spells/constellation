@@ -3,6 +3,12 @@ name: Create ticket
 status: built
 triggers:
   - { kind: manual }
+connections:
+  - API-TICKETS
+  - DATATYPE-CREATE-TICKET-INPUT
+  - DB-TICKETS
+  - EVENT-TICKET-CREATED
+  - JOB-AUTO-ASSIGN
 ---
 
 # Create ticket

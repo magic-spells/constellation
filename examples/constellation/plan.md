@@ -1,5 +1,10 @@
 ---
 name: Ticketing Example
+connections:
+  - FLOW-CREATE-TICKET
+  - API-TICKETS
+  - DB-TICKETS
+  - DIAGRAM-SYSTEM-OVERVIEW
 ---
 
 # Project Plan

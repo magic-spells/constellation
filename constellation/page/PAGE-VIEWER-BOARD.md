@@ -6,6 +6,10 @@ code_refs:
   - viewer/app/views/BoardPage.pzl
   - viewer/app/components/ui/Kanban.pzl
   - viewer/app/components/ui/KanbanCard.pzl
+connections:
+  - FILE-SERVE
+  - COMPONENT-STATUS-SELECT
+  - PAGE-VIEWER-FEATURES
 ---
 
 The `#/board` route: every FEATURE card as a Kanban board, one column per value of

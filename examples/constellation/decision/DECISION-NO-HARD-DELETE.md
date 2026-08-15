@@ -4,6 +4,7 @@ status: built
 connections:
   - DB-TICKETS
   - STATE-TICKET
+  - API-TICKETS
 ---
 
 # Tickets are never hard-deleted

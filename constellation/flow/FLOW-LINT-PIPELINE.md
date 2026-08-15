@@ -2,6 +2,11 @@
 name: Lint pipeline
 kind: pipeline
 status: built
+connections:
+  - FILE-INDEXER
+  - FILE-VALIDATE
+  - FILE-LINT
+  - DOC-LINT-CODES
 ---
 
 How a plan folder becomes validated graph state.

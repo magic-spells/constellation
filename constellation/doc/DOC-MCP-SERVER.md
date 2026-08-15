@@ -19,6 +19,12 @@ notes:
       behavior, restated code), not just note streams. Recommend-only is reserved for big jobs or
       anything touching the keep-list. Updated in server INSTRUCTIONS + SKILL.md Compaction
       section (now "keeping cards lean", with a body-trim step).
+connections:
+  - FILE-MCP-SERVER
+  - AGENT-GUIDANCE
+  - FILE-CODE
+  - FILE-STALE
+  - DOC-CHANGE-TRACKING
 ---
 
 # MCP server

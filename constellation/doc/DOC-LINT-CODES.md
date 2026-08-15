@@ -2,6 +2,10 @@
 name: Lint codes
 kind: reference
 status: built
+connections:
+  - FILE-INDEXER
+  - FILE-VALIDATE
+  - FILE-LINT
 ---
 
 # Lint codes

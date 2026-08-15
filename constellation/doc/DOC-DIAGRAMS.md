@@ -2,6 +2,9 @@
 name: Diagrams and flows
 kind: reference
 status: built
+connections:
+  - FILE-EXTRACT
+  - DOC-FILE-FORMAT
 ---
 
 # Diagrams and flows

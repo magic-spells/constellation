@@ -1,5 +1,11 @@
 ---
 name: Constellation
+connections:
+  - FILE-CLI
+  - DOC-MCP-SERVER
+  - PAGE-VIEWER-HOME
+  - DOC-FILE-FORMAT
+  - DIAGRAM-ARCHITECTURE
 ---
 
 # Constellation

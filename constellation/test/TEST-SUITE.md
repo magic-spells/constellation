@@ -4,6 +4,10 @@ kind: integration
 status: built
 code_refs:
   - tests
+connections:
+  - FILE-LINT
+  - FILE-INDEXER
+  - FILE-MCP-SERVER
 ---
 
 The vitest suite (315 tests): core unit tests, MCP integration via an in-memory client, and git-backed drift/security tests. The golden plan `examples/constellation/` doubles as a fixture and must lint clean (0 errors). Exercises [[FILE-LINT]], [[FILE-INDEXER]], [[FILE-MCP-SERVER]].

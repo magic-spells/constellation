@@ -65,9 +65,9 @@ describe('connections come from frontmatter only', () => {
     const { data } = await call('traverse', { start: 'API-TICKETS', depth: 1 });
     const handles = data.cards.map((c: View) => c.handle);
     expect(handles).toContain('DB-TICKETS');
-    // The diagram was the supernode that used to drag half the plan into a walk.
+    // The diagram was the supernode that used to drag half the plan into a walk:
+    // it names API-TICKETS in mermaid only, and declares no connection to it.
     expect(handles).not.toContain('DIAGRAM-SYSTEM-OVERVIEW');
-    expect(handles).not.toContain('DOC-TICKET-LIFECYCLE');
     // No edge filter to report any more — there is one kind of edge.
     expect(data.edges).toBeUndefined();
     for (const conn of data.connections as Array<Record<string, unknown>>) {

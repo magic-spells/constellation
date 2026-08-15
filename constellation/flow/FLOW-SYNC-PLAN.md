@@ -2,6 +2,9 @@
 name: Sync the plan to the code
 kind: sync
 status: built
+connections:
+  - FILE-GIT
+  - DOC-CHANGE-TRACKING
 ---
 
 "Sync the plan to the code" brings CODE up to a changed plan — the plan is the source of truth, so behavior changes in the plan first.

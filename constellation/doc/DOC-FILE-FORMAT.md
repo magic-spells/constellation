@@ -2,6 +2,12 @@
 name: File format
 kind: spec
 status: built
+connections:
+  - FILE-INDEXER
+  - FILE-EXTRACT
+  - DOC-CARD-TYPES
+  - DOC-LINT-CODES
+  - DOC-CONNECTED-REPOS
 ---
 
 # File format

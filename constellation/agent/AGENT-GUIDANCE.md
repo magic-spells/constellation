@@ -6,6 +6,10 @@ code_refs:
   - skill/SKILL.md
   - skill/methodology.md
   - tests/guidance-consistency.test.ts
+connections:
+  - FILE-MCP-SERVER
+  - DOC-MCP-UPGRADES
+  - FLOW-SYNC-PLAN
 ---
 
 # Agent guidance

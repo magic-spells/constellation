@@ -4,6 +4,8 @@ kind: ui
 status: built
 code_refs:
   - viewer/app/components/StatusSelect.pzl
+connections:
+  - FILE-SERVE
 ---
 
 Card status picker (`planned` → `building` → `built` → `verified`, plus *none*); PATCHes through the write API ([[FILE-SERVE]]). Built on the puzzle-pieces `select` piece.

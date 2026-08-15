@@ -5,6 +5,8 @@ status: built
 code_refs:
   - viewer/app/components/Icon.pzl
   - viewer/app/lib/icons.js
+connections:
+  - PAGE-VIEWER-HOME
 ---
 
 One stroke glyph from the viewer's own icon set, drawn on `currentColor`.
