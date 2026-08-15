@@ -172,6 +172,21 @@ may not be your project — in which case tools return `NO_PLAN_FOUND`.
 (pass `--readonly` to disable writes). Five colour schemes toggle in the header —
 **observatory** (dark, star-field; the default), **default**, **warm**, **void** and
 **dim** — each with a light / dark / follow-system switch.
+
+The **Overview** page is a status board for the plan:
+
+- a **health strip** — the freshness verdict, the counts that qualify it (cards,
+  connections, integrity, drift), and a **Set sync point** button that stamps the
+  baseline every claim card is measured against
+- **Releases** — every `RELEASE` card newest-first, the one still in flight expanded
+  with its `FEATURE` cards grouped **Breaking / Features / Fixes / Chores** (from each
+  feature's `change:` field), the shipped ones collapsed and openable. A release
+  describes itself from the features pointing at it — never a hand-written changelog
+- **Activity** — plan commits and code commits in one stream, tagged by kind
+- **Code drift** — the cards whose bound code moved since they were last verified,
+  as a verdict rather than a list, with the fix named when nothing is tracked yet
+- **Notes** — the latest `append_note` memory across cards
+
 Card pages show structured fields, the
 markdown body, connection chips in both directions, and a small constellation
 diagram of the card's neighborhood — its nodes tinted by card type. Mermaid blocks

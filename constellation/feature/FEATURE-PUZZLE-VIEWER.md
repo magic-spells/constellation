@@ -3,7 +3,9 @@ name: Puzzle viewer rebuild
 release: RELEASE-V0-5-0
 status: built
 connections:
-  - DECISION-VIEWER-FRAMEWORK
+  - PAGE-VIEWER-HOME
+  - PAGE-VIEWER-CARD
+  - PAGE-VIEWER-FEATURES
 ---
 
 # Puzzle viewer rebuild
