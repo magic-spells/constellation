@@ -2,7 +2,11 @@ import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildServer } from '../src/mcp/server.js';
+import { createRequire } from 'node:module';
+import { buildServer, MCP_SERVER_VERSION } from '../src/mcp/server.js';
+
+const require = createRequire(import.meta.url);
+const { version: PACKAGE_VERSION } = require('../package.json') as { version: string };
 
 // describe_type is plan-independent, but the server still resolves a plan root for
 // other tools; point it at the golden plan so construction is realistic.
@@ -29,6 +33,11 @@ afterAll(async () => {
 });
 
 describe('describe_type', () => {
+  it('advertises the package version, not a hardcoded leftover', () => {
+    expect(MCP_SERVER_VERSION).toBe(PACKAGE_VERSION);
+    expect(MCP_SERVER_VERSION).not.toBe('0.2.2');
+  });
+
   it('catalogs all 21 types with prefix, folder, and purpose', async () => {
     const { types } = await call('describe_type');
     expect(types).toHaveLength(21);

@@ -32,7 +32,11 @@ beforeAll(async () => {
   planRoot = path.join(repo, 'constellation');
   await cp(GOLDEN, planRoot, { recursive: true });
   await mkdir(path.join(repo, 'src', 'api'), { recursive: true });
+  await mkdir(path.join(repo, 'src', 'types'), { recursive: true });
+  await mkdir(path.join(repo, 'src', 'styles'), { recursive: true });
   await writeFile(path.join(repo, 'src', 'api', 'tickets.ts'), 'export const v = 1;\n', 'utf8');
+  await writeFile(path.join(repo, 'src', 'types', 'ticket.ts'), 'export type Ticket = {};\n', 'utf8');
+  await writeFile(path.join(repo, 'src', 'styles', 'tokens.css'), ':root {}\n', 'utf8');
 
   // A secret OUTSIDE the repo, and a repo-internal symlink that points at it.
   await writeFile(path.join(outside, 'secret.txt'), 'TOP SECRET\n', 'utf8');

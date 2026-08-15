@@ -66,7 +66,10 @@ describe('POST /api/sync-point', () => {
     // The whole point of the round trip: the client can render the new verdict
     // without waiting for the next poll.
     expect(data.sync.marker.synced_sha).toBe(data.marker.synced_sha);
-    expect(data.sync.state).toBe('in-sync');
+    // Bound files from the golden plan are not in this fixture, so claims
+    // are stale — that is reverse drift, not in-sync.
+    expect(data.sync.state).toBe('drifted');
+    expect(data.sync.stale.stale.length).toBeGreaterThan(0);
   });
 
   it('gives every unverified claim card a baseline, so drift becomes answerable', async () => {

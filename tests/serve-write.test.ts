@@ -168,6 +168,14 @@ describe('write endpoints', () => {
     expect(await getCard('DOC-EDITING-GUIDE')).toBeUndefined();
   });
 
+  it('DELETE refuses PLAN-PROJECT', async () => {
+    const res = await api('/api/card/PLAN-PROJECT', { method: 'DELETE' });
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error.code).toBe('INVALID_HANDLE');
+    expect(await getCard('PLAN-PROJECT')).toBeDefined();
+  });
+
   it('readonly server refuses writes and reports editable: false', async () => {
     const plan = await fetch(`http://localhost:${readonlyServer.port}/api/plan`);
     expect((await plan.json()).editable).toBe(false);

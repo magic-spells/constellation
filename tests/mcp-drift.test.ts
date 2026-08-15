@@ -189,4 +189,40 @@ describe('a card bound to a directory', () => {
     expect(entry.skipped).toBe('directory');
     expect(entry.content).toBeUndefined();
   });
+
+  it('set_verified warns when a file under the bound directory is dirty', async () => {
+    const file = path.join(repo, 'src', 'lib', 'b.ts');
+    await writeFile(file, 'export const b = 1;\n// dirty\n', 'utf8');
+    const res = await call('set_verified', { handle: 'DOC-LIB' });
+    expect(res.warning).toContain('uncommitted changes');
+    expect(res.warning).toContain('src/lib/b.ts');
+    await writeFile(file, 'export const b = 1;\n', 'utf8');
+  });
+
+  it('a trailing slash on a directory ref still resolves as a directory', async () => {
+    await call('create_card', {
+      handle: 'DOC-LIB-SLASH',
+      name: 'lib with slash',
+      status: 'built',
+      fields: { code_refs: ['src/lib/'] },
+      body: 'Same folder, written with a trailing slash.',
+    });
+    const res = await call('get_card', { handle: 'DOC-LIB-SLASH', code: 'paths' });
+    const entry = res.code.files.find((f: { path: string }) => f.path === 'src/lib');
+    expect(entry).toMatchObject({ exists: true, dir: true });
+    expect(res.code.missing).not.toContain('src/lib');
+    expect(res.code.missing).not.toContain('src/lib/');
+  });
+
+  it('assemble keeps a directory binding and a file inside it in one unit', async () => {
+    await call('create_card', {
+      handle: 'FILE-LIB-A',
+      name: 'a.ts',
+      fields: { path: 'src/lib/a.ts' },
+      body: 'One file under src/lib.',
+    });
+    const res = await call('assemble', { handles: ['DOC-LIB', 'FILE-LIB-A'] });
+    expect(res.units).toHaveLength(1);
+    expect(res.units[0].handles).toEqual(['DOC-LIB', 'FILE-LIB-A']);
+  });
 });

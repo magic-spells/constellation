@@ -4,7 +4,7 @@
       <header class="card-header">
         <div class="card-eyebrow">
           <span class="card-handle" style={ typeStyle }>{ card.handle }</span>
-          {#if editable}
+          {#if editable && card.handle !== 'PLAN-PROJECT'}
             <button type="button" class="card-delete" @click={ askDelete }>delete</button>
           {/if}
         </div>

@@ -250,4 +250,14 @@ describe('writes', () => {
     expect(data.deleted).toBe('TEST-CREATE-TICKET');
     expect(data.referenced_by).toContain('API-TICKETS');
   });
+
+  it('delete_card refuses PLAN-PROJECT', async () => {
+    const res = await call('delete_card', { handle: 'PLAN-PROJECT' });
+    expect(res.isError).toBe(true);
+    expect(res.data.error.code).toBe('INVALID_HANDLE');
+    expect(res.data.error.message).toContain('PLAN-PROJECT');
+    const still = await call('get_card', { handle: 'PLAN-PROJECT' });
+    expect(still.isError).toBe(false);
+    expect(still.data.card.handle).toBe('PLAN-PROJECT');
+  });
 });

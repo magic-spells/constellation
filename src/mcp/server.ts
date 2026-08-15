@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,7 +27,7 @@ import {
   writeSyncPoint,
 } from '../core/git.js';
 import { computeSyncStatus } from '../core/sync.js';
-import { boundPathsForCard, resolveCodeForCard } from '../core/code.js';
+import { boundPathsForCard, boundPathsOverlap, resolveCodeForCard } from '../core/code.js';
 import { computeStaleCards } from '../core/stale.js';
 import { searchCards } from './search.js';
 import {
@@ -52,6 +53,10 @@ import {
   upsertConnectedRepo,
 } from '../core/repos.js';
 import type { ConnectedRepo } from '../core/types.js';
+
+const require = createRequire(import.meta.url);
+const { version: PACKAGE_VERSION } = require('../../package.json') as { version: string };
+export { PACKAGE_VERSION as MCP_SERVER_VERSION };
 
 const INSTRUCTIONS = `# Constellation MCP
 
@@ -408,9 +413,13 @@ function partitionByFiles(
   const fileOwner = new Map<string, string>();
   for (const s of seeds) {
     for (const f of filesBy.get(s) ?? []) {
-      const owner = fileOwner.get(f);
-      if (owner) union(owner, s);
-      else fileOwner.set(f, s);
+      // Directory bindings overlap every path under them — `tests` and
+      // `tests/foo.ts` must land in the same unit or fan-out assigns two
+      // agents to the same files.
+      for (const [existing, owner] of fileOwner) {
+        if (boundPathsOverlap(existing, f)) union(owner, s);
+      }
+      fileOwner.set(f, s);
     }
   }
 
@@ -459,7 +468,7 @@ export interface ServerOptions {
 
 export function buildServer(options: ServerOptions = {}): McpServer {
   const server = new McpServer(
-    { name: 'constellation', version: '0.2.2' },
+    { name: 'constellation', version: PACKAGE_VERSION },
     { instructions: INSTRUCTIONS },
   );
 
@@ -1452,7 +1461,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         try {
           const bound = boundPathsForCard(index, card).map((b) => b.path);
           const dirty = await changedFilesSince(root, 'HEAD', bound);
-          const dirtyBound = bound.filter((p) => dirty.has(p));
+          const dirtyBound = [...dirty].filter((c) =>
+            bound.some((p) => boundPathsOverlap(p, c)),
+          );
           if (dirtyBound.length > 0) {
             warnings.push(
               `Bound file(s) have uncommitted changes the baseline does not include: ${dirtyBound.join(', ')}. Commit first, then set_verified.`,
@@ -1500,6 +1511,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       const index = await loadPlan(root);
       const card = index.cards.get(handle.toUpperCase());
       if (!card) return fail('NOT_FOUND', `No card with handle ${handle}`);
+      if (card.handle === 'PLAN-PROJECT') {
+        return fail(
+          'INVALID_HANDLE',
+          'PLAN-PROJECT (plan.md) is the plan root card and cannot be deleted.',
+        );
+      }
       const referencedBy = [...(index.connectedHandles.get(card.handle) ?? [])].sort();
       await rm(card.filePath);
       const lint = await lintPlan(root);

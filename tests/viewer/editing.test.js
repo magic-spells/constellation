@@ -521,6 +521,43 @@ describe('CardPage edit affordances', () => {
 		view.destroy();
 	});
 
+	it('hides delete on PLAN-PROJECT even when the plan is editable', async () => {
+		const planCard = {
+			handle: 'PLAN-PROJECT',
+			type: 'PLAN',
+			name: 'Constellation',
+			relPath: 'plan.md',
+			mtime: 2000,
+			frontmatter: { name: 'Constellation' },
+			body: '# Plan',
+		};
+		const plan = {
+			id: 'plan',
+			generation: 1,
+			editable: true,
+			connections: [],
+		};
+		const view = await mountView(CardPage, {
+			store: {
+				findMany: () => [planCard],
+				findOne: (type, id) =>
+					type === 'plan' ? plan : id === 'PLAN-PROJECT' ? planCard : null,
+				withTracking: (_view, run) => run(),
+				unsubscribe: () => {},
+			},
+			router: routerFake([]),
+			params: { folder: 'plan', handle: 'PLAN-PROJECT' },
+			route: { params: { folder: 'plan', handle: 'PLAN-PROJECT' } },
+			models,
+		});
+		await settled();
+
+		expect(view.find('.card-handle')?.textContent).toContain('PLAN-PROJECT');
+		expect(view.find('.card-delete')).toBeFalsy();
+
+		view.destroy();
+	});
+
 	it('renames the card through a PATCH carrying if_mtime', async () => {
 		const view = await mountCard(true);
 

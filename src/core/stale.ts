@@ -1,6 +1,6 @@
 import type { Card, PlanIndex } from './types.js';
 import { changedFilesSince, readSyncPoint } from './git.js';
-import { boundPathsForCard, resolveCodeForCard } from './code.js';
+import { boundPathsForCard, boundPathsOverlap, resolveCodeForCard } from './code.js';
 
 export interface StaleCard {
   handle: string;
@@ -114,7 +114,7 @@ export async function computeStaleCards(
     const changedFiles = [
       ...paths.filter((p) => changed.has(p)),
       ...(dirs.length > 0
-        ? [...changed].filter((c) => dirs.some((d) => c.startsWith(`${d}/`)))
+        ? [...changed].filter((c) => dirs.some((d) => boundPathsOverlap(d, c) && c !== d))
         : []),
     ];
     if (changedFiles.length > 0 || missing.length > 0) {
