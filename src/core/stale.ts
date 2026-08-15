@@ -45,6 +45,8 @@ export async function computeStaleCards(
     baseline: string | null;
     baseline_source: StaleCard['baseline_source'];
     paths: string[];
+    /** Bound paths that are directories — matched by prefix, not equality. */
+    dirs: string[];
     missing: string[];
   }
   const claims: Claim[] = [];
@@ -63,6 +65,7 @@ export async function computeStaleCards(
       baseline: verifiedSha ?? fallback,
       baseline_source: verifiedSha ? 'verified_sha' : base ? 'argument' : 'sync-marker',
       paths: resolved.files.map((f) => f.path),
+      dirs: resolved.files.filter((f) => f.dir).map((f) => f.path),
       missing: resolved.files.filter((f) => !f.exists).map((f) => f.path),
     });
   }
@@ -88,7 +91,7 @@ export async function computeStaleCards(
 
   const stale: StaleCard[] = [];
   const noBaseline: StaleResult['no_baseline'] = [];
-  for (const { card, baseline, baseline_source, paths, missing } of claims) {
+  for (const { card, baseline, baseline_source, paths, dirs, missing } of claims) {
     if (!baseline) {
       noBaseline.push({ handle: card.handle, status: card.status ?? null, files: paths });
       continue;
@@ -103,7 +106,17 @@ export async function computeStaleCards(
       });
       continue;
     }
-    const changedFiles = paths.filter((p) => changed.has(p));
+    // A bound FILE matches by equality; a bound DIRECTORY matches anything under
+    // it — git reports the individual files it changed, never the folder, so a
+    // card bound to `tests` would otherwise never register drift at all. Report
+    // the files themselves rather than the folder: "3 files changed" under a
+    // directory is the useful signal, "tests changed" is not.
+    const changedFiles = [
+      ...paths.filter((p) => changed.has(p)),
+      ...(dirs.length > 0
+        ? [...changed].filter((c) => dirs.some((d) => c.startsWith(`${d}/`)))
+        : []),
+    ];
     if (changedFiles.length > 0 || missing.length > 0) {
       stale.push({
         handle: card.handle,

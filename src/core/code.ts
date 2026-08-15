@@ -58,6 +58,14 @@ export function boundPathsForCard(index: PlanIndex, card: Card): BoundPath[] {
 
 export interface CodeFile extends BoundPath {
   exists: boolean;
+  /**
+   * The bound path is a DIRECTORY, not a file. A card may bind a whole folder
+   * (`code_refs: [tests]`) when the unit it describes is the folder — the
+   * binding is real, so it must not read as a missing file. Contents are never
+   * attached for one (bind files for that); drift over a directory is the union
+   * of its contents changing, which `computeStaleCards` resolves by prefix.
+   */
+  dir?: boolean;
   bytes?: number;
   /** Attached file contents (mode "direct" only, when not skipped). */
   content?: string;
@@ -163,12 +171,16 @@ export async function resolveCodeForCard(
     }
 
     let exists = false;
+    let isDir = false;
     let bytes: number | undefined;
     if (abs) {
       try {
         const s = await stat(abs);
-        exists = s.isFile();
-        bytes = s.size;
+        isDir = s.isDirectory();
+        exists = s.isFile() || isDir;
+        // A directory's `size` is the inode's, not its contents' — reporting it
+        // would read as a file size. Leave it unset.
+        if (!isDir) bytes = s.size;
       } catch {
         exists = false;
       }
@@ -190,10 +202,16 @@ export async function resolveCodeForCard(
     if (!exists) missing.push(b.path);
 
     const file: CodeFile = { ...b, exists, bytes };
+    if (isDir) file.dir = true;
 
     if (mode === 'direct') {
       if (!exists) {
         file.skipped = 'missing';
+      } else if (isDir) {
+        // Attaching a whole folder would blow the budget on the first ref and
+        // give the agent no way to say which parts it wanted. The path is
+        // reported; bind the files that matter to get their contents.
+        file.skipped = 'directory';
       } else {
         const reason = skipReason(b.path);
         const attachBytes = Math.min(bytes ?? 0, PER_FILE_MAX);
