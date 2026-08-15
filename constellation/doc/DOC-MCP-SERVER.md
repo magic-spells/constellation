@@ -78,7 +78,9 @@ content of every card connected to it (its datatypes, table, tests, docs).
 
 A card binds to code via a connected FILE `path:` or its own `code_refs`, resolved by
 [[FILE-CODE]]. `get_card(code:"paths"|"direct")` attaches it (capped, repo-contained);
-`stale_report` / `check_sync` flag reverse drift; `assemble` builds file-disjoint work packages.
+`stale_report` / `check_sync` flag reverse drift — each claim card measured against its
+`verified_sha`, else its own last commit, else base/marker ([[FILE-STALE]]);
+`assemble` builds file-disjoint work packages.
 Byte-preserving cheap writes ([[FILE-WRITER]]) make a correction cost less than a full rewrite.
 
 ## What v1 tools deliberately died

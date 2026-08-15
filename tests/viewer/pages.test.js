@@ -305,7 +305,7 @@ describe('Home dashboard', () => {
 		expect(view.findAll('.drift-row')).toHaveLength(0);
 		const untracked = view.find('.d-untracked');
 		expect(untracked.textContent).toContain('49');
-		expect(untracked.textContent).toContain('set a sync point');
+		expect(untracked.textContent).toContain('commit them');
 		expect(view.find('.d-head').textContent).toContain('nothing tracked yet');
 		expect(view.find('.d-head').className).toContain('muted');
 

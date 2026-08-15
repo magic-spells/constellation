@@ -136,6 +136,77 @@ export async function changedFilesSince(
   return new Set(out.split('\n').map((l) => l.trim()).filter(Boolean));
 }
 
+export interface PathCommit {
+  /** Full sha of the newest commit that touched this path. */
+  sha: string;
+  /** Position in the newest-first walk; LOWER means newer. */
+  order: number;
+}
+
+/**
+ * The newest commit that touched each of the given repo-relative paths, in ONE
+ * git pass over the history restricted to those paths. Directories may be passed
+ * — git reports the individual files it changed under them, so callers resolve a
+ * folder by prefix (as `computeStaleCards` does).
+ *
+ * `order` is the path's position in that single newest-first walk, so two paths
+ * are comparable without trusting timestamps: equal order = the same commit,
+ * lower order = strictly newer. A path absent from the result has no commit
+ * history at all (untracked, or only ever seen under a different name) — the
+ * caller's cue to fall back to another baseline.
+ */
+export async function lastCommitByPath(
+  planRoot: string,
+  paths: string[],
+): Promise<Map<string, PathCommit>> {
+  const map = new Map<string, PathCommit>();
+  if (paths.length === 0) return map;
+  const realRoot = await realpath(planRoot);
+  const repoRoot = await repoRootFor(realRoot);
+  const out = await git(
+    repoRoot,
+    'log',
+    '--pretty=format:%x1e%H',
+    '--name-only',
+    '--no-renames',
+    '--',
+    ...paths,
+  );
+  let order = 0;
+  for (const record of out.split('\x1e')) {
+    if (!record.trim()) continue;
+    const newline = record.indexOf('\n');
+    const sha = (newline === -1 ? record : record.slice(0, newline)).trim();
+    if (!sha) continue;
+    const files = (newline === -1 ? '' : record.slice(newline + 1))
+      .split('\n')
+      .map((f) => f.trim())
+      .filter(Boolean);
+    // Newest first: the FIRST commit naming a path is that path's last commit.
+    for (const file of files) {
+      if (!map.has(file)) map.set(file, { sha, order });
+    }
+    order += 1;
+  }
+  return map;
+}
+
+/**
+ * Of the given repo-relative paths, the subset with uncommitted (staged or
+ * unstaged) changes against HEAD — one git call. Untracked files are not
+ * reported, matching `changedFilesSince`, which git's diff also never lists.
+ */
+export async function dirtyFilesAmong(
+  planRoot: string,
+  paths: string[],
+): Promise<Set<string>> {
+  if (paths.length === 0) return new Set();
+  const realRoot = await realpath(planRoot);
+  const repoRoot = await repoRootFor(realRoot);
+  const out = await git(repoRoot, 'diff', '--name-only', 'HEAD', '--', ...paths);
+  return new Set(out.split('\n').map((l) => l.trim()).filter(Boolean));
+}
+
 export type ChangeKind = 'added' | 'modified' | 'removed' | 'renamed';
 
 export interface PlanChange {

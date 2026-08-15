@@ -1932,12 +1932,14 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Code-side drift: cards that claim something about code (status built/verified, or carrying a verified_sha) whose BOUND code changed since they were verified. Binding = directly-connected FILE cards (path:) + the card\'s own code_refs. Each card\'s baseline is its verified_sha, else base, else the sync marker. Reports changed_files and vanished missing_files per stale card, plus cards with no baseline to check against. This makes a "built/verified" claim re-verifiable instead of taken on faith. Feed the handles to traverse or assemble.',
+        'Code-side drift: cards that claim something about code (status built/verified, or carrying a verified_sha) whose BOUND code moved on without them. Binding = directly-connected FILE cards (path:) + the card\'s own code_refs. Each card\'s baseline is its verified_sha, else THE CARD\'S OWN LAST COMMIT (code committed after the card is drift; a card and its code committed together is not), else base, else the sync marker for cards git has never seen change. Uncommitted changes to bound code always count. Reports changed_files and vanished missing_files per stale card (with baseline_source), plus cards with no baseline to check against. This makes a "built/verified" claim re-verifiable instead of taken on faith. Feed the handles to traverse or assemble.',
       inputSchema: {
         base: z
           .string()
           .optional()
-          .describe('fallback baseline sha for cards without verified_sha'),
+          .describe(
+            'fallback baseline sha, used only for cards with no verified_sha and no commit of their own',
+          ),
         repo: repoSchema,
       },
     },
@@ -1963,7 +1965,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         base: z
           .string()
           .optional()
-          .describe('fallback baseline sha for per-card drift (default: sync marker)'),
+          .describe(
+            "fallback baseline sha for per-card drift, used only for cards with no verified_sha and no commit of their own (default: sync marker)",
+          ),
         repo: repoSchema,
       },
     },

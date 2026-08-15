@@ -125,7 +125,7 @@ describe('driftModel', () => {
 		const noMarker = driftModel({ marker: null, stale: { checked: 49, stale: [], no_baseline } });
 		expect(noMarker.headline).toBe('nothing tracked yet');
 		expect(noMarker.untracked).toMatchObject({ count: 49, unreachable: 0 });
-		expect(noMarker.untracked.hint).toContain('set a sync point');
+		expect(noMarker.untracked.hint).toContain('commit them');
 
 		const withMarker = driftModel({
 			marker: { synced_sha: 'abc', synced_at: '2026-01-01' },
