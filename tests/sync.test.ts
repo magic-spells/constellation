@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,11 +44,14 @@ describe('computeSyncStatus', () => {
     expect(summed).toBe(status.total_cards);
   });
 
-  it('is in-sync right after a sync point on a clean tree', async () => {
+  it('drifts after a sync point when bound code is missing, even on a clean tree', async () => {
     const head = git('rev-parse', 'HEAD').trim();
     await writeSyncPoint(planRoot); // marker at HEAD; .sync.json is excluded from dirty
     const status = await computeSyncStatus(planRoot);
-    expect(status.state).toBe('in-sync');
+    // Golden plan claims are bound to an app that is not in this fixture.
+    // Missing bound files are reverse drift — not in-sync.
+    expect(status.state).toBe('drifted');
+    expect(status.stale?.stale.length).toBeGreaterThan(0);
     expect(status.marker?.synced_sha).toBe(head);
     expect(status.code_commits_since_marker).toBe(0);
     expect(status.plan_changes_since_marker).toBe(0);
@@ -94,6 +97,22 @@ describe('computeSyncStatus', () => {
     const status = await computeSyncStatus(planRoot);
     expect(status.state).toBe('dirty');
     expect(status.plan_dirty).toBe(true);
+  });
+
+  it('is in-sync when the marker is current and every bound file exists', async () => {
+    await mkdir(path.join(repo, 'src', 'api'), { recursive: true });
+    await mkdir(path.join(repo, 'src', 'types'), { recursive: true });
+    await mkdir(path.join(repo, 'src', 'styles'), { recursive: true });
+    await writeFile(path.join(repo, 'src', 'api', 'tickets.ts'), 'export const v = 1;\n');
+    await writeFile(path.join(repo, 'src', 'types', 'ticket.ts'), 'export type Ticket = {};\n');
+    await writeFile(path.join(repo, 'src', 'styles', 'tokens.css'), ':root {}\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'add bound source files');
+    await writeSyncPoint(planRoot);
+    const status = await computeSyncStatus(planRoot);
+    expect(status.stale?.stale ?? []).toEqual([]);
+    expect(status.plan_dirty).toBe(false);
+    expect(status.state).toBe('in-sync');
   });
 });
 

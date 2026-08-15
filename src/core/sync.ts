@@ -150,6 +150,11 @@ export async function computeSyncStatus(
     };
   }
 
+  // Per-card reverse drift (bound code moved or vanished) is part of the
+  // definition-of-done, not a side list. An uncommitted edit to bound code —
+  // or a missing bound file — must not report in-sync. plan_dirty still wins
+  // over stale: uncommitted plan edits are the more immediate signal.
+  const hasStaleClaims = (stale?.stale.length ?? 0) > 0;
   const state: SyncState = !marker
     ? 'never-synced'
     : marker_error
@@ -158,7 +163,9 @@ export async function computeSyncStatus(
       ? 'drifted'
       : plan_dirty
         ? 'dirty'
-        : 'in-sync';
+        : hasStaleClaims
+          ? 'drifted'
+          : 'in-sync';
 
   return {
     state,

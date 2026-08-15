@@ -23,14 +23,37 @@ export interface BoundPath {
   symbol?: string;
 }
 
+/**
+ * Repo-relative bound paths as written in cards (`tests/`, `src\\lib`) so
+ * prefix matching and equality agree. Trailing slashes drop; `\\` becomes `/`.
+ */
+export function normalizeBoundPath(p: string): string {
+  const unix = p.replace(/\\/g, '/').trim();
+  const trimmed = unix.replace(/\/+$/, '');
+  return trimmed || unix;
+}
+
+/**
+ * True when two bound paths name the same file, or one is a directory that
+ * contains the other. `src/api` overlaps `src/api/tickets.ts` and `src/api/`;
+ * it does not overlap `src/api-client`.
+ */
+export function boundPathsOverlap(a: string, b: string): boolean {
+  const x = normalizeBoundPath(a);
+  const y = normalizeBoundPath(b);
+  if (!x || !y) return false;
+  return x === y || y.startsWith(`${x}/`) || x.startsWith(`${y}/`);
+}
+
 /** Every distinct file a card is bound to (connected FILE paths + own code_refs). */
 export function boundPathsForCard(index: PlanIndex, card: Card): BoundPath[] {
   const out: BoundPath[] = [];
   const seen = new Set<string>();
   const add = (p: string, b: Omit<BoundPath, 'path'>) => {
-    if (!p || seen.has(p)) return;
-    seen.add(p);
-    out.push({ path: p, ...b });
+    const n = normalizeBoundPath(p);
+    if (!n || seen.has(n)) return;
+    seen.add(n);
+    out.push({ path: n, ...b });
   };
 
   // A FILE card is bound to its own path:.

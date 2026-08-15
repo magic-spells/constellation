@@ -267,6 +267,14 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     const lint = await lintPlan(planRoot);
     const card = lint.index.cards.get(handle.toUpperCase());
     if (!card) return failure(res, 404, 'NOT_FOUND', `No card ${handle}`);
+    if (card.handle === 'PLAN-PROJECT') {
+      return failure(
+        res,
+        400,
+        'INVALID_HANDLE',
+        'PLAN-PROJECT (plan.md) is the plan root card and cannot be deleted.',
+      );
+    }
     const referencedBy = [
       ...(lint.index.connectedHandles.get(card.handle) ?? []),
     ].sort();
