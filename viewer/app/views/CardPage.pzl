@@ -134,7 +134,7 @@
 </puzzle-view>
 
 <script>
-import yaml from 'js-yaml';
+import * as yaml from 'js-yaml';
 import { PuzzleView } from '@magic-spells/puzzle';
 import DescriptionList from '../components/ui/DescriptionList.pzl';
 import Empty from '../components/ui/Empty.pzl';
@@ -304,6 +304,9 @@ export default class CardPage extends PuzzleView {
 	// buffer saves null — which the server's deep merge reads as "delete the key".
 	// Unparseable text is refused loudly and nothing is sent.
 	_parseYaml(raw) {
+		// js-yaml 5 throws on empty input where 4 returned undefined — an empty
+		// buffer is still "delete the key", so short-circuit before parsing.
+		if (raw.trim() === '') return null;
 		try {
 			const parsed = yaml.load(raw);
 			return parsed === undefined ? null : parsed;
