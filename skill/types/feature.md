@@ -13,8 +13,15 @@ when the work spans several cards or needs intent/acceptance recorded.
 | Field | Type | Notes |
 |---|---|---|
 | `release` | handle | `RELEASE-` card this feature targets or shipped in; must resolve, and connects the two |
+| `change` | enum | `feature` (default) · `fix` · `breaking` · `chore` — how the work reads in its release |
 | `branch` | string | git branch it's developed on (informational — the card outlives the branch) |
 | `pr` | string | link to the PR (or commit) that shipped it — a URL or `#42`; set when it merges |
+
+`change` is what lets a release describe itself without a changelog: the RELEASE
+card holds theme and migration notes, and the features pointing at it group into
+Breaking / Features / Fixes / Chores wherever a release is rendered. Set
+`change: breaking` the moment you know callers must change — that's the one a
+reader scans for.
 
 `status` is the feature's arc: `planned` = specced, not started; `building` = in
 progress on its branch; `built` = merged (set `pr:` then, as provenance);
@@ -32,6 +39,7 @@ Example — `constellation/feature/FEATURE-AUTO-ASSIGNMENT.md`:
 name: Auto-assignment of new tickets
 status: planned
 release: RELEASE-V1-1-0
+change: feature
 branch: feature/auto-assign
 connections:
   - JOB-AUTO-ASSIGN

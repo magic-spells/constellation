@@ -209,8 +209,10 @@ Keep it to the few highest-value items, each with a one-line *why* and the card(
 implies. Capture confirmed gaps as `status: planned` cards — visible as intent, honest
 about not existing yet. When several planned cards form one coherent slice of work,
 group them under a `FEATURE` card (connected to each, intent/scope/acceptance in the
-body), optionally targeting a `RELEASE` milestone via its `release:` field — that is
-how iteration stays modeled once the initial build ships. Suggest structural cleanups (split an overloaded card, add a
+body), optionally targeting a `RELEASE` milestone via its `release:` field and saying how
+it reads there via `change:` (`feature` / `fix` / `breaking` / `chore`) — that is
+how iteration stays modeled once the initial build ships, and how a release describes
+itself without anyone writing a changelog. Suggest structural cleanups (split an overloaded card, add a
 missing `STATE`, connect two islands) but leave the call to the user. Taste means proposing
 the smallest set of changes that most improves the plan — not the most cards.
 

@@ -2,11 +2,14 @@
   <div class="contents">
     {#if show}
       <section class="panel panel-drift">
-        <h3>Drift</h3>
-        {#if clean}
-          <p class="panel-ok">✓ no drift — all claims hold</p>
-        {:else}
-          <p class="panel-head warn">⚠ { headline }</p>
+        <h3><Icon name="pulse" size="0.85rem"/> Code drift</h3>
+
+        <p class={ headClass }>
+          <Icon name={ headIcon } size="1.05rem"/>
+          <span class="d-headline">{ headline }</span>
+        </p>
+
+        {#if hasRows}
           <ul class="drift-rows">
             {#for row in rows}
               <li key={ row.handle } class="drift-row">
@@ -16,18 +19,14 @@
               </li>
             {/for}
           </ul>
+          {#if overflow}<p class="d-overflow">+{ overflow } more stale card{ overflowPlural }</p>{/if}
         {/if}
-        {#if hasNoBaseline}
-          <p class="d-nobase-head">{ noBaselineCount } claim{ noBaselinePlural } without a reachable baseline</p>
-          <ul class="nobase-rows">
-            {#for row in noBaseline}
-              <li key={ row.handle } class="nobase-row">
-                <a class="nb-handle" href="{ row.path | link }">{ row.handle }</a>
-                {#if row.status}<span class="nb-status">{ row.status }</span>{/if}
-                {#if row.reason}<span class="nb-reason">{ row.reason }</span>{/if}
-              </li>
-            {/for}
-          </ul>
+
+        {#if hasUntracked}
+          <p class="d-untracked">
+            <Icon name="target" size="0.9rem"/>
+            <span><b>{ untrackedCount }</b> claim{ untrackedPlural } with no baseline — { untrackedHint }</span>
+          </p>
         {/if}
       </section>
     {/if}
@@ -36,15 +35,22 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import Icon from './Icon.pzl';
 import Badge from './ui/Badge.pzl';
 
 // DriftPanel — the reverse-drift verdict: cards whose bound code moved since
 // the baseline they were verified against. Presentational only: one `model`
 // prop, shaped by `driftModel()` in ../lib/dashboard.js.
 //
+// This is a VERDICT, not a list. It leads with one coloured line you can read
+// in a glance — green when every claim holds, amber when something moved, grey
+// when nothing is tracked yet — and only then shows the handful of cards worth
+// naming. The claims with no reachable baseline collapse to a single counted
+// line with the fix: on a plan that has never been synced that bucket holds
+// every card, and 49 identical rows say nothing one sentence can't.
+//
 // The panel disappears entirely when there is no verdict to report (no git, or
-// the sync route has not answered yet) — a repo with nothing verified still
-// renders, as the clean state.
+// the sync route has not answered yet).
 //
 // `.panel` itself is Home.pzl's (its only caller); .pzl <style> blocks collect
 // into one sheet, so the frame resolves there.
@@ -60,12 +66,18 @@ export default class DriftPanel extends PuzzleView {
 	data(params, props) {
 		const model = props.model ?? {};
 		const rows = Array.isArray(model.rows) ? model.rows : [];
-		const noBaseline = Array.isArray(model.noBaseline) ? model.noBaseline : [];
+		const untracked = model.untracked ?? null;
+		const clean = model.clean !== false;
+		// Clean-but-nothing-tracked is its own state: not a warning (nothing is
+		// wrong) but not a green tick either (nothing has been checked).
+		const nothingTracked = clean && rows.length === 0 && !!untracked && untracked.count > 0;
 
 		return {
 			show: !!model.show,
-			clean: model.clean !== false,
 			headline: model.headline ?? '',
+			headIcon: clean ? (nothingTracked ? 'target' : 'check-circle') : 'alert',
+			headClass: clean ? (nothingTracked ? 'd-head muted' : 'd-head good') : 'd-head warn',
+			hasRows: rows.length > 0,
 			rows: rows.map((row) => ({
 				handle: row.handle ?? '',
 				path: row.path ?? '',
@@ -77,23 +89,23 @@ export default class DriftPanel extends PuzzleView {
 				plural: row.changedCount === 1 ? '' : 's',
 				baselineSource: BASELINE_COPY[row.baselineSource] ?? 'since baseline',
 			})),
-			// A plan with zero stale cards but N unverifiable claims is not silently
-			// clean — the sub-list renders under both the warn and the ✓ branch.
-			hasNoBaseline: noBaseline.length > 0,
-			noBaselineCount: noBaseline.length,
-			noBaselinePlural: noBaseline.length === 1 ? '' : 's',
-			noBaseline: noBaseline.map((row) => ({
-				handle: row.handle ?? '',
-				path: row.path ?? '',
-				status: row.status ?? '',
-				reason: row.reason ?? '',
-			})),
+			overflow: model.overflow ?? 0,
+			overflowPlural: model.overflow === 1 ? '' : 's',
+			hasUntracked: !!untracked && untracked.count > 0,
+			untrackedCount: untracked?.count ?? 0,
+			untrackedPlural: untracked?.count === 1 ? '' : 's',
+			untrackedHint: untracked?.hint ?? '',
 		};
 	}
 }
 </script>
 
 <style>
+.panel-drift .d-head { display: flex; align-items: center; gap: 0.45rem; margin: 0 0 0.5rem; font-size: 0.92rem; font-weight: 600; }
+.panel-drift .d-head.good { color: var(--color-success); }
+.panel-drift .d-head.warn { color: var(--color-warning); }
+.panel-drift .d-head.muted { color: var(--color-muted); font-weight: 500; }
+
 .drift-rows { display: flex; flex-direction: column; gap: 0.1rem; margin: 0; padding: 0; list-style: none; }
 .drift-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-width: 0; padding: 0.3rem 0; }
 .drift-row .d-handle {
@@ -106,20 +118,20 @@ export default class DriftPanel extends PuzzleView {
 	white-space: nowrap;
 }
 .drift-row .d-handle:hover { color: var(--color-ink); text-decoration: underline; }
-.drift-row .d-meta { color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; white-space: nowrap; }
-.panel-drift .d-nobase-head { margin: 0.7rem 0 0.1rem; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
-.nobase-rows { display: flex; flex-direction: column; gap: 0.1rem; margin: 0; padding: 0; list-style: none; }
-.nobase-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.45rem; min-width: 0; padding: 0.2rem 0; }
-.nobase-row .nb-handle {
-	overflow: hidden;
-	max-width: 100%;
-	color: var(--color-faint);
-	font-family: var(--font-mono);
-	font-size: 0.72rem;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.drift-row .d-meta { margin-left: auto; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; white-space: nowrap; }
+.panel-drift .d-overflow { margin: 0.35rem 0 0; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
+
+/* The untracked bucket is a footnote with a fix in it, never a list. */
+.panel-drift .d-untracked {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.45rem;
+	margin: 0.9rem 0 0;
+	border-top: 1px solid var(--color-border);
+	padding-top: 0.7rem;
+	color: var(--color-muted);
+	font-size: 0.78rem;
+	line-height: 1.45;
 }
-.nobase-row .nb-handle:hover { color: var(--color-muted); text-decoration: underline; }
-.nobase-row .nb-status { color: var(--color-faint); font-size: 0.7rem; }
-.nobase-row .nb-reason { overflow: hidden; min-width: 0; color: var(--color-faint); font-size: 0.7rem; text-overflow: ellipsis; white-space: nowrap; }
+.panel-drift .d-untracked b { color: var(--color-ink); font-weight: 600; }
 </style>

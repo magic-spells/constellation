@@ -1,0 +1,57 @@
+<puzzle-view>
+  <svg
+    class={ classes }
+    style={ style }
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width={ strokeWidth }
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true">
+    {#for path in paths}
+      <path key={ path.k } d={ path.d }/>
+    {/for}
+  </svg>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import { iconPaths } from '../lib/icons.js';
+
+// Icon — one stroke glyph from ../lib/icons.js, drawn on `currentColor` so it
+// takes the colour of whatever it sits in. That is the whole trick behind the
+// dashboard's colour coding: the tone is set once on the row (success / warning
+// / danger / muted) and the glyph follows, in both themes, with no per-icon
+// palette to keep in sync.
+//
+//   <Icon name="alert" class="size-4"/>
+//   <Icon name="check" size="0.85rem"/>
+//
+// Props:
+//   name    key in ICONS; an unknown name renders an empty (harmless) svg
+//   size    any CSS length for width AND height (default 1em, so it tracks font-size)
+//   width   stroke-width (default 1.8 — reads well at 14–16px)
+//   class   appended to the svg
+//
+// Decorative by default (aria-hidden): every icon here sits beside its own
+// label, so announcing it would only double up for a screen reader.
+
+export default class Icon extends PuzzleView {
+	data(params, props) {
+		const size = props.size || '1em';
+		return {
+			paths: iconPaths(props.name),
+			strokeWidth: props.width || '1.8',
+			classes: `cst-icon ${props.class || ''}`,
+			// Inline rather than a utility class so a caller can pass any length
+			// (rem, px, em) without one having to exist for it.
+			style: `width: ${size}; height: ${size}`,
+		};
+	}
+}
+</script>
+
+<style>
+.cst-icon { flex: none; display: inline-block; vertical-align: -0.125em; }
+</style>

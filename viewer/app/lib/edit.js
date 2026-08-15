@@ -1,5 +1,5 @@
 import { toast } from '../components/ui/toast.js';
-import { ApiError, createCard, deleteCard, loadPlan, patchCard } from './api.js';
+import { ApiError, createCard, deleteCard, loadPlan, patchCard, setSyncPoint } from './api.js';
 
 // edit.js — the one place a viewer write turns into user-visible feedback.
 //
@@ -65,6 +65,26 @@ export function savePatch(store, handle, patch, mtime, quietCodes) {
 /** POST a new card. Pass INVALID_HANDLE / CARD_EXISTS as quiet for inline errors. */
 export function saveNewCard(store, payload, quietCodes) {
 	return run(store, () => createCard(store, payload), quietCodes);
+}
+
+/**
+ * Stamp the sync marker at HEAD: "the plan was true at this commit". Not a card
+ * write, so it skips `run()` (there are no lint issues to report and nothing to
+ * reload) — but it reports through the same `report()` mapping, so a read-only
+ * server or a repo with no HEAD reads the same as any other refused write.
+ */
+export async function stampSyncPoint(store) {
+	try {
+		const value = await setSyncPoint(store);
+		toast({
+			message: `Sync point set at ${value.marker.synced_sha.slice(0, 8)}`,
+			variant: 'success',
+		});
+		return { ok: true, value };
+	} catch (error) {
+		report(error, []);
+		return { ok: false, error };
+	}
 }
 
 /** DELETE a card. The response carries `referenced_by` for the caller to warn on. */

@@ -196,9 +196,14 @@ RELEASE cards:
   the arc: `planned` → `building` (on its branch) → `built` (merged — set `pr:`
   to the merged PR's link then, as provenance) → `verified`. A shipped FEATURE
   stays — it's the record of why the system grew.
+- Set `change:` to how the work reads in its release — `feature` (default) /
+  `fix` / `breaking` / `chore`. Set `breaking` the moment you know callers must
+  change; it's the one a reader scans for.
 - A version milestone is a **RELEASE** card; features target it via their
   `release:` field. The body is theme + upgrade/migration notes — **never a
-  changelog** (what shipped is git's job).
+  changelog** (what shipped is git's job). A release describes itself from the
+  FEATURE cards pointing at it, grouped by `change:` — that's why the field
+  exists, and why the changelog never has to be written twice.
 - Not a ticket tracker: work that's one card's status flip needs no FEATURE
   card. The backlog stays `list_cards status: ["planned", "building", "none"]`;
   a FEATURE's neighborhood (`traverse` from its handle) is the feature's spec.
