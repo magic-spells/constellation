@@ -7,10 +7,8 @@ export interface SearchHit {
 }
 
 /**
- * Common English words carry no signal in a plan query. They are dropped before
- * the AND pass — otherwise a natural-language question ("where does the ticket
- * assignment happen?") requires every card to contain "the" and "does", and the
- * old OR-sum ranked nearly the whole plan as a hit.
+ * Dropped before the AND pass — otherwise a natural-language query would require
+ * every card to contain "the" and "does".
  */
 const STOPWORDS = new Set([
   'a', 'about', 'all', 'an', 'and', 'any', 'are', 'as', 'at', 'be', 'been', 'but',
@@ -23,11 +21,9 @@ const STOPWORDS = new Set([
 ]);
 
 /**
- * Split a query into needles. Double-quoted runs stay whole ("no hard delete" is
- * one needle); everything else splits on whitespace and loses its edge
- * punctuation, so `API-TICKETS,` still matches the handle API-TICKETS and
- * `src/core/stale.ts.` still matches the path. Stopwords and one-character
- * tokens are dropped unless that would leave nothing to search for.
+ * Split a query into needles. Double-quoted runs stay whole; bare tokens split
+ * on whitespace and lose edge punctuation (`API-TICKETS,` matches the handle).
+ * Stopwords and one-char tokens drop unless that would leave nothing.
  */
 export function queryNeedles(q: string): string[] {
   const raw: string[] = [];
@@ -77,8 +73,6 @@ export function searchCards(
     const handle = card.handle.toLowerCase();
     const name = (card.name ?? '').toLowerCase();
     const bound = boundValues(card);
-    // Notes are memory (append_note) and frontmatter carries the code binding —
-    // both must be findable the way the body is.
     const text = cardText(card);
     const searchable = `${handle}\n${name}\n${card.kind ?? ''}\n${card.type}\n${text}`
       .toLowerCase();
@@ -102,8 +96,7 @@ export function searchCards(
         score += 2;
         hit = true;
       }
-      // A card whose `path`/`code_refs` IS the queried path owns that file; a
-      // card that merely mentions it in prose does not. Rank the binding first.
+      // A card that BINDS the queried path outranks one that mentions it in prose.
       if (bound.some((b) => b === needle)) {
         score += 10;
         hit = true;
@@ -130,9 +123,8 @@ export function searchCards(
 }
 
 /**
- * The searchable prose of a card: the frontmatter that describes or binds it
- * (`summary`, `path`, `code_refs`) followed by the body and its notes. Written
- * as readable lines so the excerpt can quote whichever one matched.
+ * Searchable prose: `summary`/`path`/`code_refs` frontmatter, body, then notes —
+ * as readable lines so the excerpt can quote whichever matched.
  */
 function cardText(card: Card): string {
   const lines: string[] = [];

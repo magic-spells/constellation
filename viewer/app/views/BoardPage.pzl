@@ -33,27 +33,18 @@ import Kanban from '../components/ui/Kanban.pzl';
 import { planIndex } from '../lib/plan-index.js';
 import { hrefForHandle } from '../lib/types.js';
 
-// BoardPage — the `#/board` route: every FEATURE card laid out in the four
-// columns of the status enum. Read-only by design: a card's column IS its
-// `status:` frontmatter, so dragging one between columns has to land as a
-// status PATCH through the viewer's write API (`src/core/writer.ts`) before the
-// gesture can mean anything. Until then the board reads, and StatusSelect on
-// the card page writes.
-//
-// FeaturesPanel is the same data with a different question: it splits ahead vs
-// shipped and carries the release / branch / PR provenance. The board answers
-// "where is everything right now" instead, so a card here stays terse — name,
-// handle, one line of intent.
-//
-// A card with NO status sits in Planned (that is what an unstated status means
-// for work) but says so, so an unset field never masquerades as a decision.
-// Any unrecognised status lands there too rather than vanishing off the board.
+// BoardPage — `#/board`: every FEATURE card in the four status-enum columns.
+// Read-only: a card's column IS its `status:` frontmatter, so drag-to-move must
+// land as a status PATCH through the write API before the gesture can mean
+// anything. FeaturesPanel answers ahead-vs-shipped with release provenance; the
+// board answers "where is everything right now" — name, handle, one line.
+// Unset status sits in Planned with a pill (never masquerading as a decision);
+// unrecognised status lands there too rather than vanishing.
 
 const DOT = 'size-1.5 shrink-0 rounded-full';
 
-// Column order is the status enum's own order — planned → verified reads as the
-// life of a feature. The tone dots match CardList's status dots (styles.css),
-// so a status is the same colour wherever the viewer draws it.
+// Enum order — planned → verified reads as the life of a feature. Tone dots
+// match CardList's status dots so a status is one colour everywhere.
 const COLUMNS = [
 	{ id: 'planned', title: 'Planned', dotClass: `${DOT} bg-faint`, empty: 'Nothing queued.' },
 	{ id: 'building', title: 'Building', dotClass: `${DOT} bg-warning`, empty: 'Nothing in flight.' },
@@ -69,16 +60,10 @@ const COLUMNS = [
 const SUMMARY_MAX = 120;
 
 /**
- * One short line of intent from a card body: the first real PARAGRAPH, stripped
- * of the markdown that only means something when rendered. Cards carry no
- * summary field, so this is the closest honest thing to one — and it is only
- * ever a hint, which is why it is clamped rather than wrapped.
- *
- * Paragraph, not line: card bodies in this repo hard-wrap their prose, so
- * stopping at the first newline would cut a sentence mid-clause and hand the
- * clamp nothing left to do. Consecutive prose lines are joined and the clamp is
- * applied to the whole. A fenced block is skipped WHOLE — skipping only its
- * ``` delimiters would let its interior read as the summary.
+ * One line of intent: the first real PARAGRAPH of the body (cards have no
+ * summary field). Paragraph, not line — bodies hard-wrap, so consecutive prose
+ * lines are joined before the clamp. Fenced blocks are skipped WHOLE; skipping
+ * only the ``` delimiters would let the interior read as the summary.
  */
 function summaryOf(body) {
 	const lines = String(body ?? '').split('\n');
@@ -95,9 +80,7 @@ function summaryOf(body) {
 			continue;
 		}
 
-		// Anything that is not prose ends a paragraph once one has started, and is
-		// simply skipped before that: fences, headings, quotes, list bullets,
-		// tables, HTML comments, directive blocks.
+		// Non-prose ends a started paragraph, and is skipped before one starts.
 		if (delimiter) {
 			if (paragraph.length > 0) break;
 			fence = delimiter;

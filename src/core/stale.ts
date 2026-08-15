@@ -28,21 +28,18 @@ export interface StaleResult {
 }
 
 /**
- * Code-side drift: for every card that makes a claim about code it is bound to
- * (status built/verified, or carrying a verified_sha) decide whether the code
- * has moved on without it. The baseline, in precedence order:
+ * Code-side drift for every claim card (status built/verified, or carrying a
+ * verified_sha). Baseline precedence:
  *
- * 1. `verified_sha` — an explicit "I checked this card against that sha".
- * 2. **The card's own last commit** — the ordinary loop: a card committed with
- *    (or after) its code is current; code that moved in a LATER commit is drift.
- *    This is what makes `set_sync_point` optional instead of a chore, and what
- *    stops a card+code edit landing in one commit from reading as stale.
- * 3. The passed `base`, else the `.sync.json` marker — the fallback for cards
- *    git has never seen change (brand new, or renamed out of their history).
+ * 1. `verified_sha` — explicit "checked against that sha".
+ * 2. The card's own last commit — code that moved in a LATER commit is drift;
+ *    a card committed with its code is current, so `set_sync_point` is optional.
+ * 3. Passed `base`, else the `.sync.json` marker — for cards git has never seen
+ *    change (brand new, or renamed out of their history).
  *
- * Uncommitted changes to bound code count as drift under every baseline, and a
- * bound file that vanished is drift on its own. The verdict is computed live and
- * never stored. Shared by stale_report, check_sync and the viewer's /api/sync.
+ * Uncommitted bound-code changes count as drift under every baseline; a vanished
+ * bound file is drift on its own. Computed live, never stored. Shared by
+ * stale_report, check_sync and the viewer's /api/sync.
  */
 export async function computeStaleCards(
   root: string,
@@ -71,9 +68,8 @@ export async function computeStaleCards(
   }
   const claims: Claim[] = [];
 
-  // Card files are compared against bound code in the SAME git pass, so both
-  // need repo-relative paths. Outside a git repo there is no comparison to make
-  // and every claim falls back to base/marker (or to no_baseline).
+  // Card files join the same git pass as bound code, so both need repo-relative
+  // paths; outside a git repo every claim falls back to base/marker.
   let planRel: string | null = null;
   try {
     const realRoot = await realpath(root);
@@ -108,9 +104,9 @@ export async function computeStaleCards(
     });
   }
 
-  // Pass 2a: ONE git log over every bound path and every claim card file, giving
-  // each path its last commit and a comparable position in one newest-first walk
-  // — not one git call per card. Plus one diff for the uncommitted-code check.
+  // Pass 2a: ONE git log over all bound paths + claim card files — each path gets
+  // its last commit and a comparable position in one newest-first walk. Plus one
+  // diff for the uncommitted-code check.
   const relative = claims.filter((c) => !c.verifiedSha && c.cardPath);
   let lastCommit = new Map<string, PathCommit>();
   let dirty = new Set<string>();
@@ -203,11 +199,8 @@ export async function computeStaleCards(
       }
       baseline = sha;
       baseline_source = claim.verifiedSha ? 'verified_sha' : fallbackSource;
-      // A bound FILE matches by equality; a bound DIRECTORY matches anything
-      // under it — git reports the individual files it changed, never the
-      // folder, so a card bound to `tests` would otherwise never register drift
-      // at all. Report the files themselves rather than the folder: "3 files
-      // changed" under a directory is the useful signal, "tests changed" is not.
+      // A bound FILE matches by equality; a bound DIRECTORY by prefix — git
+      // reports changed files, never folders, so report those files themselves.
       changedFiles = [
         ...paths.filter((p) => changed.has(p)),
         ...(dirs.length > 0

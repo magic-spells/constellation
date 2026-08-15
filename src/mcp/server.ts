@@ -120,11 +120,9 @@ Multi-repo: PLAN-PROJECT.connected_repos lists sibling repos (add_connected_repo
 repo: to any tool to read or write THAT repo's plan. Cards never connect across repos. start_viewer serves the
 plan as an editable site — post the returned URL back to the user.`;
 
-// The full plan-from-code playbook lives in one file (skill/methodology.md), shared by the
-// skill and the MCP prompts so the two can't drift. Resolve it relative to this module:
-// from dist/mcp/server.js (or src/mcp/server.ts) '../..' is the package/repo root.
-// Package root: from dist/mcp/server.js (or src/mcp/server.ts) '../..' is the
-// package/repo root. The skill folder, type docs, and JSON schemas all ship here.
+// The plan-from-code playbook lives in one file (skill/methodology.md), shared by the
+// skill and the MCP prompts so the two can't drift. From dist/mcp/server.js (or
+// src/mcp/server.ts) '../..' is the package root, where skill/, types, and schemas ship.
 const PKG_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const METHODOLOGY_PATH = path.join(PKG_ROOT, 'skill', 'methodology.md');
 const SCHEMAS_DIR = path.join(PKG_ROOT, 'schemas');

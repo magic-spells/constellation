@@ -11,8 +11,7 @@ identities, frontmatter is structure, the body is prose, and git is the change-t
 system.
 
 **The MCP server is the interface.** It carries the always-on rules and serves the type
-reference; this file is the deeper reference behind them. Nothing here contradicts the
-server instructions — where both speak, they say the same thing.
+reference; this file is the deeper reference behind them.
 
 - `describe_type` — the field table and golden example for any of the 21 types. Call it
   instead of memorizing types; no args gives the catalog.

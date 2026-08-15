@@ -144,16 +144,12 @@ export interface PathCommit {
 }
 
 /**
- * The newest commit that touched each of the given repo-relative paths, in ONE
- * git pass over the history restricted to those paths. Directories may be passed
- * — git reports the individual files it changed under them, so callers resolve a
- * folder by prefix (as `computeStaleCards` does).
- *
- * `order` is the path's position in that single newest-first walk, so two paths
- * are comparable without trusting timestamps: equal order = the same commit,
- * lower order = strictly newer. A path absent from the result has no commit
- * history at all (untracked, or only ever seen under a different name) — the
- * caller's cue to fall back to another baseline.
+ * The newest commit touching each given repo-relative path, in ONE git pass.
+ * Directories may be passed — git reports the files under them, so callers
+ * resolve folders by prefix. `order` is the path's position in the newest-first
+ * walk: equal = same commit, lower = strictly newer — comparable without
+ * trusting timestamps. A path absent from the result has no commit history
+ * (untracked, or renamed away) — the caller's cue to fall back.
  */
 export async function lastCommitByPath(
   planRoot: string,
