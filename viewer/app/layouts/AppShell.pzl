@@ -114,6 +114,7 @@ import { GROUPS, TYPE_META, typeForFolder } from '../lib/types.js';
 // contract). Every row needs one: the collapsed rail shows nothing else.
 const PAGE_ICON = {
 	overview: 'M3 11l9-7 9 7M5 9.5V20h14V9.5M9.5 20v-6h5v6',
+	board: 'M4 4h5v16H4zM10 4h5v11h-5zM16 4h5v7h-5z',
 	constellation:
 		'M5 5a2 2 0 100 4 2 2 0 100-4M19 7a2 2 0 100 4 2 2 0 100-4M11 16a2 2 0 100 4 2 2 0 100-4M7 6.5l10 1.5M17.5 10.8L12.5 15M9.6 15.2L6.2 9',
 	features: 'M6 4v16M6 5h11l-2 3.5L17 12H6',
@@ -153,8 +154,13 @@ export default class AppShell extends PuzzleView {
 		const url = (path) => this.ctx.router.url(path);
 		const count = (type) => index.byType.get(type)?.length ?? 0;
 
+		// Board sits directly under Overview and is always present, unlike the
+		// Features / Style guide rows below: it is a fixed view of the plan's work
+		// (its own empty state teaches FEATURE cards), not a row that exists only
+		// because a type has cards.
 		const navItems = [
 			{ label: 'Overview', href: url('/'), icon: PAGE_ICON.overview },
+			{ label: 'Board', href: url('/board'), icon: PAGE_ICON.board },
 			{ label: 'Constellation', href: url('/constellation'), icon: PAGE_ICON.constellation },
 		];
 		if (count('FEATURE') > 0) {

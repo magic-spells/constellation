@@ -1,0 +1,132 @@
+<puzzle-view>
+  <div class="board px-5 pb-16 pt-8 sm:px-8">
+    <h2 class="mb-1 flex items-center gap-2 text-[1.3rem] text-ink">
+      <span class="text-[0.9rem]" style="color: var(--t-FEATURE, var(--color-brand))">✦</span>
+      Board
+    </h2>
+    <p class="mb-5 text-sm text-muted">
+      Every FEATURE card by <code class="font-mono text-xs">status:</code>. Read-only —
+      a card moves column when its status does.
+    </p>
+
+    {#if empty}
+      <Empty
+        class="rounded-xl border border-dashed border-border"
+        title="No FEATURE cards yet"
+        description="A FEATURE groups a coherent slice of future work. Create one in feature/FEATURE-*.md, connect the cards it touches, and it lands on this board.">
+        <svg slot="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="4" width="5" height="16" rx="1"/>
+          <rect x="9.5" y="4" width="5" height="11" rx="1"/>
+          <rect x="16" y="4" width="5" height="7" rx="1"/>
+        </svg>
+      </Empty>
+    {:else}
+      <Kanban columns={ columns } label="Feature board" empty="Nothing here yet."/>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Empty from '../components/ui/Empty.pzl';
+import Kanban from '../components/ui/Kanban.pzl';
+import { planIndex } from '../lib/plan-index.js';
+import { hrefForHandle } from '../lib/types.js';
+
+// BoardPage — the `#/board` route: every FEATURE card laid out in the four
+// columns of the status enum. Read-only by design: a card's column IS its
+// `status:` frontmatter, so dragging one between columns has to land as a
+// status PATCH through the viewer's write API (`src/core/writer.ts`) before the
+// gesture can mean anything. Until then the board reads, and StatusSelect on
+// the card page writes.
+//
+// FeaturesPanel is the same data with a different question: it splits ahead vs
+// shipped and carries the release / branch / PR provenance. The board answers
+// "where is everything right now" instead, so a card here stays terse — name,
+// handle, one line of intent.
+//
+// A card with NO status sits in Planned (that is what an unstated status means
+// for work) but says so, so an unset field never masquerades as a decision.
+// Any unrecognised status lands there too rather than vanishing off the board.
+
+const DOT = 'size-1.5 shrink-0 rounded-full';
+
+// Column order is the status enum's own order — planned → verified reads as the
+// life of a feature. The tone dots match CardList's status dots (styles.css),
+// so a status is the same colour wherever the viewer draws it.
+const COLUMNS = [
+	{ id: 'planned', title: 'Planned', dotClass: `${DOT} bg-faint`, empty: 'Nothing queued.' },
+	{ id: 'building', title: 'Building', dotClass: `${DOT} bg-warning`, empty: 'Nothing in flight.' },
+	{ id: 'built', title: 'Built', dotClass: `${DOT} bg-brand`, empty: 'Nothing built yet.' },
+	{
+		id: 'verified',
+		title: 'Verified',
+		dotClass: `${DOT} bg-success`,
+		empty: 'Nothing verified yet.',
+	},
+];
+
+const SUMMARY_MAX = 120;
+
+/**
+ * One short line of intent from a card body: the first real paragraph, stripped
+ * of the markdown that only means something when rendered. Cards carry no
+ * summary field, so this is the closest honest thing to one — and it is only
+ * ever a hint, which is why it is clamped rather than wrapped.
+ */
+function summaryOf(body) {
+	const lines = String(body ?? '').split('\n');
+	let text = '';
+
+	for (const raw of lines) {
+		const line = raw.trim();
+		// Skip headings, quotes, list bullets, tables, fences and HTML comments —
+		// a paragraph is what reads as a sentence out of context.
+		if (!line) continue;
+		if (/^(#{1,6}\s|>|[-*+]\s|\||```|<!--|:::)/.test(line)) continue;
+		text = line;
+		break;
+	}
+	if (!text) return '';
+
+	const plain = text
+		.replace(/\[\[([^\]|]+)(\|[^\]]+)?\]\]/g, '$1') // [[HANDLE]] → HANDLE
+		.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1') // [text](url) → text
+		.replace(/[`*_]/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+
+	if (plain.length <= SUMMARY_MAX) return plain;
+	const cut = plain.slice(0, SUMMARY_MAX);
+	const space = cut.lastIndexOf(' ');
+	return `${(space > 60 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+export default class BoardPage extends PuzzleView {
+	data() {
+		const features = [...(planIndex(this.ctx.store).byType.get('FEATURE') ?? [])].sort(
+			(a, b) => b.mtime - a.mtime,
+		);
+
+		const buckets = new Map(COLUMNS.map((column) => [column.id, []]));
+
+		for (const card of features) {
+			const status = card.status ?? '';
+			const bucket = buckets.has(status) ? status : 'planned';
+			buckets.get(bucket).push({
+				id: card.handle,
+				href: hrefForHandle(card.handle),
+				title: card.name || card.handle,
+				handle: card.handle,
+				summary: summaryOf(card.body),
+				note: status ? '' : 'no status',
+			});
+		}
+
+		return {
+			empty: features.length === 0,
+			columns: COLUMNS.map((column) => ({ ...column, cards: buckets.get(column.id) })),
+		};
+	}
+}
+</script>

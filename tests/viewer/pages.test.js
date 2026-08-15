@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { mountView, settled } from '@magic-spells/puzzle/testing';
 import Home from '../../viewer/app/views/Home.pzl';
+import BoardPage from '../../viewer/app/views/BoardPage.pzl';
 import FeaturesPanel from '../../viewer/app/views/FeaturesPanel.pzl';
 import StyleGuide from '../../viewer/app/views/StyleGuide.pzl';
 import models from '../../viewer/app/models/index.js';
@@ -412,6 +413,108 @@ describe('FeaturesPanel', () => {
 		const none = await mountWith(FeaturesPanel, [card('API-TICKETS', 'API')]);
 		expect(none.element.textContent).toContain('No FEATURE cards yet');
 		expect(none.findAll('.feat-section')).toHaveLength(0);
+		none.destroy();
+	});
+});
+
+describe('BoardPage', () => {
+	// One feature per column, plus the unset-status case that Planned adopts.
+	const features = [
+		card('FEATURE-SEARCH', 'FEATURE', {
+			name: 'Search',
+			status: 'building',
+			mtime: NOW - 1000,
+			body: '# Search\n\nFull-text search across every [[CARD]] body and note.',
+		}),
+		card('FEATURE-SLA', 'FEATURE', { name: 'SLA timers', status: 'planned', mtime: NOW - 5000 }),
+		card('FEATURE-DRAFT', 'FEATURE', { name: 'Draft idea', mtime: NOW - 9000 }),
+		card('FEATURE-INBOX', 'FEATURE', { name: 'Inbox', status: 'built', mtime: NOW - 2000 }),
+		card('FEATURE-AUTH', 'FEATURE', { name: 'Auth', status: 'verified', mtime: NOW - 3000 }),
+	];
+
+	/** Column id → the handles rendered in it, in order. */
+	const byColumn = (view) =>
+		Object.fromEntries(
+			view.findAll('[data-kb-col]').map((col) => [
+				col.getAttribute('data-kb-col'),
+				[...col.querySelectorAll('[data-kb-card]')].map((c) => c.getAttribute('data-kb-card')),
+			]),
+		);
+
+	it('lays every FEATURE card out in its status column, freshest first', async () => {
+		const view = await mountWith(BoardPage, [...features, card('API-TICKETS', 'API')]);
+
+		const columns = view.findAll('[data-kb-col]');
+		expect(columns.map((c) => c.querySelector('h3').textContent)).toEqual([
+			'Planned',
+			'Building',
+			'Built',
+			'Verified',
+		]);
+
+		// A status-less card is future work, so Planned adopts it — after the
+		// freshest planned card, since columns sort by mtime like FeaturesPanel.
+		expect(byColumn(view)).toEqual({
+			planned: ['FEATURE-SLA', 'FEATURE-DRAFT'],
+			building: ['FEATURE-SEARCH'],
+			built: ['FEATURE-INBOX'],
+			verified: ['FEATURE-AUTH'],
+		});
+
+		// Counts sit in the column header next to the title.
+		const planned = columns[0];
+		expect(planned.querySelector('header span:last-child').textContent).toBe('2');
+
+		view.destroy();
+	});
+
+	it('links a card to its card page and summarises its body', async () => {
+		const view = await mountWith(BoardPage, features);
+
+		const building = view.find('[data-kb-col="building"] [data-kb-card]');
+		expect(building.getAttribute('href')).toBe('/feature/FEATURE-SEARCH');
+		expect(building.textContent).toContain('Search');
+		expect(building.textContent).toContain('FEATURE-SEARCH');
+		// First real paragraph only — the heading is skipped and [[CARD]] unwrapped.
+		expect(building.textContent).toContain('Full-text search across every CARD body');
+		expect(building.textContent).not.toContain('[[');
+
+		view.destroy();
+	});
+
+	it('marks a card with no status instead of letting it read as planned', async () => {
+		const view = await mountWith(BoardPage, features);
+
+		const planned = view.findAll('[data-kb-col="planned"] [data-kb-card]');
+		expect(planned[0].textContent).not.toContain('no status');
+		expect(planned[1].textContent).toContain('no status');
+
+		view.destroy();
+	});
+
+	it('is read-only: no card is draggable or focusable as a control', async () => {
+		const view = await mountWith(BoardPage, features);
+
+		const cards = view.findAll('[data-kb-card]');
+		expect(cards).toHaveLength(5);
+		for (const el of cards) {
+			expect(el.tagName.toLowerCase()).toBe('a');
+			expect(el.getAttribute('role')).toBeNull();
+			expect(el.getAttribute('aria-grabbed')).toBeNull();
+		}
+
+		view.destroy();
+	});
+
+	it('gives an empty column a quiet hint and an empty plan a real empty state', async () => {
+		const oneCard = await mountWith(BoardPage, [features[0]]);
+		const hints = oneCard.findAll('[data-kb-empty]').map((el) => el.textContent);
+		expect(hints).toEqual(['Nothing queued.', 'Nothing built yet.', 'Nothing verified yet.']);
+		oneCard.destroy();
+
+		const none = await mountWith(BoardPage, [card('API-TICKETS', 'API')]);
+		expect(none.element.textContent).toContain('No FEATURE cards yet');
+		expect(none.findAll('[data-kb-col]')).toHaveLength(0);
 		none.destroy();
 	});
 });
