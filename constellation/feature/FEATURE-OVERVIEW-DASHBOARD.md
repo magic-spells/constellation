@@ -1,6 +1,7 @@
 ---
 name: Overview mission-control dashboard
 release: RELEASE-V0-5-0
+change: feature
 status: built
 branch: feat/overview-dashboard
 connections:
@@ -15,3 +16,6 @@ Release (tag/package version + feature progress via `release:`), Code commits
 (code-side activity feed), and Notes (latest `append_note` memory across cards).
 All server data rides the existing `/api/sync` payload; Notes and Release
 derive client-side from the store.
+
+Reworked into a status board by [[FEATURE-DASHBOARD-REWORK]] later in the same
+release — this card is the record of the first shape, not the current one.

@@ -1,0 +1,132 @@
+<puzzle-view>
+  <section class="health">
+    <div class="hs-main">
+      {#if hasGit}
+        <span class={ stateClass }>
+          <Icon name={ stateIcon } size="1.05rem"/>
+          <span class="hs-state-label">{ stateLabel }</span>
+        </span>
+        <span class="hs-meta">{ meta }</span>
+      {/if}
+    </div>
+
+    <div class="hs-chips">
+      {#for chip in chips}
+        <span key={ chip.key } class={ chip.class }>
+          <Icon name={ chip.icon } size="0.95rem"/>
+          <b class="hs-n">{ chip.value }</b>
+          <span class="hs-label">{ chip.label }</span>
+        </span>
+      {/for}
+    </div>
+
+    {#if canSync}
+      <Button variant="outline" size="sm" loading={ syncing } @press={ setSync }>{ syncLabel }</Button>
+    {/if}
+  </section>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Icon from './Icon.pzl';
+import Button from './ui/Button.pzl';
+
+// HealthStrip — the plan's state in one line: freshness verdict, the counts
+// that qualify it, and the one action that changes it. It replaces the old
+// full-height sync panel AND the separate stats row: the numbers only mean
+// something next to the verdict, and neither deserved its own block.
+//
+// Presentational plus one action: the `model` prop is shaped by `healthModel()`
+// in ../lib/dashboard.js; `@sync` is called when the button is pressed and the
+// parent owns the request (this component only tracks the in-flight flag, so
+// the button can't be double-fired).
+//
+// `no-git` plans still render the strip — cards, connections and integrity need
+// no repo — but with no dot, no meta line and no button.
+
+const TONE = { good: 'good', bad: 'bad', warn: 'warn', muted: 'muted', brand: 'brand' };
+
+export default class HealthStrip extends PuzzleView {
+	data(params, props) {
+		const model = props.model ?? {};
+		const chips = Array.isArray(model.chips) ? model.chips : [];
+
+		return {
+			hasGit: !!model.hasGit,
+			stateClass: model.stateClass ?? 'hs-state',
+			stateIcon: model.stateIcon ?? 'circle',
+			stateLabel: model.stateLabel ?? '',
+			meta: model.meta ?? '',
+			chips: chips.map((chip, i) => ({
+				key: chip.key ?? i,
+				icon: chip.icon ?? 'circle',
+				value: chip.value ?? 0,
+				label: chip.label ?? '',
+				class: `hs-chip ${TONE[chip.tone] ?? ''}`,
+			})),
+			canSync: !!model.canSync,
+			syncLabel: model.syncLabel ?? 'Set sync point',
+			syncing: this.getData()?.syncing ?? false,
+		};
+	}
+
+	events = {
+		setSync: () => {
+			if (this.getData().syncing) return;
+			const { sync } = this.props;
+			if (typeof sync !== 'function') return;
+			this.setData('syncing', true);
+			this.refresh();
+			Promise.resolve(sync()).finally(() => {
+				this.setData('syncing', false);
+				this.refresh();
+			});
+		},
+	};
+}
+</script>
+
+<style>
+/* The strip sits where a hero would: one row on a wide screen, wrapping to
+   stacked lines below. `.health` owns its own frame — it is not a `.panel`,
+   deliberately, so it reads as a status bar rather than another card. */
+.health {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.9rem 1.6rem;
+	margin: 0 0 1.6rem;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	background: var(--color-surface);
+	padding: 0.85rem 1.2rem;
+	animation: cst-rise 0.35s ease both;
+}
+.health .hs-main { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.6rem; min-width: 0; }
+
+/* Tone is set once on the wrapper and the icon inherits it through
+   currentColor — that is why there is no per-state icon colour anywhere. */
+.health .hs-state { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--color-ink); }
+.health .hs-state.good { color: var(--color-success); }
+.health .hs-state.warn { color: var(--color-warning); }
+.health .hs-state.brand { color: var(--color-brand); }
+.health .hs-state.muted { color: var(--color-muted); }
+.health .hs-state-label { font-family: var(--font-display, var(--font-sans)); font-size: 0.95rem; font-weight: 600; }
+.health .hs-meta { overflow: hidden; min-width: 0; color: var(--color-muted); font-family: var(--font-mono); font-size: 0.74rem; text-overflow: ellipsis; }
+
+.health .hs-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 1.1rem; }
+.health .hs-chip { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--color-faint); }
+.health .hs-n { color: var(--color-ink); font-family: var(--font-display, var(--font-sans)); font-size: 0.95rem; font-weight: 600; }
+.health .hs-label { color: var(--color-muted); font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.health .hs-chip.good { color: var(--color-success); }
+.health .hs-chip.good .hs-n { color: var(--color-success); }
+.health .hs-chip.bad { color: var(--color-danger); }
+.health .hs-chip.bad .hs-n { color: var(--color-danger); }
+.health .hs-chip.warn { color: var(--color-warning); }
+.health .hs-chip.warn .hs-n { color: var(--color-warning); }
+.health .hs-chip.muted .hs-n { color: var(--color-muted); }
+
+@media (max-width: 640px) {
+	.health .hs-main { flex-basis: 100%; }
+}
+</style>

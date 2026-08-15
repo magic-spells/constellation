@@ -160,8 +160,11 @@ Past the initial build, model iteration explicitly: a coherent slice of future w
 FEATURE card connected to every card it adds or touches (intent/scope/acceptance in the
 body, branch: while in flight, status planned → building → built as it merges — stamp pr:
 with the merged PR link then, as provenance), optionally
-targeting a RELEASE card (a version milestone; features point at it via release:). A RELEASE
-body is theme + upgrade notes, NEVER a changelog — what shipped is git's job. Neither is a
+targeting a RELEASE card (a version milestone; features point at it via release:) and saying
+how it reads there via change: (feature | fix | breaking | chore — set breaking as soon as
+you know callers must change). A RELEASE body is theme + upgrade notes, NEVER a changelog —
+what shipped is git's job, and a release describes itself from the features pointing at it,
+grouped by change:. Neither is a
 ticket tracker: work that is one card's status flip needs no FEATURE card.
 FINISH by reconciling — re-read the touched cards against the code, run check_integrity so
 no affected card is left an orphan and every connection is set, bump status (planned →

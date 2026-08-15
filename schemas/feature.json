@@ -10,6 +10,11 @@
       "pattern": "^RELEASE-[A-Z0-9][A-Z0-9-]*$",
       "description": "Handle of the RELEASE card this feature targets (or shipped in). A structured ref: it must resolve (E005) and connects the two cards."
     },
+    "change": {
+      "type": "string",
+      "enum": ["feature", "fix", "breaking", "chore"],
+      "description": "How this work reads in the release it ships in: feature (new capability), fix (defect repair), breaking (callers must change), chore (upkeep with no user-visible surface). Unset reads as feature. Groups the release rollup — still one card per unit of work, not a changelog line."
+    },
     "branch": {
       "type": "string",
       "maxLength": 200,

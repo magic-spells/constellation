@@ -106,6 +106,19 @@ export function createCard(store, payload) {
 	});
 }
 
+/**
+ * Stamp the sync marker at HEAD — the `set_sync_point` write, from the UI.
+ * The response carries the recomputed status, so the store's sync payload is
+ * replaced directly rather than waiting for the next 20s poll (the whole health
+ * strip changes: the marker is what gives claim cards a drift baseline).
+ * No `loadPlan` — this writes .sync.json, not a card.
+ */
+export async function setSyncPoint(store) {
+	const body = await request('/api/sync-point', { method: 'POST' });
+	store.upsert('plan', { id: 'plan', sync: body.sync });
+	return body;
+}
+
 export function deleteCard(store, handle) {
 	return write(store, `/api/card/${encodeURIComponent(handle)}`, {
 		method: 'DELETE',

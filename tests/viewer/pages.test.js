@@ -20,10 +20,6 @@ function card(handle, type, extra = {}) {
 	};
 }
 
-/** "4 cards" — the two stacked spans of one stat tile, read as one line. */
-const statLine = (el) =>
-	`${el.querySelector('.n').textContent} ${el.querySelector('.label').textContent}`;
-
 /** Mount a view against a store seeded with `cards` + a plan singleton. */
 async function mountWith(View, cards, plan = {}) {
 	const view = await mountView(View, { models });
@@ -60,28 +56,25 @@ describe('Home dashboard', () => {
 		card('DB-TICKETS', 'DB'),
 	];
 
-	it('shows stat counts, the plan body, and a tile per non-empty type', async () => {
+	/** "4 cards" — the number and label of one health-strip chip, as one line. */
+	const chipLine = (el) =>
+		`${el.querySelector('.hs-n').textContent} ${el.querySelector('.hs-label').textContent}`;
+
+	it('counts the plan in the health strip, and renders the plan body', async () => {
 		const view = await mountWith(Home, cards, {
 			connections: [{ a: 'API-TICKETS', b: 'DB-TICKETS' }],
 			warnings: [{ code: 'W004' }],
 		});
 
-		const stats = view.findAll('.stat').map(statLine);
-		expect(stats).toContain('4 cards');
-		expect(stats).toContain('1 connections');
-		expect(stats).toContain('✓ integrity');
-		expect(stats).toContain('1 warnings');
+		const chips = view.findAll('.hs-chip').map(chipLine);
+		expect(chips).toContain('4 cards');
+		expect(chips).toContain('1 connections');
+		expect(chips).toContain('clean integrity');
+		expect(chips).toContain('1 warning');
 
-		// One tile per type that has cards — never an empty type.
-		const tiles = view.findAll('.tile');
-		expect(tiles).toHaveLength(3);
-		expect(tiles.map((t) => t.getAttribute('href'))).toEqual([
-			'/plan',
-			'/api',
-			'/db',
-		]);
-		expect(tiles[1].textContent).toContain('API endpoints');
-		expect(tiles[1].textContent).toContain('2 cards');
+		// The type tile grid is gone on purpose — the sidebar already lists every
+		// type with the same counts.
+		expect(view.findAll('.tile')).toHaveLength(0);
 
 		expect(view.element.textContent).toContain('A support desk.');
 
@@ -91,9 +84,10 @@ describe('Home dashboard', () => {
 	it('counts lint errors instead of integrity when the plan has any', async () => {
 		const view = await mountWith(Home, cards, { errors: [{ code: 'E005' }, { code: 'E005' }] });
 
-		const stats = view.findAll('.stat').map(statLine);
-		expect(stats).toContain('2 errors');
-		expect(stats).not.toContain('✓ integrity');
+		const chips = view.findAll('.hs-chip').map(chipLine);
+		expect(chips).toContain('2 errors');
+		expect(chips).not.toContain('clean integrity');
+		expect(view.find('.hs-chip.bad')).toBeTruthy();
 
 		view.destroy();
 	});
@@ -110,7 +104,7 @@ describe('Home dashboard', () => {
 		view.destroy();
 	});
 
-	it('renders the sync panel with its activity feed, and hides it without git', async () => {
+	it('states the sync verdict in the strip, and drops it without git', async () => {
 		const sync = {
 			state: 'drifted',
 			marker: { synced_at: new Date(NOW - 3 * 3600 * 1000).toISOString() },
@@ -118,121 +112,249 @@ describe('Home dashboard', () => {
 			plan_dirty: true,
 			plan_changes_since_marker: 1,
 			code_commits_since_marker: 2,
-			activity: [
-				{
-					date: new Date(NOW - 600 * 1000).toISOString(),
-					subject: 'add ticket search',
-					is_sync_point: false,
-					cards: ['API-TICKETS', 'DB-TICKETS'],
-				},
-				{
-					date: new Date(NOW - 7200 * 1000).toISOString(),
-					subject: 'sync point',
-					is_sync_point: true,
-					cards: [],
-				},
-			],
+			activity: [],
 		};
 
 		const view = await mountWith(Home, cards, { sync });
 
-		expect(view.find('.sd-state').textContent).toBe('Drifted');
-		const meta = view.find('.sd-meta').textContent;
+		expect(view.find('.hs-state-label').textContent).toBe('Drifted');
+		expect(view.find('.hs-state').className).toContain('warn');
+		const meta = view.find('.hs-meta').textContent;
 		expect(meta).toContain('last synced 3h ago');
 		expect(meta).toContain('2 code commits / 1 plan change since');
 		expect(meta).toContain('uncommitted plan edits');
-
-		expect(view.findAll('.activity .ac-row')).toHaveLength(2);
-		expect(view.find('.ac-tag').textContent).toBe('sync');
-		expect(view.findAll('.ac-card').map((a) => a.getAttribute('href'))).toEqual([
-			'/api/API-TICKETS',
-			'/db/DB-TICKETS',
-		]);
+		// A drifted plan already has a marker, so the button offers to move it.
+		expect(view.element.textContent).toContain('Update sync point');
 
 		view.destroy();
 
+		// no-git keeps the counts but loses the verdict and the action.
 		const noGit = await mountWith(Home, cards, { sync: { state: 'no-git', activity: [] } });
-		expect(noGit.find('.sync-dash')).toBeNull();
+		expect(noGit.find('.health')).toBeTruthy();
+		expect(noGit.find('.hs-state')).toBeNull();
+		expect(noGit.element.textContent).not.toContain('sync point');
 		noGit.destroy();
 	});
 
-	it('renders the dashboard panels from sync payload + cards', async () => {
-		const view = await mountWith(Home, [
-			card('PLAN-PROJECT', 'PLAN', { body: '# P' }),
-			card('RELEASE-V0-5-0', 'RELEASE', {
-				name: 'v0.5.0',
-				status: 'building',
-				frontmatter: { version: '0.5.0' },
-			}),
-			card('FEATURE-VIEWER', 'FEATURE', {
-				status: 'built',
-				frontmatter: { release: 'RELEASE-V0-5-0' },
-			}),
-			card('API-TICKETS', 'API', {
-				frontmatter: { notes: [{ kind: 'gotcha', text: 'watch the lock' }] },
-			}),
-		], {
+	it('offers to stamp a first sync point when the plan has never been synced', async () => {
+		const view = await mountWith(Home, cards, {
+			sync: { state: 'never-synced', marker: null, activity: [], code_activity: [] },
+		});
+
+		expect(view.find('.hs-state-label').textContent).toBe('Not synced');
+		expect(view.find('.hs-meta').textContent).toContain('no sync point yet');
+		expect(view.element.textContent).toContain('Set sync point');
+
+		view.destroy();
+	});
+
+	it('interleaves plan and code commits in one activity panel', async () => {
+		const view = await mountWith(Home, cards, {
 			sync: {
 				state: 'in-sync',
 				marker: null,
-				marker_error: null,
-				plan_dirty: false,
-				plan_changes_since_marker: 0,
-				code_commits_since_marker: 0,
-				activity: [],
-				integrity: { errors: 0, warnings: 0, orphans: 0 },
-				status_rollup: {},
-				total_cards: 4,
+				activity: [
+					{
+						sha: 'p1',
+						date: new Date(NOW - 600 * 1000).toISOString(),
+						subject: 'add ticket search',
+						is_sync_point: false,
+						cards: ['API-TICKETS', 'DB-TICKETS'],
+					},
+					{
+						sha: 'p2',
+						date: new Date(NOW - 7200 * 1000).toISOString(),
+						subject: 'sync point',
+						is_sync_point: true,
+						cards: [],
+					},
+				],
 				code_activity: [
 					{
-						sha: 'a'.repeat(40),
-						short_sha: 'aaaaaaaa',
-						date: new Date().toISOString(),
+						sha: 'c1',
+						date: new Date(NOW - 3600 * 1000).toISOString(),
 						subject: 'feat: shiny',
 						cards: [],
 						is_sync_point: false,
 					},
 				],
-				latest_tag: 'v0.4.2',
+			},
+		});
+
+		const rows = view.findAll('.act-rows .act-row');
+		expect(rows).toHaveLength(3);
+		// Newest first regardless of which stream it came from.
+		expect(rows.map((r) => r.querySelector('.a-subject').textContent)).toEqual([
+			'add ticket search',
+			'feat: shiny',
+			'sync point',
+		]);
+		expect(rows.map((r) => r.querySelector('.a-kind').textContent.trim())).toEqual([
+			'plan',
+			'code',
+			'plan',
+		]);
+		expect(view.find('.a-tag').textContent).toBe('sync');
+		expect(view.findAll('.a-card').map((a) => a.getAttribute('href'))).toEqual([
+			'/api/API-TICKETS',
+			'/db/DB-TICKETS',
+		]);
+
+		view.destroy();
+	});
+
+	it('renders the release timeline, grouped by change kind', async () => {
+		const view = await mountWith(Home, [
+			card('PLAN-PROJECT', 'PLAN', { body: '# P' }),
+			card('RELEASE-V0-5-0', 'RELEASE', {
+				name: 'v0.5.0 — Viewer',
+				status: 'building',
+				frontmatter: { version: '0.5.0' },
+			}),
+			card('RELEASE-V0-4-0', 'RELEASE', {
+				name: 'v0.4.0 — Memory',
+				status: 'built',
+				frontmatter: { version: '0.4.0' },
+			}),
+			card('FEATURE-VIEWER', 'FEATURE', {
+				name: 'Puzzle viewer',
+				status: 'built',
+				frontmatter: { release: 'RELEASE-V0-5-0' },
+			}),
+			card('FEATURE-DROP-SVELTE', 'FEATURE', {
+				name: 'Svelte viewer removed',
+				status: 'built',
+				frontmatter: { release: 'RELEASE-V0-5-0', change: 'breaking' },
+			}),
+			card('FEATURE-OLD', 'FEATURE', {
+				name: 'Notes',
+				status: 'built',
+				frontmatter: { release: 'RELEASE-V0-4-0' },
+			}),
+		], {
+			sync: {
+				state: 'in-sync',
+				marker: null,
+				activity: [],
+				code_activity: [],
+				latest_tag: 'v0.4.0',
 				package_version: '0.5.0',
-				stale: {
-					checked: 2,
-					stale: [],
-					no_baseline: [{ handle: 'DB-TICKETS', status: 'built', files: ['src/db.ts'] }],
-				},
 			},
 		});
 
 		const text = view.element.textContent;
-		expect(view.find('.panel-grid')).toBeTruthy();
-		expect(text).toContain('no drift');
-		expect(text).toContain('v0.4.2 tagged');
-		expect(text).toContain('0.5.0'); // release version chip
-		expect(text).toContain('1 of 1 features shipped');
-		expect(text).toContain('feat: shiny');
-		expect(text).toContain('watch the lock');
+		expect(text).toContain('v0.4.0 tagged');
+		expect(text).toContain('0.5.0 in package.json');
 
-		// Zero stale cards still owes the reader the unverifiable claims.
-		const noBase = view.findAll('.nobase-row');
-		expect(noBase).toHaveLength(1);
-		expect(noBase[0].querySelector('.nb-handle').textContent).toBe('DB-TICKETS');
-		expect(noBase[0].textContent).toContain('no verified baseline');
+		// Every release is listed; only the in-flight one starts expanded.
+		const items = view.findAll('.rel-item');
+		expect(items).toHaveLength(2);
+		expect(items[0].className).toContain('current');
+		expect(items[0].querySelector('.rel-toggle').getAttribute('aria-expanded')).toBe('true');
+		expect(items[1].querySelector('.rel-toggle').getAttribute('aria-expanded')).toBe('false');
+		expect(items[1].querySelector('.rel-body')).toBeNull();
+
+		// Breaking comes first and is called out on the header too.
+		expect(items[0].querySelector('.rel-breaking').textContent).toContain('1 breaking');
+		const groups = [...items[0].querySelectorAll('.rel-group-label')];
+		// label + count, rendered as adjacent spans with no separator
+		expect(groups.map((g) => g.textContent.replace(/\s+/g, ''))).toEqual([
+			'Breaking1',
+			'Features1',
+		]);
+		expect(items[0].textContent).toContain('2 of 2 features shipped');
+
+		// The shipped one says so, with its tag.
+		expect(items[1].querySelector('.rel-tagged')).toBeTruthy();
+		expect(items[1].querySelector('.rel-summary').textContent).toBe('1 feature');
+
+		// Expanding a shipped release opens its body in place.
+		items[1].querySelector('.rel-toggle').click();
+		await settled();
+		expect(view.findAll('.rel-item')[1].querySelector('.rel-body')).toBeTruthy();
+
+		view.destroy();
+	});
+
+	it('leads the drift panel with a verdict and collapses unbaselined claims', async () => {
+		const view = await mountWith(Home, [
+			card('PLAN-PROJECT', 'PLAN', { body: '# P' }),
+			card('API-TICKETS', 'API', {
+				frontmatter: { notes: [{ kind: 'gotcha', text: 'watch the lock' }] },
+			}),
+		], {
+			sync: {
+				state: 'never-synced',
+				marker: null,
+				activity: [],
+				code_activity: [],
+				stale: {
+					checked: 49,
+					stale: [],
+					no_baseline: Array.from({ length: 49 }, (_, i) => ({
+						handle: `FILE-${i}`,
+						status: 'built',
+						files: ['src/x.ts'],
+					})),
+				},
+			},
+		});
+
+		// The regression this rework exists to fix: 49 claims used to render as 49
+		// rows. They are one line now, with the fix in it.
+		expect(view.findAll('.drift-row')).toHaveLength(0);
+		const untracked = view.find('.d-untracked');
+		expect(untracked.textContent).toContain('49');
+		expect(untracked.textContent).toContain('set a sync point');
+		expect(view.find('.d-head').textContent).toContain('nothing tracked yet');
+		expect(view.find('.d-head').className).toContain('muted');
 
 		// Notes carry a relative time, inferred from the card's mtime.
+		expect(view.element.textContent).toContain('watch the lock');
 		expect(view.find('.note-row .n-when').textContent.trim()).not.toBe('');
 
 		view.destroy();
 	});
 
-	it('hides drift and commits panels without git data', async () => {
+	it('names the cards that actually drifted, capped, with the overflow counted', async () => {
+		const stale = Array.from({ length: 8 }, (_, i) => ({
+			handle: `API-${i}`,
+			name: `api ${i}`,
+			status: 'verified',
+			baseline: 'abc123',
+			baseline_source: 'verified_sha',
+			changed_files: ['src/a.ts'],
+			missing_files: [],
+		}));
+		const view = await mountWith(Home, [card('PLAN-PROJECT', 'PLAN', { body: '# P' })], {
+			sync: {
+				state: 'drifted',
+				marker: { synced_sha: 'abc123', synced_at: new Date(NOW).toISOString() },
+				activity: [],
+				code_activity: [],
+				stale: { checked: 8, stale, no_baseline: [] },
+			},
+		});
+
+		expect(view.find('.d-head').className).toContain('warn');
+		expect(view.find('.d-head').textContent).toContain('8 of 8 claims drifted');
+		expect(view.findAll('.drift-row')).toHaveLength(6);
+		expect(view.find('.d-overflow').textContent).toContain('+2 more');
+		expect(view.find('.drift-row .d-meta').textContent).toContain('since verify');
+
+		view.destroy();
+	});
+
+	it('hides the drift panel without git data', async () => {
 		const view = await mountWith(Home, [card('PLAN-PROJECT', 'PLAN', { body: '# P' })], {
 			sync: null,
 		});
 
 		expect(view.find('.panel-drift')).toBeNull();
-		expect(view.find('.panel-commits')).toBeNull();
-		// Release and Notes still render — their empty states teach the features.
+		// Release, Activity and Notes still render — their empty states teach the
+		// features they are for.
 		expect(view.find('.panel-release')).toBeTruthy();
+		expect(view.find('.panel-activity')).toBeTruthy();
 		expect(view.find('.panel-notes')).toBeTruthy();
 
 		view.destroy();
