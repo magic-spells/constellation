@@ -23,7 +23,7 @@ One package (`@magic-spells/constellation`) that is four things at once, kept co
 - **An MCP server** (`constellation mcp`, stdio) — graph queries, hydrated retrieval,
   validated writes, git change-tracking, code binding/drift, for AI agents. See [[DOC-MCP-SERVER]].
 - **A viewer** (Puzzle + puzzle-pieces + Tailwind v4) — a local web app rendering the plan as
-  a browsable, editable site. See [[PAGE-VIEWER-HOME]] and [[DECISION-VIEWER-FRAMEWORK]].
+  a browsable, editable site. See [[PAGE-VIEWER-HOME]].
 
 Plus the **spec** (this plan, formerly `docs/`), the **schemas** (`schemas/*.json`), the
 authoring **skill** (`skill/`), and the **golden example** (`examples/constellation/`).

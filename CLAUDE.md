@@ -67,7 +67,7 @@ The pipeline is one direction: **files → index → (lint | serve | MCP)**.
 | `src/cli/index.ts` | The `constellation` binary. |
 | `src/mcp/` | MCP server (`server.ts`) and full-text search (`search.ts`). Git change-tracking lives in `src/core/git.ts`. |
 | `src/serve/server.ts` | Local HTTP server: serves `viewer/dist`, a read API, and a PATCH/POST/DELETE write API; watches files for live reload. |
-| `viewer/` | Puzzle + puzzle-pieces + Tailwind v4 single-page viewer (themes, card pages, neighborhood diagrams). |
+| `viewer/` | Puzzle + puzzle-pieces + Tailwind v4 single-page viewer (themes, card pages, neighborhood diagrams). Pieces copied in by `puzzle add piece` live in `viewer/app/components/ui/` and are **our** code — edit them freely; `viewer/pieces.lock` hashes drift on purpose when we do. Theming is two axes: `data-scheme` (observatory, default, warm, void, dim) and `data-theme` (light/dark/system), both set pre-paint by an inline script in the shell. |
 
 ### Invariants — don't break these
 
