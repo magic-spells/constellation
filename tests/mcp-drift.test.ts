@@ -130,3 +130,63 @@ describe('stale_report + check_sync (Phases 3 & 6)', () => {
     );
   });
 });
+
+// A card may bind a whole FOLDER (`code_refs: [tests]`) when the unit it
+// describes is the folder. That has to behave like a binding, not like a
+// missing file: `tests` is not a file, so an existence check written as
+// `stat().isFile()` reported it missing on every run — the card read as
+// permanently stale while git, which only ever names the individual files it
+// changed, could never match the folder path to register real drift.
+describe('a card bound to a directory', () => {
+  let libSha: string;
+
+  beforeAll(async () => {
+    await mkdir(path.join(repo, 'src', 'lib'), { recursive: true });
+    await writeFile(path.join(repo, 'src', 'lib', 'a.ts'), 'export const a = 1;\n', 'utf8');
+    await writeFile(path.join(repo, 'src', 'lib', 'b.ts'), 'export const b = 1;\n', 'utf8');
+    git('add', 'src/lib');
+    git('commit', '-q', '-m', 'add src/lib');
+    libSha = git('rev-parse', 'HEAD').trim();
+
+    await call('create_card', {
+      handle: 'DOC-LIB',
+      name: 'The lib folder',
+      status: 'built',
+      fields: { code_refs: ['src/lib'] },
+      body: 'Everything under `src/lib`.',
+    });
+    await call('set_verified', { handle: 'DOC-LIB' });
+  });
+
+  it('reports the folder as bound and present, not missing', async () => {
+    const res = await call('get_card', { handle: 'DOC-LIB', code: 'paths' });
+    const entry = res.code.files.find((f: { path: string }) => f.path === 'src/lib');
+    expect(entry).toMatchObject({ exists: true, dir: true });
+    expect(res.code.missing).not.toContain('src/lib');
+  });
+
+  it('is not stale while nothing under the folder has changed', async () => {
+    const report = await call('stale_report');
+    expect(report.stale.map((s: { handle: string }) => s.handle)).not.toContain('DOC-LIB');
+    expect(report.no_baseline.map((s: { handle: string }) => s.handle)).not.toContain('DOC-LIB');
+  });
+
+  it('goes stale when a file inside it changes, naming the file', async () => {
+    await writeFile(path.join(repo, 'src', 'lib', 'b.ts'), 'export const b = 2;\n', 'utf8');
+
+    const report = await call('stale_report');
+    const stale = report.stale.find((s: { handle: string }) => s.handle === 'DOC-LIB');
+    expect(stale).toBeDefined();
+    expect(stale.baseline).toBe(libSha.slice(0, 12));
+    // The changed FILE is the useful signal — "src/lib changed" is not.
+    expect(stale.changed_files).toEqual(['src/lib/b.ts']);
+    expect(stale.missing_files).toEqual([]);
+  });
+
+  it('never attaches a whole folder in code: "direct"', async () => {
+    const res = await call('get_card', { handle: 'DOC-LIB', code: 'direct' });
+    const entry = res.code.files.find((f: { path: string }) => f.path === 'src/lib');
+    expect(entry.skipped).toBe('directory');
+    expect(entry.content).toBeUndefined();
+  });
+});
