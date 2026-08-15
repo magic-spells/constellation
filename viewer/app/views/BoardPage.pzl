@@ -69,27 +69,52 @@ const COLUMNS = [
 const SUMMARY_MAX = 120;
 
 /**
- * One short line of intent from a card body: the first real paragraph, stripped
+ * One short line of intent from a card body: the first real PARAGRAPH, stripped
  * of the markdown that only means something when rendered. Cards carry no
  * summary field, so this is the closest honest thing to one — and it is only
  * ever a hint, which is why it is clamped rather than wrapped.
+ *
+ * Paragraph, not line: card bodies in this repo hard-wrap their prose, so
+ * stopping at the first newline would cut a sentence mid-clause and hand the
+ * clamp nothing left to do. Consecutive prose lines are joined and the clamp is
+ * applied to the whole. A fenced block is skipped WHOLE — skipping only its
+ * ``` delimiters would let its interior read as the summary.
  */
 function summaryOf(body) {
 	const lines = String(body ?? '').split('\n');
-	let text = '';
+	const paragraph = [];
+	let fence = '';
 
 	for (const raw of lines) {
 		const line = raw.trim();
-		// Skip headings, quotes, list bullets, tables, fences and HTML comments —
-		// a paragraph is what reads as a sentence out of context.
-		if (!line) continue;
-		if (/^(#{1,6}\s|>|[-*+]\s|\||```|<!--|:::)/.test(line)) continue;
-		text = line;
-		break;
-	}
-	if (!text) return '';
+		const delimiter = /^(```+|~~~+)/.exec(line)?.[1];
 
-	const plain = text
+		if (fence) {
+			// Inside a fence: only its own closing delimiter is meaningful.
+			if (delimiter && line.startsWith(fence)) fence = '';
+			continue;
+		}
+
+		// Anything that is not prose ends a paragraph once one has started, and is
+		// simply skipped before that: fences, headings, quotes, list bullets,
+		// tables, HTML comments, directive blocks.
+		if (delimiter) {
+			if (paragraph.length > 0) break;
+			fence = delimiter;
+			continue;
+		}
+		if (!line || /^(#{1,6}\s|>|[-*+]\s|\d+\.\s|\||<!--|:::)/.test(line)) {
+			if (paragraph.length > 0) break;
+			continue;
+		}
+
+		paragraph.push(line);
+	}
+
+	if (paragraph.length === 0) return '';
+
+	const plain = paragraph
+		.join(' ')
 		.replace(/\[\[([^\]|]+)(\|[^\]]+)?\]\]/g, '$1') // [[HANDLE]] → HANDLE
 		.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1') // [text](url) → text
 		.replace(/[`*_]/g, '')

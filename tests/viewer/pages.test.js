@@ -482,12 +482,84 @@ describe('BoardPage', () => {
 		view.destroy();
 	});
 
+	it('joins a hard-wrapped paragraph before clamping it', async () => {
+		// Every FEATURE body in this repo wraps its opening paragraph, so a summary
+		// that stopped at the first newline would cut the sentence mid-clause and
+		// leave the clamp nothing to do.
+		const view = await mountWith(BoardPage, [
+			card('FEATURE-SLA', 'FEATURE', {
+				name: 'SLA timers',
+				status: 'planned',
+				mtime: NOW,
+				body: '# SLA timers\n\nPause the clock while a ticket waits\non the customer.\n\n- out of scope: business hours\n',
+			}),
+			card('FEATURE-ASSIGN', 'FEATURE', {
+				name: 'Auto assignment',
+				status: 'planned',
+				mtime: NOW - 1000,
+				body:
+					'Route each new ticket to the on-call agent for its queue, so the\n' +
+					'median first-response time stops depending on who happens to be\n' +
+					'watching the inbox.\n',
+			}),
+		]);
+
+		const [wrapped, long] = view.findAll('[data-kb-col="planned"] [data-kb-card] p');
+
+		// Joined across the line break, and the list below it is not the paragraph.
+		expect(wrapped.textContent).toBe('Pause the clock while a ticket waits on the customer.');
+
+		// Long enough to clamp — which only happens because the lines were joined
+		// first. The cut lands on a word boundary, so no word is left half-written.
+		expect(long.textContent).toContain('median first-response time stops depending');
+		expect(long.textContent.endsWith('…')).toBe(true);
+		expect(long.textContent).not.toContain('watching the inbox');
+		expect(long.textContent.length).toBeLessThanOrEqual(121);
+		expect(long.textContent).not.toMatch(/\s…$/);
+
+		view.destroy();
+	});
+
+	it('skips a fenced block whole rather than summarising its interior', async () => {
+		const view = await mountWith(BoardPage, [
+			card('FEATURE-BOARD', 'FEATURE', {
+				name: 'Board',
+				status: 'planned',
+				body: '# Board\n\n```yaml\nstatus: planned\n```\n\nEvery FEATURE card as a Kanban board.\n',
+			}),
+		]);
+
+		const summary = view.find('[data-kb-card] p');
+		expect(summary.textContent).toBe('Every FEATURE card as a Kanban board.');
+		expect(view.element.textContent).not.toContain('status: planned');
+
+		view.destroy();
+	});
+
 	it('marks a card with no status instead of letting it read as planned', async () => {
 		const view = await mountWith(BoardPage, features);
 
 		const planned = view.findAll('[data-kb-col="planned"] [data-kb-card]');
 		expect(planned[0].textContent).not.toContain('no status');
 		expect(planned[1].textContent).toContain('no status');
+
+		view.destroy();
+	});
+
+	it('lands an unrecognised status in Planned rather than off the board', async () => {
+		const view = await mountWith(BoardPage, [
+			card('FEATURE-ODD', 'FEATURE', { name: 'Odd one', status: 'shipped' }),
+		]);
+
+		expect(byColumn(view)).toEqual({
+			planned: ['FEATURE-ODD'],
+			building: [],
+			built: [],
+			verified: [],
+		});
+		// The status IS set, so it gets no "no status" pill — only the column is a
+		// fallback.
+		expect(view.find('[data-kb-card]').textContent).not.toContain('no status');
 
 		view.destroy();
 	});
