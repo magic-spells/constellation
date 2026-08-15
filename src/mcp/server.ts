@@ -768,6 +768,39 @@ function statusSetOf(status?: StatusFilter | StatusFilter[]): Set<string> | null
 // handle-shaped frontmatter values); prose edges ([[links]], mermaid node IDs)
 // are aspirational — informative one hop out, ruinous to expand through.
 const edgesSchema = z.enum(['structured', 'prose', 'both']);
+
+/**
+ * Stateless paging for the flat list tools. No cursors and no server-side state:
+ * the index is rebuilt from files on every call, so a cursor could only lie.
+ * offset indexes into the same deterministic order the tool already returns.
+ */
+const offsetSchema = z
+  .number()
+  .int()
+  .min(0)
+  .optional()
+  .describe('skip this many rows before the page (default 0)');
+
+/**
+ * Truncation must ALWAYS be self-addressed: say how many rows exist, which slice
+ * came back, and the exact params that fetch the rest. Never a silent cut.
+ */
+function pageFields(
+  total: number,
+  offset: number,
+  limit: number,
+  returned: number,
+): Record<string, unknown> {
+  const end = offset + returned;
+  const fields: Record<string, unknown> = { offset, limit, returned };
+  if (end < total) {
+    fields.more = true;
+    fields.next = `${total - end} more — repeat with offset: ${end} (limit: ${limit}).`;
+  } else {
+    fields.more = false;
+  }
+  return fields;
+}
 const noteKindSchema = z.enum(['decision', 'gotcha', 'state', 'deviation', 'verified']);
 const codeModeSchema = z.enum(['none', 'paths', 'direct']);
 const repoSchema = z
@@ -1002,7 +1035,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Catalog of cards filtered by type, kind, status, and/or connectedness. status takes one value or a list; "none" selects cards with no status at all — status: ["planned", "building", "none"] is the backlog view (everything not yet built). connected:false returns orphans (cards with zero connections). Returns summaries (handle, type, kind, name, status).',
+        'Catalog of cards filtered by type, kind, status, and/or connectedness. status takes one value or a list; "none" selects cards with no status at all — status: ["planned", "building", "none"] is the backlog view (everything not yet built). connected:false returns orphans (cards with zero connections). Returns summaries (handle, type, kind, name, status) in handle order, paged: total is the full count and the response reports offset/limit/returned plus more:true and the exact offset to pass for the rest. Default page is 100.',
       inputSchema: {
         types: z.array(typeSchema).optional(),
         kind: z.string().optional(),
@@ -1013,11 +1046,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .boolean()
           .optional()
           .describe('false = orphans only; true = connected only'),
-        limit: z.number().int().min(1).max(500).optional(),
+        limit: z.number().int().min(1).max(500).optional().describe('page size (default 100)'),
+        offset: offsetSchema,
         repo: repoSchema,
       },
     },
-    withPlan(async (root, { types, kind, status, connected, limit }) => {
+    withPlan(async (root, { types, kind, status, connected, limit, offset }) => {
       const index = await loadPlan(root);
       const typeFilter = types && types.length > 0 ? new Set(types) : null;
       const statusFilter = statusSetOf(status);
@@ -1028,9 +1062,13 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         .filter((c) => !statusFilter || statusFilter.has(c.status ?? 'none'))
         .filter((c) => connected === undefined || isConnected(c.handle) === connected)
         .sort((a, b) => a.handle.localeCompare(b.handle));
+      const size = limit ?? 100;
+      const from = offset ?? 0;
+      const page = matched.slice(from, from + size).map(summary);
       return ok({
         total: matched.length,
-        cards: matched.slice(0, limit ?? 200).map(summary),
+        ...pageFields(matched.length, from, size, page.length),
+        cards: page,
       });
     }),
   );
@@ -1040,23 +1078,32 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Scored full-text search over handles, names, kinds/types, bodies, appended notes, and the frontmatter that describes or binds a card (summary, path, code_refs) — so a source path like "src/core/stale.ts" finds the card bound to it. Matching is AND: every significant word in the query must appear on the card (common words are ignored); wrap a phrase in double quotes to match it whole. Set connected: "full" to hydrate each match with the complete content of its connected cards — fuzzy query to working context in one call; hydration is shared across matches, so a card shared by two matches is spelled out once and then referenced by handle (hydrated_elsewhere: true), under the caps reported in hydration_budget.',
+        'Scored full-text search over handles, names, kinds/types, bodies, appended notes, and the frontmatter that describes or binds a card (summary, path, code_refs) — so a source path like "src/core/stale.ts" finds the card bound to it. Matching is AND: every significant word in the query must appear on the card (common words are ignored); wrap a phrase in double quotes to match it whole. Results are paged in ranked order: total_hits is the full count, and the response reports offset/limit/returned plus more:true and the exact offset to pass for the next page (default page 20). Set connected: "full" to hydrate each match with the complete content of its connected cards — fuzzy query to working context in one call; hydration is shared across matches, so a card shared by two matches is spelled out once and then referenced by handle (hydrated_elsewhere: true), under the caps reported in hydration_budget.',
       inputSchema: {
         q: z.string(),
         types: z.array(typeSchema).optional(),
-        limit: z.number().int().min(1).max(100).optional(),
+        limit: z.number().int().min(1).max(100).optional().describe('page size (default 20)'),
+        offset: offsetSchema.describe(
+          'skip this many RANKED hits before the page (default 0)',
+        ),
         connected: detailSchema.optional().describe('default: none'),
         repo: repoSchema,
       },
     },
-    withPlan(async (root, { q, types, limit, connected }) => {
+    withPlan(async (root, { q, types, limit, offset, connected }) => {
       const index = await loadPlan(root);
       const needles = queryNeedles(q);
-      const hits = searchCards(index, q, types).slice(0, limit ?? 20);
+      // Rank once, page into the ranked order — offset never reshuffles a result.
+      const ranked = searchCards(index, q, types);
+      const size = limit ?? 20;
+      const from = offset ?? 0;
+      const hits = ranked.slice(from, from + size);
       // One hydrator across every match: neighborhoods overlap heavily, and a
       // card's body is worth paying for once per response, not once per hit.
       const hydrator = new Hydrator();
       const result: Record<string, unknown> = {
+        total_hits: ranked.length,
+        ...pageFields(ranked.length, from, size, hits.length),
         matches: hits.map((hit) => ({
           card: summary(hit.card),
           score: hit.score,
@@ -1070,7 +1117,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       if (hydration) result.hydration_budget = hydration;
       // Matching is AND, so a long natural-language query can match nothing.
       // Say so rather than letting it read as "the plan has nothing on this".
-      if (hits.length === 0 && needles.length > 1) {
+      if (ranked.length === 0 && needles.length > 1) {
         result.note = `No card matched all of: ${needles.join(', ')}. Search is AND — retry with fewer words, or quote a phrase to match it verbatim.`;
       }
       return ok(result);
@@ -1727,7 +1774,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'All typed notes across the plan (the memory recorded via append_note), in handle order and newest-last within each card. Filter by kind — "show me every gotcha" / "every decision" in one call — and/or by handles. The cross-card view of the plan\'s memory; for one card\'s notes use get_card notes_kind/notes_limit.',
+        'All typed notes across the plan (the memory recorded via append_note), in handle order and newest-last within each card. Filter by kind — "show me every gotcha" / "every decision" in one call — and/or by handles. Paged: total is every matching note, and the response reports offset/limit/returned plus more:true and the exact offset to pass for the rest (default page 50, max 500). The cross-card view of the plan\'s memory; for one card\'s notes use get_card notes_kind/notes_limit.',
       inputSchema: {
         kind: noteKindSchema.optional().describe('return only notes of this kind'),
         handles: z
@@ -1740,11 +1787,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .min(1)
           .max(500)
           .optional()
-          .describe('default 200'),
+          .describe('page size (default 50)'),
+        offset: offsetSchema,
         repo: repoSchema,
       },
     },
-    withPlan(async (root, { kind, handles, limit }) => {
+    withPlan(async (root, { kind, handles, limit, offset }) => {
       const index = await loadPlan(root);
       const wanted =
         handles && handles.length > 0
@@ -1774,7 +1822,14 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           });
         }
       }
-      return ok({ total: notes.length, notes: notes.slice(0, limit ?? 200) });
+      const size = limit ?? 50;
+      const from = offset ?? 0;
+      const page = notes.slice(from, from + size);
+      return ok({
+        total: notes.length,
+        ...pageFields(notes.length, from, size, page.length),
+        notes: page,
+      });
     }),
   );
 

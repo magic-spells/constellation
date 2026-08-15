@@ -73,6 +73,12 @@ times over:
   *post-filter* — the walk passes through non-matching cards so a built hub never hides
   planned work — while `types` prunes the walk itself. `traverse` / `assemble` also take
   `edges: structured | prose | both` (default `structured`).
+  The flat list tools — `search`, `list_cards`, `list_notes` — page statelessly on
+  `limit` + `offset` (defaults 20 / 100 / 50). There are no cursors and no server state:
+  the index is rebuilt from files every call, so a cursor could only lie. Truncation is
+  always **self-addressed** — the response carries the full count (`total_hits` / `total`),
+  the `offset`/`limit`/`returned` slice it sent, and `more: true` with the exact offset to
+  ask for next.
   `assemble` is an **index** by default (`hydration: "index" | "full"`): file-disjoint units,
   seed handles, per-seed bound paths, and a deduped neighbor list — no bodies, because the
   parent then pulls the handful of cards a sub-agent actually needs with `get_card`. Its
