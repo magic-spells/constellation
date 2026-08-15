@@ -213,9 +213,9 @@ describe('activityModel', () => {
 		expect(m.rows.map((r) => r.kind)).toEqual(['plan', 'code', 'plan']);
 		expect(m.rows[0].icon).toBe('file');
 		expect(m.rows[1].icon).toBe('commit');
-		// Card chips cap at 3 with a "+N" tail, so a wide commit can't blow the row.
-		expect(m.rows[0].cards).toHaveLength(3);
-		expect(m.rows[0].more).toBe('+1');
+		// Card chips cap at 2 with a "+N" tail, so a wide commit can't blow the row.
+		expect(m.rows[0].cards).toHaveLength(2);
+		expect(m.rows[0].more).toBe('+2');
 		expect(m.rows[2].isSyncPoint).toBe(true);
 	});
 

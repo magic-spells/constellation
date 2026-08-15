@@ -324,11 +324,14 @@ export function activityModel(sync, limit = 9) {
 				when: relTime(commit.date),
 				subject: commit.subject ?? '',
 				isSyncPoint: !!commit.is_sync_point,
-				cards: (commit.cards ?? []).slice(0, 3).map((handle) => ({
+				// Two chips, not more: handles are long (FEATURE-DASHBOARD-REWORK is
+				// 24 chars) and a half-width panel can only show a couple before
+				// they all ellipsize into uselessness. The "+N" carries the rest.
+				cards: (commit.cards ?? []).slice(0, 2).map((handle) => ({
 					handle,
 					path: hrefForHandle(handle),
 				})),
-				more: (commit.cards?.length ?? 0) > 3 ? `+${commit.cards.length - 3}` : '',
+				more: (commit.cards?.length ?? 0) > 2 ? `+${commit.cards.length - 2}` : '',
 			});
 		}
 	}

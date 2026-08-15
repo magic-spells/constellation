@@ -91,7 +91,11 @@ export default class ActivityPanel extends PuzzleView {
 /* Plan commits are the ones that changed the memory — brand-tinted so the two
    streams separate at a glance without reading the tag. */
 .act-row .a-kind.plan { color: var(--color-brand); }
-.act-row .a-subject { flex: 1; overflow: hidden; min-width: 0; color: var(--color-body); text-overflow: ellipsis; white-space: nowrap; }
+/* flex-basis 40%, not 0: with `flex: 1` the subject shrinks to nothing next to
+   the fixed-width card chips, and the chips then overflow the panel. Giving the
+   subject a real basis and letting the chip strip shrink instead keeps the
+   commit message readable and the row inside its box. */
+.act-row .a-subject { flex: 1 1 40%; overflow: hidden; min-width: 0; color: var(--color-body); text-overflow: ellipsis; white-space: nowrap; }
 .act-row.sync .a-subject { color: var(--color-muted); }
 .act-row .a-tag {
 	flex: none;
@@ -104,14 +108,18 @@ export default class ActivityPanel extends PuzzleView {
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
 }
-.act-row .a-cards { flex: none; display: inline-flex; gap: 0.3rem; }
+.act-row .a-cards { flex: 0 1 auto; display: inline-flex; overflow: hidden; min-width: 0; gap: 0.3rem; }
 .act-row .a-card {
+	overflow: hidden;
+	max-width: 10rem;
 	border: 1px solid var(--color-border);
 	border-radius: 5px;
 	padding: 0.04rem 0.4rem;
 	color: var(--color-faint);
 	font-family: var(--font-mono);
 	font-size: 0.66rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 .act-row .a-card:hover { border-color: var(--color-border-strong); color: var(--color-muted); }
 .act-row .a-more { align-self: center; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.66rem; }
