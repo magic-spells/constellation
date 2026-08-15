@@ -195,7 +195,11 @@ describe('Home dashboard', () => {
 				],
 				latest_tag: 'v0.4.2',
 				package_version: '0.5.0',
-				stale: { checked: 1, stale: [], no_baseline: [] },
+				stale: {
+					checked: 2,
+					stale: [],
+					no_baseline: [{ handle: 'DB-TICKETS', status: 'built', files: ['src/db.ts'] }],
+				},
 			},
 		});
 
@@ -203,9 +207,19 @@ describe('Home dashboard', () => {
 		expect(view.find('.panel-grid')).toBeTruthy();
 		expect(text).toContain('no drift');
 		expect(text).toContain('v0.4.2 tagged');
+		expect(text).toContain('0.5.0'); // release version chip
 		expect(text).toContain('1 of 1 features shipped');
 		expect(text).toContain('feat: shiny');
 		expect(text).toContain('watch the lock');
+
+		// Zero stale cards still owes the reader the unverifiable claims.
+		const noBase = view.findAll('.nobase-row');
+		expect(noBase).toHaveLength(1);
+		expect(noBase[0].querySelector('.nb-handle').textContent).toBe('DB-TICKETS');
+		expect(noBase[0].textContent).toContain('no verified baseline');
+
+		// Notes carry a relative time, inferred from the card's mtime.
+		expect(view.find('.note-row .n-when').textContent.trim()).not.toBe('');
 
 		view.destroy();
 	});

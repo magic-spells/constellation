@@ -7,7 +7,10 @@
       {#if noVersions}<span class="rel-none">no tags yet</span>{/if}
     </p>
     {#if current}
-      <a class="rel-name" href="{ current.path | link }">✦ { current.name }</a>
+      <p class="rel-head">
+        <a class="rel-name" href="{ current.path | link }">✦ { current.name }</a>
+        {#if current.version}<span class="rel-chip">{ current.version }</span>{/if}
+      </p>
       {#if hasFeatures}
         <div class="rel-progress"><div class="rel-bar" style={ barStyle }></div></div>
         <p class="rel-count">{ current.shippedCount } of { current.totalCount } features shipped</p>
@@ -74,8 +77,18 @@ export default class ReleasePanel extends PuzzleView {
 
 <style>
 .rel-versions { display: flex; flex-wrap: wrap; gap: 0.7rem; margin: 0 0 0.7rem; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
-.rel-name { display: inline-block; margin-bottom: 0.6rem; color: var(--color-ink); font-size: 0.95rem; font-weight: 600; }
+.rel-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; margin: 0 0 0.6rem; }
+.rel-name { color: var(--color-ink); font-size: 0.95rem; font-weight: 600; }
 .rel-name:hover { text-decoration: underline; }
+.rel-chip {
+	flex: none;
+	padding: 0.05rem 0.35rem;
+	border-radius: 0.25rem;
+	background: var(--color-surface-sunken, var(--color-border));
+	color: var(--color-muted);
+	font-family: var(--font-mono);
+	font-size: 0.68rem;
+}
 
 .rel-progress { overflow: hidden; height: 6px; border-radius: 99px; background: var(--color-surface-sunken, var(--color-border)); }
 .rel-bar { height: 100%; border-radius: 99px; background: var(--color-brand); transition: width 0.3s ease; }

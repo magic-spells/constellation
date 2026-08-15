@@ -16,9 +16,18 @@
               </li>
             {/for}
           </ul>
-          {#if hasNoBaseline}
-            <p class="d-nobase">{ noBaselineCount } claim(s) without a reachable baseline</p>
-          {/if}
+        {/if}
+        {#if hasNoBaseline}
+          <p class="d-nobase-head">{ noBaselineCount } claim{ noBaselinePlural } without a reachable baseline</p>
+          <ul class="nobase-rows">
+            {#for row in noBaseline}
+              <li key={ row.handle } class="nobase-row">
+                <a class="nb-handle" href="{ row.path | link }">{ row.handle }</a>
+                {#if row.status}<span class="nb-status">{ row.status }</span>{/if}
+                {#if row.reason}<span class="nb-reason">{ row.reason }</span>{/if}
+              </li>
+            {/for}
+          </ul>
         {/if}
       </section>
     {/if}
@@ -68,8 +77,17 @@ export default class DriftPanel extends PuzzleView {
 				plural: row.changedCount === 1 ? '' : 's',
 				baselineSource: BASELINE_COPY[row.baselineSource] ?? 'since baseline',
 			})),
+			// A plan with zero stale cards but N unverifiable claims is not silently
+			// clean — the sub-list renders under both the warn and the ✓ branch.
 			hasNoBaseline: noBaseline.length > 0,
 			noBaselineCount: noBaseline.length,
+			noBaselinePlural: noBaseline.length === 1 ? '' : 's',
+			noBaseline: noBaseline.map((row) => ({
+				handle: row.handle ?? '',
+				path: row.path ?? '',
+				status: row.status ?? '',
+				reason: row.reason ?? '',
+			})),
 		};
 	}
 }
@@ -89,5 +107,19 @@ export default class DriftPanel extends PuzzleView {
 }
 .drift-row .d-handle:hover { color: var(--color-ink); text-decoration: underline; }
 .drift-row .d-meta { color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; white-space: nowrap; }
-.panel-drift .d-nobase { margin: 0.6rem 0 0; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
+.panel-drift .d-nobase-head { margin: 0.7rem 0 0.1rem; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
+.nobase-rows { display: flex; flex-direction: column; gap: 0.1rem; margin: 0; padding: 0; list-style: none; }
+.nobase-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.45rem; min-width: 0; padding: 0.2rem 0; }
+.nobase-row .nb-handle {
+	overflow: hidden;
+	max-width: 100%;
+	color: var(--color-faint);
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.nobase-row .nb-handle:hover { color: var(--color-muted); text-decoration: underline; }
+.nobase-row .nb-status { color: var(--color-faint); font-size: 0.7rem; }
+.nobase-row .nb-reason { overflow: hidden; min-width: 0; color: var(--color-faint); font-size: 0.7rem; text-overflow: ellipsis; white-space: nowrap; }
 </style>

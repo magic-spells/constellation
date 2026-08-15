@@ -9,6 +9,7 @@
             <span class="n-kind">{ row.kind }</span>
             <span class="n-text">{ row.text }</span>
             <a class="n-card" href="{ row.path | link }">{ row.handle }</a>
+            <span class="n-when">{ row.when }</span>
           </li>
         {/for}
       </ul>
@@ -58,4 +59,5 @@ export default class NotesPanel extends PuzzleView {
 .note-row .n-text { flex: 1; overflow: hidden; min-width: 0; color: var(--color-body); text-overflow: ellipsis; white-space: nowrap; }
 .note-row .n-card { flex: none; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.7rem; }
 .note-row .n-card:hover { color: var(--color-muted); }
+.note-row .n-when { flex: none; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.7rem; white-space: nowrap; }
 </style>
