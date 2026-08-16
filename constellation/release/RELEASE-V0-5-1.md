@@ -1,6 +1,6 @@
 ---
 name: v0.5.1 — Tasks
-status: building
+status: built
 version: 0.5.1
 ---
 
