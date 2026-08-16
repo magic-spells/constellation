@@ -1,0 +1,71 @@
+<puzzle-view>
+  <section class="panel panel-notes">
+    <h3>Notes</h3>
+    {#if hasRows}
+      <ul class="note-rows">
+        {#for row in rows}
+          <li key={ row.key } class="note-row">
+            <span class={ row.glyphClass }>{ row.glyph }</span>
+            <span class={ row.kindClass }>{ row.kind }</span>
+            <span class="n-text">{ row.text }</span>
+            <a class="n-card" href="{ row.path | link }">{ row.handle }</a>
+            <span class="n-when">{ row.when }</span>
+          </li>
+        {/for}
+      </ul>
+    {:else}
+      <p class="panel-empty">No notes yet — <code>append_note</code> writes durable decisions and gotchas onto cards; the latest land here.</p>
+    {/if}
+  </section>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// NotesPanel — the plan's most recent typed notes (decision / gotcha / state /
+// deviation / verified), each linked back to the card that carries it.
+// Presentational only: one `model` prop, shaped by `notesModel()` in
+// ../lib/dashboard.js.
+//
+// Always renders: with no notes the empty state teaches what `append_note` is
+// for, which is the point of the panel on a young plan.
+
+export default class NotesPanel extends PuzzleView {
+	data(params, props) {
+		const model = props.model ?? {};
+		const rows = Array.isArray(model.rows) ? model.rows : [];
+
+		return {
+			hasRows: rows.length > 0,
+			rows: rows.map((row, i) => ({
+				key: row.key ?? i,
+				kind: row.kind ?? '',
+				glyph: row.glyph ?? '·',
+				// Tone rides on both the glyph and the kind label, so a gotcha and a
+				// decision are told apart by colour before either word is read.
+				glyphClass: `n-glyph ${row.tone ?? ''}`,
+				kindClass: `n-kind ${row.tone ?? ''}`,
+				text: row.text ?? '',
+				handle: row.handle ?? '',
+				path: row.path ?? '',
+				when: row.when ?? '',
+			})),
+		};
+	}
+}
+</script>
+
+<style>
+.note-rows { display: flex; flex-direction: column; gap: 0.1rem; margin: 0; padding: 0; list-style: none; }
+.note-row { display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; padding: 0.3rem 0; font-size: 0.85rem; }
+.note-row .n-glyph { flex: none; color: var(--color-faint); font-size: 0.72rem; }
+.note-row .n-kind { flex: none; width: 4.6rem; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
+.note-row .n-glyph.brand, .note-row .n-kind.brand { color: var(--color-brand); }
+.note-row .n-glyph.warn, .note-row .n-kind.warn { color: var(--color-warning); }
+.note-row .n-glyph.good, .note-row .n-kind.good { color: var(--color-success); }
+.note-row .n-glyph.muted, .note-row .n-kind.muted { color: var(--color-muted); }
+.note-row .n-text { flex: 1; overflow: hidden; min-width: 0; color: var(--color-body); text-overflow: ellipsis; white-space: nowrap; }
+.note-row .n-card { flex: none; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.7rem; }
+.note-row .n-card:hover { color: var(--color-muted); }
+.note-row .n-when { flex: none; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.7rem; white-space: nowrap; }
+</style>

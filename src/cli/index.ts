@@ -246,6 +246,7 @@ program
       process.exit(2);
     }
     const { startServer } = await import('../serve/server.js');
+    const started = Date.now();
     let running: Awaited<ReturnType<typeof startServer>>;
     try {
       running = await startServer({
@@ -265,9 +266,57 @@ program
       }
       process.exit(2);
     }
-    const url = `http://localhost:${running.port}`;
-    console.log(`${pc.green('✓')} Constellation viewer at ${pc.underline(url)}`);
-    console.log(pc.dim(`  plan: ${root}`));
+    const elapsed = Date.now() - started;
+
+    // Card count is banner garnish — never let a broken card block serving.
+    let planLabel = root;
+    try {
+      const { loadPlan } = await import('../core/indexer.js');
+      const plan = await loadPlan(root);
+      planLabel += pc.dim(`  (${plan.cards.size} cards)`);
+    } catch {
+      /* banner shows the path alone */
+    }
+
+    const url = `http://localhost:${running.port}/`;
+    const line = (label: string, value: string) =>
+      console.log(`  ${pc.green('➜')}  ${pc.bold(label.padEnd(8))}${value}`);
+    console.log();
+    console.log(
+      `  ${pc.bold(pc.cyan('✦ Constellation'))} ${pc.dim(`v${version}`)}  ready in ${pc.bold(`${elapsed}ms`)}`,
+    );
+    console.log();
+    line('Local:', pc.cyan(url));
+    line('Plan:', planLabel);
+    if (opts.readonly) line('Mode:', pc.dim('read-only (browser edits disabled)'));
+
+    // "press q to quit": raw-mode stdin so a single keypress ends the server,
+    // only when stdin is a real TTY (pipes/CI keep plain Ctrl+C semantics).
+    // Raw mode swallows Ctrl+C's SIGINT, so 0x03 is handled explicitly.
+    const tty = process.stdin.isTTY === true && typeof process.stdin.setRawMode === 'function';
+    if (tty) {
+      console.log(`\n  ${pc.dim('press q to quit')}`);
+    }
+    console.log();
+
+    if (tty) {
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+      process.stdin.on('data', (chunk: Buffer) => {
+        const key = chunk.toString();
+        if (key === 'q' || key === 'Q' || key === '\u0003') {
+          // Raw mode echoes nothing, so no leading newline is needed.
+          console.log(pc.dim('  shutting down…'));
+          process.stdin.setRawMode(false);
+          process.stdin.pause();
+          void running.close().then(
+            () => process.exit(0),
+            () => process.exit(0),
+          );
+        }
+      });
+    }
+
     if (opts.open) {
       await openUrl(url);
     }

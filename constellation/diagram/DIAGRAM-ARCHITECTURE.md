@@ -1,7 +1,9 @@
 ---
 name: Architecture pipeline
 kind: flowchart
-status: built
+status: verified
+verified_at: '2026-08-16T02:32:37.337Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
 ---
 
 # Architecture

@@ -3,6 +3,8 @@ import { readFile, rm, stat } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { repoRemoteUrl, writeSyncPoint } from '../core/git.js';
+import { CONSTELLATION_VERSION } from '../core/version.js';
 import { isHandleShaped, typeForHandle } from '../core/handles.js';
 import { lintPlan } from '../core/lint.js';
 import { computeSyncStatus } from '../core/sync.js';
@@ -24,6 +26,7 @@ const VIEWER_DIST = path.join(
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.json': 'application/json; charset=utf-8',
@@ -119,7 +122,11 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     json(res, status, { error: { code, message } });
   }
 
+  // The remote can't change under a running server; resolve it once, lazily.
+  let repoUrl: string | null | undefined;
+
   async function handleGetPlan(res: http.ServerResponse): Promise<void> {
+    if (repoUrl === undefined) repoUrl = await repoRemoteUrl(planRoot).catch(() => null);
     const lint = await lintPlan(planRoot);
     const cards = await Promise.all(
       [...lint.index.cards.values()]
@@ -128,6 +135,7 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     );
     json(res, 200, {
       editable,
+      repo_url: repoUrl,
       cards,
       connections: lint.index.connections,
       errors: lint.errors,
@@ -265,11 +273,51 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     const lint = await lintPlan(planRoot);
     const card = lint.index.cards.get(handle.toUpperCase());
     if (!card) return failure(res, 404, 'NOT_FOUND', `No card ${handle}`);
+    if (card.handle === 'PLAN-PROJECT') {
+      return failure(
+        res,
+        400,
+        'INVALID_HANDLE',
+        'PLAN-PROJECT (plan.md) is the plan root card and cannot be deleted.',
+      );
+    }
     const referencedBy = [
       ...(lint.index.connectedHandles.get(card.handle) ?? []),
     ].sort();
     await rm(card.filePath);
     json(res, 200, { deleted: card.handle, referenced_by: referencedBy });
+  }
+
+  /**
+   * Stamp the sync marker at HEAD — the same write `set_sync_point` performs,
+   * exposed so the dashboard's health strip can do it without dropping to the
+   * MCP tools. Returns the recomputed status so the client can render the new
+   * verdict from one round trip (the marker is what gives unverified claim
+   * cards a drift baseline, so the whole strip changes). An optional
+   * `format_review: true` in the body closes out the one-time format-upgrade
+   * review at the same time — the same field `set_sync_point` stamps.
+   */
+  async function handleSetSyncPoint(
+    body: Record<string, unknown>,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    let marker;
+    try {
+      marker = await writeSyncPoint(
+        planRoot,
+        undefined,
+        body.format_review === true ? { formatReview: CONSTELLATION_VERSION } : {},
+      );
+    } catch (err) {
+      // No git repo (or no commits yet) — there is no HEAD to pin the plan to.
+      return failure(
+        res,
+        409,
+        'NO_GIT',
+        `Cannot set a sync point: ${err instanceof Error ? err.message : 'no git HEAD'}`,
+      );
+    }
+    json(res, 200, { marker, sync: await computeSyncStatus(planRoot) });
   }
 
   const server = http.createServer(async (req, res) => {
@@ -301,10 +349,14 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
 
       const isWrite =
         (cardMatch && (method === 'PATCH' || method === 'DELETE')) ||
-        (url.pathname === '/api/cards' && method === 'POST');
+        (url.pathname === '/api/cards' && method === 'POST') ||
+        (url.pathname === '/api/sync-point' && method === 'POST');
       if (isWrite) {
         if (!editable) {
           return failure(res, 405, 'READONLY', 'Server is running with --readonly');
+        }
+        if (url.pathname === '/api/sync-point') {
+          return await handleSetSyncPoint(await readJson(req), res);
         }
         if (cardMatch && method === 'PATCH') {
           return await handlePatchCard(

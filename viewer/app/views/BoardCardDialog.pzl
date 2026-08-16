@@ -1,0 +1,389 @@
+<puzzle-view class="contents">
+  <div class="board-overlay">
+    <button type="button" class="board-backdrop" aria-label="Close preview" @click={ close }></button>
+
+    <dialog class="board-dialog" open="open" aria-labelledby="board-dialog-title" data-puzzle-morph={ morphId }>
+      {#if card}
+        <header class="board-dialog-head" style={ typeStyle }>
+          <div class="board-dialog-eyebrow">
+            <span class="board-dialog-handle">{ card.handle }</span>
+            {#if status}
+              <span class={ statusClass }>{ status }</span>
+            {:else}
+              <span class="board-dialog-status is-none">no status</span>
+            {/if}
+            <button type="button" class="board-dialog-close" aria-label="Close preview" @click={ close }>✕</button>
+          </div>
+          <h2 id="board-dialog-title" class="board-dialog-title">{ title }</h2>
+          {#if kind}
+            <p class="board-dialog-kind">{ kind }</p>
+          {/if}
+        </header>
+
+        <div class="board-dialog-body">
+          {#if hasBody}
+            <MarkdownBlock src={ body }/>
+          {:else}
+            <p class="board-dialog-blank">This card has no body yet.</p>
+          {/if}
+
+          {#if hasNeighbors}
+            <section class="board-dialog-connections">
+              <h3>Connections</h3>
+              <ConnectionChips handles={ neighbors }/>
+            </section>
+          {/if}
+        </div>
+
+        <footer class="board-dialog-foot">
+          <span class="board-dialog-count">{ connectionLabel }</span>
+          <a class="board-dialog-open" href="{ cardHref | link }">Open full card →</a>
+        </footer>
+      {:else}
+        <div class="board-dialog-body">
+          <p class="board-dialog-blank">{ handle } is not in this plan.</p>
+        </div>
+      {/if}
+    </dialog>
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import ConnectionChips from '../components/ConnectionChips.pzl';
+import MarkdownBlock from '../components/MarkdownBlock.pzl';
+import { planIndex } from '../lib/plan-index.js';
+import { hrefForHandle } from '../lib/types.js';
+
+// BoardCardDialog — the board's quick-preview overlay, mounted as the leaf child
+// of the `/board` route (`#/board/card/API-TICKETS`) inside BoardPage's <Slot/>.
+//
+// READ-ONLY on purpose. The board is a view of where everything stands, and this
+// is the same promise at card depth: handle, name, status, the rendered body, the
+// neighbourhood, and a link out to the full card page where editing lives. No
+// write path runs through here, so there is nothing to keep in step with
+// CardPage's patch semantics.
+//
+// THERE IS NO MORPH CODE IN THIS FILE. The shell shares its `data-puzzle-morph`
+// value with the Kanban card that opened it (BoardPage mints both from the same
+// handle) and the router pairs them on the way in and on the way out — Escape,
+// the ✕, the backdrop, and the browser Back button all just navigate to
+// `/board`, and the router awaits the reverse flight before destroying this
+// view. See `enableMorph(app)` in app.js and puzzle's D55.
+//
+// The rules that shape the markup below, all from the morph contract:
+//   - A real <dialog> used NON-MODALLY (a static `open` attribute, never
+//     showModal). The top layer paints above the morph blob and would break the
+//     reveal.
+//   - No transform-based positioning and no stylesheet `opacity` on the shell —
+//     the engine drives inline transform/opacity during the reveal. `.board-overlay`
+//     centres it with flex instead.
+//   - No CHANGING dynamic `style={}` binding on the shell: the patcher rewrites
+//     the whole style attribute and would clobber the engine's frames. The type
+//     hue therefore lands on the inner header, not on the <dialog>.
+
+const STATUS_TONE = {
+	planned: 'is-planned',
+	building: 'is-building',
+	built: 'is-built',
+	verified: 'is-verified',
+};
+
+export default class BoardCardDialog extends PuzzleView {
+	created() {
+		this._onKey = (event) => {
+			if (event.key !== 'Escape' || event.defaultPrevented) return;
+			this._close();
+		};
+	}
+
+	data(params) {
+		const handle = String(params.handle ?? '').toUpperCase();
+		const card = this.ctx.store.findOne('card', handle);
+
+		// The morph id is minted from the ROUTE's handle, not the card's, so it
+		// matches the Kanban card even on the frame where the plan has not
+		// hydrated yet and `card` is still null.
+		const morphId = `board-card-${handle}`;
+
+		if (!card) return { card: null, handle, morphId };
+
+		const neighbors = planIndex(this.ctx.store).neighbors.get(handle) ?? [];
+		const body = String(card.body ?? '');
+		const status = card.status ?? '';
+
+		return {
+			card,
+			handle,
+			morphId,
+			title: card.name || card.handle,
+			kind: card.kind ?? '',
+			status,
+			statusClass: `board-dialog-status ${STATUS_TONE[status] || ''}`,
+			typeStyle: `--c: var(--t-${card.type}, var(--color-brand))`,
+			body,
+			hasBody: body.trim().length > 0,
+			neighbors,
+			hasNeighbors: neighbors.length > 0,
+			connectionLabel:
+				neighbors.length === 1 ? '1 connection' : `${neighbors.length} connections`,
+			cardHref: hrefForHandle(handle),
+		};
+	}
+
+	mounted() {
+		document.addEventListener('keydown', this._onKey);
+	}
+
+	// The reverse flight plays while this view is still mounted; fade the backdrop
+	// out alongside it. viewWillHide fires as the out phase starts — exactly when
+	// the blob leaves the dialog.
+	viewWillHide() {
+		this.element?.querySelector('.board-backdrop')?.classList.add('is-leaving');
+	}
+
+	destroyed() {
+		document.removeEventListener('keydown', this._onKey);
+	}
+
+	_close() {
+		void this.ctx.router.push('/board');
+	}
+
+	events = {
+		close: () => this._close(),
+	};
+}
+</script>
+
+<style>
+/* Fixed to the viewport, not to the board's scroll pane — nothing in AppShell's
+   chain establishes a containing block (no transform/filter/contain), so this
+   resolves against the viewport as written. */
+.board-overlay {
+	position: fixed;
+	z-index: 40;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	inset: 0;
+	padding: clamp(1rem, 4vw, 3rem);
+}
+
+.board-backdrop {
+	position: absolute;
+	inset: 0;
+	backdrop-filter: blur(2px);
+	background: color-mix(in srgb, black 55%, transparent);
+	animation: board-backdrop-in 200ms ease-out both;
+	/* backdrop-filter needs its own transition — Chrome applies the blur at full
+	   strength regardless of the element's opacity. */
+	transition:
+		opacity 380ms ease-out,
+		backdrop-filter 380ms ease-out;
+	cursor: default;
+}
+
+/* Fades out WITH the reverse flight. `animation: none` is load-bearing: the
+   filling entrance animation otherwise outranks the transitioned opacity in the
+   cascade and the backdrop would sit at full black until the view is destroyed. */
+.board-backdrop.is-leaving {
+	animation: none;
+	opacity: 0;
+	backdrop-filter: blur(0);
+}
+
+@keyframes board-backdrop-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+/* A real <dialog> used non-modally (static `open`, never showModal) — the resets
+   neutralise the UA styles. The radius/border/background/shadow DELTAS from
+   KanbanCard's `.rounded-lg border border-border bg-surface shadow-sm` are what
+   the morph blob visibly interpolates, so they are worth the contrast. */
+.board-dialog {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	max-width: 40rem;
+	max-height: min(38rem, 100%);
+	margin: 0;
+	overflow: hidden;
+	border: 1px solid var(--color-border-strong);
+	border-radius: 1rem;
+	background: var(--color-surface);
+	padding: 0;
+	color: var(--color-body);
+	box-shadow: 0 32px 80px rgb(0 0 0 / 0.42);
+}
+
+.board-dialog-head {
+	--c: var(--color-brand);
+	flex: none;
+	border-bottom: 1px solid var(--color-border);
+	padding: 1.35rem 1.5rem 1.15rem;
+}
+
+.board-dialog-eyebrow {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.55rem;
+	margin-bottom: 0.7rem;
+}
+
+/* The handle IS the type pill, same treatment as CardPage's `.card-handle`. */
+.board-dialog-handle {
+	display: inline-flex;
+	align-items: center;
+	border: 1px solid color-mix(in srgb, var(--c) 38%, transparent);
+	border-radius: 7px;
+	background: color-mix(in srgb, var(--c) 15%, transparent);
+	padding: 0.24rem 0.6rem;
+	color: var(--c);
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	font-weight: 600;
+	letter-spacing: 0.09em;
+}
+
+/* Tones match CardList's status dots and the board's column dots, so a status
+   is one colour everywhere in the viewer. */
+.board-dialog-status {
+	display: inline-flex;
+	align-items: center;
+	border-radius: 99px;
+	background: var(--color-surface-sunken);
+	padding: 0.2rem 0.55rem;
+	color: var(--color-muted);
+	font-family: var(--font-mono);
+	font-size: 0.68rem;
+	letter-spacing: 0.04em;
+}
+
+.board-dialog-status.is-building {
+	background: var(--color-warning-tint);
+	color: var(--color-warning);
+}
+
+.board-dialog-status.is-built {
+	background: var(--color-brand-tint);
+	color: var(--color-brand);
+}
+
+.board-dialog-status.is-verified {
+	background: var(--color-success-tint);
+	color: var(--color-success);
+}
+
+.board-dialog-status.is-none {
+	border: 1px dashed var(--color-border);
+	background: none;
+	color: var(--color-faint);
+}
+
+.board-dialog-close {
+	margin-left: auto;
+	border-radius: 6px;
+	background: none;
+	padding: 0.1rem 0.4rem;
+	color: var(--color-faint);
+	font-size: 0.85rem;
+	line-height: 1.4;
+	cursor: pointer;
+	transition:
+		color 0.15s,
+		background 0.15s;
+}
+
+.board-dialog-close:hover {
+	background: var(--color-surface-sunken);
+	color: var(--color-ink);
+}
+
+.board-dialog-title {
+	color: var(--color-ink);
+	font-size: clamp(1.3rem, 3vw, 1.75rem);
+	font-weight: 650;
+	letter-spacing: -0.025em;
+	line-height: 1.1;
+}
+
+.board-dialog-kind {
+	margin-top: 0.4rem;
+	color: var(--color-muted);
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.035em;
+}
+
+.board-dialog-body {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 1.4rem 1.5rem;
+}
+
+.board-dialog-blank {
+	color: var(--color-faint);
+	font-size: 0.85rem;
+	font-style: italic;
+}
+
+.board-dialog-connections {
+	margin-top: 1.75rem;
+	border-top: 1px solid var(--color-border);
+	padding-top: 1.1rem;
+}
+
+.board-dialog-connections > h3 {
+	margin-bottom: 0.7rem;
+	color: var(--color-muted);
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+.board-dialog-foot {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	border-top: 1px solid var(--color-border);
+	background: var(--color-surface-sunken);
+	padding: 0.8rem 1.5rem;
+}
+
+.board-dialog-count {
+	color: var(--color-faint);
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	letter-spacing: 0.04em;
+}
+
+.board-dialog-open {
+	color: var(--color-brand);
+	font-size: 0.82rem;
+	font-weight: 600;
+}
+
+.board-dialog-open:hover {
+	color: var(--color-brand-dark);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.board-backdrop {
+		animation: none;
+		transition: none;
+	}
+}
+</style>

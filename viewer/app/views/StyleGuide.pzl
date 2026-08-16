@@ -1,0 +1,81 @@
+<puzzle-view>
+  <div class="style-guide">
+    <h1>Style Guide</h1>
+    {#if cards.length === 0}
+      <Empty
+        title="No STYLE cards yet"
+        description="Add a card under style/ with a category and a tokens list — colors, fonts, a type scale, spacing, radii or shadows — and it renders here."
+        class="min-h-[18rem]"
+      />
+    {:else}
+      {#for entry in cards}
+        <section key={ entry.handle } class="sg-section">
+          <h2><a href="{ entry.path | link }">{ entry.title }</a></h2>
+          <StyleTokens card={ entry.card } />
+          {#if entry.body}
+            <div class="sg-body"><MarkdownBlock src={ entry.body } /></div>
+          {/if}
+        </section>
+      {/for}
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Empty from '../components/ui/Empty.pzl';
+import MarkdownBlock from '../components/MarkdownBlock.pzl';
+import StyleTokens from '../components/StyleTokens.pzl';
+import { planIndex } from '../lib/plan-index.js';
+import { hrefForHandle } from '../lib/types.js';
+
+// StyleGuide — every STYLE card's tokens on one page, in reading order:
+// fonts, then colors, then the measurements. Ported from the Svelte viewer's
+// StyleGuide.svelte. Each section links back to the card it came from, and
+// renders the card's own prose underneath its tokens.
+
+const ORDER = ['font', 'color', 'type-scale', 'spacing', 'radius', 'shadow', 'other'];
+
+/** Position in ORDER; unknown categories sort last. */
+function rank(card) {
+	const i = ORDER.indexOf(String(card.frontmatter?.category ?? 'other'));
+	return i === -1 ? 99 : i;
+}
+
+export default class StyleGuide extends PuzzleView {
+	data() {
+		const cards = [...(planIndex(this.ctx.store).byType.get('STYLE') ?? [])]
+			.sort((a, b) => rank(a) - rank(b) || a.handle.localeCompare(b.handle))
+			.map((card) => ({
+				card,
+				handle: card.handle,
+				title: card.name || card.handle,
+				path: hrefForHandle(card.handle),
+				body: String(card.body ?? '').trim() ? card.body : '',
+			}));
+
+		return { cards };
+	}
+}
+</script>
+
+<style>
+.style-guide {
+	--c: var(--t-STYLE, var(--color-brand));
+	width: min(100%, 62rem);
+	margin: 0 auto;
+	padding: 2rem clamp(1.25rem, 4vw, 3.5rem) 4rem;
+}
+.style-guide h1 { margin-bottom: 24px; color: var(--color-ink); font-size: 1.6rem; font-weight: 650; }
+.sg-section { margin-bottom: 40px; }
+.sg-section h2 {
+	margin-bottom: 14px;
+	border-bottom: 1px solid var(--color-border);
+	padding-bottom: 6px;
+	color: var(--color-ink);
+	font-size: 1.15rem;
+}
+.sg-section h2 a { color: inherit; }
+.sg-section h2 a:hover { color: var(--c); }
+.sg-body { margin-top: 12px; }
+</style>

@@ -1,0 +1,296 @@
+<puzzle-view>
+  <dialog
+    class={ panelClass }
+    aria-labelledby={ labelledby }
+    aria-describedby={ describedby }
+    @cancel={ handleCancel(event) }
+    @close={ handleClose }
+    @click={ handleBackdropClick(event) }>
+    {#if hasHeader}
+      <header class="mb-4">
+        {#if title}
+          <h2 id={ titleId } class="text-lg font-semibold text-ink">{ title }</h2>
+        {/if}
+        {#if description}
+          <p id={ descId } class="mt-1.5 text-sm text-muted">{ description }</p>
+        {/if}
+      </header>
+    {/if}
+    <Slot/>
+    <div class="mt-6 flex justify-end gap-2 empty:mt-0 empty:hidden">
+      <Slot name="footer"/>
+    </div>
+  </dialog>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import { MorphEngine } from '@magic-spells/morph-engine';
+
+// Dialog — a modal dialog built on the native <dialog> element (a behavioral
+// port of @magic-spells/dialog-panel). The native element does the hard parts
+// for free: showModal() traps focus and inerts the page, Escape arrives as the
+// `cancel` event, and the browser owns the top layer / ::backdrop.
+//
+// CONTROLLED BY THE PARENT. The parent owns `open` and Dialog syncs the native
+// element to it: in mounted()/afterUpdate() it calls showModal() when the prop
+// flips true and close() when it flips false. Dialog never sets `open` itself —
+// it only *asks* the parent to close via the `close` callback.
+//
+//   <Dialog open={ open } title="Delete file?" description="This can't be undone."
+//           @close={ () => setData('open', false) }>
+//     <p>The file will be permanently removed.</p>
+//     <Button slot="footer" variant="ghost" @press={ cancel }>Cancel</Button>
+//     <Button slot="footer" variant="destructive" @press={ confirm }>Delete</Button>
+//   </Dialog>
+//
+// WHAT `@close` MEANS. It fires for user-driven dismissal — pressing Escape
+// (native `cancel`) or clicking the backdrop when `dismissible`, plus a native
+// close the piece did not drive (such as <form method="dialog">). Footer buttons
+// are not wired to it unless they use that native form behavior: otherwise they
+// call the parent's own handler, and the parent flips `open`. Keeps one owner.
+//
+// CANCEL-EVENT CHOICE. The native `cancel` event is ALWAYS preventDefault'd, so
+// the browser never closes the element out from under the vdom. When dismissible
+// we then call props.close; the parent flips `open` and afterUpdate() runs the
+// actual close(). When not dismissible we simply swallow the event — Escape and
+// backdrop clicks become no-ops.
+//
+// MOTION. Entry: a subtle scale+fade via element.animate() right after
+// showModal(). Exit: the element is HELD OPEN through a reverse scale+fade
+// (the parent has already flipped `open`; we delay the native close() until the
+// animation lands), while the ::backdrop fades via a CSS transition keyed off a
+// transient data-closing attribute — WAAPI can't reach pseudo-elements.
+// Reopening mid-exit cancels the animation (the element never actually closed).
+// Both directions are skipped under prefers-reduced-motion.
+//
+// MORPH (opt-in container transform, ported from the dialog-panel demo). Pass a
+// CSS selector for the trigger:  <Dialog morph="#new-project-card" …/>.
+// On open the MorphEngine flies the trigger into the panel; the panel gets
+// fixed inset-0 positioning in morph mode so its pre-modal rect IS the
+// top-layer rect, and showModal() runs on the engine's 'reveal' event — the
+// seam-free promotion moment the engine documents. On close the dialog drops
+// out of the top layer first, then morphs back to the trigger. Falls back to
+// the plain fade path when the selector matches nothing or motion is reduced.
+// Requires @magic-spells/morph-engine (declared in piece.json).
+let uid = 0;
+
+const PANEL_BASE =
+  'm-auto w-[calc(100%-2rem)] rounded-xl border border-border bg-surface p-6 ' +
+  'shadow-xl text-body overscroll-contain ' +
+  '[&::backdrop]:bg-black/50 [&::backdrop]:backdrop-blur-sm ' +
+  '[&::backdrop]:transition-opacity [&::backdrop]:duration-150 ' +
+  '[&[data-closing]::backdrop]:opacity-0';
+
+// Morph mode replicates the UA's top-layer centering while the panel is only
+// display-forced (pre-showModal), so promotion doesn't move it: fixed inset-0
+// + the existing m-auto center it, h-fit keeps the height content-sized.
+const MORPH_POS = 'fixed inset-0 h-fit';
+
+const SIZE = {
+  sm: 'max-w-sm',
+  md: 'max-w-lg',
+  lg: 'max-w-2xl',
+};
+
+export default class Dialog extends PuzzleView {
+  // dialog.close() queues its event, so this counter survives the async gap and
+  // overlapping internal closes cannot be mistaken for native user closes.
+  #expectedCloses = 0;
+  #nativeClosed = false;
+
+  data(params, props) {
+    // Stable id generated once per instance so label/description wiring
+    // survives re-renders.
+    const id = this._id ??= `pp-dialog-${++uid}`;
+    const title = props.title || '';
+    const description = props.description || '';
+    return {
+      // `open` is not used by the template — it is read imperatively in
+      // syncOpen() — but returning it keeps the dependency explicit and the
+      // update cycle (afterUpdate) firing when the parent flips it.
+      open: !!props.open,
+      title,
+      description,
+      hasHeader: !!(title || description),
+      titleId: `${id}-title`,
+      descId: `${id}-desc`,
+      labelledby: title ? `${id}-title` : false,
+      describedby: description ? `${id}-desc` : false,
+      panelClass: [
+        PANEL_BASE,
+        SIZE[props.size] || SIZE.md,
+        props.morph ? MORPH_POS : '',
+        props.class || '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    };
+  }
+
+  // Reconcile the native element with the controlled `open` prop. Idempotent:
+  // the dialog.open / animation guards make repeat calls (any afterUpdate)
+  // safe. Closing is asynchronous now — the element holds open through the
+  // exit animation (or the morph-back) before the native close() runs.
+  syncOpen() {
+    const dialog = this.element;
+    if (!dialog) return;
+    const shouldOpen = !!this.props.open;
+    if (!shouldOpen) this.#nativeClosed = false;
+
+    if (shouldOpen) {
+      // A native close is reality until the parent acknowledges it by taking the
+      // controlled prop false. Do not reopen on an unrelated render meanwhile.
+      if (this.#nativeClosed) return;
+      // Reopening mid-exit: cancel the out animation — the element never closed.
+      if (this._exit) {
+        this._exit.cancel();
+        this._exit = null;
+        delete dialog.dataset.closing;
+      }
+      if (this._morphState() === 'hiding') {
+        // Reverse the in-flight morph-back; 'reveal' re-promotes to the top layer.
+        this._morph.show({ from: this._morphTrigger(), to: dialog, display: 'block' });
+        return;
+      }
+      if (this._morphState() === 'showing' || this._morphState() === 'shown') return;
+      if (!dialog.open) {
+        if (this._tryMorphOpen(dialog)) return;
+        dialog.showModal();
+        this.playEnter(dialog);
+      }
+    } else {
+      const morphLive = this._morphState() === 'showing' || this._morphState() === 'shown';
+      if (morphLive) {
+        // Drop out of the top layer first (the element stays visible via its
+        // forced display + fixed centering), then morph back to the trigger.
+        this.#closeDialog(dialog);
+        this._morph.hide();
+        return;
+      }
+      if (dialog.open && !this._exit) this.playExit(dialog);
+    }
+  }
+
+  // ---- morph (opt-in) --------------------------------------------------------
+
+  _morphState() {
+    return this._morph ? this._morph.state : 'idle';
+  }
+
+  _morphTrigger() {
+    return this.props.morph ? document.querySelector(this.props.morph) : null;
+  }
+
+  _tryMorphOpen(dialog) {
+    if (!this.props.morph) return false;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return false;
+    const trigger = this._morphTrigger();
+    if (!trigger) return false;
+    this._morph ??= this._createMorph();
+    if (this._morph.state !== 'idle') return false;
+    this._morph.show({ from: trigger, to: dialog, display: 'block' });
+    return true;
+  }
+
+  _createMorph() {
+    const engine = new MorphEngine({ friction: 0.36, lockScroll: false, zIndex: 10000 });
+    // The engine's documented seam-free layer-promotion moment: the target just
+    // started painting, so showModal() here repaints a visible surface in place.
+    engine.on('reveal', () => {
+      const dialog = this.element;
+      if (dialog && !dialog.open && this.props.open && !this.#nativeClosed) {
+        dialog.showModal();
+      }
+    });
+    return engine;
+  }
+
+  // ---- fade in / out (non-morph path) ----------------------------------------
+
+  #closeDialog(dialog = this.element) {
+    if (!dialog?.open) return;
+    this.#expectedCloses += 1;
+    dialog.close();
+  }
+
+  playEnter(dialog) {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    dialog.animate(
+      [
+        { opacity: 0, transform: 'scale(0.96)' },
+        { opacity: 1, transform: 'scale(1)' },
+      ],
+      { duration: 180, easing: 'ease-out' }
+    );
+  }
+
+  // Hold the element open through a reverse scale+fade, then run the native
+  // close(). data-closing drives the ::backdrop's CSS opacity transition
+  // (pseudo-elements are out of WAAPI's reach).
+  playExit(dialog) {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      this.#closeDialog(dialog);
+      return;
+    }
+    dialog.dataset.closing = '';
+    const anim = dialog.animate(
+      [
+        { opacity: 1, transform: 'scale(1)' },
+        { opacity: 0, transform: 'scale(0.96)' },
+      ],
+      { duration: 150, easing: 'ease-in', fill: 'forwards' }
+    );
+    this._exit = anim;
+    anim.onfinish = () => {
+      if (this._exit !== anim) return; // superseded by a reopen
+      this._exit = null;
+      this.#closeDialog(dialog);
+      anim.cancel(); // drop the forwards fill now that the element is closed
+      delete dialog.dataset.closing;
+    };
+  }
+
+  mounted() {
+    this.syncOpen();
+  }
+
+  afterUpdate() {
+    this.syncOpen();
+  }
+
+  destroyed() {
+    this._exit?.cancel();
+    this._morph?.destroy();
+    this._morph = null;
+  }
+
+  events = {
+    // Escape key (native `cancel`). Always preventDefault so the browser can't
+    // close the element behind the vdom's back; then ask the parent to close if
+    // dismissible. If not dismissible, Escape is a no-op.
+    handleCancel: (event) => {
+      event.preventDefault();
+      if (this.props.dismissible === false) return;
+      const { close } = this.props;
+      if (typeof close === 'function') close(event);
+    },
+    handleClose: () => {
+      if (this.#expectedCloses > 0) {
+        this.#expectedCloses -= 1;
+        return;
+      }
+      this.#nativeClosed = true;
+      this.props.close?.();
+    },
+    // Backdrop click: the click lands on the <dialog> element itself only when
+    // it hit the ::backdrop (clicks on inner content have a deeper target).
+    handleBackdropClick: (event) => {
+      if (event.target !== this.element) return;
+      if (this.props.dismissible === false) return;
+      const { close } = this.props;
+      if (typeof close === 'function') close(event);
+    },
+  };
+}
+</script>

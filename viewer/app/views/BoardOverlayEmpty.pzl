@@ -1,0 +1,10 @@
+<puzzle-view class="hidden"></puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// The board's index child (`#/board`) — the "no dialog open" state. A parent
+// route with children always renders one of them into its <Slot/>, so the
+// empty case needs a view of its own. Renders nothing at all.
+export default class BoardOverlayEmpty extends PuzzleView {}
+</script>

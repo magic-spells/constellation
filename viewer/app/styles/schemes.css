@@ -1,0 +1,257 @@
+/*
+ * Scheme overrides.
+ *
+ * The base tokens live in `pieces.css` (`@theme`, from the puzzle-pieces
+ * registry) and are the `default` scheme — `data-scheme="default"` simply
+ * matches none of the blocks below, so the base values stand.
+ *
+ * `warm` / `void` / `dim` are derived from `puzzle-pieces/registry/theme/*.css`
+ * (via the pieces demo's `schemes.css`). The registry files are the source of
+ * truth; keep these values byte-equal.
+ *
+ * `observatory` is Constellation's own scheme, ported from the Svelte viewer's
+ * `[data-theme='observatory']` block. It is the default scheme (set pre-paint by
+ * the inline script in `app/public/index.html`).
+ *
+ * Scheme = palette (`data-scheme`), theme = light/dark (`data-theme`). Every
+ * token is a `light-dark()` pair so the two axes compose.
+ */
+
+:root[data-scheme='warm'] {
+	--color-ink: light-dark(#191919, #f0efea);
+	--color-body: light-dark(#40403e, #bdbbb2);
+	--color-muted: light-dark(#666663, #91918d);
+	--color-faint: light-dark(#c9c8c2, #4a4945);
+
+	--color-page: light-dark(#fafaf7, #1f1e1d);
+	--color-surface: light-dark(#ffffff, #262624);
+	--color-surface-sunken: light-dark(#f0f0eb, #30302e);
+
+	--color-brand: light-dark(#cc785c, #cc785c);
+	--color-brand-dark: light-dark(#b5654a, #d98b70);
+	--color-brand-tint: light-dark(#f6ece6, #3a2e28);
+	--color-brand-ink: light-dark(#ffffff, #ffffff);
+
+	--color-danger: light-dark(#bf4d43, #e5766a);
+	--color-danger-dark: light-dark(#a83e35, #ef8d82);
+	--color-danger-tint: light-dark(#faeeec, #2e1b18);
+	--color-danger-ink: #ffffff;
+
+	--color-success: light-dark(#006300, #0ca30c);
+	--color-success-tint: light-dark(#ebf7eb, #122616);
+
+	--color-warning: light-dark(#b45309, #f59e0b);
+	--color-warning-tint: light-dark(#fff8eb, #2a1c07);
+
+	--color-chart-1: light-dark(#2a78d6, #3987e5);
+	--color-chart-2: #008300;
+	--color-chart-3: light-dark(#e87ba4, #d55181);
+	--color-chart-4: light-dark(#eda100, #c98500);
+	--color-chart-5: light-dark(#1baf7a, #199e70);
+	--color-chart-6: light-dark(#eb6834, #d95926);
+	--color-chart-7: light-dark(#4a3aa7, #9085e9);
+	--color-chart-8: light-dark(#e34948, #e66767);
+
+	--color-border: light-dark(#e5e4df, #3a3936);
+	--color-border-strong: light-dark(#cfcec5, #4c4b47);
+	--color-ring: light-dark(#61aaf2, #61aaf2);
+}
+
+:root[data-scheme='void'] {
+	--color-ink: light-dark(#111111, #f5f5f5);
+	--color-body: light-dark(#3f3f3f, #b8b8b8);
+	--color-muted: light-dark(#757575, #7e7e7e);
+	--color-faint: light-dark(#d4d4d4, #3a3a3a);
+
+	--color-page: light-dark(#ffffff, #000000);
+	--color-surface: light-dark(#ffffff, #0e0e0e);
+	--color-surface-sunken: light-dark(#f4f4f4, #191919);
+
+	--color-brand: light-dark(#111111, #ffffff);
+	--color-brand-dark: light-dark(#2e2e2e, #e2e2e2);
+	--color-brand-tint: light-dark(#f2f2f2, #1c1c1c);
+	--color-brand-ink: light-dark(#ffffff, #111111);
+
+	--color-danger: light-dark(#e03131, #fa5252);
+	--color-danger-dark: light-dark(#c92a2a, #ff6b6b);
+	--color-danger-tint: light-dark(#fff5f5, #271417);
+	--color-danger-ink: #ffffff;
+
+	--color-success: light-dark(#006300, #0ca30c);
+	--color-success-tint: light-dark(#ebf7eb, #122616);
+
+	--color-warning: light-dark(#b45309, #f59e0b);
+	--color-warning-tint: light-dark(#fff8eb, #2a1c07);
+
+	--color-chart-1: light-dark(#2a78d6, #3987e5);
+	--color-chart-2: #008300;
+	--color-chart-3: light-dark(#e87ba4, #d55181);
+	--color-chart-4: light-dark(#eda100, #c98500);
+	--color-chart-5: light-dark(#1baf7a, #199e70);
+	--color-chart-6: light-dark(#eb6834, #d95926);
+	--color-chart-7: light-dark(#4a3aa7, #9085e9);
+	--color-chart-8: light-dark(#e34948, #e66767);
+
+	--color-border: light-dark(rgb(0 0 0 / 5%), rgb(255 255 255 / 7%));
+	--color-border-strong: light-dark(rgb(0 0 0 / 12%), rgb(255 255 255 / 14%));
+	--color-ring: light-dark(#111111, #ffffff);
+}
+
+:root[data-scheme='dim'] {
+	--color-ink: light-dark(#1c2536, #e6ebf2);
+	--color-body: light-dark(#46536b, #a7b2c4);
+	--color-muted: light-dark(#6e7c94, #75819a);
+	--color-faint: light-dark(#c2ccdb, #3b4457);
+
+	--color-page: light-dark(#eef2f7, #171c26);
+	--color-surface: light-dark(#fbfcfe, #1e2532);
+	--color-surface-sunken: light-dark(#e2e8f1, #27303f);
+
+	--color-brand: light-dark(#4c6ef5, #5c7cfa);
+	--color-brand-dark: light-dark(#3b5bdb, #748ffc);
+	--color-brand-tint: light-dark(#e4eafb, #232c48);
+	--color-brand-ink: #ffffff;
+
+	--color-danger: light-dark(#e03131, #fa5252);
+	--color-danger-dark: light-dark(#c92a2a, #ff6b6b);
+	--color-danger-tint: light-dark(#fff5f5, #271417);
+	--color-danger-ink: #ffffff;
+
+	--color-success: light-dark(#006300, #0ca30c);
+	--color-success-tint: light-dark(#ebf7eb, #122616);
+
+	--color-warning: light-dark(#b45309, #f59e0b);
+	--color-warning-tint: light-dark(#fff8eb, #2a1c07);
+
+	--color-chart-1: light-dark(#2a78d6, #3987e5);
+	--color-chart-2: #008300;
+	--color-chart-3: light-dark(#e87ba4, #d55181);
+	--color-chart-4: light-dark(#eda100, #c98500);
+	--color-chart-5: light-dark(#1baf7a, #199e70);
+	--color-chart-6: light-dark(#eb6834, #d95926);
+	--color-chart-7: light-dark(#4a3aa7, #9085e9);
+	--color-chart-8: light-dark(#e34948, #e66767);
+
+	--color-border: light-dark(#d5dde9, #2b3444);
+	--color-border-strong: light-dark(#afbeda, #3a4761);
+	--color-ring: light-dark(#4c6ef5, #5c7cfa);
+}
+
+/* ───────────────────────── observatory ─────────────────────────
+ *
+ * Constellation's own scheme, and the default. Ported from the Svelte viewer's
+ * `:root[data-theme='observatory']` block (`viewer/src/app.css`).
+ *
+ * Observatory is ALWAYS DARK by design — a deep-navy night sky. Both halves of
+ * every `light-dark()` pair carry the same value, so the light/dark toggle is a
+ * no-op here, and `color-scheme` is pinned to `dark` so native UI (scrollbars,
+ * form controls, `<dialog>` backdrops) stays in step regardless of `data-theme`.
+ */
+
+:root[data-scheme='observatory'] {
+	/* Type. Old: --sans / --display / --body-font all shared one stack. */
+	--font-sans: 'Avenir Next', Seravek, 'Gill Sans', 'Segoe UI', sans-serif;
+	--font-display: var(--font-sans);
+
+	/* Text. Old --text → ink, --text-muted → muted, --text-faint → faint.
+	   pieces adds a fourth step (`body`) between ink and muted; derived. */
+	/* Light halves are "daybreak observatory": cool blue-leaning light greys
+	   (never stark white for the page), navy ink, the periwinkle deepened to
+	   #3d6bd0 so it clears contrast on pale surfaces. Dark halves unchanged. */
+	--color-ink: light-dark(#232a45, #e6e8f2);
+	--color-body: light-dark(#3a4260, #c3cbe0);
+	--color-muted: light-dark(#6b7390, #8d93ad);
+	--color-faint: light-dark(#9ba3bc, #5a5f78);
+
+	/* Surfaces. Old --bg / --bg-panel / --bg-inset. In light, sunken (#dfe3ee)
+	   is the DARKEST background note; the page floats above it as a lighter
+	   blue-grey and panels sit nearly white on top. */
+	--color-page: light-dark(#f2f4f9, #07080f);
+	--color-surface: light-dark(#fcfdff, #0c0e18);
+	--color-surface-sunken: light-dark(#f2f4fa, #11131f);
+
+	/* Brand. Old --accent (#8ab4ff); -dark/-tint/-ink derived.
+	   The dark tint echoes the starfield's own #1b2240 glow. */
+	--color-brand: light-dark(#3d6bd0, #8ab4ff);
+	--color-brand-dark: light-dark(#2f57b3, #a8c7ff);
+	--color-brand-tint: light-dark(#dce6fa, #1b2440);
+	--color-brand-ink: light-dark(#ffffff, #07080f);
+
+	/* Status colours are the old viewer's own semantic hexes, which are already
+	   observatory-tuned: danger #e0635d (= --t-API), warning #d9a23c (= --t-DB),
+	   success #66b35c (= --t-TEST). Tints are each hue at ~12% over #07080f.
+	   `danger-ink` is dark, not white: on a salmon red that light, white text
+	   only reaches ~3.3:1 while #1a0e0f reaches ~5.9:1. */
+	--color-danger: light-dark(#c04840, #e0635d);
+	--color-danger-dark: light-dark(#a83a33, #ef7b74);
+	--color-danger-tint: light-dark(#f6e2e0, #211318);
+	--color-danger-ink: light-dark(#ffffff, #1a0e0f);
+
+	--color-success: light-dark(#45803d, #66b35c);
+	--color-success-tint: light-dark(#e0edde, #121c18);
+
+	--color-warning: light-dark(#8f6a1a, #d9a23c);
+	--color-warning-tint: light-dark(#f4ecd9, #201a14);
+
+	/* Charts: eight of the 21 card-type hues, ordered to mirror the base
+	   palette's hue sequence (blue, green, pink, amber, teal, orange, violet,
+	   red) so any chart piece keeps its slot semantics across schemes. */
+	--color-chart-1: light-dark(#6a9fef, #6a9fef); /* --t-DOC */
+	--color-chart-2: light-dark(#66b35c, #66b35c); /* --t-TEST */
+	--color-chart-3: light-dark(#e07fae, #e07fae); /* --t-DIAGRAM */
+	--color-chart-4: light-dark(#d9a23c, #d9a23c); /* --t-DB */
+	--color-chart-5: light-dark(#3fb8a0, #3fb8a0); /* --t-DATATYPE */
+	--color-chart-6: light-dark(#e0894a, #e0894a); /* --t-EXTERNAL */
+	--color-chart-7: light-dark(#9d7cd8, #9d7cd8); /* --t-FLOW */
+	--color-chart-8: light-dark(#e0635d, #e0635d); /* --t-API */
+
+	/* Lines & focus. Old --border / --border-strong / --accent. */
+	--color-border: light-dark(#c9cfdf, #1b1e30);
+	--color-border-strong: light-dark(#aab2c9, #2a2e48);
+	--color-ring: light-dark(#3d6bd0, #8ab4ff);
+
+	/* Observatory-only decoration, painted by the `body::before` rule below.
+	   Every stop is a light-dark() pair, so the same layer stack resolves per
+	   mode: in dark it is the old starfield + nebula wash (verbatim values); in
+	   light the stars vanish and the two washes become a soft daybreak glow. */
+	--sky:
+		radial-gradient(1px 1px at 12% 28%, light-dark(#0000, #fff8) 50%, transparent 51%),
+		radial-gradient(1px 1px at 38% 12%, light-dark(#0000, #fff5) 50%, transparent 51%),
+		radial-gradient(1.5px 1.5px at 64% 38%, light-dark(#0000, #fff9) 50%, transparent 51%),
+		radial-gradient(1px 1px at 81% 18%, light-dark(#0000, #fff6) 50%, transparent 51%),
+		radial-gradient(1px 1px at 91% 52%, light-dark(#0000, #fff4) 50%, transparent 51%),
+		radial-gradient(1.5px 1.5px at 26% 64%, light-dark(#0000, #fff6) 50%, transparent 51%),
+		radial-gradient(1px 1px at 53% 78%, light-dark(#0000, #fff5) 50%, transparent 51%),
+		radial-gradient(1px 1px at 72% 88%, light-dark(#0000, #fff3) 50%, transparent 51%),
+		radial-gradient(900px 500px at 70% -10%, light-dark(#ffffffb8, #1b2240cc), transparent 70%),
+		radial-gradient(700px 600px at 0% 100%, light-dark(#c8d6f266, #131a3399), transparent 70%);
+}
+
+:root[data-scheme='observatory'] body::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	background: var(--sky);
+	pointer-events: none;
+	z-index: 0;
+}
+
+/* Keep the app above the starfield overlay. */
+#app {
+	position: relative;
+	z-index: 1;
+}
+
+/* ───────────────────── card-type hues (scheme-independent) ─────────────────────
+ * Copied verbatim from the Svelte viewer (`viewer/src/app.css`). Chips, the
+ * constellation canvas, and mermaid node tinting all read these; they sit on
+ * `:root` because they are identity colours for the 21 card types, not palette.
+ */
+:root {
+	--t-API: #e0635d; --t-DB: #d9a23c; --t-DATATYPE: #3fb8a0; --t-ROLE: #c47fd1;
+	--t-DOC: #6a9fef; --t-FILE: #8a8f98; --t-TEST: #66b35c; --t-EXTERNAL: #e0894a;
+	--t-EVENT: #d9b53c; --t-COMPONENT: #4cb3c9; --t-PAGE: #5d9fe0; --t-JOB: #b8845f;
+	--t-FLOW: #9d7cd8; --t-STATE: #4faf92; --t-DIAGRAM: #e07fae; --t-AGENT: #84b35c;
+	--t-PLAN: #d9c06a; --t-DECISION: #7d84dd; --t-FEATURE: #f08c1a; --t-RELEASE: #cc5577;
+	--t-STYLE: #cc6fb0;
+}

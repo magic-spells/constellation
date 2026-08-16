@@ -5,6 +5,8 @@ trigger: event
 max_retries: 3
 connections:
   - EVENT-TICKET-CREATED
+  - DB-TICKETS
+  - EXTERNAL-EMAIL-PROVIDER
 ---
 
 # Auto-assign

@@ -1,0 +1,491 @@
+<puzzle-view>
+  <main class="card-page">
+    {#if card}
+      <header class="card-header">
+        <div class="card-eyebrow">
+          <span class="card-handle" style={ typeStyle }>{ card.handle }</span>
+          {#if editable && card.handle !== 'PLAN-PROJECT'}
+            <button type="button" class="card-delete" @click={ askDelete }>delete</button>
+          {/if}
+        </div>
+        <h1>
+          <Editable value={ name } placeholder={ card.handle } @save={ saveName }>{ displayName }</Editable>
+        </h1>
+        <div class="card-meta">
+          <StatusSelect handle={ card.handle } status={ status } mtime={ card.mtime }/>
+          {#if editable}
+            <span class="card-kind">
+              <Editable mono value={ kind } placeholder="+ kind" @save={ saveKind }/>
+            </span>
+          {:else if kind}
+            <span class="card-kind">{ kind }</span>
+          {/if}
+        </div>
+      </header>
+
+      {#if isStyle}
+        <section class="card-section">
+          <StyleTokens card={ card } />
+        </section>
+      {/if}
+
+      {#if showFields}
+        <section class="card-section">
+          <h2>Fields</h2>
+          <div class="field-list">
+            {#for field in fields}
+              <div class="field-row">
+                <DescriptionList items={ field.label } size="sm" />
+                <div class="field-value">
+                  <Editable
+                    multiline={ field.multiline }
+                    mono={ field.multiline }
+                    value={ field.editValue }
+                    @save={ saveField(field.key, event) }>
+                    <FmValue value={ field.value } />
+                  </Editable>
+                </div>
+              </div>
+            {/for}
+            {#if editable}
+              <div class="field-row field-ghost">
+                <span></span>
+                <div class="field-value">
+                  {#if addingField}
+                    <input
+                      ref="fieldInput"
+                      class="inline-edit is-mono"
+                      placeholder="key: value"
+                      spellcheck="false"
+                      value={ fieldDraft }
+                      @input={ onFieldInput(event) }
+                      @keydown={ onFieldKey(event) }
+                      @blur={ onFieldBlur }/>
+                  {:else}
+                    <button type="button" class="ghost-add" @click={ startField }>+ field</button>
+                  {/if}
+                </div>
+              </div>
+            {/if}
+          </div>
+        </section>
+      {/if}
+
+      {#if hasBody}
+        <section class="card-section card-body">
+          <Editable multiline value={ body } ignore="a, .mermaid-block, .flow-steps" @save={ saveBody }>
+            {#if flowSteps}
+              {#if flowBefore}<MarkdownBlock src={ flowBefore } />{/if}
+              <FlowSteps steps={ flowSteps } />
+              {#if flowAfter}<MarkdownBlock src={ flowAfter } />{/if}
+            {:else}
+              <MarkdownBlock src={ body } />
+            {/if}
+          </Editable>
+        </section>
+      {:else if editable}
+        <section class="card-section card-body">
+          <Editable multiline value="" placeholder="+ write something" @save={ saveBody }/>
+        </section>
+      {/if}
+
+      {#if showConnections}
+        <section class="card-section">
+          <h2>Connections</h2>
+          <ConnectionChips
+            handles={ neighbors }
+            removable={ removableConnections }
+            @remove={ removeConnection }/>
+          {#if editable}
+            <div class="conn-add">
+              {#if addingConnection}
+                <input
+                  ref="connInput"
+                  class="inline-edit is-mono"
+                  placeholder="HANDLE…"
+                  spellcheck="false"
+                  list={ candidateListId }
+                  value={ connectionDraft }
+                  @input={ onConnectionInput(event) }
+                  @keydown={ onConnectionKey(event) }
+                  @blur={ onConnectionBlur }/>
+                <datalist id={ candidateListId }>
+                  {#for candidate in connectionCandidates}<option value={ candidate }></option>{/for}
+                </datalist>
+              {:else}
+                <button type="button" class="ghost-add" @click={ startConnection }>+ connect</button>
+              {/if}
+            </div>
+          {/if}
+        </section>
+      {/if}
+
+      {#if editable}
+        <DeleteCardDialog open={ deleting } handle={ card.handle } @close={ closeDelete }/>
+      {/if}
+    {:else}
+      <Empty
+        title="Card not found"
+        description={ emptyDescription }
+        class="min-h-[22rem]"
+      />
+    {/if}
+  </main>
+</puzzle-view>
+
+<script>
+import * as yaml from 'js-yaml';
+import { PuzzleView } from '@magic-spells/puzzle';
+import DescriptionList from '../components/ui/DescriptionList.pzl';
+import Empty from '../components/ui/Empty.pzl';
+import ConnectionChips from '../components/ConnectionChips.pzl';
+import DeleteCardDialog from '../components/DeleteCardDialog.pzl';
+import Editable from '../components/Editable.pzl';
+import FlowSteps from '../components/FlowSteps.pzl';
+import FmValue from '../components/FmValue.pzl';
+import MarkdownBlock from '../components/MarkdownBlock.pzl';
+import StatusSelect from '../components/StatusSelect.pzl';
+import StyleTokens from '../components/StyleTokens.pzl';
+import { toast } from '../components/ui/toast.js';
+import { savePatch } from '../lib/edit.js';
+import { extractFlowSteps } from '../lib/markdown.js';
+import { planIndex } from '../lib/plan-index.js';
+import { isHandle, TYPE_META } from '../lib/types.js';
+
+// The four keys the format reserves. They are edited by their own affordances
+// (the name Editable, StatusSelect, the kind Editable, the connection chips),
+// never as generic `fields`, and the server refuses them inside a `fields`
+// patch — so they are filtered out of the field list here too.
+const RESERVED = new Set(['name', 'kind', 'status', 'connections']);
+
+/** Scalars edit as one line; everything else edits as YAML in a textarea. */
+function isPrimitive(value) {
+	return value === null || ['string', 'number', 'boolean'].includes(typeof value);
+}
+
+export default class CardPage extends PuzzleView {
+	created() {
+		this._addingField = false;
+		this._fieldDraft = '';
+		this._addingConnection = false;
+		this._connectionDraft = '';
+		this._focusRef = null;
+	}
+
+	data() {
+		const handle = String(this.route.params.handle ?? '').toUpperCase();
+		const store = this.ctx.store;
+		const card = store.findOne('card', handle);
+		const plan = store.findOne('plan', 'plan');
+		const index = plan ? planIndex(store) : null;
+		const meta = card ? TYPE_META[card.type] : null;
+
+		if (!card || !meta) {
+			return {
+				card: null,
+				handle,
+				emptyDescription: `${handle || 'This card'} is not in this plan.`,
+			};
+		}
+
+		const neighbors = index?.neighbors.get(handle) ?? [];
+		const status = card.status ?? '';
+		const body = String(card.body ?? '');
+		const isStyle = card.type === 'STYLE';
+		const fields = Object.entries(card.frontmatter ?? {})
+			.filter(([key]) => !RESERVED.has(key) && !(isStyle && key === 'tokens'))
+			.map(([key, value]) => ({
+				key,
+				value,
+				label: [{ term: key, description: '' }],
+				// A scalar edits as itself; a list/map edits as the YAML text it
+				// serialises to, and parses back through js-yaml on save.
+				multiline: !isPrimitive(value),
+				editValue: isPrimitive(value) ? String(value ?? '') : yaml.dump(value).trimEnd(),
+			}));
+
+		// FLOW cards render their first top-level ordered list as a visual
+		// stepper; the markdown before/after that list renders normally. The
+		// list is the source of truth — nothing structured is stored.
+		const flow = card.type === 'FLOW' && body ? extractFlowSteps(body) : null;
+
+		const editable = plan?.editable === true;
+		const ownConnections = Array.isArray(card.frontmatter?.connections)
+			? card.frontmatter.connections.map(String)
+			: [];
+
+		return {
+			card,
+			// STYLE cards render their `tokens:` as swatches/specimens instead of a
+			// frontmatter field row (it is filtered out of `fields` just above);
+			// their other frontmatter keys still list and edit normally.
+			isStyle,
+			name: card.name ?? '',
+			displayName: card.name || card.handle,
+			kind: card.kind ?? '',
+			status,
+			typeStyle: `--c: var(--t-${card.type})`,
+			fields,
+			showFields: fields.length > 0 || editable,
+			addingField: this._addingField,
+			fieldDraft: this._fieldDraft,
+			body,
+			hasBody: body.trim().length > 0,
+			flowSteps: flow?.steps ?? null,
+			flowBefore: flow?.before ?? '',
+			flowAfter: flow?.after ?? '',
+			neighbors,
+			showConnections: neighbors.length > 0 || editable,
+			// Only a connection this card DECLARES can be removed from this card —
+			// one declared on the other side lives in that card's frontmatter.
+			removableConnections: editable ? ownConnections : [],
+			ownConnections,
+			addingConnection: this._addingConnection,
+			connectionDraft: this._connectionDraft,
+			candidateListId: `conn-candidates-${handle}`,
+			connectionCandidates: editable
+				? [...(index?.byHandle.keys() ?? [])].filter(
+						(candidate) => candidate !== handle && !neighbors.includes(candidate),
+					)
+				: [],
+			editable,
+			deleting: this.getData().deleting === true,
+		};
+	}
+
+	mounted() {
+		this._canonicalize();
+	}
+
+	// The card's folder segment is decoration as far as routing goes — the handle
+	// alone identifies the card — so `/db/API-TICKETS` would happily render. Snap
+	// it back to the card's real folder instead, because the URL is supposed to
+	// mirror the file on disk and a wrong folder also lights up the wrong sidebar
+	// row. replace() keeps the bad URL out of history. This can't live in data():
+	// the plan hydrates asynchronously, so the card usually appears a render or
+	// two after the view mounts — hence mounted() AND afterUpdate(), guarded so
+	// the corrected URL doesn't bounce again.
+	_canonicalize() {
+		const card = this.getData().card;
+		if (!card) return;
+		const folder = TYPE_META[card.type]?.folder;
+		if (!folder || this.route.params?.folder === folder) return;
+		void this.ctx.router?.replace?.(`/${folder}/${card.handle}`);
+	}
+
+	// The ghost inputs mount inside an {#if}, so focus lands after the render
+	// that created them — same shape as Editable's afterUpdate.
+	afterUpdate() {
+		this._canonicalize();
+		if (!this._focusRef) return;
+		const field = this.refs[this._focusRef];
+		if (!field) return;
+		this._focusRef = null;
+		field.focus();
+	}
+
+	// Every write carries the record's `mtime` as `if_mtime`, so a card edited
+	// on disk (an MCP write, a hand edit) since this page loaded is refused with
+	// 409 STALE rather than silently overwritten — lib/edit turns that into a
+	// toast and reloads the plan.
+	_patch(patch) {
+		const card = this.getData().card;
+		if (!card) return;
+		void savePatch(this.ctx.store, card.handle, patch, card.mtime);
+	}
+
+	_setDeleting(deleting) {
+		this.setData('deleting', deleting);
+		this.refresh();
+	}
+
+	// A field value is YAML: the edit buffer holds source text and the parse is
+	// what decides the type, so `3` saves a number, `[a, b]` a list, and an empty
+	// buffer saves null — which the server's deep merge reads as "delete the key".
+	// Unparseable text is refused loudly and nothing is sent.
+	_parseYaml(raw) {
+		// js-yaml 5 throws on empty input where 4 returned undefined — an empty
+		// buffer is still "delete the key", so short-circuit before parsing.
+		if (raw.trim() === '') return null;
+		try {
+			const parsed = yaml.load(raw);
+			return parsed === undefined ? null : parsed;
+		} catch {
+			toast({ message: 'invalid YAML — not saved', variant: 'danger' });
+			return undefined;
+		}
+	}
+
+	_closeField() {
+		this._addingField = false;
+		this._fieldDraft = '';
+		this._focusRef = null;
+		this.refresh();
+	}
+
+	// Guarded on `_addingField` because committing unmounts the input, whose blur
+	// would otherwise run this a second time.
+	_commitField() {
+		if (!this._addingField) return;
+		const draft = this._fieldDraft;
+		this._closeField();
+
+		// One input, `key: value` — the first colon splits it, so the value half
+		// may itself contain colons (a URL, a nested map).
+		const colon = draft.indexOf(':');
+		if (colon < 1) return;
+		const key = draft.slice(0, colon).trim();
+		const parsed = this._parseYaml(draft.slice(colon + 1).trim() || "''");
+		if (!key || parsed === undefined) return;
+		this._patch({ fields: { [key]: parsed } });
+	}
+
+	_closeConnection() {
+		this._addingConnection = false;
+		this._connectionDraft = '';
+		this._focusRef = null;
+		this.refresh();
+	}
+
+	_commitConnection() {
+		if (!this._addingConnection) return;
+		const target = this._connectionDraft.trim().toUpperCase();
+		this._closeConnection();
+		if (!target) return;
+
+		// Checked here rather than left to the server: a bad handle would be
+		// written to the file and only come back as an E005 lint issue.
+		if (!isHandle(target) || !this.ctx.store.findOne('card', target)) {
+			toast({ message: `${target} is not an existing card`, variant: 'danger' });
+			return;
+		}
+		const own = this.getData().ownConnections ?? [];
+		this._patch({ connections: [...new Set([...own, target])] });
+	}
+
+	events = {
+		saveName: (next) => this._patch({ name: next.trim() || null }),
+		saveKind: (next) => this._patch({ kind: next.trim() || null }),
+		saveBody: (next) => this._patch({ body: next }),
+		askDelete: () => this._setDeleting(true),
+		closeDelete: () => this._setDeleting(false),
+
+		saveField: (key, raw) => {
+			const parsed = this._parseYaml(raw);
+			if (parsed === undefined) return;
+			this._patch({ fields: { [key]: parsed } });
+		},
+		startField: () => {
+			this._addingField = true;
+			this._fieldDraft = '';
+			this._focusRef = 'fieldInput';
+			this.refresh();
+		},
+		onFieldInput: (event) => {
+			this._fieldDraft = event.target.value;
+		},
+		onFieldBlur: () => this._commitField(),
+		onFieldKey: (event) => {
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				this._closeField();
+				return;
+			}
+			if (event.key !== 'Enter') return;
+			event.preventDefault();
+			this._commitField();
+		},
+
+		// The whole `connections:` array is sent every time — it replaces
+		// wholesale, so add and remove are both "here is the new list".
+		removeConnection: (target) => {
+			const own = this.getData().ownConnections ?? [];
+			this._patch({ connections: own.filter((entry) => entry !== target) });
+		},
+		startConnection: () => {
+			this._addingConnection = true;
+			this._connectionDraft = '';
+			this._focusRef = 'connInput';
+			this.refresh();
+		},
+		onConnectionInput: (event) => {
+			this._connectionDraft = event.target.value;
+		},
+		onConnectionBlur: () => this._commitConnection(),
+		onConnectionKey: (event) => {
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				this._closeConnection();
+				return;
+			}
+			if (event.key !== 'Enter') return;
+			event.preventDefault();
+			this._commitConnection();
+		},
+	};
+}
+</script>
+
+<style>
+.card-page { width: min(100%, 62rem); margin: 0 auto; padding: 2rem clamp(1.25rem, 4vw, 3.5rem) 4rem; }
+.card-header { margin-bottom: 2.75rem; }
+.card-eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; margin-bottom: 0.65rem; }
+.card-kind { color: var(--color-muted); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.75rem; letter-spacing: 0.035em; }
+/* The handle IS the type pill (old-viewer design): handle text tinted by the
+   card's type hue, wrapped in a matching 15%-tint pill. No separate type chip. */
+.card-handle {
+	--c: var(--color-brand);
+	display: inline-flex;
+	align-items: center;
+	border: 1px solid color-mix(in srgb, var(--c) 38%, transparent);
+	border-radius: 7px;
+	background: color-mix(in srgb, var(--c) 15%, transparent);
+	padding: 0.3rem 0.72rem;
+	color: var(--c);
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: 0.8rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+}
+.card-delete {
+	margin-left: auto;
+	border-radius: 5px;
+	background: none;
+	padding: 0.1rem 0.4rem;
+	color: var(--color-faint);
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.15s, color 0.15s;
+}
+.card-header:hover .card-delete, .card-delete:focus-visible { opacity: 1; }
+.card-delete:hover { background: var(--color-danger-tint); color: var(--color-danger); }
+.card-header h1 { color: var(--color-ink); font-size: clamp(1.8rem, 4vw, 2.65rem); font-weight: 650; letter-spacing: -0.035em; line-height: 1.08; }
+.card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; margin-top: 0.85rem; }
+.card-section { margin: 2.2rem 0; }
+.card-section > h2 { margin-bottom: 0.85rem; color: var(--color-muted); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.card-body { border-top: 1px solid var(--color-border); padding-top: 1.4rem; }
+.field-list { overflow: hidden; border: 1px solid var(--color-border); border-radius: 0.75rem; background: color-mix(in srgb, var(--color-surface) 88%, transparent); }
+.field-row { display: grid; grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr); align-items: start; gap: 1rem; padding: 0 0.9rem; }
+.field-row + .field-row { border-top: 1px solid var(--color-border); }
+.field-row dl { margin: 0; }
+.field-row dd { display: none; }
+.field-value { min-width: 0; padding: 0.55rem 0; color: var(--color-ink); font-size: 0.86rem; }
+.field-ghost { padding-block: 0.15rem; }
+.conn-add { margin-top: 0.7rem; }
+.ghost-add {
+	border: 1px dashed var(--color-border);
+	border-radius: 6px;
+	background: none;
+	padding: 0.12rem 0.5rem;
+	color: var(--color-faint);
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	cursor: pointer;
+	opacity: 0.7;
+	transition: opacity 0.12s, color 0.12s, border-color 0.12s;
+}
+.ghost-add:hover, .ghost-add:focus-visible { border-color: var(--color-brand); color: var(--color-muted); opacity: 1; }
+@media (max-width: 640px) { .card-page { padding-inline: 1rem; } .field-row { grid-template-columns: 1fr; gap: 0; padding-block: 0.35rem; } .field-value { padding-top: 0; } }
+</style>

@@ -1,6 +1,6 @@
 import { link, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import yaml from 'js-yaml';
+import * as yaml from 'js-yaml';
 import { TYPE_FOLDERS, typeForHandle } from './handles.js';
 import { parseFile, type ParsedFile } from './parse.js';
 

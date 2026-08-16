@@ -1,0 +1,9 @@
+<puzzle-view>
+	<div class="smoke-layout"><Slot /></div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+export default class SmokeLayout extends PuzzleView {}
+</script>

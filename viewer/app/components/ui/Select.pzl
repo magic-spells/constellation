@@ -1,0 +1,655 @@
+<puzzle-view>
+  <div class="relative { rootClass }" id={ rootId }>
+    <button
+      type="button"
+      class={ triggerClass }
+      id={ triggerId }
+      data-select-trigger
+      aria-haspopup="listbox"
+      aria-expanded={ open ? 'true' : 'false' }
+      aria-controls={ panelId }
+      disabled={ disabled }
+      @click={ toggle(event) }
+      @keydown={ onKey(event) }>
+      <span class="flex-1 truncate text-left { placeholderClass }">{ triggerLabel }</span>
+      {#if indicator === 'chevrons'}
+        <svg
+          class="size-4 shrink-0 text-muted"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          aria-hidden="true">
+          <path d="M7 8l3-3 3 3" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M7 12l3 3 3-3" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      {:else if indicator === 'caret'}
+        <svg
+          class="size-4 shrink-0 text-muted transition-[rotate] {#if open}rotate-180{/if}"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          aria-hidden="true">
+          <path d="M6 8l4 4 4-4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      {:else}
+        <svg
+          class="size-3.5 shrink-0 text-muted transition-[rotate] {#if open}rotate-180{/if}"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden="true">
+          <path d="M6 8l4 4 4-4z" />
+        </svg>
+      {/if}
+    </button>
+
+    {#if name}
+      <input type="hidden" name={ name } value={ hiddenValue } />
+    {/if}
+
+    {#if open}
+      <ul
+        class={ panelClass }
+        id={ panelId }
+        role="listbox"
+        tabindex="-1"
+        aria-labelledby={ triggerId }
+        aria-activedescendant={ activeId }
+        data-select-panel
+        style={ panelStyle }
+        @keydown={ onKey(event) }>
+        {#for row in rows}
+          <li
+            id={ row.id }
+            role={ row.role }
+            aria-selected={ row.ariaSelected }
+            aria-disabled={ row.ariaDisabled }
+            aria-hidden={ row.ariaHidden }
+            class={ row.rowClass }
+            @click={ choose(row, event) }>
+            {#if row.kind === 'option'}
+              <span class="flex-1 truncate">{ row.label }</span>
+              {#if row.selected}
+                <svg
+                  class="size-4 shrink-0 text-brand"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  aria-hidden="true">
+                  <path d="M5 10l3 3 7-7" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              {/if}
+            {:else if row.kind === 'group'}
+              { row.label }
+            {/if}
+          </li>
+        {/for}
+      </ul>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import { MorphEngine } from '@magic-spells/morph-engine';
+
+// Select — a listbox-pattern custom select, ported from the select-dropdown
+// web component (gen 2). The behavior design carries over verbatim — the
+// listbox ARIA pattern, typeahead, keyboard nav, group labels, dividers, a
+// hidden form input, and the opt-in trigger↔panel morph — but the code shape
+// is Puzzle-native: no custom elements, declarative @event listeners, local
+// state via setData/getData, and callback props out.
+//
+//   <Select options={ opts } value={ pet } @change={ setPet } />
+//   <Select options={ opts } name="pet" morph={ true } @change={ setPet } />
+//   <Select options={ opts } value={ pet } position="center" @change={ setPet } />
+//   <Select options={ opts } indicator="chevrons" @change={ setPet } />
+//
+// INDICATOR. The `indicator` prop picks the trigger's dropdown glyph:
+//   'triangle' (default)  a filled triangle that flips up when open.
+//   'chevrons'            a static up/down chevron pair — the classic
+//                         "selection list" affordance (never rotates).
+//   'caret'               the original thin stroked chevron, flips when open.
+//
+// Options entries are one of:
+//   { value, label, disabled? }   — a selectable option
+//   { group: 'Heading' }          — a non-interactive group heading (role=presentation)
+//   { divider: true }             — a visual separator (role=separator)
+//
+// POSITIONING. The `position` prop picks the panel mode:
+//   'down' / 'up'  — anchored below / above the trigger.
+//   'center'       — the selected option row opens centered OVER the trigger
+//                    (the macOS-select behavior, ported from the source
+//                    component's #positionPanel): reopening puts the current
+//                    choice back under the pointer, so clicking the same spot
+//                    again closes it. Viewport-clamped; when the panel would
+//                    overflow the top it scrolls internally instead so the
+//                    alignment holds. Positioned via inline `top` — never
+//                    transforms, which would break the morph engine's rects.
+//   unset          — morph selects default to 'center' (a container transform
+//                    should cover its origin); plain selects auto-flip to
+//                    whichever side has room.
+//
+// Focus/keyboard model (per the port + the pieces spec): DOM focus lands on the
+// listbox while open and the active option is tracked with aria-activedescendant
+// — no DOM focus ever moves into the list, so the vdom never fights a browser
+// focus move. The trigger owns keydown while closed (to open); the listbox owns
+// it while open. Outside-pointerdown closes via a document listener that lives only
+// while the panel is open (attached in show(), removed in hide()).
+
+// Per-instance id seed so trigger/panel/option ids are unique across instances.
+let uid = 0;
+
+const TRIGGER_CLASS =
+  'flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border ' +
+  'bg-surface px-3 text-sm text-ink cursor-pointer select-none transition-colors ' +
+  'hover:border-border-strong ' +
+  'focus-visible:outline-2 focus-visible:outline-offset-2 outline-ring focus-visible:outline-ring ' +
+  'disabled:opacity-50 disabled:pointer-events-none';
+
+const PANEL_BASE =
+  'absolute left-0 right-0 z-50 min-w-full overflow-y-auto rounded-lg border border-border ' +
+  'bg-surface py-1 shadow-lg';
+// bottom/top anchor to the trigger with a gap; center has no anchor class —
+// its inline `top` comes from _positionCenter().
+const PANEL_PLACEMENT = { bottom: 'top-full mt-1', top: 'bottom-full mb-1', center: '' };
+
+const OPTION_BASE = 'relative flex items-center gap-2 px-3 py-1.5 text-sm select-none';
+const GROUP_CLASS = 'px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-muted select-none';
+const DIVIDER_CLASS = 'my-1 h-px bg-border';
+
+// Compose one option row's class string from its selection / active / disabled
+// state, keyed off the pieces.css semantic tokens (Button.pzl-style lookup).
+function optionClass(disabled, active, selected) {
+  return [
+    OPTION_BASE,
+    disabled ? 'text-faint pointer-events-none' : 'cursor-pointer hover:bg-surface-sunken',
+    active ? 'bg-surface-sunken' : '',
+    selected ? 'font-medium text-brand' : 'text-body',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+export default class Select extends PuzzleView {
+  created() {
+    this._uid = ++uid;
+    this._ta = ''; // typeahead buffer
+    this._taTimer = null;
+    this._morph = null; // lazily constructed on first morph open
+    this._restoreFocus = false; // defer trigger focus to the morph 'hidden' event
+    this._scrollActive = false; // scroll the active option into view after next render
+    // Seed local UI state so the first data() run can read it back.
+    this.setData({ open: false, activeIndex: -1, placement: 'bottom', maxHeight: 0, panelTop: null });
+  }
+
+  // Outside-pointerdown close: attached only while open (see show/hide). Guarded
+  // by `open` and containment so in-component pointer interactions stay intact.
+  mounted() {
+    this._onDocPointerDown = (e) => {
+      if (!this.getData().open) return;
+      if (this.element && this.element.contains(e.target)) return;
+      this.hide({ restoreFocus: false });
+    };
+  }
+
+  destroyed() {
+    document.removeEventListener('pointerdown', this._onDocPointerDown);
+    if (this._taTimer) clearTimeout(this._taTimer);
+    this._morph?.destroy();
+    this._morph = null;
+  }
+
+  data(params, props) {
+    const prev = this.getData();
+    const base = props.id || `pieces-select-${this._uid}`;
+    const value = props.value ?? null;
+    const activeIndex = prev.activeIndex ?? -1;
+    const open = !!prev.open;
+
+    // Normalize the options prop into a flat render list (`rows`) plus the
+    // interactive-option-only list (`options`) that keyboard nav walks. Each row
+    // carries its own precomputed role / aria / class so the {#for} body can stay
+    // a single <li> element (the compiler requires one element root per loop).
+    const raw = Array.isArray(props.options) ? props.options : [];
+    const rows = [];
+    const options = [];
+    let optIndex = 0;
+    raw.forEach((entry, i) => {
+      if (entry == null) return;
+      if (entry.divider) {
+        rows.push({
+          kind: 'divider',
+          id: `${base}-div-${i}`,
+          role: 'separator',
+          ariaSelected: false,
+          ariaDisabled: false,
+          ariaHidden: 'true',
+          rowClass: DIVIDER_CLASS,
+        });
+        return;
+      }
+      if (entry.group != null) {
+        rows.push({
+          kind: 'group',
+          id: `${base}-grp-${i}`,
+          role: 'presentation',
+          label: String(entry.group),
+          ariaSelected: false,
+          ariaDisabled: false,
+          ariaHidden: false,
+          rowClass: GROUP_CLASS,
+        });
+        return;
+      }
+      const disabled = !!entry.disabled;
+      const selected = entry.value === value;
+      const active = optIndex === activeIndex;
+      const opt = {
+        kind: 'option',
+        id: `${base}-opt-${optIndex}`,
+        optIndex,
+        value: entry.value,
+        label: entry.label != null ? String(entry.label) : String(entry.value ?? ''),
+        disabled,
+        selected,
+        active,
+        role: 'option',
+        ariaSelected: selected ? 'true' : 'false',
+        ariaDisabled: disabled ? 'true' : false,
+        ariaHidden: false,
+        rowClass: optionClass(disabled, active, selected),
+      };
+      rows.push(opt);
+      options.push(opt);
+      optIndex++;
+    });
+
+    const selected = options.find((o) => o.selected) || null;
+    const activeOpt = open && activeIndex >= 0 ? options[activeIndex] : null;
+
+    return {
+      rows,
+      options,
+      value,
+      selected,
+      triggerLabel: selected ? selected.label : props.placeholder || 'Select…',
+      placeholderClass: selected ? 'text-ink' : 'text-muted',
+      hiddenValue: selected ? selected.value : '',
+      rootId: props.id || false,
+      triggerId: `${base}-trigger`,
+      panelId: `${base}-panel`,
+      activeId: activeOpt ? activeOpt.id : '',
+      open,
+      activeIndex,
+      placement: prev.placement || 'bottom',
+      maxHeight: prev.maxHeight || 0,
+      panelTop: prev.panelTop ?? null,
+      panelClass: [PANEL_BASE, PANEL_PLACEMENT[prev.placement || 'bottom']].filter(Boolean).join(' '),
+      panelStyle: [
+        prev.panelTop != null ? `top:${prev.panelTop}px;` : '',
+        prev.maxHeight ? `max-height:${prev.maxHeight}px;` : '',
+      ].join(''),
+      name: props.name || false,
+      disabled: !!props.disabled,
+      triggerClass: TRIGGER_CLASS,
+      rootClass: props.class || '',
+      indicator: ['chevrons', 'caret', 'triangle'].includes(props.indicator)
+        ? props.indicator
+        : 'triangle',
+    };
+  }
+
+  // ---- open / close --------------------------------------------------------
+
+  show() {
+    if (this.getData().open) {
+      // Reopen during a morph-back: reverse the in-flight morph in place. The
+      // engine keeps its original keyframes by design (repositioning here
+      // would desync it) and its 'shown' event re-runs the focus move.
+      if (this._morph?.state === 'hiding') {
+        this._restoreFocus = false;
+        const trigger = this.element?.querySelector('[data-select-trigger]');
+        const listbox = this.element?.querySelector('[data-select-panel]');
+        if (trigger && listbox) {
+          document.addEventListener('pointerdown', this._onDocPointerDown);
+          const { show } = this.props;
+          if (typeof show === 'function') show();
+          this._morph.show({ from: trigger, to: listbox });
+        }
+      }
+      return;
+    }
+    const { options, value } = this.getData();
+
+    // Open with the selected option active, else the first enabled one.
+    let ai = options.findIndex((o) => o.value === value && !o.disabled);
+    if (ai < 0) ai = options.findIndex((o) => !o.disabled);
+
+    this._ta = '';
+    const mode = this._resolveMode();
+    if (mode === 'center') {
+      // Mount the panel first (unpositioned), then measure and place it — all
+      // synchronously inside this event turn, before the frame paints.
+      this.setData({ open: true, activeIndex: ai, placement: 'center', maxHeight: 0, panelTop: null });
+      this.refresh();
+      this._positionCenter();
+    } else {
+      const { placement, maxHeight } = this._measurePlacement(mode);
+      this.setData({ open: true, activeIndex: ai, placement, maxHeight, panelTop: null });
+      this.refresh();
+    }
+
+    document.addEventListener('pointerdown', this._onDocPointerDown);
+
+    const { show } = this.props;
+    if (typeof show === 'function') show();
+
+    const morphOn = !!this.props.morph && !this._reducedMotion();
+    // The panel mounts on the setData above; wait one frame so it exists before
+    // the morph measures it (or before we move focus into it).
+    requestAnimationFrame(() => {
+      if (!this.getData().open || !this.element) return;
+      const listbox = this.element.querySelector('[data-select-panel]');
+      if (morphOn) {
+        const trigger = this.element.querySelector('[data-select-trigger]');
+        if (!this._morph) this._morph = this._createMorph();
+        if (trigger && listbox && this._morph.state === 'idle') {
+          this._morph.show({ from: trigger, to: listbox });
+        }
+        // Options aren't revealed (or focusable) until the morph lands, so focus
+        // is deferred to the engine's 'shown' handler.
+      } else {
+        listbox?.focus({ preventScroll: true });
+        this._scrollActiveIntoView();
+      }
+    });
+  }
+
+  hide({ restoreFocus = true } = {}) {
+    if (!this.getData().open) return;
+    if (this._morph?.state === 'hiding') return; // already morphing back
+
+    this._ta = '';
+    if (this._taTimer) clearTimeout(this._taTimer);
+    document.removeEventListener('pointerdown', this._onDocPointerDown);
+
+    const { hide } = this.props;
+    if (typeof hide === 'function') hide();
+
+    const morphLive =
+      !!this.props.morph &&
+      this._morph &&
+      (this._morph.state === 'shown' || this._morph.state === 'showing');
+
+    if (morphLive) {
+      // Keep the panel mounted through the morph-back; the 'hidden' handler
+      // tears down `open` and restores trigger focus once it's visible again.
+      this._restoreFocus = restoreFocus;
+      this._morph.hide();
+    } else {
+      this.setData({ open: false, activeIndex: -1, panelTop: null });
+      this.refresh();
+      if (restoreFocus) this.element?.querySelector('[data-select-trigger]')?.focus();
+    }
+  }
+
+  // Lazily build the morph engine that animates the trigger↔panel transform.
+  // revealAt/lockScroll match the port; focus moves are deferred to its events
+  // because the trigger is hidden and the panel unrevealed mid-morph.
+  _createMorph() {
+    const engine = new MorphEngine({ revealAt: 0.7, lockScroll: false });
+    engine.on('shown', () => {
+      if (!this.getData().open) return;
+      this.element?.querySelector('[data-select-panel]')?.focus({ preventScroll: true });
+      this._scrollActiveIntoView();
+    });
+    engine.on('hidden', () => {
+      this.setData({ open: false, activeIndex: -1, panelTop: null });
+      this.refresh();
+      if (this._restoreFocus) {
+        this._restoreFocus = false;
+        this.element?.querySelector('[data-select-trigger]')?.focus();
+      }
+    });
+    return engine;
+  }
+
+  _reducedMotion() {
+    return (
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
+  }
+
+  // Panel position mode: an explicit `position` prop wins; otherwise morph
+  // selects center over the trigger and plain selects auto-flip by space.
+  _resolveMode() {
+    const p = this.props.position;
+    if (p === 'down' || p === 'up' || p === 'center') return p;
+    return this.props.morph ? 'center' : 'auto';
+  }
+
+  // Anchored (up/down) placement. In 'auto' mode, flip up when there isn't
+  // room below the trigger and there's more room above (ported from the
+  // source's space measurement). Caps the panel height to the available space
+  // so it never runs off-screen.
+  _measurePlacement(mode) {
+    const trigger = this.element?.querySelector('[data-select-trigger]');
+    if (!trigger || typeof window === 'undefined')
+      return { placement: mode === 'up' ? 'top' : 'bottom', maxHeight: 0 };
+    const rect = trigger.getBoundingClientRect();
+    const margin = 8;
+    const below = window.innerHeight - rect.bottom - margin;
+    const above = rect.top - margin;
+    const placement =
+      mode === 'up'
+        ? 'top'
+        : mode === 'down'
+          ? 'bottom'
+          : below < 240 && above > below
+            ? 'top'
+            : 'bottom';
+    const maxHeight = Math.max(120, Math.floor(placement === 'top' ? above : below));
+    return { placement, maxHeight };
+  }
+
+  // Center placement (the source's #positionPanel): shift the mounted panel up
+  // so the active (selected) option row sits centered over the trigger. Runs
+  // synchronously right after the open render — before the frame paints and
+  // before the morph engine measures the panel. If the panel would start above
+  // the viewport, clamp it down and scroll internally by the same amount so
+  // the option stays put under the pointer.
+  _positionCenter() {
+    const root = this.element;
+    const trigger = root?.querySelector('[data-select-trigger]');
+    const panel = root?.querySelector('[data-select-panel]');
+    if (!trigger || !panel || typeof window === 'undefined') return;
+
+    const margin = 8;
+    const { activeId } = this.getData();
+    const target = activeId ? panel.querySelector(`#${CSS.escape(activeId)}`) : null;
+
+    panel.scrollTop = 0;
+    const rootRect = root.getBoundingClientRect();
+    const trigRect = trigger.getBoundingClientRect();
+    const trigOffset = trigRect.top - rootRect.top;
+
+    let top = target
+      ? trigOffset + (trigRect.height - target.offsetHeight) / 2 - target.offsetTop
+      : trigOffset;
+
+    let maxHeight;
+    let scrollTop = 0;
+    const screenTop = rootRect.top + top;
+    if (screenTop < margin) {
+      const shift = margin - screenTop;
+      top += shift;
+      scrollTop = shift;
+      maxHeight = window.innerHeight - margin * 2;
+    } else {
+      maxHeight = Math.max(120, window.innerHeight - screenTop - margin);
+    }
+
+    this.setData({ panelTop: Math.round(top), maxHeight: Math.floor(maxHeight) });
+    this.refresh();
+    if (scrollTop > 0) panel.scrollTop = scrollTop;
+  }
+
+  // ---- active-option movement ---------------------------------------------
+
+  _findEnabled(start, dir) {
+    const { options } = this.getData();
+    for (let i = start; i >= 0 && i < options.length; i += dir) {
+      if (!options[i].disabled) return i;
+    }
+    return -1;
+  }
+
+  _setActive(i) {
+    if (i < 0) return;
+    this._scrollActive = true;
+    this.setData({ activeIndex: i });
+    this.refresh();
+  }
+
+  afterUpdate() {
+    if (this._scrollActive) {
+      this._scrollActive = false;
+      this._scrollActiveIntoView();
+    }
+  }
+
+  _scrollActiveIntoView() {
+    const { open, activeId } = this.getData();
+    if (!open || !activeId || !this.element) return;
+    this.element.querySelector(`#${CSS.escape(activeId)}`)?.scrollIntoView({ block: 'nearest' });
+  }
+
+  // Accumulating typeahead: a repeated single key cycles matches; a growing
+  // buffer prefix-matches from the top. Buffer clears 500ms after the last key.
+  _typeahead(rawKey) {
+    const key = rawKey.toLowerCase();
+    if (key.length !== 1) return;
+
+    this._ta += key;
+    if (this._taTimer) clearTimeout(this._taTimer);
+    this._taTimer = setTimeout(() => {
+      this._ta = '';
+    }, 500);
+
+    const { options, activeIndex } = this.getData();
+    const allSame = [...this._ta].every((c) => c === key);
+    let match = -1;
+
+    if (allSame) {
+      const start = activeIndex + 1;
+      const len = options.length;
+      for (let i = 0; i < len; i++) {
+        const idx = (start + i) % len;
+        const o = options[idx];
+        if (!o.disabled && o.label.toLowerCase().startsWith(key)) {
+          match = idx;
+          break;
+        }
+      }
+    } else {
+      match = options.findIndex((o) => !o.disabled && o.label.toLowerCase().startsWith(this._ta));
+    }
+
+    if (match >= 0) this._setActive(match);
+  }
+
+  _selectActive(event) {
+    const { options, activeIndex, value } = this.getData();
+    const opt = options[activeIndex];
+    if (!opt || opt.disabled) return;
+    if (opt.value !== value) {
+      const { change } = this.props;
+      if (typeof change === 'function') change(opt.value, event);
+    }
+    this.hide({ restoreFocus: true });
+  }
+
+  events = {
+    toggle: (event) => {
+      if (this.getData().disabled) return;
+      // While the panel is morphing back, `open` is still true — treat the
+      // click as "reopen" (show() reverses the in-flight morph).
+      if (this.getData().open && this._morph?.state !== 'hiding') {
+        this.hide({ restoreFocus: true });
+      } else {
+        this.show();
+      }
+    },
+
+    // Shared keydown for the trigger (closed) and the listbox (open).
+    onKey: (event) => {
+      const { open, activeIndex, options } = this.getData();
+
+      if (!open) {
+        if (
+          event.key === 'ArrowDown' ||
+          event.key === 'ArrowUp' ||
+          event.key === 'Enter' ||
+          event.key === ' '
+        ) {
+          if (this.getData().disabled) return;
+          event.preventDefault();
+          this.show();
+        }
+        return;
+      }
+
+      switch (event.key) {
+        case 'Escape':
+          event.preventDefault();
+          this.hide({ restoreFocus: true });
+          break;
+        case 'ArrowDown':
+          event.preventDefault();
+          this._setActive(this._findEnabled(activeIndex < 0 ? 0 : activeIndex + 1, 1));
+          break;
+        case 'ArrowUp':
+          event.preventDefault();
+          this._setActive(
+            this._findEnabled(activeIndex < 0 ? options.length - 1 : activeIndex - 1, -1)
+          );
+          break;
+        case 'Home':
+          event.preventDefault();
+          this._setActive(this._findEnabled(0, 1));
+          break;
+        case 'End':
+          event.preventDefault();
+          this._setActive(this._findEnabled(options.length - 1, -1));
+          break;
+        case 'Enter':
+        case ' ':
+          event.preventDefault();
+          this._selectActive(event);
+          break;
+        case 'Tab':
+          // Let focus move naturally; just close.
+          this.hide({ restoreFocus: false });
+          break;
+        default:
+          this._typeahead(event.key);
+          break;
+      }
+    },
+
+    choose: (opt, event) => {
+      if (opt.kind !== 'option' || opt.disabled) return;
+      if (opt.value !== this.getData().value) {
+        const { change } = this.props;
+        if (typeof change === 'function') change(opt.value, event);
+      }
+      this.hide({ restoreFocus: true });
+    },
+  };
+}
+</script>

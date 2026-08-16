@@ -2,6 +2,10 @@
 name: Code-side drift detection
 kind: sync
 status: built
+connections:
+  - FILE-CODE
+  - FILE-SYNC
+  - FILE-STALE
 ---
 
 Makes a `built`/`verified` claim re-verifiable instead of taken on faith (reverse drift).

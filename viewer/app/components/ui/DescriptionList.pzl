@@ -1,0 +1,85 @@
+<puzzle-view>
+  <dl class={ rootClass }>
+    {#for item in items}
+      <div class={ item.rowClass } key={ item.key }>
+        <dt class={ item.dtClass }>{ item.term }</dt>
+        <dd class={ item.ddClass }>{ item.description }</dd>
+      </div>
+    {/for}
+  </dl>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// DescriptionList — a semantic key-value list (<dl>/<dt>/<dd>) rendered from an
+// `items` array, for detail panels, summaries, and spec sheets ("Status: Active",
+// "Owner: Jordan Lee", "Created: Jan 3, 2026"). Purely presentational — no
+// callbacks, no interactive state. Each { term, description } pair is wrapped in
+// a <div> row (valid inside <dl> per the HTML5 content model — one or more
+// dt/dd groups may be wrapped in divs — and required here so every {#for} body
+// keeps a single element root); row spacing, the divider border, and the type
+// scale are all precomputed per row in data().
+//
+//   const items = [
+//     { term: 'Status', description: 'Active' },
+//     { term: 'Owner', description: 'Jordan Lee' },
+//     { term: 'Created', description: 'Jan 3, 2026' },
+//   ];
+//   <DescriptionList items={ items } />
+//   <DescriptionList items={ items } layout="inline" divider size="sm" />
+//
+// PROPS
+//   items     [{ term, description }]  — description is plain text (not rich
+//                                        content); null/undefined values render
+//                                        as empty strings.
+//   layout    'stacked' (default) | 'inline' — stacked: term above description,
+//                                        each pair a block. inline: a responsive
+//                                        two-column grid (fixed-ish term column,
+//                                        filling description column) that
+//                                        collapses to one column below `sm`.
+//   divider   bool (default false)     — hairline border-border rule between
+//                                        rows (never above the first row).
+//   size      'sm' | 'md' (default)    — row padding and type scale.
+//   class     string (optional)        — appended last to the root <dl>.
+const SIZE = {
+  sm: { row: 'py-2', term: 'text-xs', desc: 'text-xs' },
+  md: { row: 'py-3', term: 'text-sm', desc: 'text-sm' },
+};
+
+const ROW_LAYOUT = {
+  stacked: 'flex flex-col gap-1',
+  inline: 'grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-[160px_1fr]',
+};
+
+export default class DescriptionList extends PuzzleView {
+  data(params, props) {
+    const layout = props.layout === 'inline' ? 'inline' : 'stacked';
+    const divider = !!props.divider;
+    const size = props.size === 'sm' ? 'sm' : 'md';
+    const sizeCfg = SIZE[size];
+    const rowBase = ROW_LAYOUT[layout];
+
+    const rawItems = Array.isArray(props.items) ? props.items : [];
+
+    // Precompute every row's classes (layout, spacing, divider border, type
+    // scale) up front so the {#for} body below stays a single <div> root.
+    const items = rawItems.map((item, i) => {
+      const borderClass = divider && i > 0 ? 'border-t border-border' : '';
+      return {
+        key: `item-${i}`,
+        term: item && item.term != null ? String(item.term) : '',
+        description: item && item.description != null ? String(item.description) : '',
+        rowClass: [rowBase, sizeCfg.row, borderClass].filter(Boolean).join(' '),
+        dtClass: `${sizeCfg.term} font-medium text-muted`,
+        ddClass: `${sizeCfg.desc} text-ink`,
+      };
+    });
+
+    return {
+      items,
+      rootClass: props.class || '',
+    };
+  }
+}
+</script>

@@ -1,0 +1,484 @@
+<puzzle-view>
+  <nav class={ rootClass } aria-label={ navLabel }>
+    <div class="shrink-0 empty:hidden">
+      <Slot name="header"/>
+    </div>
+
+    <ul class="flex-1 min-h-0 space-y-0.5 overflow-y-auto overflow-x-hidden p-2">
+      {#for item in items}
+        <li key={ item.key } class={ item.rowClass }>
+          {#if item.kind === 'divider'}
+            <div class="mx-1 my-2 border-t border-border" role="separator" aria-hidden="true"></div>
+
+          {:else if item.kind === 'group'}
+            {#if collapsed}
+              <div class="mx-1 my-2 border-t border-border" role="separator" aria-hidden="true"></div>
+            {:else}
+              <p class="px-3 pb-1.5 pt-7 text-xs font-semibold uppercase tracking-wide text-muted">{ item.label }</p>
+            {/if}
+
+          {:else if item.kind === 'parent'}
+            {#if collapsed}
+              <a
+                href={ item.href }
+                class={ item.linkClass }
+                title={ item.label }
+                aria-current={ item.childActive ? 'page' : false }>
+                {#if item.icon}
+                  <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d={ item.icon }/>
+                  </svg>
+                {:else}
+                  <span class="size-5 shrink-0" aria-hidden="true"></span>
+                {/if}
+                <span class="sr-only">{ item.label }</span>
+              </a>
+            {:else}
+              <button
+                type="button"
+                id={ item.triggerId }
+                class={ item.buttonClass }
+                aria-expanded={ item.open ? 'true' : 'false' }
+                aria-controls={ item.submenuId }
+                @click={ toggleSubmenu(item.index) }>
+                {#if item.icon}
+                  <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d={ item.icon }/>
+                  </svg>
+                {:else}
+                  <span class="size-5 shrink-0" aria-hidden="true"></span>
+                {/if}
+                <span class="min-w-0 flex-1 truncate text-left">{ item.label }</span>
+                {#if item.badge}
+                  <span class={ badgeClass }>{ item.badge }</span>
+                {/if}
+                <svg
+                  class="size-4 shrink-0 text-muted transition-[rotate] duration-200 {#if item.open}rotate-90{/if}"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden="true">
+                  <path d="M7 5l5 5-5 5z"/>
+                </svg>
+              </button>
+              <div
+                id={ item.submenuId }
+                data-sidebar-submenu
+                data-index={ item.index }
+                class="overflow-hidden"
+                role="region"
+                aria-labelledby={ item.triggerId }
+                aria-hidden={ item.open ? false : 'true' }
+                inert={ !item.open }>
+                <ul class="ml-[1.375rem] mt-0.5 space-y-0.5 border-l border-border pl-2">
+                  {#for child in item.children}
+                    <li key={ child.key }>
+                      <a
+                        href={ child.href }
+                        class={ child.linkClass }
+                        aria-current={ child.active ? 'page' : false }>
+                        <span class="min-w-0 flex-1 truncate text-left">{ child.label }</span>
+                        {#if child.badge}
+                          <span class={ badgeClass }>{ child.badge }</span>
+                        {/if}
+                      </a>
+                    </li>
+                  {/for}
+                </ul>
+              </div>
+            {/if}
+
+          {:else}
+            <a
+              href={ item.href }
+              class={ item.linkClass }
+              title={ collapsed ? item.label : false }
+              aria-current={ item.active ? 'page' : false }>
+              {#if item.icon}
+                <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d={ item.icon }/>
+                </svg>
+              {:else}
+                <span class="size-5 shrink-0" aria-hidden="true"></span>
+              {/if}
+              <span class="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left transition-opacity duration-200 motion-reduce:transition-none {#if collapsed}opacity-0{/if}">{ item.label }</span>
+              {#if item.badge}
+                <span class={ badgeClass }>{ item.badge }</span>
+              {/if}
+            </a>
+          {/if}
+        </li>
+      {/for}
+    </ul>
+
+    <div class="mt-auto shrink-0 border-t border-border p-2">
+      <div class="empty:hidden">
+        <Slot name="footer"/>
+      </div>
+      <button
+        type="button"
+        class={ toggleClass }
+        aria-label={ toggleLabel }
+        title={ toggleLabel }
+        aria-pressed={ collapsed ? 'true' : 'false' }
+        @click={ toggleCollapsed }>
+        <svg
+          class="size-5 shrink-0 text-muted transition-[rotate] duration-200 {#if collapsed}rotate-180{/if}"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true">
+          <path d="M13 6l-6 6 6 6M19 6l-6 6 6 6"/>
+        </svg>
+        <span class="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left transition-opacity duration-200 motion-reduce:transition-none {#if collapsed}opacity-0{/if}">Collapse</span>
+      </button>
+    </div>
+  </nav>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// Sidebar — a config-first app-shell navigation rail done the Puzzle way: ONE
+// component driven by an `items` array, no compound subcomponents.
+// It renders grouped links with optional icons and badges, animated collapsible
+// submenus (disclosure adapted inline from the Collapsible piece — height eases
+// 0 ↔ measured via the Web Animations API, closed regions carry inert +
+// aria-hidden), active-route highlighting, and an optional-controlled icon-only
+// collapsed mode. Header/footer named slots hold the brand/logo and user-card.
+//
+// SCOPE — this piece is the RAIL only. Off-canvas mobile behavior is NOT built in:
+// compose it at the app level (e.g. render the Sidebar inside a Sheet on small
+// screens and show it inline on `md:` and up). The rail assumes a bounded-height
+// parent (it is h-full / flex-col with a scrollable middle).
+//
+//   <Sidebar items={ items } activePath={ path } @collapse={ setCollapsed }>
+//     <div slot="header">…brand…</div>
+//     <div slot="footer">…user card…</div>
+//   </Sidebar>
+//
+// ITEMS — a flat array mixing three shapes (order preserved):
+//   { group: 'Label' }                              a section heading (hidden when collapsed)
+//   { divider: true }                               a hairline separator
+//   { label, href, icon?, badge?, children? }       a navigation entry
+//     children: [{ label, href, badge? }]           → renders a collapsible submenu
+//
+// ICON CONTRACT — `icon` is an SVG path `d` string, NOT markup. It is rendered into
+// a standard inline <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+// stroke-width="2"> — so author paths on a 24×24 grid, stroked (fill none). This is
+// the config-first equivalent of an icon slot. Example (a house / "Home"):
+//   icon: 'M3 12l9-7 9 7M5 10v10h14V10'
+// Icons are strongly recommended: the collapsed rail shows ONLY the icon (labels go
+// sr-only), so an icon-less item is blank there.
+//
+// PROPS
+//   items       array   the navigation config described above.
+//   activePath  string  the href of the current route. The matching link (top-level
+//                       OR submenu child) gets aria-current="page" + the active
+//                       treatment (bg-brand-tint text-ink). A submenu containing the
+//                       active child auto-opens on first render (and whenever
+//                       activePath changes to land inside it).
+//   collapsed   bool    OPTIONAL-CONTROLLED (DatePicker's shape): omit it and the rail
+//                       owns its collapsed state internally, toggled by the built-in
+//                       control at the bottom; pass it and the PARENT owns it — the
+//                       rail only reflects the prop and *asks* to change via @collapse.
+//                       Collapsed = an icon-only w-16 rail (expanded is w-64); the width
+//                       eases via transition-[width] (motion-reduce disables it).
+//   label       string  accessible <nav> label (default 'Main').
+//   class       string  appended to the root <nav> (width classes come last from the
+//                       component, so a `class` width utility overrides them).
+//
+// SLOTS
+//   header  brand / logo area pinned to the top (collapses via empty:hidden when unused).
+//   footer  user-card / account area pinned to the bottom (mt-auto).
+//
+// CALLBACK
+//   @collapse(next)  fired with the NEXT collapsed boolean when the built-in toggle is
+//                    pressed. A controlled parent flips `collapsed` in response.
+//
+// COLLAPSED + SUBMENUS — a v1 SIMPLIFICATION. Submenus do not open in the collapsed
+// rail (there is no flyout in v1). A collapsed parent item instead renders as a plain
+// link to its own `href` (or its first child's href when it has none), carrying the
+// parent icon + a `title` tooltip + sr-only label. Expand the rail to use the submenu.
+
+let uid = 0;
+
+const NAV_BASE =
+  'flex h-full flex-col bg-surface border-r border-border ' +
+  'transition-[width] duration-200 ease-out motion-reduce:transition-none';
+
+// Shared row chrome. Unconditional outline COLOR (outline-ring) sits alongside the
+// focus-visible reveal so the outline never flashes from the default on focus.
+const ROW_BASE =
+  'group flex items-center gap-3 rounded-md text-sm overflow-hidden ' +
+  'transition-[padding,color,background-color] duration-200 ease-out motion-reduce:transition-none ' +
+  'outline-ring focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
+const IDLE = 'text-muted hover:bg-surface-sunken hover:text-ink';
+const ACTIVE = 'bg-brand-tint text-ink font-medium';
+const BADGE =
+  'shrink-0 rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-medium text-muted';
+
+// A top-level link/button pad: comfortable when expanded; when collapsed the
+// LEFT padding centers the size-5 icon in the row box — the rail is w-16 but
+// the list wraps rows in p-2, so the row spans 3rem: (3rem − 1.25rem)/2 =
+// 0.875rem. Padding (unlike justify-center) animates, so the icon slides
+// into place with the width transition.
+const rowPad = (collapsed) => (collapsed ? 'pl-[0.875rem] pr-2 py-2' : 'px-3 py-2');
+
+const linkClass = (active, collapsed) =>
+  [ROW_BASE, rowPad(collapsed), active ? ACTIVE : IDLE].join(' ');
+
+const childLinkClass = (active) =>
+  [ROW_BASE, 'px-3 py-1.5', active ? ACTIVE : IDLE].join(' ');
+
+// Normalize the raw items prop into tagged rows the template branches on, resolving
+// active state against activePath. The array index is kept as a stable key for the
+// per-parent open map and the submenu/trigger ids.
+function normalizeItems(items, activePath) {
+  const list = Array.isArray(items) ? items : [];
+  return list.map((it, i) => {
+    if (it && it.divider) return { kind: 'divider', index: i, key: `divider:${i}`, rowClass: '' };
+    if (it && it.group != null) {
+      const label = String(it.group);
+      return { kind: 'group', index: i, key: `group:${label}`, label, rowClass: '' };
+    }
+
+    const children = Array.isArray(it && it.children)
+      ? it.children.map((c, ci) => {
+          const href = (c && c.href) || '#';
+          return {
+            key: `${href}:${ci}`,
+            label: c && c.label != null ? String(c.label) : '',
+            href,
+            badge: c && c.badge != null ? String(c.badge) : '',
+            active: !!(activePath && href === activePath),
+          };
+        })
+      : [];
+    const hasChildren = children.length > 0;
+    const ownHref = (it && it.href) || '';
+    const href = ownHref || (hasChildren ? children[0].href : '#');
+    const active = !!(activePath && ownHref && ownHref === activePath);
+    const childActive = children.some((c) => c.active);
+
+    return {
+      kind: hasChildren ? 'parent' : 'link',
+      index: i,
+      // Row identity for the keyed {#for} — href is unique per nav entry; the
+      // index tail keeps duplicate/absent hrefs from colliding.
+      key: `${href}:${i}`,
+      rowClass: '',
+      label: it && it.label != null ? String(it.label) : '',
+      href,
+      icon: (it && it.icon) || '',
+      badge: it && it.badge != null ? String(it.badge) : '',
+      children,
+      hasChildren,
+      active,
+      childActive,
+    };
+  });
+}
+
+export default class Sidebar extends PuzzleView {
+  created() {
+    this._uid = ++uid;
+    // Per-parent open state keyed by item index (instance field, not view data — the
+    // submenu-open booleans feed the render via data() and are flipped with refresh()).
+    this._openMap = {};
+    // Last activePath we auto-opened for, so navigation into a submenu opens it once.
+    this._lastActive = undefined;
+    // Per-region open state the animation loop diffs against (keyed by data-index).
+    this._regionState = {};
+    // Uncontrolled collapsed state — instance field, NOT view data: the visible
+    // layout (rail width, icon-only rows) is derived from it inside data(), so
+    // the toggle must refresh() to re-run data(). A setData key would update
+    // silently without re-deriving the render model (setData never re-runs
+    // data()), leaving the click with no visible effect.
+    this._uncontrolledCollapsed = false;
+  }
+
+  // ---- collapsed: optional-controlled resolution ---------------------------
+
+  _collapsedControlled() {
+    return this.props.collapsed !== undefined;
+  }
+
+  _collapsed() {
+    return this._collapsedControlled()
+      ? !!this.props.collapsed
+      : !!this._uncontrolledCollapsed;
+  }
+
+  // ---- render model --------------------------------------------------------
+
+  data(params, props) {
+    const activePath = props.activePath || '';
+    const collapsed = this._collapsed();
+    const items = normalizeItems(props.items, activePath);
+    const base = `pieces-sidebar-${this._uid}`;
+
+    // Auto-open the submenu containing the active child — on first render and again
+    // whenever activePath changes to land inside a (different) submenu. Never
+    // force-closes what the user opened.
+    if (activePath !== this._lastActive) {
+      this._lastActive = activePath;
+      items.forEach((it) => {
+        if (it.kind === 'parent' && it.childActive) this._openMap[it.index] = true;
+      });
+    }
+
+    // Decorate each row with its open flag, ids, and precomputed classes.
+    items.forEach((it) => {
+      if (it.kind === 'parent') {
+        it.open = this._openMap[it.index] === true;
+        it.triggerId = `${base}-trigger-${it.index}`;
+        it.submenuId = `${base}-submenu-${it.index}`;
+        it.buttonClass = [
+          linkClass(false, false),
+          'w-full cursor-pointer',
+        ].join(' ');
+        it.linkClass = linkClass(it.childActive, collapsed); // collapsed-as-link form
+        it.children = it.children.map((c) => ({ ...c, linkClass: childLinkClass(c.active) }));
+      } else if (it.kind === 'link') {
+        it.linkClass = linkClass(it.active, collapsed);
+      }
+    });
+
+    const toggleLabel = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+
+    return {
+      items,
+      collapsed,
+      navLabel: props.label || 'Main',
+      // Badges ride the same fade as labels — kept mounted, clipped by the row.
+      badgeClass: [
+        BADGE,
+        'transition-opacity duration-200 motion-reduce:transition-none',
+        collapsed ? 'opacity-0' : '',
+      ].join(' '),
+      toggleLabel,
+      toggleClass: [
+        ROW_BASE,
+        rowPad(collapsed),
+        'w-full cursor-pointer',
+        IDLE,
+      ].join(' '),
+      rootClass: [NAV_BASE, collapsed ? 'w-16' : 'w-64', props.class || ''].join(' '),
+    };
+  }
+
+  // ---- animated submenu regions (adapted inline from Collapsible) ----------
+
+  // Set every visible region to its resting height on mount, then let afterUpdate
+  // animate transitions. Regions that appear later (e.g. after expanding the rail)
+  // are initialized on their first afterUpdate pass instead.
+  mounted() {
+    this._syncRegions(true);
+  }
+
+  afterUpdate() {
+    this._syncRegions(false);
+  }
+
+  destroyed() {
+    if (!this.element) return;
+    this.element.querySelectorAll('[data-sidebar-submenu]').forEach((body) => {
+      if (body._pzAnim) {
+        body._pzAnim.cancel();
+        body._pzAnim = null;
+      }
+    });
+  }
+
+  _reducedMotion() {
+    return (
+      typeof matchMedia === 'function' &&
+      matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
+  }
+
+  // Walk the mounted submenu regions and reconcile their height with open state:
+  // fresh/uninitialized regions snap to their resting height; a changed open flag
+  // animates. `initial` (mount) always snaps — no opening animation on first paint.
+  _syncRegions(initial) {
+    if (!this.element) return;
+    this.element.querySelectorAll('[data-sidebar-submenu]').forEach((body) => {
+      const idx = body.getAttribute('data-index');
+      const open = this._openMap[idx] === true;
+      const prev = this._regionState[idx];
+      const hasHeight = body.style.height !== '';
+      if (initial || prev === undefined || !hasHeight) {
+        this._cancelAnim(body);
+        body.style.height = open ? 'auto' : '0px';
+      } else if (prev !== open) {
+        this._animateRegion(body, open);
+      }
+      this._regionState[idx] = open;
+    });
+  }
+
+  _cancelAnim(body) {
+    if (body._pzAnim) {
+      body._pzAnim.cancel();
+      body._pzAnim = null;
+    }
+  }
+
+  _animateRegion(body, open) {
+    const current = body.getBoundingClientRect().height;
+    this._cancelAnim(body);
+
+    if (this._reducedMotion()) {
+      body.style.height = open ? 'auto' : '0px';
+      return;
+    }
+
+    if (open) {
+      const target = body.scrollHeight;
+      body.style.height = `${target}px`;
+      const anim = body.animate(
+        [{ height: `${current}px` }, { height: `${target}px` }],
+        { duration: 220, easing: 'ease' }
+      );
+      body._pzAnim = anim;
+      anim.onfinish = () => {
+        body._pzAnim = null;
+        // Leave it at auto so later content changes reflow — only if still open.
+        if (this._openMap[body.getAttribute('data-index')] === true) body.style.height = 'auto';
+      };
+    } else {
+      body.style.height = '0px';
+      const anim = body.animate(
+        [{ height: `${current}px` }, { height: '0px' }],
+        { duration: 220, easing: 'ease' }
+      );
+      body._pzAnim = anim;
+      anim.onfinish = () => {
+        body._pzAnim = null;
+      };
+    }
+  }
+
+  events = {
+    toggleSubmenu: (index) => {
+      this._openMap[index] = !this._openMap[index];
+      this.refresh();
+    },
+
+    toggleCollapsed: () => {
+      const next = !this._collapsed();
+      const { collapse } = this.props;
+      if (typeof collapse === 'function') collapse(next);
+      // Uncontrolled: own the flip and refresh() so data() re-derives the
+      // layout. Controlled: the parent's prop change drives it.
+      if (!this._collapsedControlled()) {
+        this._uncontrolledCollapsed = next;
+        this.refresh();
+      }
+    },
+  };
+}
+</script>

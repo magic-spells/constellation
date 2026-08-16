@@ -13,8 +13,15 @@ when the work spans several cards or needs intent/acceptance recorded.
 | Field | Type | Notes |
 |---|---|---|
 | `release` | handle | `RELEASE-` card this feature targets or shipped in; must resolve, and connects the two |
+| `change` | enum | `feature` (default) · `fix` · `breaking` · `chore` — how the work reads in its release |
 | `branch` | string | git branch it's developed on (informational — the card outlives the branch) |
 | `pr` | string | link to the PR (or commit) that shipped it — a URL or `#42`; set when it merges |
+
+`change` is what lets a release describe itself without a changelog: the RELEASE
+card holds theme and migration notes, and the features pointing at it group into
+Breaking / Features / Fixes / Chores wherever a release is rendered. Set
+`change: breaking` the moment you know callers must change — that's the one a
+reader scans for.
 
 `status` is the feature's arc: `planned` = specced, not started; `building` = in
 progress on its branch; `built` = merged (set `pr:` then, as provenance);
@@ -23,7 +30,8 @@ A shipped FEATURE card stays — it's the record of why the system grew, alongsi
 any [DECISION cards](./decision.md) it produced.
 
 Body: intent (the problem), scope (in/out), acceptance (how you know it's done),
-with `[[links]]` to the cards involved.
+with `[[links]]` to the cards involved — and every card the feature actually
+touches in `connections:`, since a `[[link]]` is a link, not a connection.
 
 Example — `constellation/feature/FEATURE-AUTO-ASSIGNMENT.md`:
 
@@ -32,6 +40,7 @@ Example — `constellation/feature/FEATURE-AUTO-ASSIGNMENT.md`:
 name: Auto-assignment of new tickets
 status: planned
 release: RELEASE-V1-1-0
+change: feature
 branch: feature/auto-assign
 connections:
   - JOB-AUTO-ASSIGN

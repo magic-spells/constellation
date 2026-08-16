@@ -4,24 +4,25 @@ How to turn a repository — empty, half-built, or fully shipped — into a Cons
 plan, and how to keep that plan honest as the code changes. The method is the same in
 every MCP client; in Claude Code it also backs the `bootstrap_plan` and `audit_plan`
 prompts. Read this once before a large pass; the per-card mechanics live in `SKILL.md`
-and `types/<type>.md`.
+and `describe_type`.
 
-## The bar: rebuildable from the plan alone
+## The bar: the next agent doesn't have to rediscover
 
-Hold the plan to one standard above all others: **if every line of code were deleted, a
-competent team could rebuild the whole application from the plan alone.** That is the
-fidelity to aim for — every meaningful surface, data shape, contract, flow, state machine,
-integration, and decision represented and connected, so the system's *shape* survives even
-when the implementation doesn't. This is what makes the plan worth keeping.
+Hold the plan to one standard above all others: **a later agent can change this area
+without rediscovering the why, the gotchas, and the contracts.** That is the fidelity to
+aim for — the intent behind each surface, the decisions and their rejected alternatives,
+the traps someone already hit, and the contracts that cross boundaries, represented and
+connected so the next session starts from understanding instead of archaeology.
 
-It's a test of **coverage, not volume.** Rebuildable does not mean transcribing code into
-markdown; it means capturing what someone would need to make the same decisions again — the
-structure, the contracts, the *why*. If a reader couldn't reconstruct a part from its card
-and connections, that's the gap to close (Step 7). The best plan is the *smallest* one that
-still passes this test. In particular, never create index cards that just enumerate other
-cards (a `DOC-DECISIONS` listing every DECISION, a table-of-contents card): those are
-derived views `list_cards` / `search` / the viewer already produce live from the files, and
-a stored copy is stale by the next card — delete any you find.
+It's a test of **coverage, not volume.** The plan is not a transcription of the code — the
+code is right there, and copies drift. It captures what the code can't say. If a competent
+agent picking up this area would still have to reverse-engineer the reasoning, that's the
+gap to close (Step 7); if they'd only have to read the code, that's fine. The best plan is
+the *smallest* one that still passes this test. In particular, never create index cards
+that just enumerate other cards (a `DOC-DECISIONS` listing every DECISION, a
+table-of-contents card): those are derived views `list_cards` / `search` / the viewer
+already produce live from the files, and a stored copy is stale by the next card — delete
+any you find.
 
 ## Act as the architect
 
@@ -51,6 +52,23 @@ the plan; and don't manufacture gaps to look thorough — confidence over covera
 boundaries (auth, untrusted input, money, data loss) earn attention; imaginary edge cases
 that can't happen don't.
 
+## Writes go through the tools
+
+The rule: all card writes go through the Constellation tools; never edit a card file
+directly — hand-edits invent fields and formats the schema doesn't support, feeding bad
+data to the viewer and to every future agent that loads the plan. A bootstrap pass is where
+this matters most: a stack of hand-written cards is a stack of schema violations nobody
+notices until the viewer renders them. The writers are `create_card` / `create_cards`,
+`update_card`, `edit_section`, `append_note`, `add_connections`, `rename_card` — and
+`rename_card` is how a handle changes, never delete-and-recreate to rename. For bulk changes
+loop the singular tools (CLI: `constellation rename`), never search-and-replace the plan
+folder.
+
+When a write tool errors (STALE, NOT_FOUND, a reserved-key rejection, a timeout), re-read
+the card and retry, or report the failure — never fall through to editing the file. The
+one exception to all of this is having no MCP server connected at all: see *Working without
+MCP* in `SKILL.md`.
+
 ## The governing idea: macro first, then micro
 
 Zoom **out** before you zoom **in**. A plan that starts from a list of files is a pile;
@@ -72,8 +90,11 @@ files and trace the data paths; never judge a system from filenames or folder st
 - From that alone, name the **stack**, the **surfaces** (web app, public API, admin,
   background workers, CLI), and the **domains** (the 3–8 nouns the product is about).
   Write these into `PLAN-PROJECT` (`plan.md`) — *Current state* and *Conventions* — and
-  draft one system-level `DIAGRAM` whose mermaid node IDs are real handles so it joins
-  the graph.
+  draft one system-level `DIAGRAM`. Using real handles as its mermaid node IDs makes every
+  box a working link in the viewer — but **connections come only from frontmatter** (the
+  `connections:` list and handle-shaped field values); a `[[HANDLE]]` link or a mermaid node
+  ID is a hyperlink and a pointer for readers, never an edge. Put every relationship you
+  want the graph to know in `connections:`, and let the diagram illustrate it.
 - Give `PLAN-PROJECT` a human-readable `name:` (folder `pyramid-server` → `Pyramid Server`).
   `init_plan` seeds a title-cased default; propose it, confirm with the user, and refine it.
   It's the viewer's title and is editable anytime (`update_card` on `PLAN-PROJECT`).
@@ -133,7 +154,8 @@ Now, and only now, descend — and only into areas that are central, complex, or
 - Hydrate before you edit: `get_card` / `traverse` with `connected: "full"` so you see a
   card with all its neighbors at once.
 - Add the granular cards, the detailed `FLOW`s, the `STATE` machines, and the focused
-  `DIAGRAM`s for that neighborhood. Keep mermaid node IDs = handles.
+  `DIAGRAM`s for that neighborhood. Handles as mermaid node IDs are good here — each box
+  becomes a link — but wire the DIAGRAM into the graph with `connections:`, not by drawing.
 - Resist detailing quiet, stable areas to the same depth. Detail is a cost; spend it where
   it changes a reader's understanding.
 
@@ -160,11 +182,14 @@ missing, and go find it. This matters more than any single card you write.
 **First, a quick hygiene sweep** (mechanical, cheap, not the point): `check_integrity` for
 orphans, `list_cards connected:false` for islands, `list_cards status: ["planned",
 "building", "none"]` for the open backlog, lint for dangling `[[links]]`/refs (W004)
-and unresolved structured refs (E005), plus code with no card and `built` cards with no
-code. Skim the recorded memory too — `list_notes kind:gotcha` / `kind:deviation` surfaces
-earlier agents' traps and intentional divergences as review input. If a handle no longer
-says what its card is, `rename_card` moves the file and rewrites every reference plan-wide.
-Fix or note these and move on — they're table stakes.
+and unresolved structured refs (E005), and `stale_report` for `built`/`verified` cards whose
+bound code has moved on. If the plan has recorded memory, skim it — `list_notes kind:gotcha`
+/ `kind:deviation` surfaces earlier agents' traps and intentional divergences as review
+input. Many plans have no notes at all; an empty result means nobody has written any yet,
+not that the plan is clean, so don't report it as a finding either way. If a handle no
+longer says what its card is, `rename_card` moves the file and rewrites every reference
+plan-wide — never delete-and-recreate to rename. Fix or note these and move on — they're
+table stakes.
 
 **Then the real review.** Run these lenses across each area *and* the whole — but calibrate
 to the project's stage and scope; a weekend prototype and a production system have very
@@ -188,8 +213,9 @@ genuinely matters here:
   be a `JOB`, `EVENT`s with no consumer, `EXTERNAL`s with no failure handling.
 - **End-to-end coherence** — can a user actually *complete* each journey with the cards as
   drawn? Do the flows connect, or are there islands and dead ends?
-- **Rebuildability** — the master test: could someone rebuild this area from its cards and
-  connections alone? Whatever they'd have to guess or reverse-engineer is the gap.
+- **Handoff** — the master test: could a new agent change this area from its cards and
+  connections without re-deriving the reasoning? Whatever they'd have to guess about
+  *intent, constraints, or contracts* is the gap; what they'd merely read in the code isn't.
 - **Domain blind spots** — bring knowledge of the product's domain: what do well-built apps
   of this kind reliably have that this plan doesn't?
 
@@ -209,8 +235,10 @@ Keep it to the few highest-value items, each with a one-line *why* and the card(
 implies. Capture confirmed gaps as `status: planned` cards — visible as intent, honest
 about not existing yet. When several planned cards form one coherent slice of work,
 group them under a `FEATURE` card (connected to each, intent/scope/acceptance in the
-body), optionally targeting a `RELEASE` milestone via its `release:` field — that is
-how iteration stays modeled once the initial build ships. Suggest structural cleanups (split an overloaded card, add a
+body), optionally targeting a `RELEASE` milestone via its `release:` field and saying how
+it reads there via `change:` (`feature` / `fix` / `breaking` / `chore`) — that is
+how iteration stays modeled once the initial build ships, and how a release describes
+itself without anyone writing a changelog. Suggest structural cleanups (split an overloaded card, add a
 missing `STATE`, connect two islands) but leave the call to the user. Taste means proposing
 the smallest set of changes that most improves the plan — not the most cards.
 
@@ -220,25 +248,34 @@ the smallest set of changes that most improves the plan — not the most cards.
   `verified` only after you've checked the card against the actual implementation.
 - When reverse-engineering shipped code, default new cards to `built`, then verify in a
   second pass — don't claim `verified` you haven't earned.
-- After reconciling the plan with code, commit the plan, then `set_sync_point` to mark the
-  reconciliation. Change history is git (`diff_plan`, `plan_log`) — never stamp dirty flags
-  or changelogs into cards. The one allowed baseline is verification provenance: mark a card
-  `verified` with `set_verified` (it records `verified_sha`, the sha you checked against), so
-  `stale_report` / `check_sync` can later flag the card if its bound code moved. The
-  staleness verdict stays live — recomputed from git, never stored.
-- The opposite direction — bringing **code** up to a changed **plan** ("sync the plan to
-  the code") — is its own loop, documented in *Syncing the plan to code* in `SKILL.md`:
-  `diff_plan` → `traverse` the blast radius → update code → verify → `set_sync_point`. For a
-  large diff, orchestrate it (a sub-agent per non-overlapping area — split on file boundaries
-  so no two agents edit the same file, and give each card to exactly one agent so concurrent
-  `update_card`s can't clobber each other) and always verify the agents' work yourself before
-  setting the marker.
-- Building something new also goes **plan-first**: don't edit code first — read the affected
-  neighborhood, express the desired end state as cards (new work as `planned`) with their
-  connections wired, get sign-off on the plan diff, then run that same code-up-to-plan loop and
-  reconcile (`check_integrity` for orphans, status bumps, `set_sync_point`). In plan mode, where
-  writes are blocked, read the plan heavily to model the project fast and present the card edits
-  you'll make. Full steps in *Changing code: plan-first* in `SKILL.md`.
+- Commit the cards **with** the code they describe — that single habit is what keeps drift
+  quiet, because a card is stale when its bound code has commits newer than the card's own.
+  Commit the card together with the code; stale_report on a dirty tree flags work in progress
+  — expected, not drift to fix. Change history is git (`diff_plan`, `plan_log`) — never stamp
+  dirty flags or changelogs into cards. The one allowed baseline is verification provenance:
+  mark a card `verified` with `set_verified` (it records `verified_sha`, the sha you checked
+  against), so `stale_report` / `check_sync` can later flag the card if its bound code moved.
+  The staleness verdict stays live — recomputed from git, never stored. (`set_sync_point`
+  still exists as a plan-wide marker and is the fallback baseline for cards git has never
+  seen change; it is not a step in the loop.)
+- The opposite direction — bringing **code** up to a changed **plan** — is its own loop,
+  documented in *Changing code* in `SKILL.md`: `diff_plan` → `traverse` the blast radius →
+  update code → verify → commit the cards with the code. "Sync the plan" means bringing code
+  and cards into agreement, not stamping a marker and not rewriting cards to match whatever
+  the code happens to do. For a large diff, orchestrate it (a sub-agent per non-overlapping
+  area — split on file boundaries so no two agents edit the same file, and give each card to
+  exactly one agent so concurrent `update_card`s can't clobber each other) and always verify
+  the agents' work yourself before calling it done.
+- **Behavior changes go plan-first** — a new FEATURE, an API contract, a STATE change, a new
+  surface. Don't edit code first: read the affected neighborhood, express the desired end state
+  as cards (new work as `planned`) with their connections wired, get sign-off on the plan diff,
+  then run that same code-up-to-plan loop and reconcile (`check_integrity` for orphans, status
+  bumps, commit the cards with the code). In plan mode, where writes are blocked, read the plan
+  heavily to model the project fast and present the card edits you'll make.
+- **Non-behavioral work goes straight to code** — refactors, renames, CSS, dependency bumps,
+  test-only changes. Nothing about the contracts changed, so there's no plan diff to approve;
+  just fix whatever cards the change made wrong, in the same commit. Full steps for both in
+  *Changing code* in `SKILL.md`.
 
 ## Meta-feedback
 

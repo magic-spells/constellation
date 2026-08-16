@@ -2,6 +2,9 @@
 name: The 21 card types
 kind: reference
 status: built
+connections:
+  - FILE-TYPES
+  - FILE-HANDLES
 ---
 
 # The 21 card types

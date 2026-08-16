@@ -1,0 +1,120 @@
+<puzzle-view>
+  <div class="fm-value">
+    {#if isString}
+      {#if isHandleValue}
+        <a class="fm-chip" href="{ cardHref | link }" style={ chipStyle }>
+          { stringValue }
+        </a>
+      {:else}
+        <span>{ stringValue }</span>
+      {/if}
+    {:else if isNullish}
+      <span>—</span>
+    {:else if isScalar}
+      <span>{ scalarValue }</span>
+    {:else if isObjectArray}
+      <div class="fm-table-wrap">
+        <table class="fm-table">
+          <thead>
+            <tr>
+              {#for key in tableKeys}<th>{ key }</th>{/for}
+            </tr>
+          </thead>
+          <tbody>
+            {#for row in tableRows}
+              <tr>
+                {#for cell in row.cells}
+                  <td class={ cell.className }>
+                    {#if cell.missing}·{:else}<FmValue value={ cell.value } />{/if}
+                  </td>
+                {/for}
+              </tr>
+            {/for}
+          </tbody>
+        </table>
+      </div>
+    {:else if isArray}
+      <span class="fm-array">
+        {#for item in arrayItems}
+          <span key={ item.key }>{ item.separator }<FmValue value={ item.value } /></span>
+        {/for}
+      </span>
+    {:else}
+      <div class="fm-nested">
+        {#for entry in objectEntries}
+          <div><span class="fm-key">{ entry.key }</span> <FmValue value={ entry.value } /></div>
+        {/for}
+      </div>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import { hrefForHandle, isHandle } from '../lib/types.js';
+
+export default class FmValue extends PuzzleView {
+	data(params, props) {
+		const value = props.value;
+		const stringValue = typeof value === 'string' ? value : '';
+		const isHandleValue = typeof value === 'string' && isHandle(value);
+		const isObjectArray =
+			Array.isArray(value) &&
+			value.length > 0 &&
+			value.every((item) => item && typeof item === 'object' && !Array.isArray(item));
+
+		const tableKeys = [];
+		if (isObjectArray) {
+			for (const row of value) {
+				for (const key of Object.keys(row)) {
+					if (!tableKeys.includes(key)) tableKeys.push(key);
+				}
+			}
+		}
+
+		return {
+			isString: typeof value === 'string',
+			isHandleValue,
+			stringValue,
+			cardHref: isHandleValue ? hrefForHandle(value) : '',
+			chipStyle: isHandleValue ? `--c: var(--t-${value.split('-')[0]})` : '',
+			isNullish: value === null || value === undefined,
+			isScalar: typeof value === 'number' || typeof value === 'boolean',
+			scalarValue: String(value),
+			isObjectArray,
+			tableKeys,
+			tableRows: isObjectArray
+				? value.map((row) => ({
+					cells: tableKeys.map((key) => ({
+						missing: row[key] === undefined,
+						value: row[key],
+						className: row[key] === undefined ? 'fm-muted' : '',
+					})),
+				}))
+				: [],
+			isArray: Array.isArray(value),
+			arrayItems: Array.isArray(value)
+				? value.map((item, index) => ({ key: index, value: item, separator: index > 0 ? ', ' : '' }))
+				: [],
+			objectEntries:
+				value && typeof value === 'object' && !Array.isArray(value)
+					? Object.entries(value).map(([key, nested]) => ({ key, value: nested }))
+					: [],
+		};
+	}
+}
+</script>
+
+<style>
+.fm-value { display: contents; }
+.fm-chip { --c: var(--color-brand); display: inline-flex; align-items: center; gap: 0.3rem; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--color-border)); border-radius: 999px; background: color-mix(in srgb, var(--c) 12%, var(--color-surface)); padding: 0.12rem 0.55rem; color: var(--c); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.76rem; font-weight: 600; text-decoration: none; }
+.fm-chip:hover { border-color: var(--c); }
+.fm-table-wrap { max-width: 100%; overflow-x: auto; }
+.fm-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.fm-table th { background: var(--color-surface-sunken); color: var(--color-muted); font-weight: 600; }
+.fm-table th, .fm-table td { border: 1px solid var(--color-border); padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; }
+.fm-muted { color: var(--color-faint); }
+.fm-array { display: inline-flex; flex-wrap: wrap; }
+.fm-nested { display: grid; gap: 0.35rem; margin: 0.15rem 0; border-left: 2px solid var(--color-border); padding-left: 0.8rem; }
+.fm-key { color: var(--color-muted); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.8rem; }
+</style>

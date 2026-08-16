@@ -1,9 +1,11 @@
 ---
 name: writer.ts
-status: built
+status: verified
 path: src/core/writer.ts
 language: typescript
 summary: Byte-preserving card writes + patch / note / section helpers
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T02:33:27.916Z'
 ---
 
 Re-serializes only the top-level frontmatter keys whose values changed and keeps the body byte-for-byte on a frontmatter-only update (and vice versa). Provides deep-merge patch semantics, `withAppendedNote`, and fence-aware `replaceBodySection`. Shared by the MCP and viewer write paths — fix serialization bugs here once.

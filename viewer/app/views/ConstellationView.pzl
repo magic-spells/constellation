@@ -1,0 +1,1427 @@
+<puzzle-view>
+  <div ref="container" class="constellation">
+    {#if empty}
+      <div class="constellation-empty">
+        <span class="star">✦</span>
+        <p>This plan has no cards yet.</p>
+      </div>
+    {:else}
+      <canvas
+        ref="canvas"
+        class="constellation-canvas"
+        tabindex="0"
+        aria-label={ canvasLabel }
+        @pointerdown={ onPointerDown(event) }
+        @pointermove={ onPointerMove(event) }
+        @pointerup={ onPointerUp(event) }
+        @dblclick={ onDblClick(event) }
+        @wheel={ onWheel(event) }
+        @keydown={ onCanvasKey(event) }></canvas>
+
+      <div class="cn-search">
+        <input
+          type="search"
+          placeholder="Search nodes…"
+          value={ query }
+          @keydown={ onSearchKey(event) }
+          aria-label="Search nodes in the graph" />
+        {#if results.length}
+          <ul class="cn-search-results">
+            {#for result in results, i}
+              <li>
+                <button
+                  type="button"
+                  class={ i === activeResult ? 'active' : '' }
+                  @click={ selectResult(result.handle) }
+                  @mouseenter={ activateResult(i) }>
+                  <span class="cn-swatch" style={ result.swatchStyle }></span>
+                  <span class="cn-r-text">
+                    <span class="cn-r-handle">{ result.handle }</span>
+                    {#if result.hasName}<span class="cn-r-name">{ result.name }</span>{/if}
+                  </span>
+                </button>
+              </li>
+            {/for}
+          </ul>
+        {/if}
+      </div>
+
+      <div class="cn-legend">
+        {#for item in presentTypes}
+          <span class="cn-legend-item">
+            <span class="cn-swatch" style={ item.swatchStyle }></span>
+            { item.label }
+          </span>
+        {/for}
+      </div>
+
+      <div class="cn-controls">
+        <button type="button" title="Zoom in" aria-label="Zoom in" @click={ zoomIn }>+</button>
+        <button type="button" title="Zoom out" aria-label="Zoom out" @click={ zoomOut }>−</button>
+        <button type="button" title="Fit to view" aria-label="Fit to view" @click={ fitAll }>⤢</button>
+        <button type="button" title="Reset" aria-label="Reset view" @click={ resetView }>⟲</button>
+      </div>
+
+      {#if focusedCard}
+        <div class="cn-panel">
+          <span class="cn-panel-type" style={ focusedCard.typeStyle }>{ focusedCard.type }</span>
+          <strong>{ focusedCard.displayName }</strong>
+          <span class="cn-panel-handle">{ focusedCard.handle }</span>
+          {#if focusedCard.status}<span class="cn-panel-status">{ focusedCard.status }</span>{/if}
+          <a href="{ focusedCard.href | link }">Open card →</a>
+        </div>
+      {/if}
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import { hrefForHandle, TYPE_META } from '../lib/types.js';
+import { planIndex } from '../lib/plan-index.js';
+import { cssColor, darken as darkenHex, mix as mixHex, luminance as relLum } from '../lib/colors.js';
+import { onThemeChange } from '../lib/theme.js';
+import {
+  buildGraph,
+  createSimulation,
+  clusterAnchors,
+  focusRadii,
+  fitToBounds,
+  fitToCircle,
+} from '../lib/constellation-layout.js';
+
+// Travel under this many *screen* pixels glides; longer hops fade-out/pop-in instead.
+const SHORT_SCREEN = 280;
+// Focus shows the selected card + this many hops, capped so a hub doesn't explode.
+const EGO_HOPS = 2;
+const EGO_CAP = 90;
+const SETTLE_INITIAL = 260;
+const SETTLE_RESEED = 70;
+// Focus rings: innermost radius (floor for sparse rings), gap to the next hop ring,
+// and the breathing room each card reserves around itself (so cards never touch).
+const BASE_RING = 240;
+const RING_STEP = 300;
+const CARD_GAP = 36;
+
+const ZOOM_WHEEL = 0.0015;
+const ZOOM_PINCH = 0.004;
+
+export default class ConstellationView extends PuzzleView {
+  created() {
+    // Reactive state drives template overlays only. Everything painted per-frame
+    // stays in plain instance fields below.
+    this.setData({
+      focused: null,
+      hovered: null,
+      query: '',
+      activeResult: -1,
+    });
+
+    this.nodes = [];
+    this.links = [];
+    this.tx = 0;
+    this.ty = 0;
+    this.scale = 1;
+    // Puzzle reserves `this.ctx` for framework context/store/router, so the old
+    // CanvasRenderingContext2D field is named canvasCtx in this port.
+    this.canvasCtx = null;
+    this.anchors = new Map();
+    this.graphCenter = { x: 0, y: 0 };
+    this.initialized = false;
+    this.fitted = false;
+    this.egoSet = null;
+    this.width = 0;
+    this.height = 0;
+    this.canvasEl = null;
+
+    this.transBefore = new Set();
+    this.transAfter = new Set();
+    this.na = { active: false, start: 0, dur: 650, t: 0 };
+    this.vp = {
+      active: false,
+      from: { tx: 0, ty: 0, scale: 1 },
+      target: { tx: 0, ty: 0, scale: 1 },
+      start: 0,
+      dur: 520,
+    };
+    this.loopRaf = null;
+    this.pendingDraw = false;
+    this.drag = null;
+    this.reduceMotion = false;
+
+    this.colors = {
+      edge: '#888',
+      accent: '#88f',
+      bg: '#000',
+      panel: '#111',
+      text: '#aaa',
+      textStrong: '#fff',
+      light: false,
+      type: {},
+      fill: {},
+      label: {},
+      sub: {},
+    };
+
+    this.simulation = null;
+    this.resizeObserver = null;
+    this.motionQuery = null;
+    this.motionChange = null;
+    this.unsubscribeTheme = null;
+    this.seededGeneration = Symbol('unseeded');
+    this.resultsKey = '';
+    this.isMounted = false;
+
+    this.loop = (now) => this.frame(now);
+    this.resize = () => this.resizeCanvas();
+  }
+
+  data() {
+    const store = this.ctx.store;
+    const plan = store.findOne('plan', 'plan');
+    const cards = store.findMany('card');
+    const index = planIndex(store);
+    const local = this.getData() || {};
+    const focused = local.focused ?? null;
+    const query = local.query ?? '';
+    const q = query.trim().toLowerCase();
+
+    let searchMatches = null;
+    const results = [];
+    if (q) {
+      searchMatches = new Set();
+      for (const card of cards) {
+        if (
+          card.handle.toLowerCase().includes(q) ||
+          (card.name ?? '').toLowerCase().includes(q)
+        ) {
+          searchMatches.add(card.handle);
+          if (results.length < 10) {
+            results.push({
+              handle: card.handle,
+              name: card.name,
+              type: card.type,
+              hasName: !!card.name && card.name !== card.handle,
+              swatchStyle: `background: var(--t-${card.type})`,
+            });
+          }
+        }
+      }
+    }
+
+    let highlightSet = null;
+    if (focused) {
+      highlightSet = new Set([focused]);
+      for (const neighbor of index.neighbors.get(focused) ?? []) highlightSet.add(neighbor);
+    }
+
+    const focusedRecord = focused ? index.byHandle.get(focused) : null;
+    const focusedCard = focusedRecord
+      ? {
+          handle: focusedRecord.handle,
+          type: focusedRecord.type,
+          name: focusedRecord.name,
+          status: focusedRecord.status,
+          displayName: focusedRecord.name ?? focusedRecord.handle,
+          typeStyle: `color: var(--t-${focusedRecord.type})`,
+          href: hrefForHandle(focusedRecord.handle),
+        }
+      : null;
+
+    const presentTypes = this.orderedTypes(cards).map((type) => ({
+      type,
+      label: TYPE_META[type]?.label ?? type,
+      swatchStyle: `background: var(--t-${type})`,
+    }));
+
+    return {
+      focused,
+      hovered: local.hovered ?? null,
+      query,
+      activeResult: local.activeResult ?? -1,
+      empty: !!plan && cards.length === 0,
+      nodeCount: cards.length,
+      canvasLabel: `Constellation graph — ${cards.length} cards. Use the search box to find a node; drag to pan; scroll to zoom; Escape clears the selection.`,
+      results,
+      resultsKey: `${q}\u0001${results.map((result) => result.handle).join('\u0000')}`,
+      searchMatches,
+      highlightSet,
+      presentTypes,
+      focusedCard,
+      generation: plan?.generation,
+      cards,
+      connections: index.connections,
+      neighbors: index.neighbors,
+    };
+  }
+
+  mounted() {
+    this.isMounted = true;
+    this.ensureCanvas();
+
+    const container = this.refs.container;
+    if (container && typeof ResizeObserver === 'function') {
+      this.resizeObserver = new ResizeObserver(this.resize);
+      this.resizeObserver.observe(container);
+    }
+    this.resizeCanvas();
+
+    if (typeof window.matchMedia === 'function') {
+      this.motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      this.reduceMotion = this.motionQuery.matches;
+      this.motionChange = (event) => {
+        this.reduceMotion = event.matches;
+      };
+      this.motionQuery.addEventListener('change', this.motionChange);
+    }
+
+    this.unsubscribeTheme = onThemeChange(() => {
+      this.refreshColors();
+      this.requestDraw();
+    });
+
+    this.syncGeneration();
+    this.refreshColors();
+    this.requestDraw();
+  }
+
+  afterUpdate() {
+    if (!this.isMounted) return;
+    this.ensureCanvas();
+    this.syncGeneration();
+
+    const data = this.getData();
+    if (data.resultsKey !== this.resultsKey) {
+      this.resultsKey = data.resultsKey;
+      if (data.activeResult !== -1) this.setData({ activeResult: -1 });
+      this.requestDraw();
+    }
+  }
+
+  destroyed() {
+    this.isMounted = false;
+    if (this.loopRaf != null) cancelAnimationFrame(this.loopRaf);
+    this.loopRaf = null;
+    this.na.active = false;
+    this.vp.active = false;
+
+    if (this.resizeObserver) this.resizeObserver.disconnect();
+    this.resizeObserver = null;
+
+    if (this.motionQuery && this.motionChange) {
+      this.motionQuery.removeEventListener('change', this.motionChange);
+    }
+    this.motionQuery = null;
+    this.motionChange = null;
+
+    if (this.unsubscribeTheme) this.unsubscribeTheme();
+    this.unsubscribeTheme = null;
+
+    if (this.simulation) this.simulation.stop();
+    this.simulation = null;
+    this.drag = null;
+    this.canvasCtx = null;
+    this.canvasEl = null;
+  }
+
+  events = {
+    onPointerDown: (event) => this.onPointerDown(event),
+    onPointerMove: (event) => this.onPointerMove(event),
+    onPointerUp: (event) => this.onPointerUp(event),
+    onDblClick: (event) => this.onDblClick(event),
+    onWheel: (event) => this.onWheel(event),
+    onCanvasKey: (event) => this.onCanvasKey(event),
+    onSearchKey: (event) => this.onSearchKey(event),
+    selectResult: (handle) => this.selectResult(handle),
+    activateResult: (index) => this.setData({ activeResult: index }),
+    zoomIn: () => this.zoomBy(1.25),
+    zoomOut: () => this.zoomBy(0.8),
+    fitAll: () => this.fitAll(),
+    resetView: () => this.resetView(),
+  };
+
+  ensureCanvas() {
+    const canvas = this.refs.canvas || this.element.querySelector('canvas');
+    if (canvas === this.canvasEl) return;
+    this.canvasEl = canvas || null;
+    this.canvasCtx = null;
+    if (this.canvasEl) this.resizeCanvas();
+  }
+
+  resizeCanvas() {
+    const container = this.refs.container;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    this.width = Math.max(0, Math.round(rect.width));
+    this.height = Math.max(0, Math.round(rect.height));
+
+    if (this.canvasEl && this.width > 0 && this.height > 0) {
+      const dpr = window.devicePixelRatio || 1;
+      this.canvasEl.width = Math.round(this.width * dpr);
+      this.canvasEl.height = Math.round(this.height * dpr);
+    }
+
+    // Frame the overview once real dimensions arrive.
+    if (!this.fitted && this.width > 0 && this.height > 0 && this.nodes.length > 0) {
+      if (!this.getData().focused) {
+        const transform = fitToBounds(this.nodes, {
+          width: this.width,
+          height: this.height,
+        });
+        this.tx = transform.tx;
+        this.ty = transform.ty;
+        this.scale = transform.scale;
+      }
+      this.fitted = true;
+    }
+    this.requestDraw();
+  }
+
+  syncGeneration() {
+    const data = this.getData();
+    if (this.seededGeneration === data.generation) return;
+    this.seededGeneration = data.generation;
+    this.reseed(data.cards, data.connections, data.neighbors);
+  }
+
+  refreshColors() {
+    if (typeof document === 'undefined') return;
+    const colors = this.colors;
+    colors.edge = cssColor('--color-border-strong', '#888');
+    colors.accent = cssColor('--color-brand', '#88f');
+    colors.bg = cssColor('--color-page', '#000');
+    colors.panel = cssColor('--color-surface', '#111');
+    colors.text = cssColor('--color-body', '#aaa');
+    colors.textStrong = cssColor('--color-ink', '#fff');
+    const light = relLum(colors.bg) > 0.5;
+    colors.light = light;
+    const type = {};
+    const fill = {};
+    const label = {};
+    const sub = {};
+    for (const t of new Set(this.nodes.map((n) => n.type))) {
+      const base = cssColor('--t-' + t, colors.accent);
+      type[t] = base;
+      if (light) {
+        // Light theme: pale type-tinted card + a deep, type-coloured handle.
+        fill[t] = mixHex(base, '#ffffff', 0.82, colors.panel);
+        label[t] = darkenHex(base, 0.46, colors.textStrong);
+      } else {
+        // Dark theme: vivid darkened card + near-white handle (unchanged look).
+        fill[t] = darkenHex(base, 0.28, colors.panel);
+        label[t] = colors.textStrong;
+      }
+      sub[t] = colors.text;
+    }
+    colors.type = type;
+    colors.fill = fill;
+    colors.label = label;
+    colors.sub = sub;
+  }
+
+  node(handle) {
+    return this.nodes.find((n) => n.handle === handle);
+  }
+
+  orderedTypes(nodes) {
+    const present = new Set(nodes.map((n) => n.type));
+    return Object.keys(TYPE_META).filter((type) => present.has(type));
+  }
+
+  currentVisible() {
+    const focused = this.getData().focused;
+    return focused && this.egoSet
+      ? new Set(this.egoSet)
+      : new Set(this.nodes.map((n) => n.handle));
+  }
+
+  // Focused card + 1 hop (always) + further hops while the set stays small.
+  computeEgo(handle, hops) {
+    const ego = new Set([handle]);
+    const tiers = new Map();
+    for (const [h, d] of hops) {
+      if (d < 1) continue;
+      const tier = tiers.get(d);
+      if (tier) tier.push(h);
+      else tiers.set(d, [h]);
+    }
+    for (let d = 1; d <= EGO_HOPS; d++) {
+      const tier = tiers.get(d) ?? [];
+      if (d > 1 && ego.size + tier.length > EGO_CAP) break;
+      for (const h of tier) ego.add(h);
+    }
+    return ego;
+  }
+
+  // Focus layout: one concentric ring per hop. Within a ring, each type's cards form an
+  // arc centred on the type's own direction (so the colour groups stay separated), and
+  // every card reserves a slice of circumference sized to itself — so they never touch.
+  // The ring radius grows to fit the densest type's arc within its angular slot.
+  cardArc(node) {
+    return Math.hypot(node.w, node.h) + CARD_GAP;
+  }
+
+  layoutFocus(focusedHandle, ego, hops, types) {
+    const targets = new Map();
+    const typeIndex = new Map(types.map((type, i) => [type, i]));
+    const cx = this.graphCenter.x;
+    const cy = this.graphCenter.y;
+
+    const byHop = new Map();
+    for (const handle of ego) {
+      if (handle === focusedHandle) continue;
+      const graphNode = this.node(handle);
+      if (!graphNode) continue;
+      const d = hops.get(handle) ?? 1;
+      const members = byHop.get(d);
+      if (members) members.push(graphNode);
+      else byHop.set(d, [graphNode]);
+    }
+
+    let ringR = BASE_RING;
+    let maxR = BASE_RING;
+    for (const hop of [...byHop.keys()].sort((a, b) => a - b)) {
+      // One ring per hop. Order by type so same-type cards form a contiguous arc
+      // (grouping preserved); size the radius so every card fits ONCE around the full
+      // circle, each reserving its own footprint of circumference → compact, no overlap.
+      const members = byHop
+        .get(hop)
+        .slice()
+        .sort((a, b) =>
+          a.type === b.type
+            ? a.handle < b.handle
+              ? -1
+              : 1
+            : (typeIndex.get(a.type) ?? 0) - (typeIndex.get(b.type) ?? 0),
+        );
+      const total = members.reduce((sum, graphNode) => sum + this.cardArc(graphNode), 0);
+      const radius = Math.max(ringR, total / (2 * Math.PI));
+      let acc = 0;
+      for (const graphNode of members) {
+        const arc = this.cardArc(graphNode);
+        const angle = -Math.PI / 2 + ((acc + arc / 2) / total) * 2 * Math.PI;
+        acc += arc;
+        targets.set(graphNode.handle, {
+          x: cx + radius * Math.cos(angle),
+          y: cy + radius * Math.sin(angle),
+        });
+      }
+      maxR = Math.max(maxR, radius);
+      ringR = radius + RING_STEP;
+    }
+    return { targets, radius: maxR };
+  }
+
+  reseed(cards, connections, neighbors) {
+    const built = buildGraph(cards, connections);
+    const prev = new Map(this.nodes.map((n) => [n.handle, n]));
+
+    const side = Math.max(1100, Math.sqrt(built.nodes.length) * 260);
+    this.graphCenter = { x: side / 2, y: side / 2 };
+    const types = this.orderedTypes(built.nodes);
+    this.anchors = clusterAnchors(types, side, side);
+
+    // Seed survivors at their cached home so the synchronous settle barely moves them.
+    for (const graphNode of built.nodes) {
+      const old = prev.get(graphNode.handle);
+      if (old) {
+        graphNode.x = old.ox ?? old.x;
+        graphNode.y = old.oy ?? old.y;
+      }
+    }
+
+    // First non-empty layout settles fully; later reseeds (survivors pre-seeded) need few ticks.
+    const firstReal = !this.initialized && built.nodes.length > 0;
+
+    // Settle to equilibrium OFF-SCREEN (no visible shoving), then cache the home layout.
+    if (this.simulation) this.simulation.stop();
+    const simulation = createSimulation({
+      nodes: built.nodes,
+      links: built.links,
+      anchors: this.anchors,
+    });
+    this.simulation = simulation;
+    simulation.tick(firstReal ? SETTLE_INITIAL : SETTLE_RESEED);
+    simulation.stop();
+    for (const graphNode of built.nodes) {
+      graphNode.ox = graphNode.x;
+      graphNode.oy = graphNode.y;
+    }
+
+    // Transition bookkeeping: survivors glide from their old spot; brand-new cards fade in.
+    const before = new Set();
+    for (const graphNode of built.nodes) {
+      const old = prev.get(graphNode.handle);
+      if (old) {
+        graphNode.px = old.x ?? graphNode.x ?? 0;
+        graphNode.py = old.y ?? graphNode.y ?? 0;
+        before.add(graphNode.handle);
+      } else {
+        graphNode.px = graphNode.x ?? 0;
+        graphNode.py = graphNode.y ?? 0;
+      }
+    }
+
+    this.nodes = built.nodes;
+    this.links = built.links;
+    this.refreshColors();
+
+    const focused = this.getData().focused;
+    let after;
+    if (focused && built.nodes.some((graphNode) => graphNode.handle === focused)) {
+      // Re-apply a still-valid focus across the reload.
+      const focus = this.node(focused);
+      const hops = focusRadii(focused, neighbors);
+      const ego = this.computeEgo(focused, hops);
+      const { targets } = this.layoutFocus(focused, ego, hops, types);
+      this.egoSet = ego;
+      focus.x = this.graphCenter.x;
+      focus.y = this.graphCenter.y;
+      for (const graphNode of built.nodes) {
+        if (graphNode.handle === focused) continue;
+        if (ego.has(graphNode.handle)) {
+          const target = targets.get(graphNode.handle);
+          if (target) {
+            graphNode.x = target.x;
+            graphNode.y = target.y;
+          }
+        }
+      }
+      after = ego;
+    } else {
+      if (focused) {
+        this.setData({ focused: null });
+        this.refresh();
+      }
+      this.egoSet = null;
+      after = new Set(built.nodes.map((graphNode) => graphNode.handle));
+    }
+
+    if (firstReal) {
+      const transform = fitToBounds(built.nodes, {
+        width: this.width || 800,
+        height: this.height || 600,
+      });
+      this.tx = transform.tx;
+      this.ty = transform.ty;
+      this.scale = transform.scale;
+      this.initialized = true;
+    }
+    this.startNodeAnim(before, after);
+  }
+
+  // ── Search ────────────────────────────────────────────────────────────────
+  selectResult(handle) {
+    this.setData({ query: '', activeResult: -1 });
+    this.focusNode(handle);
+  }
+
+  onSearchKey(event) {
+    const { results, activeResult } = this.getData();
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (results.length) {
+        this.setData({ activeResult: Math.min(activeResult + 1, results.length - 1) });
+      }
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.setData({ activeResult: Math.max(activeResult - 1, -1) });
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      const pick = activeResult >= 0 ? results[activeResult] : results[0];
+      if (pick) this.selectResult(pick.handle);
+    } else if (event.key === 'Escape') {
+      this.setData({ query: '', activeResult: -1 });
+      this.refresh();
+      event.currentTarget.blur();
+    }
+  }
+
+  // ── Focus / selection ────────────────────────────────────────────────────
+  focusNode(handle) {
+    const focus = this.node(handle);
+    if (!focus) return;
+    const before = this.currentVisible();
+    const hops = focusRadii(handle, this.getData().neighbors);
+    const ego = this.computeEgo(handle, hops);
+    const { targets, radius } = this.layoutFocus(
+      handle,
+      ego,
+      hops,
+      this.orderedTypes(this.nodes),
+    );
+    this.setData({ focused: handle });
+    this.refresh();
+    this.egoSet = ego;
+
+    this.beginTransition(before, ego, () => {
+      focus.x = this.graphCenter.x;
+      focus.y = this.graphCenter.y;
+      for (const graphNode of this.nodes) {
+        if (graphNode.handle === handle || !ego.has(graphNode.handle)) continue;
+        const target = targets.get(graphNode.handle);
+        if (target) {
+          graphNode.x = target.x;
+          graphNode.y = target.y;
+        }
+      }
+    });
+
+    // Frame the ego neighbourhood (zoom IN), not the hidden remainder.
+    this.tweenTo(
+      fitToCircle(this.graphCenter, radius + 160, {
+        width: this.width || 800,
+        height: this.height || 600,
+      }),
+    );
+  }
+
+  clearFocus() {
+    if (this.getData().focused === null) return;
+    const before = this.currentVisible();
+    this.setData({ focused: null });
+    this.refresh();
+    this.egoSet = null;
+    this.beginTransition(before, new Set(this.nodes.map((n) => n.handle)), () => {
+      for (const graphNode of this.nodes) {
+        graphNode.x = graphNode.ox ?? graphNode.x;
+        graphNode.y = graphNode.oy ?? graphNode.y;
+      }
+    });
+    this.tweenTo(
+      fitToBounds(this.nodes, {
+        width: this.width || 800,
+        height: this.height || 600,
+      }),
+    );
+  }
+
+  toggleFocus(handle) {
+    if (this.getData().focused === handle) this.clearFocus();
+    else this.focusNode(handle);
+  }
+
+  // ── Animation driver: one rAF loop advances the node transition + viewport tween ──
+  easeOutCubic(k) {
+    return 1 - Math.pow(1 - k, 3);
+  }
+
+  easeInOutCubic(k) {
+    return k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+  }
+
+  ensureLoop() {
+    if (this.loopRaf == null) this.loopRaf = requestAnimationFrame(this.loop);
+  }
+
+  requestDraw() {
+    if (!this.isMounted) return;
+    this.pendingDraw = true;
+    this.ensureLoop();
+  }
+
+  frame(now) {
+    this.loopRaf = null;
+    let cont = false;
+    if (this.vp.active) {
+      const k = Math.min(1, (now - this.vp.start) / this.vp.dur);
+      const eased = this.easeOutCubic(k);
+      this.tx = this.vp.from.tx + (this.vp.target.tx - this.vp.from.tx) * eased;
+      this.ty = this.vp.from.ty + (this.vp.target.ty - this.vp.from.ty) * eased;
+      this.scale =
+        this.vp.from.scale + (this.vp.target.scale - this.vp.from.scale) * eased;
+      if (k < 1) cont = true;
+      else this.vp.active = false;
+    }
+    if (this.na.active) {
+      const k = Math.min(1, (now - this.na.start) / this.na.dur);
+      this.na.t = this.easeInOutCubic(k);
+      if (k < 1) cont = true;
+      else {
+        this.na.active = false;
+        for (const graphNode of this.nodes) {
+          graphNode.px = graphNode.x ?? 0;
+          graphNode.py = graphNode.y ?? 0;
+        }
+      }
+    }
+    this.draw();
+    this.pendingDraw = false;
+    if (cont || this.pendingDraw) this.ensureLoop();
+  }
+
+  startNodeAnim(before, after) {
+    this.transBefore = before;
+    this.transAfter = after;
+    if (this.reduceMotion) {
+      for (const graphNode of this.nodes) {
+        graphNode.px = graphNode.x ?? 0;
+        graphNode.py = graphNode.y ?? 0;
+      }
+      this.na.active = false;
+      this.requestDraw();
+      return;
+    }
+    this.na.start = performance.now();
+    this.na.t = 0;
+    this.na.active = true;
+    this.ensureLoop();
+  }
+
+  beginTransition(before, after, setTargets) {
+    for (const graphNode of this.nodes) {
+      graphNode.px = graphNode.x ?? 0;
+      graphNode.py = graphNode.y ?? 0;
+    }
+    setTargets();
+    this.startNodeAnim(before, after);
+  }
+
+  tweenTo(target) {
+    if (this.reduceMotion) {
+      this.tx = target.tx;
+      this.ty = target.ty;
+      this.scale = target.scale;
+      this.requestDraw();
+      return;
+    }
+    this.vp.from = { tx: this.tx, ty: this.ty, scale: this.scale };
+    this.vp.target = target;
+    this.vp.start = performance.now();
+    this.vp.active = true;
+    this.ensureLoop();
+  }
+
+  // ── Per-node render state (position, alpha, scale) for the current frame ──
+  nodeRender(graphNode) {
+    const nx = graphNode.x ?? 0;
+    const ny = graphNode.y ?? 0;
+    if (this.na.active) {
+      const visibleBefore = this.transBefore.has(graphNode.handle);
+      const visibleAfter = this.transAfter.has(graphNode.handle);
+      if (!visibleBefore && !visibleAfter) {
+        return { draw: false, x: 0, y: 0, alpha: 0, scale: 1 };
+      }
+      const t = this.na.t;
+      if (visibleBefore && visibleAfter) {
+        const px = graphNode.px ?? nx;
+        const py = graphNode.py ?? ny;
+        const dx = nx - px;
+        const dy = ny - py;
+        if (Math.hypot(dx, dy) * this.scale < SHORT_SCREEN) {
+          return {
+            draw: true,
+            x: px + dx * t,
+            y: py + dy * t,
+            alpha: 1,
+            scale: 1 - 0.12 * Math.sin(Math.PI * t),
+          };
+        }
+        if (t < 0.5) {
+          const k = t / 0.5;
+          return { draw: true, x: px, y: py, alpha: 1 - k, scale: 1 - 0.55 * k };
+        }
+        const k = (t - 0.5) / 0.5;
+        return { draw: true, x: nx, y: ny, alpha: k, scale: 0.45 + 0.55 * k };
+      }
+      if (visibleBefore) {
+        return {
+          draw: true,
+          x: graphNode.px ?? nx,
+          y: graphNode.py ?? ny,
+          alpha: 1 - t,
+          scale: 1 - 0.4 * t,
+        };
+      }
+      return { draw: true, x: nx, y: ny, alpha: t, scale: 0.6 + 0.4 * t };
+    }
+
+    // Settled.
+    const { focused, highlightSet, searchMatches } = this.getData();
+    if (focused && this.egoSet && !this.egoSet.has(graphNode.handle)) {
+      return { draw: false, x: 0, y: 0, alpha: 0, scale: 1 };
+    }
+    let alpha = 1;
+    if (focused) {
+      alpha =
+        graphNode.handle === focused || (highlightSet?.has(graphNode.handle) ?? false)
+          ? 1
+          : 0.5;
+    } else if (searchMatches) {
+      alpha = searchMatches.has(graphNode.handle) ? 1 : 0.16;
+    }
+    return { draw: true, x: nx, y: ny, alpha, scale: 1 };
+  }
+
+  // ── Canvas drawing ────────────────────────────────────────────────────────
+  roundedRectPath(context, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    context.beginPath();
+    context.moveTo(x + r, y);
+    context.lineTo(x + width - r, y);
+    context.quadraticCurveTo(x + width, y, x + width, y + r);
+    context.lineTo(x + width, y + height - r);
+    context.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    context.lineTo(x + r, y + height);
+    context.quadraticCurveTo(x, y + height, x, y + height - r);
+    context.lineTo(x, y + r);
+    context.quadraticCurveTo(x, y, x + r, y);
+    context.closePath();
+  }
+
+  fitText(context, text, maxWidth) {
+    if (context.measureText(text).width <= maxWidth) return text;
+    let lo = 0;
+    let hi = text.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (context.measureText(text.slice(0, mid) + '...').width <= maxWidth) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo <= 0 ? '' : text.slice(0, lo) + '...';
+  }
+
+  draw() {
+    if (!this.canvasEl) return;
+    this.canvasCtx ??= this.canvasEl.getContext('2d');
+    if (!this.canvasCtx) return;
+    const context = this.canvasCtx;
+    const dpr = window.devicePixelRatio || 1;
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    context.clearRect(0, 0, this.width, this.height);
+
+    const settled = !this.na.active;
+    const { focused, hovered, searchMatches } = this.getData();
+
+    context.save();
+    context.translate(this.tx, this.ty);
+    context.scale(this.scale, this.scale);
+
+    // Edges only in the settled state — during a transition cards move/fade and edges
+    // would smear. Overview draws no edges (a 2.4k-edge hairball); they appear on
+    // focus/hover/search.
+    if (settled) {
+      for (const link of this.links) {
+        const source = link.source;
+        const target = link.target;
+        let active = false;
+        let hot = false;
+        if (focused && this.egoSet) {
+          if (!this.egoSet.has(source.handle) || !this.egoSet.has(target.handle)) continue;
+          active = true;
+          hot = source.handle === focused || target.handle === focused;
+        } else if (hovered) {
+          active = source.handle === hovered || target.handle === hovered;
+          hot = true;
+        } else if (searchMatches) {
+          active = searchMatches.has(source.handle) || searchMatches.has(target.handle);
+        }
+        if (!active) continue;
+        context.globalAlpha = hot ? 0.95 : 0.5;
+        context.strokeStyle = hot ? this.colors.accent : this.colors.edge;
+        context.lineWidth = (hot ? 2.2 : 1.3) / this.scale;
+        context.beginPath();
+        context.moveTo(source.x ?? 0, source.y ?? 0);
+        context.lineTo(target.x ?? 0, target.y ?? 0);
+        context.stroke();
+      }
+      context.globalAlpha = 1;
+    }
+
+    for (const graphNode of this.nodes) {
+      const state = this.nodeRender(graphNode);
+      if (!state.draw) continue;
+      const width = graphNode.w * state.scale;
+      const height = graphNode.h * state.scale;
+      const left = state.x - width / 2;
+      const top = state.y - height / 2;
+      context.globalAlpha = state.alpha;
+      this.roundedRectPath(context, left, top, width, height, 7 * state.scale);
+      context.fillStyle = this.colors.fill[graphNode.type] ?? this.colors.panel;
+      context.fill();
+      context.lineWidth = 1.3 / this.scale;
+      context.strokeStyle = this.colors.type[graphNode.type] ?? this.colors.accent;
+      context.stroke();
+      if (settled && (graphNode.handle === focused || graphNode.handle === hovered)) {
+        this.roundedRectPath(
+          context,
+          left - 2 / this.scale,
+          top - 2 / this.scale,
+          width + 4 / this.scale,
+          height + 4 / this.scale,
+          9,
+        );
+        context.lineWidth = (graphNode.handle === focused ? 2.6 : 2) / this.scale;
+        context.strokeStyle = this.colors.accent;
+        context.stroke();
+      }
+    }
+    context.globalAlpha = 1;
+    context.restore();
+
+    // Labels — settled state only, in crisp screen space.
+    if (settled) {
+      context.textAlign = 'left';
+      context.textBaseline = 'top';
+      context.lineJoin = 'round';
+      for (const graphNode of this.nodes) {
+        const state = this.nodeRender(graphNode);
+        if (!state.draw || state.alpha < 0.35) continue;
+        const sx = this.tx + this.scale * ((graphNode.x ?? 0) - graphNode.w / 2);
+        const sy = this.ty + this.scale * ((graphNode.y ?? 0) - graphNode.h / 2);
+        const sw = graphNode.w * this.scale;
+        const sh = graphNode.h * this.scale;
+        if (
+          sx > this.width + 40 ||
+          sx + sw < -40 ||
+          sy > this.height + 40 ||
+          sy + sh < -40
+        ) {
+          continue;
+        }
+        if (sw < 58 || sh < 20) continue;
+        context.save();
+        this.roundedRectPath(context, sx, sy, sw, sh, Math.min(7 * this.scale, 7));
+        context.clip();
+        context.globalAlpha = state.alpha;
+        const compact = sh < 34;
+        const handleSize = compact ? 9 : 11;
+        const padX = Math.max(10, Math.min(14, sw * 0.08));
+        const topPad = compact
+          ? Math.max(4, (sh - handleSize) / 2 - 1)
+          : Math.max(7, Math.min(10, sh * 0.18));
+        const textX = sx + padX + Math.max(3, 5 * this.scale);
+        const maxText = sw - padX * 2 - Math.max(6, 8 * this.scale);
+        context.font = `600 ${handleSize}px ui-monospace, Menlo, monospace`;
+        context.fillStyle = this.colors.label[graphNode.type] ?? this.colors.textStrong;
+        context.fillText(this.fitText(context, graphNode.handle, maxText), textX, sy + topPad);
+        if (
+          !compact &&
+          graphNode.name &&
+          graphNode.name !== graphNode.handle &&
+          sh >= 42
+        ) {
+          context.font = '10px Avenir Next, Seravek, Segoe UI, sans-serif';
+          context.fillStyle = this.colors.sub[graphNode.type] ?? this.colors.text;
+          context.fillText(
+            this.fitText(context, graphNode.name, maxText),
+            textX,
+            sy + topPad + 18,
+          );
+        }
+        context.restore();
+      }
+    }
+  }
+
+  // ── Hit-testing + coordinate helpers ──────────────────────────────────────
+  visibleForHit(graphNode) {
+    const focused = this.getData().focused;
+    return !(focused && this.egoSet && !this.egoSet.has(graphNode.handle));
+  }
+
+  findNodeAt(clientX, clientY) {
+    if (!this.canvasEl) return undefined;
+    const rect = this.canvasEl.getBoundingClientRect();
+    const gx = (clientX - rect.left - this.tx) / this.scale;
+    const gy = (clientY - rect.top - this.ty) / this.scale;
+    let best;
+    let bestD = Infinity;
+    const pad = 6 / Math.max(this.scale, 0.1);
+    for (const graphNode of this.nodes) {
+      if (!this.visibleForHit(graphNode)) continue;
+      const dx = (graphNode.x ?? 0) - gx;
+      const dy = (graphNode.y ?? 0) - gy;
+      if (
+        Math.abs(dx) <= graphNode.w / 2 + pad &&
+        Math.abs(dy) <= graphNode.h / 2 + pad
+      ) {
+        const distance = dx * dx + dy * dy;
+        if (distance < bestD) {
+          bestD = distance;
+          best = graphNode;
+        }
+      }
+    }
+    return best;
+  }
+
+  toGraph(clientX, clientY) {
+    const rect = this.canvasEl.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left - this.tx) / this.scale,
+      y: (clientY - rect.top - this.ty) / this.scale,
+    };
+  }
+
+  // ── Viewport: zoom, fit ───────────────────────────────────────────────────
+  clamp(value, lo, hi) {
+    return Math.min(hi, Math.max(lo, value));
+  }
+
+  zoomBy(factor) {
+    const cx = this.width / 2;
+    const cy = this.height / 2;
+    const nextScale = this.clamp(this.scale * factor, 0.05, 4);
+    this.tx = cx - ((cx - this.tx) / this.scale) * nextScale;
+    this.ty = cy - ((cy - this.ty) / this.scale) * nextScale;
+    this.scale = nextScale;
+    this.requestDraw();
+  }
+
+  fitAll() {
+    if (this.nodes.length) {
+      this.tweenTo(
+        fitToBounds(this.nodes, {
+          width: this.width || 800,
+          height: this.height || 600,
+        }),
+      );
+    }
+  }
+
+  resetView() {
+    if (this.getData().focused) this.clearFocus();
+    else this.fitAll();
+  }
+
+  onWheel(event) {
+    event.preventDefault();
+    const rect = this.canvasEl.getBoundingClientRect();
+    const px = event.clientX - rect.left;
+    const py = event.clientY - rect.top;
+    const k = event.ctrlKey ? ZOOM_PINCH : ZOOM_WHEEL;
+    const nextScale = this.clamp(
+      this.scale * Math.exp(-event.deltaY * k),
+      0.05,
+      4,
+    );
+    this.tx = px - ((px - this.tx) / this.scale) * nextScale;
+    this.ty = py - ((py - this.ty) / this.scale) * nextScale;
+    this.scale = nextScale;
+    this.requestDraw();
+  }
+
+  // ── Drag (node move / background pan; no-move = click). No live physics. ──
+  onPointerDown(event) {
+    this.canvasEl.setPointerCapture(event.pointerId);
+    const hit = this.findNodeAt(event.clientX, event.clientY);
+    this.drag = {
+      mode: hit ? 'node' : 'pan',
+      handle: hit?.handle,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      moved: false,
+    };
+  }
+
+  onPointerMove(event) {
+    if (!this.drag) {
+      const hit = this.findNodeAt(event.clientX, event.clientY);
+      const handle = hit ? hit.handle : null;
+      if (handle !== this.getData().hovered) {
+        this.setData({ hovered: handle });
+        this.requestDraw();
+      }
+      if (this.canvasEl) this.canvasEl.style.cursor = hit ? 'pointer' : 'grab';
+      return;
+    }
+    if (
+      Math.hypot(event.clientX - this.drag.startX, event.clientY - this.drag.startY) > 4
+    ) {
+      this.drag.moved = true;
+    }
+    if (this.drag.mode === 'pan') {
+      this.tx += event.clientX - this.drag.lastX;
+      this.ty += event.clientY - this.drag.lastY;
+    } else if (this.drag.handle) {
+      const graphPoint = this.toGraph(event.clientX, event.clientY);
+      const graphNode = this.node(this.drag.handle);
+      if (graphNode) {
+        graphNode.x = graphPoint.x;
+        graphNode.y = graphPoint.y;
+        graphNode.px = graphPoint.x;
+        graphNode.py = graphPoint.y;
+      }
+    }
+    this.drag.lastX = event.clientX;
+    this.drag.lastY = event.clientY;
+    this.requestDraw();
+  }
+
+  onPointerUp(event) {
+    if (!this.drag) return;
+    const drag = this.drag;
+    this.drag = null;
+    this.canvasEl.releasePointerCapture?.(event.pointerId);
+    if (drag.mode === 'pan') {
+      if (!drag.moved) this.clearFocus();
+      return;
+    }
+    if (!drag.moved && drag.handle) {
+      this.toggleFocus(drag.handle);
+    } else if (drag.handle) {
+      const graphNode = this.node(drag.handle);
+      if (graphNode && !this.getData().focused) {
+        // Dropped in the overview: remember its new home.
+        graphNode.ox = graphNode.x;
+        graphNode.oy = graphNode.y;
+      }
+    }
+  }
+
+  onDblClick(event) {
+    const hit = this.findNodeAt(event.clientX, event.clientY);
+    if (hit) this.ctx.router.push(hrefForHandle(hit.handle));
+  }
+
+  onCanvasKey(event) {
+    if (event.key === 'Escape') this.clearFocus();
+  }
+}
+</script>
+
+<style scoped>
+.constellation {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background:
+    radial-gradient(
+      circle at 50% 38%,
+      color-mix(in oklab, var(--color-brand) 7%, transparent),
+      transparent 62%
+    ),
+    var(--color-page);
+}
+
+.constellation:active {
+  cursor: grabbing;
+}
+
+.constellation-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  cursor: grab;
+}
+
+.constellation-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.constellation-empty .star {
+  color: var(--color-brand);
+  font-size: 2rem;
+}
+
+.constellation-empty p {
+  margin: 0;
+}
+
+.cn-search {
+  position: absolute;
+  top: 0.8rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(480px, calc(100% - 2rem));
+  z-index: 2;
+}
+
+.cn-search input {
+  width: 100%;
+  padding: 0.55rem 1rem;
+  font: 0.9rem var(--font-sans);
+  color: var(--color-ink);
+  background: color-mix(in oklab, var(--color-surface) 90%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: 99px;
+  outline: none;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 12px 32px color-mix(in oklab, var(--color-page) 55%, transparent);
+}
+
+.cn-search input:focus {
+  border-color: var(--color-ring);
+}
+
+.cn-search input::placeholder {
+  color: var(--color-muted);
+}
+
+.cn-search-results {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0.3rem;
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--color-surface) 94%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 12px 32px color-mix(in oklab, var(--color-page) 55%, transparent);
+}
+
+.cn-search-results button {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cn-search-results button:hover,
+.cn-search-results button.active {
+  background: var(--color-surface-sunken);
+}
+
+.cn-r-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.cn-r-handle {
+  font: 0.82rem var(--font-mono);
+  color: var(--color-ink);
+}
+
+.cn-r-name {
+  font-size: 0.8rem;
+  color: var(--color-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cn-search-results .cn-swatch {
+  width: 11px;
+  height: 11px;
+}
+
+.cn-legend {
+  position: absolute;
+  top: 0.8rem;
+  left: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  padding: 0.5rem 0.7rem;
+  max-height: calc(100% - 2rem);
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--color-surface) 86%, transparent);
+  font: 0.72rem var(--font-sans);
+  color: var(--color-body);
+  backdrop-filter: blur(4px);
+}
+
+.cn-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+}
+
+.cn-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 99px;
+  flex: none;
+}
+
+.cn-controls {
+  position: absolute;
+  right: 0.9rem;
+  bottom: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.cn-controls button {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--color-body);
+  background: color-mix(in oklab, var(--color-surface) 86%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.cn-controls button:hover {
+  color: var(--color-ink);
+  border-color: var(--color-border-strong);
+}
+
+.cn-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 0.9rem;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 99px;
+  background: color-mix(in oklab, var(--color-surface) 90%, transparent);
+  font-size: 0.85rem;
+  color: var(--color-ink);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 12px 32px color-mix(in oklab, var(--color-page) 55%, transparent);
+  max-width: calc(100% - 2rem);
+}
+
+.cn-panel strong {
+  font-weight: 600;
+}
+
+.cn-panel-type {
+  font: 600 0.62rem var(--font-mono);
+  letter-spacing: 0.06em;
+}
+
+.cn-panel-handle {
+  font: 0.72rem var(--font-mono);
+  color: var(--color-faint);
+}
+
+.cn-panel-status {
+  font: 0.72rem var(--font-mono);
+  color: var(--color-body);
+}
+
+.cn-panel a {
+  color: var(--color-brand);
+  white-space: nowrap;
+}
+</style>

@@ -23,7 +23,12 @@ describe('constellation serve', () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.cards).toHaveLength(25);
-    expect(data.connections).toHaveLength(64);
+    expect(data.connections).toHaveLength(47);
+    // The golden plan promises every card is connected.
+    const endpoints = new Set(
+      data.connections.flatMap((c: { a: string; b: string }) => [c.a, c.b]),
+    );
+    expect(endpoints.size).toBe(25);
     expect(data.errors).toEqual([]);
     const api = data.cards.find((c: { handle: string }) => c.handle === 'API-TICKETS');
     expect(api.frontmatter.path).toBe('/api/v1/tickets');

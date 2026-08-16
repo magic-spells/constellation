@@ -1,5 +1,9 @@
 node_modules/
 dist/
+docs/
 *.log
 .DS_Store
 viewer/dist/
+viewer/.puzzle/
+.playwright-mcp/
+viewer/app/public/vendor/

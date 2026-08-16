@@ -1,9 +1,32 @@
 ---
 name: git.ts
-status: built
+status: verified
 path: src/core/git.ts
 language: typescript
 summary: Git plumbing for change tracking + drift
+verified_at: '2026-08-16T02:38:59.880Z'
+verified_sha: 623af52933900eb27ccb1d3061a33b40a4da16ee
+notes:
+  - kind: verified
+    text: >-
+      Re-read against git.ts: the export list now carries repoRemoteUrl, with its own paragraph
+      noting it answers "where does the code live" rather than "how did it change" — the one
+      function here outside the change-tracking remit.
+    sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+  - kind: verified
+    text: >-
+      writeSyncPoint's explicit-sha branch was stamping "--end-of-options\n<sha>" into the marker —
+      rev-parse echoes that flag as output. Now routes through resolveCommit (--verify). The card
+      documents the trap; tests/sync.test.ts covers the branch, which previously had none.
+    sha: 623af52933900eb27ccb1d3061a33b40a4da16ee
 ---
 
-`diffPlan` (per-card delta), `planLog`, sync-marker read/write, `headSha`, `changedFilesSince`, `countCodeCommitsSince`, `recentPlanActivity`. Every caller-supplied revision is guarded by `safeRev` + `--end-of-options` so a dash-leading value can't be parsed as a git option.
+`diffPlan` (per-card delta), `planLog`, sync-marker read/write, `headSha`, `changedFilesSince`, `lastCommitByPath`, `dirtyFilesAmong`, `countCodeCommitsSince`, `recentPlanActivity`, `recentCodeActivity`, `latestTag`, `repoRemoteUrl`. Every caller-supplied revision is guarded by `safeRev` + `--end-of-options` so a dash-leading value can't be parsed as a git option.
+
+`repoRemoteUrl` reads `origin` and normalises it to a browsable https URL — ssh forms (`git@host:owner/repo`) rewritten, trailing `.git` stripped — returning null when there is no remote, no repo, or the result is not http(s). It is the only function here that answers a question about *where the code lives* rather than how it changed; [[FILE-SERVE]] hands it to the viewer as `repo_url`.
+
+`lastCommitByPath` is the card-relative drift primitive ([[FILE-STALE]]): one `git log --name-only` over a set of paths, returning each path's newest commit **and its position in that single newest-first walk**. Comparing positions makes "this file is newer than that one" a fact about one ordered walk rather than a comparison of two timestamps, and equal position means the same commit. A path absent from the result has no history at all — the caller's cue to fall back. `dirtyFilesAmong` is the companion `git diff --name-only HEAD` pass: uncommitted work no commit order can account for.
+
+`writeSyncPoint` resolves a caller-supplied revision through `resolveCommit`, never a bare `rev-parse --end-of-options <rev>`: **rev-parse echoes that flag back as its own first output line**, so the bare form stamped `--end-of-options\n<sha>` into the marker — a sha nothing resolves, which reads as `marker_error` and pins the plan at `drifted` permanently. `--verify` prints exactly one line and fails loudly on a revision that does not exist. Only the explicit-sha branch was ever affected (the default HEAD path takes no flag), which is why it went unnoticed until an explicit sha was passed.
+
+`.sync.json` carries two independent stamps and every write merges over the other: `synced_sha` / `synced_at` (the reconciliation point, `writeSyncPoint`) and `format_review` (the Constellation version whose file-format rules the plan was last reviewed under — `stampFormatReview` writes it, `formatReviewVersion` reads it). `readSyncMarker` returns the file whatever it holds; `readSyncPoint` returns it only when it pins a commit, so a marker carrying just `format_review` still reads as never-synced. The review stamp needs no git at all, which is what lets [[FILE-SCAFFOLD]] write it before the repo has a HEAD.

@@ -42,15 +42,30 @@ export async function loadPlan(root: string): Promise<PlanIndex> {
   resolveRefs(cards, issues);
   const connections = buildConnections(cards);
 
-  const connectedHandles = new Map<string, Set<string>>();
-  for (const conn of connections) {
-    if (!connectedHandles.has(conn.a)) connectedHandles.set(conn.a, new Set());
-    if (!connectedHandles.has(conn.b)) connectedHandles.set(conn.b, new Set());
-    connectedHandles.get(conn.a)!.add(conn.b);
-    connectedHandles.get(conn.b)!.add(conn.a);
-  }
+  return {
+    root: absRoot,
+    cards,
+    connections,
+    connectedHandles: adjacency(connections),
+    issues,
+  };
+}
 
-  return { root: absRoot, cards, connections, connectedHandles, issues };
+/** handle -> neighbors, both directions, over the given connections. */
+function adjacency(connections: Connection[]): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
+  for (const conn of connections) {
+    if (!map.has(conn.a)) map.set(conn.a, new Set());
+    if (!map.has(conn.b)) map.set(conn.b, new Set());
+    map.get(conn.a)!.add(conn.b);
+    map.get(conn.b)!.add(conn.a);
+  }
+  return map;
+}
+
+/** A card's neighbors in the connection graph — the whole graph, as the viewer draws it. */
+export function neighborsOf(index: PlanIndex, handle: string): Set<string> {
+  return index.connectedHandles.get(handle) ?? new Set();
 }
 
 function readCard(
@@ -166,7 +181,8 @@ function resolveRefs(cards: Map<string, Card>, issues: Issue[]): void {
         });
       }
     }
-    // Prose references may point at cards not yet written: warnings.
+    // Prose links are hyperlinks, not edges, and may point at cards not yet
+    // written — a dangling one is still a dead link, so: warning, never error.
     for (const target of [...card.refs.body, ...card.refs.mermaid]) {
       if (target !== card.handle && !cards.has(target)) {
         issues.push({
@@ -180,27 +196,26 @@ function resolveRefs(cards: Map<string, Card>, issues: Issue[]): void {
   }
 }
 
+/**
+ * Undirected, deduped edges — from FRONTMATTER ONLY: the `connections:` list and
+ * handle-shaped values in other frontmatter fields. A `[[HANDLE]]` body link or a
+ * mermaid node ID is a hyperlink and a pointer for readers, never an edge: the
+ * graph is the set of relationships an author declared on purpose. Declaring the
+ * same edge from both sides still yields exactly one connection. This changes
+ * nothing about lint: E005 vs W004 is still decided per-ref in resolveRefs, over
+ * link refs that never become an edge.
+ */
 function buildConnections(cards: Map<string, Card>): Connection[] {
-  const seen = new Set<string>();
-  const connections: Connection[] = [];
+  const byKey = new Map<string, Connection>();
   for (const card of cards.values()) {
-    const targets = [
-      ...card.refs.connections,
-      ...card.refs.frontmatter,
-      ...card.refs.body,
-      ...card.refs.mermaid,
-    ];
-    for (const target of targets) {
+    for (const target of [...card.refs.connections, ...card.refs.frontmatter]) {
       if (target === card.handle || !cards.has(target)) continue;
       const [a, b] =
         card.handle < target ? [card.handle, target] : [target, card.handle];
-      const key = `${a}\u0000${b}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      connections.push({ a, b });
+      byKey.set(`${a}\u0000${b}`, { a, b });
     }
   }
-  return connections;
+  return [...byKey.values()];
 }
 
 async function listMarkdownFiles(root: string): Promise<string[]> {

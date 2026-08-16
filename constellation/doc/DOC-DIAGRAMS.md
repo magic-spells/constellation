@@ -2,6 +2,9 @@
 name: Diagrams and flows
 kind: reference
 status: built
+connections:
+  - FILE-EXTRACT
+  - DOC-FILE-FORMAT
 ---
 
 # Diagrams and flows
@@ -12,8 +15,10 @@ Three tiers, cheapest first:
    connection graph on demand. Never stored, never stale. The default for "what does this area
    look like."
 2. **Authored Mermaid** — a DIAGRAM card whose body is a mermaid block; use handles as node IDs
-   so the diagram joins the graph ([[FILE-EXTRACT]] reads them). Sequence diagrams and
-   `stateDiagram-v2` work the same way in FLOW and STATE cards.
+   so every box is a working link ([[FILE-EXTRACT]] reads them). Drawing an arrow does *not*
+   join the diagram to the graph — a mermaid node ID is a link, not a connection (see
+   [[DOC-FILE-FORMAT]]) — so declare what the card is about in `connections:`. Sequence
+   diagrams and `stateDiagram-v2` work the same way in FLOW and STATE cards.
 3. **Pinned layouts** — structured `nodes`/`edges`/`phases` with explicit positions in DIAGRAM
    frontmatter (`schemas/diagram.json`). Only when layout carries meaning; positions make noisy
    diffs.

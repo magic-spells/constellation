@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "card.json",
-  "title": "Constellation card — reserved + cross-type metadata keys",
+  "title": "Constellation card \u2014 reserved + cross-type metadata keys",
   "description": "Keys every card may use, regardless of type. The first four are the reserved keys (name, kind, status, connections); the rest are optional cross-type metadata managed by tooling (code binding + verification provenance + durable notes). All other frontmatter keys are type-specific fields defined in the per-type schemas.",
   "type": "object",
   "properties": {
@@ -17,12 +17,19 @@
       "description": "Subtype discriminator, lowercase slug (e.g. sql-table, e2e, decision)."
     },
     "status": {
-      "enum": ["planned", "building", "built", "verified"],
+      "enum": [
+        "planned",
+        "building",
+        "built",
+        "verified"
+      ],
       "description": "Lifecycle state. Orthogonal to git history: 'what changed' comes from git, not from this field."
     },
     "connections": {
       "type": "array",
-      "items": { "$ref": "#/$defs/handle" },
+      "items": {
+        "$ref": "#/$defs/handle"
+      },
       "description": "Plain list of handles this card is connected to. Undirected; declare on whichever card you are editing."
     },
     "code_refs": {
@@ -32,14 +39,14 @@
         "type": "string",
         "minLength": 1,
         "maxLength": 300,
-        "description": "Repo-relative path, optionally path:symbol (e.g. src/api/tickets.ts or src/api/tickets.ts:createTicket)."
+        "description": "Repo-relative path to a file or a DIRECTORY, optionally path:symbol (e.g. src/api/tickets.ts, src/api/tickets.ts:createTicket, or tests). A directory binds everything under it for drift; its contents are never attached \u2014 bind files for that."
       },
-      "description": "Code this card is bound to, for drift detection and code attach. Optional precision binding ON ANY card; the primary binding stays a connected FILE card's path:. Symbol after a colon is an informational hint — drift is detected at file granularity."
+      "description": "Code this card is bound to, for drift detection and code attach. Optional precision binding ON ANY card; the primary binding stays a connected FILE card's path:. Symbol after a colon is an informational hint \u2014 drift is detected at file granularity, and a directory ref drifts when anything under it changes."
     },
     "verified_sha": {
       "type": "string",
       "pattern": "^[0-9a-fA-F]{7,40}$",
-      "description": "Git sha this card's claim was last verified against (set by set_verified). The baseline for code-side drift detection — not a change-tracking flag (that is git's job). The staleness VERDICT is always recomputed live and never stored."
+      "description": "Git sha this card's claim was last verified against (set by set_verified). The baseline for code-side drift detection \u2014 not a change-tracking flag (that is git's job). The staleness VERDICT is always recomputed live and never stored."
     },
     "verified_at": {
       "type": "string",
@@ -52,7 +59,13 @@
         "type": "object",
         "properties": {
           "kind": {
-            "enum": ["decision", "gotcha", "state", "deviation", "verified"],
+            "enum": [
+              "decision",
+              "gotcha",
+              "state",
+              "deviation",
+              "verified"
+            ],
             "description": "decision = a choice + why; gotcha = a non-obvious trap; state = current built/live reality; deviation = where code intentionally differs from the card; verified = a verification note."
           },
           "text": {
@@ -65,9 +78,12 @@
             "description": "Optional git sha the note was recorded against."
           }
         },
-        "required": ["kind", "text"]
+        "required": [
+          "kind",
+          "text"
+        ]
       },
-      "description": "Append-only typed memory the code can't hold (decisions, gotchas, current state, deviations). Ordered newest-last by append order; managed by append_note. Queryable by kind. No timestamps — ordering is array position; 'what changed when' is git's job."
+      "description": "Append-only typed memory the code can't hold (decisions, gotchas, current state, deviations). Ordered newest-last by append order; managed by append_note. Queryable by kind. No timestamps \u2014 ordering is array position; 'what changed when' is git's job."
     }
   },
   "$defs": {

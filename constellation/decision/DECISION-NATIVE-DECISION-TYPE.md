@@ -5,6 +5,8 @@ connections:
   - DOC-CARD-TYPES
   - DOC-MCP-UPGRADES
   - FILE-TYPES
+verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
+verified_at: '2026-08-16T00:47:22.586Z'
 ---
 
 # DECISION is a native card type
@@ -32,7 +34,7 @@ typed as documentation.
 
 ## Decision
 
-Add `DECISION-` / `decision/` as the 18th type. A DECISION card is an ADR — the
+Add `DECISION-` / `decision/` as a native card type (one of the 21). A DECISION card is an ADR — the
 choice, the why, the alternatives rejected — **connected to every card it
 shaped**. Cards are **living, one per decision topic**: when a decision changes,
 the existing card is rewritten to state only the current choice and why (the

@@ -2,9 +2,13 @@
 name: Auto-assignment of new tickets
 status: planned
 release: RELEASE-V1-1-0
+change: feature
 branch: feature/auto-assign
 connections:
   - JOB-AUTO-ASSIGN
+  - API-TICKETS
+  - DB-TICKETS
+  - STATE-TICKET
 ---
 
 # Auto-assignment of new tickets

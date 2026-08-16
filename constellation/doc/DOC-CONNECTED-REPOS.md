@@ -2,6 +2,9 @@
 name: Connected repos (multi-repo)
 kind: spec
 status: built
+connections:
+  - FILE-REPOS
+  - FILE-RESOLVE
 ---
 
 # Connected repos (multi-repo)

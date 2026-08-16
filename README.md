@@ -14,10 +14,11 @@ constellation/
   ...
 ```
 
-Each card is frontmatter (structure) + markdown (narrative). Connections are a
-plain list of handles — plus `[[HANDLE]]` links in prose, handle-shaped values in
-frontmatter fields, and handles used as Mermaid node IDs. The indexer derives the
-graph; nothing derived is ever stored.
+Each card is frontmatter (structure) + markdown (narrative). Connections come from
+frontmatter: a plain `connections:` list of handles, plus handle-shaped values in
+other frontmatter fields. A `[[HANDLE]]` link in prose or a handle used as a Mermaid
+node ID is a hyperlink — clickable, linted, but never a graph edge. The indexer
+derives the graph; nothing derived is ever stored.
 
 **Why files?** Plans drift from code when they live somewhere else. Here a plan
 change is a commit: it rides the same branch and PR as the code it describes,
@@ -169,9 +170,24 @@ may not be your project — in which case tools return `NO_PLAN_FOUND`.
 ## Viewer
 
 `constellation serve` renders the plan as a local website, **editable in place**
-(pass `--readonly` to disable writes). Nine themes toggle in the header:
-**observatory** (dark, star-field), **claw** (cream paper, serif, coral accents),
-**black**, **synthwave**, **sumi**, **daylight**, **frost**, **ember**, and **corona**.
+(pass `--readonly` to disable writes). Five colour schemes toggle in the header —
+**observatory** (dark, star-field; the default), **default**, **warm**, **void** and
+**dim** — each with a light / dark / follow-system switch.
+
+The **Overview** page is a status board for the plan:
+
+- a **health strip** — the freshness verdict, the counts that qualify it (cards,
+  connections, integrity, drift), and a **Set sync point** button that stamps the
+  baseline every claim card is measured against
+- **Releases** — every `RELEASE` card newest-first, the one still in flight expanded
+  with its `FEATURE` cards grouped **Breaking / Features / Fixes / Chores** (from each
+  feature's `change:` field), the shipped ones collapsed and openable. A release
+  describes itself from the features pointing at it — never a hand-written changelog
+- **Activity** — plan commits and code commits in one stream, tagged by kind
+- **Code drift** — the cards whose bound code moved since they were last verified,
+  as a verdict rather than a list, with the fix named when nothing is tracked yet
+- **Notes** — the latest `append_note` memory across cards
+
 Card pages show structured fields, the
 markdown body, connection chips in both directions, and a small constellation
 diagram of the card's neighborhood — its nodes tinted by card type. Mermaid blocks

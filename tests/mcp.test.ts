@@ -78,7 +78,7 @@ describe('hydrated retrieval', () => {
     expect(byHandle['DATATYPE-TICKET'].body).toContain('interface Ticket');
     expect(byHandle['DB-TICKETS'].frontmatter.columns.length).toBeGreaterThan(0);
     expect(byHandle['TEST-CREATE-TICKET'].body).toContain('happy path');
-    expect(byHandle['DOC-TICKET-LIFECYCLE']).toBeDefined();
+    expect(byHandle['ROLE-SUPPORT-AGENT']).toBeDefined();
   });
 
   it('search can hydrate matches with connected cards', async () => {
@@ -249,5 +249,15 @@ describe('writes', () => {
     const { data } = await call('delete_card', { handle: 'TEST-CREATE-TICKET' });
     expect(data.deleted).toBe('TEST-CREATE-TICKET');
     expect(data.referenced_by).toContain('API-TICKETS');
+  });
+
+  it('delete_card refuses PLAN-PROJECT', async () => {
+    const res = await call('delete_card', { handle: 'PLAN-PROJECT' });
+    expect(res.isError).toBe(true);
+    expect(res.data.error.code).toBe('INVALID_HANDLE');
+    expect(res.data.error.message).toContain('PLAN-PROJECT');
+    const still = await call('get_card', { handle: 'PLAN-PROJECT' });
+    expect(still.isError).toBe(false);
+    expect(still.data.card.handle).toBe('PLAN-PROJECT');
   });
 });

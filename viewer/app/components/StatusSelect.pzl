@@ -1,0 +1,104 @@
+<puzzle-view>
+  <span class="status-select" data-status={ status }>
+    {#if canEdit}
+      <Select
+        options={ options }
+        value={ status }
+        indicator="caret"
+        @change={ pick }/>
+    {:else if status}
+      <Badge variant={ variant } class={ tint }>{ status }</Badge>
+    {/if}
+  </span>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Badge from './ui/Badge.pzl';
+import Select from './ui/Select.pzl';
+import { savePatch } from '../lib/edit.js';
+
+// StatusSelect — a card's `status:`, as a read-only Badge on a read-only plan
+// and a Select when the plan is editable. The four statuses are Constellation's
+// canonical ladder (planned → building → built → verified, from the Svelte
+// viewer's StatusPill); "no status" clears the key, which is legal on every
+// type.
+//
+// It owns the write rather than reporting up: the patch is a one-field
+// optimistic-locked PATCH with nothing for the card page to add, and keeping it
+// here means the same three lines aren't repeated at every call site.
+//
+// Props: handle, status (''|planned|building|built|verified), mtime (if_mtime
+// baseline). The store record is the source of truth — the plan reload that
+// follows a successful write re-renders this from the file on disk, so there is
+// no local copy of the value to drift.
+
+const STATUSES = ['planned', 'building', 'built', 'verified'];
+
+const BADGE = {
+	planned: { variant: 'outline', tint: 'text-muted!' },
+	building: { variant: 'default', tint: 'bg-warning-tint! text-warning!' },
+	built: { variant: 'brand', tint: '' },
+	verified: { variant: 'default', tint: 'bg-success-tint! text-success!' },
+};
+
+export default class StatusSelect extends PuzzleView {
+	data(params, props) {
+		const status = props.status || '';
+		const badge = BADGE[status] ?? { variant: 'default', tint: '' };
+
+		return {
+			status,
+			canEdit: this.ctx.store?.findOne('plan', 'plan')?.editable === true,
+			variant: badge.variant,
+			tint: badge.tint,
+			options: [
+				{ value: '', label: 'no status' },
+				...STATUSES.map((value) => ({ value, label: value })),
+			],
+		};
+	}
+
+	events = {
+		pick: (value) => {
+			const next = value || null;
+			if ((next ?? '') === this.getData().status) return;
+			void savePatch(
+				this.ctx.store,
+				this.props.handle,
+				{ status: next },
+				this.props.mtime,
+			);
+		},
+	};
+}
+</script>
+
+<style>
+.status-select { display: inline-flex; }
+
+/* The editable Select trigger reads as the old viewer's status pill: rounded,
+   mono-caps, tinted per status (building=warning, built=brand/blue,
+   verified=success). Scoped by the .status-select ancestor so no other Select
+   on the page is affected. */
+.status-select [data-select-trigger] {
+	--sc: var(--color-muted);
+	border: 1px solid color-mix(in srgb, var(--sc) 40%, transparent);
+	border-radius: 99px;
+	background: color-mix(in srgb, var(--sc) 8%, transparent);
+	min-width: 7rem;
+	justify-content: center;
+	padding: 0.24rem 1.1rem;
+	color: var(--sc);
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: 0.66rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.status-select[data-status=''] [data-select-trigger] { border-style: dashed; background: none; }
+.status-select[data-status='planned'] [data-select-trigger] { border-style: dashed; background: none; }
+.status-select[data-status='building'] [data-select-trigger] { --sc: var(--color-warning); }
+.status-select[data-status='built'] [data-select-trigger] { --sc: var(--color-brand); }
+.status-select[data-status='verified'] [data-select-trigger] { --sc: var(--color-success); }
+</style>

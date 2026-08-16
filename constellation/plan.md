@@ -1,5 +1,11 @@
 ---
 name: Constellation
+connections:
+  - FILE-CLI
+  - DOC-MCP-SERVER
+  - PAGE-VIEWER-HOME
+  - DOC-FILE-FORMAT
+  - DIAGRAM-ARCHITECTURE
 ---
 
 # Constellation
@@ -22,8 +28,8 @@ One package (`@magic-spells/constellation`) that is four things at once, kept co
 - **A CLI** (`constellation`) — `init`, `lint`, `mcp`, `serve`, `repos`, `version`, `upgrade`. See [[FILE-CLI]].
 - **An MCP server** (`constellation mcp`, stdio) — graph queries, hydrated retrieval,
   validated writes, git change-tracking, code binding/drift, for AI agents. See [[DOC-MCP-SERVER]].
-- **A viewer** (Svelte 5 + Tailwind v4) — a local web app rendering the plan as a browsable,
-  editable site. See [[PAGE-VIEWER-HOME]].
+- **A viewer** (Puzzle + puzzle-pieces + Tailwind v4) — a local web app rendering the plan as
+  a browsable, editable site. See [[PAGE-VIEWER-HOME]].
 
 Plus the **spec** (this plan, formerly `docs/`), the **schemas** (`schemas/*.json`), the
 authoring **skill** (`skill/`), and the **golden example** (`examples/constellation/`).

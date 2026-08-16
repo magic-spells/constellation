@@ -1,0 +1,248 @@
+<puzzle-view>
+  <section class="panel panel-release">
+    <h3><Icon name="tag" size="0.85rem"/> Releases</h3>
+    <p class="rel-versions">
+      {#if latestTag}<span class="rel-tag"><Icon name="tag" size="0.8rem"/> { latestTag } tagged</span>{/if}
+      {#if packageVersion}<span class="rel-pkg"><Icon name="box" size="0.8rem"/> { packageVersion } in package.json</span>{/if}
+      {#if noVersions}<span class="rel-none">no tags yet</span>{/if}
+    </p>
+
+    {#if empty}
+      <p class="panel-empty">No RELEASE cards yet — a RELEASE marks a version milestone; FEATURE cards target it via <code>release:</code> and group by <code>change:</code>.</p>
+    {:else}
+      <ol class="rel-list">
+        {#for r in releases}
+          <li key={ r.handle } class={ r.itemClass }>
+            <button type="button" class="rel-toggle" aria-expanded={ r.ariaExpanded } @click={ toggle(r.handle) }>
+              <span class="rel-caret">{ r.caret }</span>
+              <span class="rel-title">{ r.name }</span>
+              {#if r.version}<span class="rel-chip">{ r.version }</span>{/if}
+              {#if r.tagged}<span class="rel-tagged"><Icon name="check" size="0.7rem"/> tagged</span>{/if}
+              {#if r.hasBreaking}<span class="rel-breaking"><Icon name="alert" size="0.7rem"/> { r.breakingCount } breaking</span>{/if}
+              <span class="rel-summary">{ r.summary }</span>
+            </button>
+
+            {#if r.expanded}
+              <div class="rel-body">
+                {#if r.hasFeatures}
+                  <div class="rel-progress"><div class="rel-bar" style={ r.barStyle }></div></div>
+                  {#for group in r.groups}
+                    <div key={ group.key } class="rel-group">
+                      <p class={ group.labelClass }>
+                        <Icon name={ group.icon } size="0.8rem"/>
+                        <span>{ group.label }</span>
+                        <span class="rel-group-n">{ group.count }</span>
+                      </p>
+                      <ul class="rel-features">
+                        {#for f in group.items}
+                          <li key={ f.handle }>
+                            <a href="{ f.path | link }">{ f.name }</a>
+                            <Badge variant={ f.statusVariant } class={ f.statusTint }>{ f.status }</Badge>
+                          </li>
+                        {/for}
+                      </ul>
+                    </div>
+                  {/for}
+                {:else}
+                  <p class="panel-empty">No FEATURE cards target this release yet.</p>
+                {/if}
+                <a class="rel-open" href="{ r.path | link }">Open { r.handle } →</a>
+              </div>
+            {/if}
+          </li>
+        {/for}
+      </ol>
+    {/if}
+  </section>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Icon from './Icon.pzl';
+import Badge from './ui/Badge.pzl';
+
+// ReleasePanel — the release timeline. Every RELEASE card newest-first: the one
+// being pushed on right now expanded (progress bar + its features grouped
+// Breaking / Features / Fixes / Chores), the ones already out collapsed to a
+// summary line you can open.
+//
+// Presentational plus one local toggle: the `model` prop is shaped by
+// `releasesModel()` in ../lib/dashboard.js, and what's expanded lives in an
+// instance Set — a view preference, not plan data, so it must not round-trip
+// through the store (and must survive the 20s /api/sync re-render, which it
+// does: the Set outlives any one data() pass).
+//
+// The contents are DERIVED from FEATURE cards pointing at the release. Nothing
+// changelog-shaped is ever read off the RELEASE card — see schemas/release.json.
+
+export default class ReleasePanel extends PuzzleView {
+	data(params, props) {
+		const model = props.model ?? {};
+		const releases = Array.isArray(model.releases) ? model.releases : [];
+
+		// Open whatever the model calls current, once. Seeding waits for the first
+		// pass that actually HAS releases: data() can run before the store has
+		// answered, and seeding off an empty list would leave the panel collapsed
+		// forever. After the seed the user's clicks own it — never re-seed.
+		this._open ??= new Set();
+		if (!this._seeded && releases.length > 0) {
+			for (const r of releases) if (r.current) this._open.add(r.handle);
+			this._seeded = true;
+		}
+
+		const latestTag = model.latestTag ?? '';
+		const packageVersion = model.packageVersion ?? '';
+
+		return {
+			latestTag,
+			packageVersion,
+			noVersions: !latestTag && !packageVersion,
+			empty: releases.length === 0,
+			releases: releases.map((r) => {
+				const expanded = this._open.has(r.handle);
+				const total = r.totalCount ?? 0;
+				const shipped = r.shippedCount ?? 0;
+				return {
+					handle: r.handle,
+					path: r.path ?? '',
+					name: r.name ?? r.handle,
+					version: r.version ?? '',
+					tagged: !!r.tagged,
+					breakingCount: r.breakingCount ?? 0,
+					hasBreaking: (r.breakingCount ?? 0) > 0,
+					expanded,
+					ariaExpanded: expanded ? 'true' : 'false',
+					caret: expanded ? '▾' : '▸',
+					itemClass: r.current ? 'rel-item current' : 'rel-item',
+					// One line that answers "where is this release": progress while it
+					// is in flight, a plain count once it is out.
+					summary: summaryFor(r, shipped, total),
+					hasFeatures: total > 0,
+					barStyle: `width: ${r.pct ?? 0}%`,
+					groups: (Array.isArray(r.groups) ? r.groups : []).map((group) => {
+						const items = Array.isArray(group.items) ? group.items : [];
+						return {
+							key: group.key,
+							label: group.label,
+							icon: group.icon ?? 'sparkle',
+							labelClass: group.tone ? `rel-group-label ${group.tone}` : 'rel-group-label',
+							count: items.length,
+							items,
+						};
+					}),
+				};
+			}),
+		};
+	}
+
+	events = {
+		toggle: (handle) => {
+			if (this._open.has(handle)) this._open.delete(handle);
+			else this._open.add(handle);
+			this.refresh();
+		},
+	};
+}
+
+/** "5 of 7 features" in flight; "9 features · 1 breaking" once shipped. */
+function summaryFor(release, shipped, total) {
+	if (total === 0) return release.shipped ? 'shipped' : 'no features yet';
+	const noun = total === 1 ? 'feature' : 'features';
+	const breaking = release.breakingCount > 0 ? ` · ${release.breakingCount} breaking` : '';
+	if (release.shipped) return `${total} ${noun}${breaking}`;
+	return `${shipped} of ${total} ${noun} shipped${breaking}`;
+}
+</script>
+
+<style>
+.rel-versions { display: flex; flex-wrap: wrap; gap: 0.7rem 1.1rem; margin: 0 0 0.7rem; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
+.rel-versions > span { display: inline-flex; align-items: center; gap: 0.3rem; }
+
+.rel-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.rel-item { border-top: 1px solid var(--color-border); padding: 0.15rem 0; }
+.rel-item:first-child { border-top: 0; }
+
+/* The whole header row is the toggle — a button, so it is keyboard-reachable
+   and announces its state, but styled as a row rather than a control. */
+.rel-toggle {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.5rem;
+	width: 100%;
+	border: 0;
+	background: none;
+	padding: 0.45rem 0;
+	color: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+.rel-toggle:hover .rel-title { color: var(--color-ink); text-decoration: underline; }
+.rel-caret { flex: none; width: 0.8rem; color: var(--color-faint); font-size: 0.7rem; }
+.rel-title { color: var(--color-body); font-size: 0.9rem; font-weight: 600; }
+.rel-item.current .rel-title { color: var(--color-ink); }
+.rel-chip {
+	flex: none;
+	border-radius: 0.25rem;
+	background: var(--color-surface-sunken, var(--color-border));
+	padding: 0.05rem 0.35rem;
+	color: var(--color-muted);
+	font-family: var(--font-mono);
+	font-size: 0.68rem;
+}
+/* Two pills that only ever appear when they are true — a tagged release really
+   went out, a breaking count is the thing you scan a release list for. */
+.rel-tagged,
+.rel-breaking {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.22rem;
+	border-radius: 99px;
+	padding: 0.02rem 0.42rem;
+	font-family: var(--font-mono);
+	font-size: 0.6rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.rel-tagged { border: 1px solid color-mix(in oklab, var(--color-success) 40%, transparent); color: var(--color-success); }
+.rel-breaking {
+	border: 1px solid color-mix(in oklab, var(--color-warning) 45%, transparent);
+	background: color-mix(in oklab, var(--color-warning) 12%, transparent);
+	color: var(--color-warning);
+}
+.rel-summary { margin-left: auto; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.7rem; white-space: nowrap; }
+
+.rel-body { padding: 0.1rem 0 0.8rem 1.3rem; }
+.rel-progress { overflow: hidden; height: 5px; border-radius: 99px; background: var(--color-surface-sunken, var(--color-border)); }
+.rel-bar { height: 100%; border-radius: 99px; background: var(--color-brand); transition: width 0.3s ease; }
+
+.rel-group { margin-top: 0.7rem; }
+.rel-group-label {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	margin: 0 0 0.15rem;
+	color: var(--color-faint);
+	font-family: var(--font-mono);
+	font-size: 0.64rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+.rel-group-label.warn { color: var(--color-warning); }
+.rel-group-n {
+	border-radius: 99px;
+	background: var(--color-surface-sunken, var(--color-border));
+	padding: 0 0.3rem;
+	color: var(--color-muted);
+	letter-spacing: 0;
+}
+
+.rel-features { display: flex; flex-direction: column; gap: 0.1rem; margin: 0; padding: 0; list-style: none; }
+.rel-features li { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; min-width: 0; padding: 0.22rem 0; }
+.rel-features li a { overflow: hidden; min-width: 0; color: var(--color-body); font-size: 0.84rem; text-overflow: ellipsis; white-space: nowrap; }
+.rel-features li a:hover { color: var(--color-ink); text-decoration: underline; }
+
+.rel-open { display: inline-block; margin-top: 0.7rem; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.7rem; }
+.rel-open:hover { color: var(--color-brand); }
+</style>

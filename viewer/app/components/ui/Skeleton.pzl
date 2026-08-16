@@ -1,0 +1,42 @@
+<puzzle-view>
+  <div class={ classes } aria-hidden="true"></div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// Skeleton — a pulsing placeholder for content that hasn't loaded. The variant
+// picks the shape (text line, circle, or block); the caller sizes it with a
+// `class` prop (w-48, size-10, h-24 …). aria-hidden keeps it out of the
+// accessibility tree — it's a visual affordance, not content.
+//
+// Pairs naturally with Puzzle's <puzzle-skeleton> section (v1.8), which swaps in
+// the real template once the first data() resolves:
+//
+//   <puzzle-skeleton>
+//     <Skeleton variant="text" class="w-2/3" />
+//   </puzzle-skeleton>
+//
+//   <Skeleton variant="text" class="w-48" />       text line
+//   <Skeleton variant="circle" class="size-10" />
+//   <Skeleton variant="block" class="h-24 w-full" />
+const BASE = 'animate-pulse bg-surface-sunken';
+
+const VARIANT = {
+  text: 'h-4 rounded',
+  circle: 'rounded-full',
+  block: 'rounded-lg',
+};
+
+export default class Skeleton extends PuzzleView {
+  data(params, props) {
+    return {
+      classes: [
+        BASE,
+        VARIANT[props.variant] || VARIANT.block,
+        props.class || '',
+      ].join(' '),
+    };
+  }
+}
+</script>

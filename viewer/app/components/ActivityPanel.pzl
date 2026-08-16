@@ -1,0 +1,126 @@
+<puzzle-view>
+  <section class="panel panel-activity">
+    <h3><Icon name="history" size="0.85rem"/> Activity</h3>
+    {#if hasRows}
+      <ul class="act-rows">
+        {#for row in rows}
+          <li key={ row.key } class={ row.rowClass }>
+            <span class="a-when">{ row.when }</span>
+            <span class={ row.kindClass } title={ row.kind }>
+              <Icon name={ row.icon } size="0.85rem"/>
+              <span class="a-kind-text">{ row.kind }</span>
+            </span>
+            <span class="a-subject">{ row.subject }</span>
+            {#if row.isSyncPoint}<span class="a-tag">sync</span>{/if}
+            {#if row.hasCards}
+              <span class="a-cards">
+                {#for chip in row.cards}
+                  <a key={ chip.handle } class="a-card" href="{ chip.path | link }">{ chip.handle }</a>
+                {/for}
+                {#if row.more}<span class="a-more">{ row.more }</span>{/if}
+              </span>
+            {/if}
+          </li>
+        {/for}
+      </ul>
+    {:else}
+      <p class="panel-empty">No commits yet — activity appears once the repo has history.</p>
+    {/if}
+  </section>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Icon from './Icon.pzl';
+
+// ActivityPanel — one stream for the whole repo: commits that touched the plan
+// and commits that touched code, interleaved newest-first and tagged so you can
+// tell which is which. Replaces the old split (plan commits in the sync panel,
+// code commits in their own panel), which made the reader merge two lists by
+// timestamp to answer one question.
+//
+// Presentational only: one `model` prop, shaped by `activityModel()` in
+// ../lib/dashboard.js. Plan rows carry the cards the commit touched, as links.
+
+export default class ActivityPanel extends PuzzleView {
+	data(params, props) {
+		const model = props.model ?? {};
+		const rows = Array.isArray(model.rows) ? model.rows : [];
+
+		return {
+			hasRows: rows.length > 0,
+			rows: rows.map((row, i) => {
+				const cards = Array.isArray(row.cards) ? row.cards : [];
+				return {
+					key: row.key ?? i,
+					kind: row.kind ?? '',
+					icon: row.icon ?? 'commit',
+					kindClass: `a-kind ${row.kind ?? ''}`,
+					rowClass: row.isSyncPoint ? 'act-row sync' : 'act-row',
+					when: row.when ?? '',
+					subject: row.subject ?? '',
+					isSyncPoint: !!row.isSyncPoint,
+					cards,
+					hasCards: cards.length > 0,
+					more: row.more ?? '',
+				};
+			}),
+		};
+	}
+}
+</script>
+
+<style>
+.act-rows { display: flex; flex-direction: column; gap: 0.1rem; margin: 0; padding: 0; list-style: none; }
+.act-row { display: flex; align-items: baseline; gap: 0.6rem; min-width: 0; padding: 0.3rem 0; font-size: 0.85rem; }
+.act-row .a-when { flex: none; width: 4.6rem; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
+/* The kind tag is the whole point of merging the two streams — keep it a fixed
+   width so the subjects still line up into a readable column. */
+.act-row .a-kind {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.28rem;
+	width: 3.6rem;
+	color: var(--color-faint);
+	font-family: var(--font-mono);
+	font-size: 0.62rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+/* Plan commits are the ones that changed the memory — brand-tinted so the two
+   streams separate at a glance without reading the tag. */
+.act-row .a-kind.plan { color: var(--color-brand); }
+/* flex-basis 40%, not 0: with `flex: 1` the subject shrinks to nothing next to
+   the fixed-width card chips, and the chips then overflow the panel. Giving the
+   subject a real basis and letting the chip strip shrink instead keeps the
+   commit message readable and the row inside its box. */
+.act-row .a-subject { flex: 1 1 40%; overflow: hidden; min-width: 0; color: var(--color-body); text-overflow: ellipsis; white-space: nowrap; }
+.act-row.sync .a-subject { color: var(--color-muted); }
+.act-row .a-tag {
+	flex: none;
+	border: 1px solid color-mix(in oklab, var(--color-brand) 40%, transparent);
+	border-radius: 99px;
+	padding: 0.05rem 0.45rem;
+	color: var(--color-brand);
+	font-family: var(--font-mono);
+	font-size: 0.6rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.act-row .a-cards { flex: 0 1 auto; display: inline-flex; overflow: hidden; min-width: 0; gap: 0.3rem; }
+.act-row .a-card {
+	overflow: hidden;
+	max-width: 10rem;
+	border: 1px solid var(--color-border);
+	border-radius: 5px;
+	padding: 0.04rem 0.4rem;
+	color: var(--color-faint);
+	font-family: var(--font-mono);
+	font-size: 0.66rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.act-row .a-card:hover { border-color: var(--color-border-strong); color: var(--color-muted); }
+.act-row .a-more { align-self: center; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.66rem; }
+</style>

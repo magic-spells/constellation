@@ -32,8 +32,8 @@ npm test                 # vitest (run once); npm run test:watch to watch
 npm run build            # tsc → dist/
 npm run lint:examples    # lint the golden plan — must stay clean (0 errors)
 npm run dev -- <cmd>     # run the CLI from source via tsx, e.g. `npm run dev -- lint examples`
-npm run dev:viewer       # vite dev server for the Svelte viewer
-npm run build:viewer     # build static viewer assets → viewer/dist
+npm run dev:viewer       # puzzle dev server for the viewer (cwd viewer/)
+npm run build:viewer     # puzzle build → static viewer assets in viewer/dist
 npm run serve:examples   # serve the golden plan in the viewer (no auto-open)
 ```
 
@@ -59,12 +59,15 @@ The pipeline is one direction: **files → index → (lint | serve | MCP)**.
 | `src/core/writer.ts` | Byte-preserving card writes (atomic, per-file locked) + deep-merge patch semantics + note-append / section-replace / handle-rewrite helpers (shared by MCP and viewer). |
 | `src/core/rename.ts` | Plan-wide handle rename: move the card file, rewrite every reference as whole tokens (shared by MCP `rename_card` and CLI `rename`). |
 | `src/core/code.ts` | Code binding: resolve a card's bound files (connected FILE `path:` + own `code_refs`) and attach contents under size caps (shared by `get_card` code mode, `stale_report`, `assemble`). |
+| `src/core/stale.ts` | `computeStaleCards` — the code-side drift verdict (claim card's bound files vs its baseline: `verified_sha`, else the passed base, else the sync marker; one git diff per distinct baseline). Shared by MCP `stale_report` / `check_sync` and the viewer's `/api/sync`. |
+| `src/core/git.ts` | Git change-tracking plumbing: `diffPlan`, `planLog`, sync-marker read/write, `changedFilesSince`, `recentPlanActivity` / `recentCodeActivity`, `latestTag` (revisions guarded by `safeRev` + `--end-of-options`). |
+| `src/core/sync.ts` | `computeSyncStatus` — live freshness verdict (`in-sync`/`drifted`/`dirty`/`never-synced`/`no-git`) plus the dashboard payload (code activity, latest tag, package version, stale). |
 | `src/core/resolve.ts` | Find the plan folder by walking up from cwd, **bounded by the repo root**. |
 | `src/core/repos.ts` | Connected-repo declarations on `PLAN-PROJECT` (`connected_repos`) and repo selector resolution. |
 | `src/cli/index.ts` | The `constellation` binary. |
-| `src/mcp/` | MCP server (`server.ts`), full-text search (`search.ts`), git change-tracking (`git.ts`). |
+| `src/mcp/` | MCP server (`server.ts`) and full-text search (`search.ts`). Git change-tracking lives in `src/core/git.ts`. |
 | `src/serve/server.ts` | Local HTTP server: serves `viewer/dist`, a read API, and a PATCH/POST/DELETE write API; watches files for live reload. |
-| `viewer/` | Svelte 5 + Tailwind v4 single-page viewer (themes, card pages, neighborhood diagrams). |
+| `viewer/` | Puzzle + puzzle-pieces + Tailwind v4 single-page viewer (themes, card pages, neighborhood diagrams). Pieces copied in by `puzzle add piece` live in `viewer/app/components/ui/` and are **our** code — edit them freely; `viewer/pieces.lock` hashes drift on purpose when we do. Theming is two axes: `data-scheme` (observatory, default, warm, void, dim) and `data-theme` (light/dark/system), both set pre-paint by an inline script in the shell. |
 
 ### Invariants — don't break these
 

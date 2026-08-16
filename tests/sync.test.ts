@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import {
+  appendFile,
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +39,19 @@ afterAll(async () => {
   await rm(repo, { recursive: true, force: true });
 });
 
+/**
+ * Give every card file a fresh last commit by appending a blank line — the
+ * fixture's stand-in for "the plan was updated alongside the code".
+ */
+async function touchPlanCards(): Promise<void> {
+  const entries = await readdir(planRoot, { recursive: true, withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+    const file = path.join(entry.parentPath, entry.name);
+    await appendFile(file, '\n');
+  }
+}
+
 // These run in order and build on each other (like mcp-git.test.ts), each
 // mutating the shared repo to drive the status through its lifecycle.
 describe('computeSyncStatus', () => {
@@ -44,15 +65,39 @@ describe('computeSyncStatus', () => {
     expect(summed).toBe(status.total_cards);
   });
 
-  it('is in-sync right after a sync point on a clean tree', async () => {
+  it('drifts after a sync point when bound code is missing, even on a clean tree', async () => {
     const head = git('rev-parse', 'HEAD').trim();
     await writeSyncPoint(planRoot); // marker at HEAD; .sync.json is excluded from dirty
     const status = await computeSyncStatus(planRoot);
-    expect(status.state).toBe('in-sync');
+    // Golden plan claims are bound to an app that is not in this fixture.
+    // Missing bound files are reverse drift — not in-sync.
+    expect(status.state).toBe('drifted');
+    expect(status.stale?.stale.length).toBeGreaterThan(0);
     expect(status.marker?.synced_sha).toBe(head);
     expect(status.code_commits_since_marker).toBe(0);
     expect(status.plan_changes_since_marker).toBe(0);
     expect(status.plan_dirty).toBe(false);
+  });
+
+  // Regression: every other call here lets writeSyncPoint default to HEAD, which
+  // is why an explicit revision went uncovered. That branch used to run a bare
+  // `rev-parse --end-of-options <rev>` — and rev-parse echoes that flag back as
+  // its own first output line, so the marker got "--end-of-options\n<sha>": a sha
+  // nothing resolves, which reads as marker_error and pins the plan at drifted.
+  it('resolves an explicitly passed revision to a bare sha', async () => {
+    const head = git('rev-parse', 'HEAD').trim();
+    const point = await writeSyncPoint(planRoot, 'HEAD');
+    expect(point.synced_sha).toBe(head);
+    expect(point.synced_sha).toMatch(/^[0-9a-f]{40}$/);
+
+    // And the marker it wrote is reachable, not a marker_error.
+    const status = await computeSyncStatus(planRoot);
+    expect(status.marker?.synced_sha).toBe(head);
+    expect(status.marker_error).toBeNull();
+  });
+
+  it('refuses a revision that does not exist rather than stamping garbage', async () => {
+    await expect(writeSyncPoint(planRoot, 'no-such-rev')).rejects.toThrow();
   });
 
   it('drifts with a clear error when the sync marker is unreachable', async () => {
@@ -94,6 +139,25 @@ describe('computeSyncStatus', () => {
     const status = await computeSyncStatus(planRoot);
     expect(status.state).toBe('dirty');
     expect(status.plan_dirty).toBe(true);
+  });
+
+  it('is in-sync when the marker is current and every bound file exists', async () => {
+    await mkdir(path.join(repo, 'src', 'api'), { recursive: true });
+    await mkdir(path.join(repo, 'src', 'types'), { recursive: true });
+    await mkdir(path.join(repo, 'src', 'styles'), { recursive: true });
+    await writeFile(path.join(repo, 'src', 'api', 'tickets.ts'), 'export const v = 1;\n');
+    await writeFile(path.join(repo, 'src', 'types', 'ticket.ts'), 'export type Ticket = {};\n');
+    await writeFile(path.join(repo, 'src', 'styles', 'tokens.css'), ':root {}\n');
+    // Drift is card-relative: code that lands AFTER its card is drift. Here the
+    // cards and the code they claim land together, which is the ordinary loop.
+    await touchPlanCards();
+    git('add', '-A');
+    git('commit', '-q', '-m', 'add bound source files with their cards');
+    await writeSyncPoint(planRoot);
+    const status = await computeSyncStatus(planRoot);
+    expect(status.stale?.stale ?? []).toEqual([]);
+    expect(status.plan_dirty).toBe(false);
+    expect(status.state).toBe('in-sync');
   });
 });
 

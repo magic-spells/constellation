@@ -23,14 +23,37 @@ export interface BoundPath {
   symbol?: string;
 }
 
+/**
+ * Repo-relative bound paths as written in cards (`tests/`, `src\\lib`) so
+ * prefix matching and equality agree. Trailing slashes drop; `\\` becomes `/`.
+ */
+export function normalizeBoundPath(p: string): string {
+  const unix = p.replace(/\\/g, '/').trim();
+  const trimmed = unix.replace(/\/+$/, '');
+  return trimmed || unix;
+}
+
+/**
+ * True when two bound paths name the same file, or one is a directory that
+ * contains the other. `src/api` overlaps `src/api/tickets.ts` and `src/api/`;
+ * it does not overlap `src/api-client`.
+ */
+export function boundPathsOverlap(a: string, b: string): boolean {
+  const x = normalizeBoundPath(a);
+  const y = normalizeBoundPath(b);
+  if (!x || !y) return false;
+  return x === y || y.startsWith(`${x}/`) || x.startsWith(`${y}/`);
+}
+
 /** Every distinct file a card is bound to (connected FILE paths + own code_refs). */
 export function boundPathsForCard(index: PlanIndex, card: Card): BoundPath[] {
   const out: BoundPath[] = [];
   const seen = new Set<string>();
   const add = (p: string, b: Omit<BoundPath, 'path'>) => {
-    if (!p || seen.has(p)) return;
-    seen.add(p);
-    out.push({ path: p, ...b });
+    const n = normalizeBoundPath(p);
+    if (!n || seen.has(n)) return;
+    seen.add(n);
+    out.push({ path: n, ...b });
   };
 
   // A FILE card is bound to its own path:.
@@ -58,6 +81,14 @@ export function boundPathsForCard(index: PlanIndex, card: Card): BoundPath[] {
 
 export interface CodeFile extends BoundPath {
   exists: boolean;
+  /**
+   * The bound path is a DIRECTORY, not a file. A card may bind a whole folder
+   * (`code_refs: [tests]`) when the unit it describes is the folder — the
+   * binding is real, so it must not read as a missing file. Contents are never
+   * attached for one (bind files for that); drift over a directory is the union
+   * of its contents changing, which `computeStaleCards` resolves by prefix.
+   */
+  dir?: boolean;
   bytes?: number;
   /** Attached file contents (mode "direct" only, when not skipped). */
   content?: string;
@@ -163,12 +194,16 @@ export async function resolveCodeForCard(
     }
 
     let exists = false;
+    let isDir = false;
     let bytes: number | undefined;
     if (abs) {
       try {
         const s = await stat(abs);
-        exists = s.isFile();
-        bytes = s.size;
+        isDir = s.isDirectory();
+        exists = s.isFile() || isDir;
+        // A directory's `size` is the inode's, not its contents' — reporting it
+        // would read as a file size. Leave it unset.
+        if (!isDir) bytes = s.size;
       } catch {
         exists = false;
       }
@@ -190,10 +225,16 @@ export async function resolveCodeForCard(
     if (!exists) missing.push(b.path);
 
     const file: CodeFile = { ...b, exists, bytes };
+    if (isDir) file.dir = true;
 
     if (mode === 'direct') {
       if (!exists) {
         file.skipped = 'missing';
+      } else if (isDir) {
+        // Attaching a whole folder would blow the budget on the first ref and
+        // give the agent no way to say which parts it wanted. The path is
+        // reported; bind the files that matter to get their contents.
+        file.skipped = 'directory';
       } else {
         const reason = skipReason(b.path);
         const attachBytes = Math.min(bytes ?? 0, PER_FILE_MAX);

@@ -8,6 +8,7 @@ props:
 variants: [default, compact]
 connections:
   - PAGE-INBOX
+  - STATE-TICKET
 ---
 
 # Ticket card

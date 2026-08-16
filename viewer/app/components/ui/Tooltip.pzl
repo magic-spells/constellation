@@ -1,0 +1,214 @@
+<puzzle-view>
+  <span
+    class="relative inline-flex"
+    @pointerenter={ onEnter }
+    @pointerleave={ onPointerLeave }
+    @focusin={ onFocusIn }
+    @focusout={ onFocusOut(event) }
+    @keydown:escape={ onEscape(event) }>
+    <Slot/>
+    {#if visible}
+      <span class={ panelClass } id={ tipId } role="tooltip" data-tooltip-panel>
+        { text }
+        <span class={ arrowClass } aria-hidden="true"></span>
+      </span>
+    {/if}
+  </span>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// Tooltip — a hover/focus text hint that WRAPS its target (the default <Slot/>,
+// usually a caller-provided button). It is text-only BY DESIGN: the `text` prop
+// is required, and there is no content slot for the hint — a tooltip that can hold
+// arbitrary interactive markup is a popover, use Popover for that.
+//
+//   <Tooltip text="Copy to clipboard"><button>Copy</button></Tooltip>
+//   <Tooltip text="Delete" side="right" delay={ 0 }><button>🗑</button></Tooltip>
+//
+// The inverted chip colors (bg-ink / text-page) are deliberate: the semantic
+// tokens flip themselves, so the tooltip reads as the classic dark chip in light
+// mode and a light chip in dark mode without any per-mode class.
+//
+// aria-describedby, honestly: the described element is the SLOTTED target, which
+// a wrapping <span> can't declaratively reach (and the wrapper itself can't own
+// the relationship — it isn't the thing being described). So it's wired
+// imperatively in mounted(): find the first focusable element inside this.element
+// and point its aria-describedby at the tooltip's id. This is the pragmatic
+// tradeoff of wrapping rather than being the target; a single-target tooltip is
+// the overwhelmingly common case and this covers it.
+//
+// Timing: pointerenter starts a `delay` timer (cleared if the pointer leaves
+// before it fires); focusin shows immediately (keyboard users shouldn't wait);
+// hide is always immediate. Escape hides while visible.
+
+// Per-instance id seed so each tooltip's id is unique across instances.
+let uid = 0;
+
+const PANEL_BASE =
+  'pointer-events-none select-none absolute z-50 whitespace-nowrap rounded-md ' +
+  'bg-ink px-2 py-1 text-xs text-page shadow-sm';
+
+// Static placement classes, anchored to the relative wrapper's edges.
+const PLACEMENT = {
+  top: 'bottom-full left-1/2 -translate-x-1/2 mb-1.5',
+  bottom: 'top-full left-1/2 -translate-x-1/2 mt-1.5',
+  left: 'right-full top-1/2 -translate-y-1/2 mr-1.5',
+  right: 'left-full top-1/2 -translate-y-1/2 ml-1.5',
+};
+
+// The arrow: a size-2 square rotated 45°, straddling the panel edge that faces
+// the trigger (positioned half-out via the paired translate). Same bg-ink as
+// the chip, so the diamond's outer half reads as a pointer. It follows the
+// EFFECTIVE placement, so a runtime top<->bottom flip carries the arrow along.
+const ARROW = {
+  top: 'top-full left-1/2 -translate-x-1/2 -translate-y-1/2',
+  bottom: 'bottom-full left-1/2 -translate-x-1/2 translate-y-1/2',
+  left: 'left-full top-1/2 -translate-y-1/2 -translate-x-1/2',
+  right: 'right-full top-1/2 -translate-y-1/2 translate-x-1/2',
+};
+
+const ARROW_BASE = 'pointer-events-none absolute size-2 rotate-45 rounded-[1px] bg-ink';
+
+export default class Tooltip extends PuzzleView {
+  created() {
+    this._uid = ++uid;
+    this._timer = null; // pending show timer (pointerenter → delay → show)
+    // Seed local UI state so the first data() run can read it back. `placement`
+    // is the effective (possibly flipped) side; null while hidden = "use `side`".
+    this.setData({ visible: false, placement: null });
+  }
+
+  // Wire aria-describedby onto the slotted target (see the file comment). The
+  // tooltip panel isn't in the DOM yet (hidden at mount) and isn't focusable, so
+  // the first focusable descendant is the target itself.
+  mounted() {
+    const target = this.element?.querySelector(
+      'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]'
+    );
+    if (!target) return;
+    this._tipTarget = target;
+    this._prevDescribedby = target.getAttribute('aria-describedby');
+    const id = this.getData().tipId;
+    const tokens = (this._prevDescribedby || '').split(/\s+/).filter(Boolean);
+    if (!tokens.includes(id)) tokens.push(id);
+    target.setAttribute('aria-describedby', tokens.join(' '));
+  }
+
+  destroyed() {
+    if (this._timer) clearTimeout(this._timer);
+    if (this._tipTarget) {
+      if (this._prevDescribedby == null) this._tipTarget.removeAttribute('aria-describedby');
+      else this._tipTarget.setAttribute('aria-describedby', this._prevDescribedby);
+    }
+  }
+
+  data(params, props) {
+    const prev = this.getData();
+    const visible = !!prev.visible;
+    const side = PLACEMENT[props.side] ? props.side : 'top';
+    // Runtime flip (top<->bottom only) applies while visible; hidden reflects prop.
+    const placement = (visible && prev.placement) || side;
+
+    return {
+      visible,
+      text: props.text != null ? String(props.text) : '',
+      tipId: props.id || `pieces-tooltip-${this._uid}`,
+      panelClass: [PANEL_BASE, PLACEMENT[placement], props.class || ''].join(' '),
+      arrowClass: [ARROW_BASE, ARROW[placement]].join(' '),
+    };
+  }
+
+  // ---- show / hide ---------------------------------------------------------
+
+  _delay() {
+    const d = Number(this.props.delay);
+    return Number.isFinite(d) && d >= 0 ? d : 300;
+  }
+
+  _side() {
+    return PLACEMENT[this.props.side] ? this.props.side : 'top';
+  }
+
+  _show() {
+    if (this._timer) {
+      clearTimeout(this._timer);
+      this._timer = null;
+    }
+    if (this.getData().visible) return;
+    const side = this._side();
+    this.setData({ visible: true, placement: side });
+    this.refresh();
+
+    // Cheap top<->bottom flip: after the chip renders, if it overflows the
+    // viewport on the requested edge and the opposite edge has room, flip. Left
+    // and right are left static (their overflow is a horizontal edge case rarely
+    // worth a reflow — documented, skipped).
+    requestAnimationFrame(() => {
+      if (!this.getData().visible || !this.element) return;
+      const next = this._measureFlip(side);
+      if (next !== this.getData().placement) {
+        this.setData({ placement: next });
+        this.refresh();
+      }
+    });
+  }
+
+  _hide() {
+    if (this._timer) {
+      clearTimeout(this._timer);
+      this._timer = null;
+    }
+    if (!this.getData().visible) return;
+    this.setData({ visible: false, placement: null });
+    this.refresh();
+  }
+
+  _measureFlip(side) {
+    if (side !== 'top' && side !== 'bottom') return side;
+    const panel = this.element?.querySelector('[data-tooltip-panel]');
+    if (!panel || typeof window === 'undefined') return side;
+    const r = panel.getBoundingClientRect();
+    const margin = 4;
+    if (side === 'top' && r.top < margin && window.innerHeight - r.bottom > r.height) return 'bottom';
+    if (side === 'bottom' && r.bottom > window.innerHeight - margin && r.top > r.height) return 'top';
+    return side;
+  }
+
+  events = {
+    // Pointer hover: wait `delay` ms before showing; cancel if we leave first.
+    onEnter: (event) => {
+      if (this.getData().visible || this._timer) return;
+      const delay = this._delay();
+      this._timer = setTimeout(() => {
+        this._timer = null;
+        this._show();
+      }, delay);
+    },
+
+    // Keyboard focus: show immediately — no hover delay for keyboard users.
+    onFocusIn: (event) => {
+      this._show();
+    },
+
+    onPointerLeave: () => {
+      // Keyboard focus keeps the description visible (WCAG 1.4.13).
+      if (this.element && this.element.contains(document.activeElement)) return;
+      this._hide();
+    },
+
+    onFocusOut: (event) => {
+      // Only hide when focus actually left the wrapper (HoverCard pattern).
+      if (this.element && event.relatedTarget && this.element.contains(event.relatedTarget)) return;
+      this._hide();
+    },
+
+    onEscape: (event) => {
+      if (!this.getData().visible) return;
+      event.preventDefault();
+      this._hide();
+    },
+  };
+}
+</script>
