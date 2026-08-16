@@ -35,38 +35,100 @@ export async function repoRootFor(planRoot: string): Promise<string> {
 
 const SYNC_FILE = '.sync.json';
 
-export interface SyncPoint {
+/**
+ * Everything `.sync.json` may hold. The file is the plan's only marker file and
+ * every field in it is *provenance* — a sha somebody stamped, a version somebody
+ * reviewed under — never a derived value or a change flag.
+ */
+export interface SyncMarker {
+  synced_sha?: string;
+  synced_at?: string;
+  /**
+   * The Constellation version whose file-format rules this plan was last
+   * reviewed under. Absent (or the file missing entirely) means the plan has
+   * never been reviewed under the current rules, which is what the MCP server's
+   * one-time upgrade-review prompt keys off.
+   */
+  format_review?: string;
+}
+
+/** A marker that actually pins a commit — what the drift baseline needs. */
+export interface SyncPoint extends SyncMarker {
   synced_sha: string;
   synced_at: string;
 }
 
-export async function readSyncPoint(planRoot: string): Promise<SyncPoint | null> {
+/** The raw marker file, whatever it holds; null when absent or unparseable. */
+export async function readSyncMarker(planRoot: string): Promise<SyncMarker | null> {
   try {
     const raw = await readFile(path.join(planRoot, SYNC_FILE), 'utf8');
-    const parsed = JSON.parse(raw);
-    return typeof parsed?.synced_sha === 'string' ? parsed : null;
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? (parsed as SyncMarker) : null;
   } catch {
     return null;
   }
 }
 
+/**
+ * The marker, but only when it pins a commit. A file holding just
+ * `format_review` is not a sync point — callers reading `synced_sha` must still
+ * see "never synced".
+ */
+export async function readSyncPoint(planRoot: string): Promise<SyncPoint | null> {
+  const parsed = await readSyncMarker(planRoot);
+  return typeof parsed?.synced_sha === 'string' ? (parsed as SyncPoint) : null;
+}
+
+async function writeSyncMarker(planRoot: string, marker: SyncMarker): Promise<void> {
+  await writeFile(
+    path.join(planRoot, SYNC_FILE),
+    `${JSON.stringify(marker, null, 2)}\n`,
+    'utf8',
+  );
+}
+
 export async function writeSyncPoint(
   planRoot: string,
   sha?: string,
+  options: { formatReview?: string } = {},
 ): Promise<SyncPoint> {
   const resolved = sha
     ? (await git(planRoot, 'rev-parse', '--end-of-options', safeRev(sha))).trim()
     : (await git(planRoot, 'rev-parse', 'HEAD')).trim();
+  // Merge over whatever is already there: stamping a commit must not silently
+  // drop a format_review somebody recorded (and vice versa).
+  const existing = (await readSyncMarker(planRoot)) ?? {};
   const point: SyncPoint = {
+    ...existing,
     synced_sha: resolved,
     synced_at: new Date().toISOString(),
+    ...(options.formatReview ? { format_review: options.formatReview } : {}),
   };
-  await writeFile(
-    path.join(planRoot, SYNC_FILE),
-    `${JSON.stringify(point, null, 2)}\n`,
-    'utf8',
-  );
+  await writeSyncMarker(planRoot, point);
   return point;
+}
+
+/**
+ * Record that the plan has been reviewed under `version`'s format rules,
+ * touching nothing else in the marker. Needs no git — `init_plan` calls it
+ * before the repo has a HEAD (or in a repo that has none at all).
+ */
+export async function stampFormatReview(
+  planRoot: string,
+  version: string,
+): Promise<SyncMarker> {
+  const marker: SyncMarker = {
+    ...((await readSyncMarker(planRoot)) ?? {}),
+    format_review: version,
+  };
+  await writeSyncMarker(planRoot, marker);
+  return marker;
+}
+
+/** The version the plan was last format-reviewed under, or null if never. */
+export async function formatReviewVersion(planRoot: string): Promise<string | null> {
+  const value = (await readSyncMarker(planRoot))?.format_review;
+  return typeof value === 'string' && value.trim() ? value : null;
 }
 
 /**

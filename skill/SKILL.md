@@ -175,6 +175,18 @@ handle-shaped frontmatter value pointing at a card that doesn't exist is an **er
 how you mark future work. Keep `[[links]]` for exactly that — the aspirational and the
 merely mentioned — and remember they still render as clickable links in the viewer.
 
+### The one-time 0.5.0 format review
+
+Prose stopped being an edge in 0.5.0, so a plan authored earlier may be holding real
+relationships only in `[[links]]`. The MCP server announces that on its first run against
+such a plan; the marker it reads is `format_review` in `constellation/.sync.json`, absent
+until somebody reviews. When you get that notice: promote the real relationships into
+`connections:`, reconnect the cards that turn out to be unintentional orphans, and compact
+wordy or token-heavy cards while you're in there. Confirm the scope with the user before
+large edits. Record it with `set_sync_point` (`format_review: true`) when the review is done
+or the user declines, and the notice never appears again. Plans made by `init_plan` are
+stamped at birth, so they never see it.
+
 Body conventions: DATATYPE = the type declaration in a fenced block; FLOW = a numbered list
 (real branching becomes a STATE card or a mermaid flowchart); STATE = `stateDiagram-v2`;
 DECISION = Context / Decision / Alternatives / Consequences; everything else = prose with

@@ -276,6 +276,7 @@ const NOT_TOOLS = new Set([
   'hydrated_elsewhere',
   'hydration_budget',
   'degraded_to_summary',
+  'format_review',
   'total_hits',
   'if_mtime',
 ]);
