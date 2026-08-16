@@ -8,8 +8,8 @@ connections:
   - FILE-LINT
   - FILE-INDEXER
   - FILE-MCP-SERVER
-verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
-verified_at: '2026-08-16T02:33:52.810Z'
+verified_sha: 623af52933900eb27ccb1d3061a33b40a4da16ee
+verified_at: '2026-08-16T02:39:04.582Z'
 notes:
   - kind: verified
     text: >-

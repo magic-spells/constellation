@@ -4,8 +4,8 @@ status: verified
 path: src/core/git.ts
 language: typescript
 summary: Git plumbing for change tracking + drift
-verified_at: '2026-08-16T02:31:42.740Z'
-verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T02:38:59.880Z'
+verified_sha: 623af52933900eb27ccb1d3061a33b40a4da16ee
 notes:
   - kind: verified
     text: >-
@@ -13,6 +13,12 @@ notes:
       noting it answers "where does the code live" rather than "how did it change" — the one
       function here outside the change-tracking remit.
     sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+  - kind: verified
+    text: >-
+      writeSyncPoint's explicit-sha branch was stamping "--end-of-options\n<sha>" into the marker —
+      rev-parse echoes that flag as output. Now routes through resolveCommit (--verify). The card
+      documents the trap; tests/sync.test.ts covers the branch, which previously had none.
+    sha: 623af52933900eb27ccb1d3061a33b40a4da16ee
 ---
 
 `diffPlan` (per-card delta), `planLog`, sync-marker read/write, `headSha`, `changedFilesSince`, `lastCommitByPath`, `dirtyFilesAmong`, `countCodeCommitsSince`, `recentPlanActivity`, `recentCodeActivity`, `latestTag`, `repoRemoteUrl`. Every caller-supplied revision is guarded by `safeRev` + `--end-of-options` so a dash-leading value can't be parsed as a git option.
