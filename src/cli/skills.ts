@@ -101,6 +101,122 @@ export async function installSkills(targets: SkillTarget[], version: string): Pr
   }
 }
 
+/** Where the picker's cursor is and what is ticked. */
+export interface SkillPickerState {
+  cursor: number;
+  checked: boolean[];
+}
+
+/**
+ * One keypress against the picker state — pure, so the key handling is testable
+ * without a pty (driving raw-mode stdin from a test is where this logic would
+ * otherwise go untested, and it is all off-by-one and escape codes).
+ *
+ * Returns the next state plus what the caller should do: 'confirm' and 'cancel'
+ * end the prompt, 'redraw' repaints, 'ignore' means an unmapped key.
+ */
+export function applySkillPickerKey(
+  state: SkillPickerState,
+  key: string,
+  count: number,
+): { state: SkillPickerState; action: 'confirm' | 'cancel' | 'redraw' | 'ignore' } {
+  const checked = [...state.checked];
+  let cursor = state.cursor;
+
+  // Ctrl+C and Esc both cancel. Ctrl+C is explicit because raw mode swallows
+  // SIGINT — the same reason `serve` handles 0x03 by hand.
+  if (key === '\x03' || key === '\x1b') return { state, action: 'cancel' };
+  if (key === '\r' || key === '\n') return { state, action: 'confirm' };
+
+  if (key === ' ') checked[cursor] = !checked[cursor];
+  else if (key === 'a' || key === 'A') {
+    // Keys off whether anything is UNchecked, so pressing `a` twice returns you
+    // to where you started rather than sticking on "all".
+    checked.fill(checked.some((c) => !c));
+  } else if (key === '\x1b[A' || key === 'k') cursor = (cursor - 1 + count) % count;
+  else if (key === '\x1b[B' || key === 'j') cursor = (cursor + 1) % count;
+  else return { state, action: 'ignore' };
+
+  return { state: { cursor, checked }, action: 'redraw' };
+}
+
+/**
+ * Arrow/space multi-select over the detected targets, everything checked to
+ * start — the Puzzle CLI's `add skills` prompt, ported to Node.
+ *
+ * Hand-rolled on raw-mode stdin rather than pulled from a prompt library: this
+ * is a globally installed CLI, and one checkbox list is not worth a dependency
+ * (and its transitive tree) on every install. `serve`'s "press q to quit" set
+ * the same precedent.
+ *
+ * Returns the chosen targets, or null when the user cancels (Esc / Ctrl+C) —
+ * which the caller must treat as "do nothing", NOT as "nothing selected", so a
+ * cancelled prompt cannot read as consent to an empty install. Without a TTY it
+ * returns every target unchanged, because there is nobody to ask.
+ */
+async function promptSkillTargets(targets: SkillTarget[]): Promise<SkillTarget[] | null> {
+  const stdin = process.stdin;
+  if (!stdin.isTTY || typeof stdin.setRawMode !== 'function') return targets;
+
+  let state: SkillPickerState = { cursor: 0, checked: targets.map(() => true) };
+  const out = process.stdout;
+
+  out.write(`\n  ${pc.bold('Install the Constellation skill for:')}\n`);
+  out.write(
+    `  ${pc.dim('↑/↓ move · space toggle · a all · enter confirm · esc cancel')}\n\n`,
+  );
+
+  const render = (redraw: boolean) => {
+    if (redraw) out.write(`\x1b[${targets.length}A`);
+    targets.forEach((target, i) => {
+      const box = state.checked[i] ? pc.green('◉') : pc.dim('◯');
+      const arrow = i === state.cursor ? pc.cyan('❯') : ' ';
+      const name = i === state.cursor ? pc.bold(target.name) : target.name;
+      // \x1b[2K clears the whole line first: a shorter row must not leave the
+      // tail of a longer one behind when the cursor moves.
+      out.write(`\x1b[2K  ${arrow} ${box} ${name} ${pc.dim(target.root)}\n`);
+    });
+  };
+
+  render(false);
+  stdin.setRawMode(true);
+  stdin.resume();
+
+  return new Promise<SkillTarget[] | null>((resolve) => {
+    const finish = (result: SkillTarget[] | null) => {
+      stdin.setRawMode(false);
+      stdin.pause();
+      stdin.removeListener('data', onData);
+      stdin.removeListener('end', onEnd);
+      resolve(result);
+    };
+
+    // stdin reaching EOF with the prompt open would otherwise wait forever —
+    // there is no more input coming, so treat it as a cancel rather than hang.
+    const onEnd = () => {
+      out.write(`\n  ${pc.yellow('!')} Input ended — nothing installed.\n`);
+      finish(null);
+    };
+
+    const onData = (buf: Buffer) => {
+      const { state: next, action } = applySkillPickerKey(state, buf.toString(), targets.length);
+      state = next;
+      if (action === 'cancel') {
+        out.write(`\n  ${pc.yellow('!')} Cancelled — nothing installed.\n`);
+        return finish(null);
+      }
+      if (action === 'confirm') {
+        out.write('\n');
+        return finish(targets.filter((_, i) => state.checked[i]));
+      }
+      if (action === 'redraw') render(true);
+    };
+
+    stdin.on('data', onData);
+    stdin.on('end', onEnd);
+  });
+}
+
 async function confirm(question: string, fallback: boolean): Promise<boolean> {
   if (!process.stdin.isTTY) return fallback;
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -138,13 +254,27 @@ export async function addSkills(
     return;
   }
 
+  // Explicit --skill-root is explicit intent, so it skips the picker the same
+  // way it skips detection — you already named the targets.
+  const explicitRoots = Boolean(opts.skillRoot && opts.skillRoot.length > 0);
+  let chosen = targets;
+  if (!explicitRoots) {
+    const picked = await promptSkillTargets(targets);
+    if (picked === null) return; // cancelled — not the same as "none selected"
+    if (picked.length === 0) {
+      console.log(`${pc.yellow('!')} No targets selected — nothing installed.`);
+      return;
+    }
+    chosen = picked;
+  }
+
   if (opts.overwrite) {
-    // Explicit intent: write every target, symlinked destinations included.
-    await installSkills(targets, version);
+    // Explicit intent: write every chosen target, symlinked destinations included.
+    await installSkills(chosen, version);
     return;
   }
 
-  const plan = await classifySkillTargets(targets, version);
+  const plan = await classifySkillTargets(chosen, version);
   for (const dest of plan.linked) {
     console.log(`${pc.yellow('!')} ${dest} is a symlink — left as is.`);
   }

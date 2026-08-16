@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -115,4 +116,56 @@ describe('GET /api/style-asset', () => {
     expect(res.status).toBe(404);
     expect((await res.json()).error.code).toBe('NOT_FOUND');
   });
+});
+
+// The CLI walks upward from a busy port rather than refusing to start. The
+// policy lives in the `serve` action (not startServer), so this drives the real
+// binary: occupy a port, ask the CLI for that same one, and read the banner.
+describe('constellation serve — port selection', () => {
+  const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+  const cliPath = path.join(repoRoot, 'src', 'cli', 'index.ts');
+  const tsxBin = path.join(
+    repoRoot,
+    'node_modules',
+    '.bin',
+    process.platform === 'win32' ? 'tsx.cmd' : 'tsx',
+  );
+
+  /** Run `serve` until it prints its Local: URL, then kill it. */
+  function serveUntilBanner(port: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const child = spawn(
+        tsxBin,
+        [cliPath, 'serve', GOLDEN, '--no-open', '-p', String(port)],
+        { cwd: repoRoot, env: { ...process.env, NO_UPDATE_NOTIFIER: '1' } },
+      );
+      let out = '';
+      const done = (fn: () => void) => {
+        clearTimeout(timer);
+        child.kill('SIGTERM');
+        fn();
+      };
+      const timer = setTimeout(
+        () => done(() => reject(new Error(`no banner in 20s; saw: ${out}`))),
+        20_000,
+      );
+      child.stdout.on('data', (chunk) => {
+        out += String(chunk);
+        if (out.includes('Local:')) done(() => resolve(out));
+      });
+      child.stderr.on('data', (chunk) => (out += String(chunk)));
+      child.on('error', (err) => done(() => reject(err)));
+    });
+  }
+
+  it('walks to the next free port when the requested one is taken', async () => {
+    // `running` (from beforeAll) already holds a port; ask for exactly it.
+    const busy = running.port;
+    const out = await serveUntilBanner(busy);
+
+    expect(out).toMatch(new RegExp(`http://localhost:${busy + 1}/`));
+    expect(out).toContain(`${busy} was in use`);
+    // The old behaviour: refuse and exit 2.
+    expect(out).not.toContain('Pick another with');
+  }, 30_000);
 });
