@@ -1,7 +1,11 @@
 <puzzle-view>
-  <div class="features">
-    <h2 class="feat-title"><span class="star">✦</span> Features</h2>
+  <!-- Same container as BoardPage: the two are tabs of one page, so the heading
+       and tab strip must not move when you switch between them. The list caps
+       its own line length below instead of centring the whole view. -->
+  <div class="features px-5 pb-16 pt-8 sm:px-8">
+    <TasksHeader active="list"/>
 
+    <div role="tabpanel" id="tasks-panel-list" aria-labelledby="tasks-tab-list" tabindex="0">
     {#if empty}
       <p class="empty">
         No FEATURE cards yet. A FEATURE groups a coherent slice of future work —
@@ -44,12 +48,14 @@
         </section>
       {/for}
     {/if}
+    </div>
   </div>
 </puzzle-view>
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
 import Badge from '../components/ui/Badge.pzl';
+import TasksHeader from '../components/TasksHeader.pzl';
 import { relTime } from '../lib/format.js';
 import { planIndex } from '../lib/plan-index.js';
 import { SHIPPED, STATUS } from '../lib/status.js';
@@ -113,19 +119,12 @@ export default class FeaturesPanel extends PuzzleView {
 </script>
 
 <style>
-.features { width: min(100%, 62rem); margin: 0 auto; padding: 2rem clamp(1.25rem, 4vw, 3.5rem) 4rem; }
-
-.feat-title {
-	--c: var(--t-FEATURE, var(--color-brand));
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	margin: 0 0 1rem;
-	color: var(--color-ink);
-	font-family: var(--font-display, var(--font-sans));
-	font-size: 1.3rem;
-}
-.feat-title .star { color: var(--c); font-size: 0.9rem; }
+/* Width and padding come from the shared Tailwind container in the template.
+   Rows still cap their line length — a feature row stretched across a 2560px
+   display is unreadable — but the cap is on the CONTENT, so the tab strip above
+   stays put when you switch views. */
+.features { width: 100%; }
+.features .feat-section { max-width: 62rem; }
 
 .feat-section { margin-bottom: 1.75rem; }
 .feat-section h3 {
