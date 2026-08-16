@@ -7,8 +7,8 @@ connections:
   - FILE-SYNC
   - FILE-STALE
   - DOC-MCP-UPGRADES
-verified_at: '2026-08-16T02:32:41.939Z'
-verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T02:39:51.183Z'
+verified_sha: c813887e9d1d4021d5129c1534e33f12efbc533d
 ---
 
 # Change tracking & sync

@@ -10,8 +10,8 @@ connections:
   - FILE-WRITER
   - FILE-SYNC
   - FILE-STALE
-verified_at: '2026-08-16T02:33:01.010Z'
-verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T02:40:01.202Z'
+verified_sha: c813887e9d1d4021d5129c1534e33f12efbc533d
 ---
 
 `constellation mcp` (stdio). Registers every tool, embeds the agent-facing `INSTRUCTIONS` string (one of the three guidance copies), and resolves the target plan — the home plan or, when `repo` is passed, a connected sibling. The server handshake version is the package version (same source as the CLI), not a hardcoded leftover.
