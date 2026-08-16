@@ -474,7 +474,7 @@ describe('BoardPage', () => {
 		const building = view.find('[data-kb-col="building"] [data-kb-card]');
 		// The board's own child route, not the card page — the dialog morphs out
 		// of this card, which needs both to stay mounted (see routes.js).
-		expect(building.getAttribute('href')).toBe('/board/card/FEATURE-SEARCH');
+		expect(building.getAttribute('href')).toBe('/tasks/board/card/FEATURE-SEARCH');
 		// The pairing id BoardCardDialog's shell mints from the same handle.
 		expect(building.getAttribute('data-puzzle-morph')).toBe('board-card-FEATURE-SEARCH');
 		expect(building.textContent).toContain('Search');

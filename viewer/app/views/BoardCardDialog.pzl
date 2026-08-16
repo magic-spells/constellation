@@ -147,7 +147,7 @@ export default class BoardCardDialog extends PuzzleView {
 	}
 
 	_close() {
-		void this.ctx.router.push('/board');
+		void this.ctx.router.push('/tasks/board');
 	}
 
 	events = {

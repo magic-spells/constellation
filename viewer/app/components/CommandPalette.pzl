@@ -49,9 +49,14 @@ const PER_GROUP = 8;
 
 const PAGES = [
 	{ path: '/', label: 'Overview' },
+	// Both Tasks views are listed rather than the destination alone: the palette
+	// is a jump-to, and "list" is the word someone reaches for when they want the
+	// shipped/ahead reading. Unconditional, matching the sidebar's Tasks row —
+	// the empty state is what teaches FEATURE cards.
+	{ path: '/tasks/board', label: 'Tasks — Board' },
+	{ path: '/tasks/list', label: 'Tasks — List' },
 	{ path: '/constellation', label: 'Constellation' },
 	// Shown only when the plan has cards behind them, exactly like the sidebar.
-	{ path: '/features', label: 'Features', needs: 'FEATURE' },
 	{ path: '/style-guide', label: 'Style guide', needs: 'STYLE' },
 ];
 

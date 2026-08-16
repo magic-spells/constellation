@@ -1,14 +1,8 @@
 <puzzle-view>
   <div class="board px-5 pb-16 pt-8 sm:px-8">
-    <h2 class="mb-1 flex items-center gap-2 text-[1.3rem] text-ink">
-      <span class="text-[0.9rem]" style="color: var(--t-FEATURE, var(--color-brand))">✦</span>
-      Board
-    </h2>
-    <p class="mb-5 text-sm text-muted">
-      Every FEATURE card by <code class="font-mono text-xs">status:</code>. Read-only —
-      a card moves column when its status does.
-    </p>
+    <TasksHeader active="board"/>
 
+    <div role="tabpanel" id="tasks-panel-board" aria-labelledby="tasks-tab-board" tabindex="0">
     {#if empty}
       <Empty
         class="rounded-xl border border-dashed border-border"
@@ -23,6 +17,7 @@
     {:else}
       <Kanban columns={ columns } label="Feature board" empty="Nothing here yet."/>
     {/if}
+    </div>
   </div>
 
   <!-- Where the preview dialog mounts (`#/board/card/HANDLE`). The board stays
@@ -34,6 +29,7 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import Empty from '../components/ui/Empty.pzl';
 import Kanban from '../components/ui/Kanban.pzl';
+import TasksHeader from '../components/TasksHeader.pzl';
 import { planIndex } from '../lib/plan-index.js';
 
 // BoardPage — `#/board`: every FEATURE card in the four status-enum columns.
@@ -138,7 +134,7 @@ export default class BoardPage extends PuzzleView {
 			const bucket = buckets.has(status) ? status : 'planned';
 			buckets.get(bucket).push({
 				id: card.handle,
-				href: `/board/card/${card.handle}`,
+				href: `/tasks/board/card/${card.handle}`,
 				morph: `board-card-${card.handle}`,
 				title: card.name || card.handle,
 				handle: card.handle,
