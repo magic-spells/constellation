@@ -6,8 +6,8 @@ code_refs:
   - viewer/app/views/FeaturesPanel.pzl
 connections:
   - FILE-SERVE
-verified_sha: dbaa7fc23fb5a41ce5672978f990c3080c3e5f3a
-verified_at: '2026-08-16T18:26:03.498Z'
+verified_sha: ee8384873bdb280e2f7c9b6cf6790bb217af19f7
+verified_at: '2026-08-16T18:35:29.083Z'
 notes:
   - kind: verified
     text: >-
@@ -15,6 +15,11 @@ notes:
       centred 62rem container moved onto the content rows so the shared tab strip stays anchored
       across a switch.
     sha: dbaa7fc23fb5a41ce5672978f990c3080c3e5f3a
+  - kind: verified
+    text: >-
+      Only change since the last stamp is the dropped star glyph and its orphaned .feat-title rules
+      — the heading moved to TasksHeader when the views merged. Nothing this card claims changed.
+    sha: ee8384873bdb280e2f7c9b6cf6790bb217af19f7
 ---
 
 The `#/tasks/list` route: a roadmap view of every FEATURE card, served by
