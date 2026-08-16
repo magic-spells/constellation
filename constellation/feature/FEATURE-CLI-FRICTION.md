@@ -1,12 +1,22 @@
 ---
 name: 'CLI friction: port walk, fresh registry, skill picker'
-status: built
+status: verified
 release: RELEASE-V0-5-2
 change: fix
 branch: fix/serve-port-and-upgrade
 connections:
   - FILE-CLI
   - FILE-SERVE
+verified_at: '2026-08-16T19:03:48.176Z'
+verified_sha: b68341fab1d50f297248b83eccc2f936ad6b9234
+notes:
+  - kind: verified
+    text: >-
+      Port walk exercised live: two servers on 4747 and 4748, both answering 200, the second
+      printing "4747 was in use, using 4748". --skill-root verified to bypass the picker and stamp
+      0.5.1. upgrade's --prefer-online confirmed against the timing that caused the report (0.5.1
+      published 18:45:06Z, upgrade run inside npm's 5-minute packument cache window).
+    sha: b68341fab1d50f297248b83eccc2f936ad6b9234
 ---
 
 Three papercuts reported within an hour of 0.5.1 shipping. Each one had the CLI

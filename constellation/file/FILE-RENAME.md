@@ -1,6 +1,6 @@
 ---
 name: rename.ts
-status: built
+status: verified
 path: src/core/rename.ts
 language: typescript
 summary: Plan-wide handle rename shared by MCP rename_card and CLI rename
@@ -9,8 +9,8 @@ connections:
   - FILE-INDEXER
   - FILE-MCP-SERVER
   - FILE-CLI
-verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
-verified_at: '2026-08-16T00:47:22.586Z'
+verified_sha: b68341fab1d50f297248b83eccc2f936ad6b9234
+verified_at: '2026-08-16T19:03:21.352Z'
 ---
 
 Moves the card file to the new handle's path (folder follows the prefix) with its bytes

@@ -8,8 +8,15 @@ connections:
   - FILE-RESOLVE
   - FILE-SERVE
   - FILE-MCP-SERVER
-verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
-verified_at: '2026-08-16T02:32:05.940Z'
+verified_sha: b68341fab1d50f297248b83eccc2f936ad6b9234
+verified_at: '2026-08-16T19:02:52.807Z'
+notes:
+  - kind: verified
+    text: >-
+      Re-read against index.ts and skills.ts: the card now documents serve's port walk (EADDRINUSE
+      only, 20 tries, banner note), the add-skills multi-select with cancel-vs-empty and the
+      --skill-root bypass, and upgrade's --prefer-online.
+    sha: b68341fab1d50f297248b83eccc2f936ad6b9234
 ---
 
 Commands: `init`, `lint`, `rename`, `mcp`, `serve`, `repos`, `add skills`, `version`/`v`, `upgrade`. `lint` exits 1 on errors, 0 otherwise (warnings never fail), 2 when no plan is found. `rename OLD NEW` is the human-facing wrapper over [[FILE-RENAME]] — it prints the rewritten references and a lint-error count.
