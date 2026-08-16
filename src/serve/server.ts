@@ -4,6 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeSyncPoint } from '../core/git.js';
+import { CONSTELLATION_VERSION } from '../core/version.js';
 import { isHandleShaped, typeForHandle } from '../core/handles.js';
 import { lintPlan } from '../core/lint.js';
 import { computeSyncStatus } from '../core/sync.js';
@@ -287,12 +288,21 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
    * exposed so the dashboard's health strip can do it without dropping to the
    * MCP tools. Returns the recomputed status so the client can render the new
    * verdict from one round trip (the marker is what gives unverified claim
-   * cards a drift baseline, so the whole strip changes).
+   * cards a drift baseline, so the whole strip changes). An optional
+   * `format_review: true` in the body closes out the one-time format-upgrade
+   * review at the same time — the same field `set_sync_point` stamps.
    */
-  async function handleSetSyncPoint(res: http.ServerResponse): Promise<void> {
+  async function handleSetSyncPoint(
+    body: Record<string, unknown>,
+    res: http.ServerResponse,
+  ): Promise<void> {
     let marker;
     try {
-      marker = await writeSyncPoint(planRoot);
+      marker = await writeSyncPoint(
+        planRoot,
+        undefined,
+        body.format_review === true ? { formatReview: CONSTELLATION_VERSION } : {},
+      );
     } catch (err) {
       // No git repo (or no commits yet) — there is no HEAD to pin the plan to.
       return failure(
@@ -341,7 +351,7 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
           return failure(res, 405, 'READONLY', 'Server is running with --readonly');
         }
         if (url.pathname === '/api/sync-point') {
-          return await handleSetSyncPoint(res);
+          return await handleSetSyncPoint(await readJson(req), res);
         }
         if (cardMatch && method === 'PATCH') {
           return await handlePatchCard(

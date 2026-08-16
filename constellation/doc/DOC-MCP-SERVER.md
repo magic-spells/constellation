@@ -37,7 +37,12 @@ cache invalidation. Bootstrap is folder discovery, bounded by the repo root ([[F
 a repo with no plan returns `NO_PLAN_FOUND`. The agent-facing INSTRUCTIONS string is embedded
 in the server — one of three guidance copies, capped at 55 lines because every session pays
 for it, and held in step with the other two by `tests/guidance-consistency.test.ts`. See
-[[AGENT-GUIDANCE]].
+[[AGENT-GUIDANCE]]. That constant is static; the handshake string is not. On boot the server
+resolves the plan and, when it carries no `format_review` stamp ([[DOC-CHANGE-TRACKING]]),
+appends one paragraph: 0.5.0 stopped treating prose as an edge, so an older plan should get a
+one-time review — promote real relationships into `connections:`, reconnect unintentional
+orphans, compact bloated cards — closed out with `set_sync_point format_review: true`. `orient`
+repeats it as `upgrade_review_pending` for hosts that truncate instructions.
 
 ## Hydrated retrieval
 
@@ -99,8 +104,9 @@ times over:
   come back** (issues are lint state, not failure). Writes are serialized per file behind an
   in-process lock and land atomically (temp + rename); the cheap writes apply their change to
   the file's *current* content, so concurrent small updates compose instead of clobbering.
-- **Git** — `diff_plan`, `plan_log`, `set_sync_point`, `stale_report`, `check_sync`,
-  `check_integrity` (see [[DOC-CHANGE-TRACKING]]).
+- **Git** — `diff_plan`, `plan_log`, `set_sync_point` (+ `format_review: true`, the one-time
+  format-upgrade review), `stale_report`, `check_sync`, `check_integrity`
+  (see [[DOC-CHANGE-TRACKING]]).
 - **Viewer** — `start_viewer` / `stop_viewer` ([[PAGE-VIEWER-HOME]]).
 - **Connected repos** — `list` / `add` / `remove_connected_repo`; every tool takes a `repo`
   selector (see [[DOC-CONNECTED-REPOS]]).

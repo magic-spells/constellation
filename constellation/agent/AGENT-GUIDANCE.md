@@ -10,6 +10,8 @@ connections:
   - FILE-MCP-SERVER
   - DOC-MCP-UPGRADES
   - FLOW-SYNC-PLAN
+verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
+verified_at: '2026-08-16T00:47:22.586Z'
 ---
 
 # Agent guidance
@@ -20,7 +22,9 @@ that must stay consistent**: the MCP `INSTRUCTIONS` string ([[FILE-MCP-SERVER]])
 agent should use the plan must land in all three.
 
 Each copy has one job. `INSTRUCTIONS` is **always on**, so it is capped at 55 lines — the rules
-an agent needs without asking. `SKILL.md` is the **pointer**: the same rules with their
+an agent needs without asking. The constant is fixed; the handshake string it produces is not —
+the server appends the one-time format-upgrade paragraph to it at boot when the plan carries no
+`format_review` stamp ([[DOC-CHANGE-TRACKING]]), which is why the cap applies to the constant. `SKILL.md` is the **pointer**: the same rules with their
 mechanics, deferring type schemas to `describe_type` rather than restating them.
 `methodology.md` is the **long pass** — building or auditing a whole plan from a codebase — and
 also backs the MCP `bootstrap_plan` / `audit_plan` prompts.

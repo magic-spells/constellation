@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import { readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,12 +19,15 @@ import type { RunningServer } from '../serve/server.js';
 import {
   changedFilesSince,
   diffPlan,
+  formatReviewVersion,
   headSha,
   planDirty,
   planLog,
   resolveCommit,
+  stampFormatReview,
   writeSyncPoint,
 } from '../core/git.js';
+import { CONSTELLATION_VERSION } from '../core/version.js';
 import { computeSyncStatus, packageVersion } from '../core/sync.js';
 import { boundPathsForCard, boundPathsOverlap, resolveCodeForCard } from '../core/code.js';
 import { computeStaleCards } from '../core/stale.js';
@@ -54,8 +56,7 @@ import {
 } from '../core/repos.js';
 import type { ConnectedRepo } from '../core/types.js';
 
-const require = createRequire(import.meta.url);
-const { version: PACKAGE_VERSION } = require('../../package.json') as { version: string };
+const PACKAGE_VERSION = CONSTELLATION_VERSION;
 export { PACKAGE_VERSION as MCP_SERVER_VERSION };
 
 export const INSTRUCTIONS = `# Constellation MCP
@@ -113,6 +114,61 @@ plan_log / git.
 Multi-repo: PLAN-PROJECT.connected_repos lists sibling repos (add_connected_repo / remove_connected_repo); pass
 repo: to any tool to read or write THAT repo's plan. Cards never connect across repos. start_viewer serves the
 plan as an editable site — post the returned URL back to the user.`;
+
+/* ── the one-time format-upgrade review ─────────────────────────────────────
+ * 0.5.0 changed what makes an edge: a [[link]] or a mermaid node ID stopped
+ * being one. Plans authored before that encoded real relationships in prose and
+ * would silently lose them, so the first server boot against such a plan says so
+ * — once. The signal is `format_review` in .sync.json: absent (or no marker at
+ * all) means never reviewed. It is provenance, not a derived flag, and only a
+ * human-confirmed review (set_sync_point format_review: true) or init_plan
+ * writes it.
+ */
+
+/** Appended to INSTRUCTIONS at boot when the resolved plan has no review stamp. */
+export function upgradeReviewNotice(version: string): string {
+  return (
+    `\n\nThis is the first run on Constellation ${version} against a plan authored on an earlier version, so you ` +
+    `need to understand what changed: prose [[links]] and mermaid node IDs no longer form the connection graph — ` +
+    `only connections: entries and handle-shaped frontmatter values do. Make updates to the cards as necessary: ` +
+    `promote real relationships into connections:, reconnect unintentional orphans, and compact wordy or ` +
+    `token-heavy cards while you're in there. Confirm the plan with the user before large edits, and when the ` +
+    `review is done (or the user wants this notice silenced), stamp it with set_sync_point format_review: true — ` +
+    `this notice then never appears again.`
+  );
+}
+
+/** One line of the same, for orient — hosts that truncate the handshake still get it. */
+export function upgradeReviewHint(version: string): string {
+  return (
+    `First run on ${version}: plan predates the 0.5.0 connection rules — upgrade review pending. ` +
+    `Prose [[links]] are no longer edges; promote real relationships into connections:, then stamp ` +
+    `set_sync_point format_review: true.`
+  );
+}
+
+/** True when the plan has never been reviewed under the current format rules. */
+async function upgradeReviewPending(root: string): Promise<boolean> {
+  return (await formatReviewVersion(root)) === null;
+}
+
+/**
+ * The handshake instructions for this boot: the static string, plus the upgrade
+ * notice when a plan resolves and carries no review stamp. No plan (or an
+ * unreadable one) → the static string, unchanged.
+ */
+export async function bootInstructions(planRoot?: string | null): Promise<string> {
+  try {
+    // Resolve even a fixed root: a path that holds no plan must not be prompted
+    // about, and the notice is never worth an error at handshake time.
+    const root = await resolvePlanDir(planRoot ?? undefined);
+    if (!root) return INSTRUCTIONS;
+    if (!(await upgradeReviewPending(root))) return INSTRUCTIONS;
+    return INSTRUCTIONS + upgradeReviewNotice(PACKAGE_VERSION);
+  } catch {
+    return INSTRUCTIONS;
+  }
+}
 
 // The plan-from-code playbook lives in one file (skill/methodology.md), shared by the
 // skill and the MCP prompts so the two can't drift. From dist/mcp/server.js (or
@@ -590,6 +646,15 @@ async function orientReport(root: string): Promise<Record<string, unknown>> {
       : `This MCP server is ${PACKAGE_VERSION}, ahead of the workspace's ${workspace} — the running server includes changes this tree has not released.`;
   }
 
+  // Belt and suspenders for the boot notice: a host that truncates or hides the
+  // handshake instructions still sees the pending review here.
+  let pending = false;
+  try {
+    pending = await upgradeReviewPending(root);
+  } catch {
+    pending = false;
+  }
+
   return {
     plan_root: index.root,
     project: {
@@ -602,6 +667,12 @@ async function orientReport(root: string): Promise<Record<string, unknown>> {
     recent_notes: recentNotes,
     connected_repos: repos,
     versions,
+    ...(pending
+      ? {
+          upgrade_review_pending: true,
+          upgrade_review: upgradeReviewHint(PACKAGE_VERSION),
+        }
+      : {}),
   };
 }
 
@@ -664,12 +735,17 @@ const repoSchema = z
 export interface ServerOptions {
   /** Fixed plan root (tests); when omitted, resolved per call by walking up from cwd. */
   planRoot?: string;
+  /**
+   * Handshake instructions. Defaults to the static INSTRUCTIONS; `createServer`
+   * passes the boot-computed string, which may carry the upgrade-review notice.
+   */
+  instructions?: string;
 }
 
 export function buildServer(options: ServerOptions = {}): McpServer {
   const server = new McpServer(
     { name: 'constellation', version: PACKAGE_VERSION },
-    { instructions: INSTRUCTIONS },
+    { instructions: options.instructions ?? INSTRUCTIONS },
   );
 
   server.registerPrompt(
@@ -2210,11 +2286,39 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'set_sync_point',
     {
       description:
-        'Record that code has been reconciled with the plan as of a commit (default HEAD). diff_plan uses this marker as its default base. Commit the plan first: if constellation/ has uncommitted changes, the marker points at a commit that lacks them and the response includes a warning.',
-      inputSchema: { sha: z.string().optional(), repo: repoSchema },
+        'Record that code has been reconciled with the plan as of a commit (default HEAD). diff_plan uses this marker as its default base. Commit the plan first: if constellation/ has uncommitted changes, the marker points at a commit that lacks them and the response includes a warning. Pass format_review: true only to close out the one-time format-upgrade review the server prompts for on first run against an older plan — it records that this plan has been reviewed under the running version\'s rules and silences that prompt for good.',
+      inputSchema: {
+        sha: z.string().optional(),
+        format_review: z
+          .boolean()
+          .optional()
+          .describe(
+            "record this plan as reviewed under the running version's format rules (silences the upgrade-review prompt)",
+          ),
+        repo: repoSchema,
+      },
     },
-    withPlan(async (root, { sha }) => {
-      const point = await writeSyncPoint(root, sha);
+    withPlan(async (root, { sha, format_review }) => {
+      const stampReview = format_review === true;
+      let point;
+      try {
+        point = await writeSyncPoint(
+          root,
+          sha,
+          stampReview ? { formatReview: PACKAGE_VERSION } : {},
+        );
+      } catch (err) {
+        // No HEAD to pin to (a repo with no commits, or no repo at all). The
+        // review stamp is git-independent, so honor it rather than failing.
+        if (!stampReview || sha) throw err;
+        const marker = await stampFormatReview(root, PACKAGE_VERSION);
+        return ok({
+          ...marker,
+          warning:
+            'No git HEAD to pin a sync point to; recorded the format review only. ' +
+            'Run set_sync_point again once the repo has a commit.',
+        });
+      }
       const dirty = await planDirty(root);
       return ok({
         ...point,
@@ -2374,8 +2478,20 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   return server;
 }
 
+/**
+ * buildServer, plus the one thing that must be known before the handshake: does
+ * the plan this server will serve still need the format-upgrade review? The
+ * instructions are fixed at construction time, so the check happens here.
+ */
+export async function createServer(options: ServerOptions = {}): Promise<McpServer> {
+  return buildServer({
+    ...options,
+    instructions: options.instructions ?? (await bootInstructions(options.planRoot)),
+  });
+}
+
 export async function startMcpServer(): Promise<void> {
-  const server = buildServer();
+  const server = await createServer();
   await server.connect(new StdioServerTransport());
   // stdout belongs to the protocol; greet on stderr.
   console.error('constellation mcp: ready (stdio)');

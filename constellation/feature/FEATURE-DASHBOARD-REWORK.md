@@ -8,6 +8,8 @@ connections:
   - PAGE-VIEWER-HOME
   - COMPONENT-ICON
   - FILE-SERVE
+verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
+verified_at: '2026-08-16T00:47:22.586Z'
 ---
 
 # Overview dashboard rework
@@ -26,6 +28,6 @@ The first mission-control dashboard ([[FEATURE-OVERVIEW-DASHBOARD]]) shipped fou
 
 ## Acceptance
 
-- A never-synced plan reads "nothing tracked yet" plus one counted line naming the fix, not one row per claim.
+- A plan whose claims have no baseline reads "nothing tracked yet" plus one counted line naming the fix, not one row per claim. (That was every claim on an unsynced plan when this shipped; card-relative drift has since made the bucket small — the panel behavior is unchanged.)
 - Stamping the sync point from the health strip gives every claim a baseline and the panel a real verdict, without a reload.
 - Every release the plan knows about is listed, with Breaking called out on the header.

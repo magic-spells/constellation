@@ -1,5 +1,7 @@
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { stampFormatReview } from './git.js';
+import { CONSTELLATION_VERSION } from './version.js';
 
 /** Turn a folder slug into a human-readable project name: pyramid-server → Pyramid Server. */
 export function titleCaseFromSlug(slug: string): string {
@@ -59,5 +61,9 @@ export async function initPlan(
   }
   await mkdir(root, { recursive: true });
   await writeFile(path.join(root, 'plan.md'), starterPlan(name), { flag: 'wx' });
+  // A plan born on this version was authored under this version's rules, so it
+  // must never be offered the one-time format-upgrade review. No sync point yet —
+  // nothing has been reconciled — just the review stamp.
+  await stampFormatReview(root, CONSTELLATION_VERSION);
   return { root, name };
 }
