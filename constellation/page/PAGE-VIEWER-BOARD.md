@@ -12,8 +12,8 @@ connections:
   - FILE-SERVE
   - COMPONENT-STATUS-SELECT
   - PAGE-VIEWER-FEATURES
-verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
-verified_at: '2026-08-16T02:31:24.894Z'
+verified_sha: dbaa7fc23fb5a41ce5672978f990c3080c3e5f3a
+verified_at: '2026-08-16T18:25:57.039Z'
 notes:
   - kind: verified
     text: >-
@@ -21,6 +21,12 @@ notes:
       and the morph pairing, and code_refs covers BoardCardDialog/BoardOverlayEmpty. The old
       "clicking a card goes to its card page" claim is gone.
     sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+  - kind: verified
+    text: >-
+      Route moved to #/tasks/board (dialog #/tasks/board/card/HANDLE) and the card now records that
+      Board is one of two Tasks tabs, not a destination. Checked against routes.js, BoardPage.pzl
+      and TasksHeader.pzl.
+    sha: dbaa7fc23fb5a41ce5672978f990c3080c3e5f3a
 ---
 
 The `#/tasks/board` route: every FEATURE card as a Kanban board, one column per value of

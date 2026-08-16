@@ -1,12 +1,22 @@
 ---
 name: 'Tasks: board and list as one destination'
-status: built
+status: verified
 release: RELEASE-V0-5-1
 change: feature
 branch: feat/tasks-tabs
 connections:
   - PAGE-VIEWER-BOARD
   - PAGE-VIEWER-FEATURES
+verified_at: '2026-08-16T18:26:12.941Z'
+verified_sha: dbaa7fc23fb5a41ce5672978f990c3080c3e5f3a
+notes:
+  - kind: verified
+    text: >-
+      Driven in a real browser at this build: tabs navigate between #/tasks/board and #/tasks/list,
+      the Tasks rail row stays lit for both, both headings land at the same x (288px), the morph
+      dialog opens at #/tasks/board/card/HANDLE, and #/board, #/features and #/tasks all redirect
+      correctly.
+    sha: dbaa7fc23fb5a41ce5672978f990c3080c3e5f3a
 ---
 
 Board and the features list were two sidebar rows. They are not two things —

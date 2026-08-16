@@ -6,8 +6,15 @@ code_refs:
   - viewer/app/views/FeaturesPanel.pzl
 connections:
   - FILE-SERVE
-verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
-verified_at: '2026-08-16T02:33:46.258Z'
+verified_sha: dbaa7fc23fb5a41ce5672978f990c3080c3e5f3a
+verified_at: '2026-08-16T18:26:03.498Z'
+notes:
+  - kind: verified
+    text: >-
+      Route moved to #/tasks/list and the card records that this is the List tab of Tasks. The
+      centred 62rem container moved onto the content rows so the shared tab strip stays anchored
+      across a switch.
+    sha: dbaa7fc23fb5a41ce5672978f990c3080c3e5f3a
 ---
 
 The `#/tasks/list` route: a roadmap view of every FEATURE card, served by
