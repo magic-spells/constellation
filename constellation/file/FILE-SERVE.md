@@ -1,6 +1,6 @@
 ---
 name: serve/server.ts
-status: built
+status: verified
 path: src/serve/server.ts
 language: typescript
 summary: Local HTTP server for the viewer
@@ -8,6 +8,15 @@ connections:
   - FILE-WRITER
   - FILE-SYNC
   - PAGE-VIEWER-HOME
+verified_at: '2026-08-16T02:31:48.534Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+notes:
+  - kind: verified
+    text: >-
+      Re-read against server.ts: the only delta since the last baseline is repo_url on GET
+      /api/plan, resolved once and memoised for the server's lifetime. Now documented, including the
+      null case rendering no link.
+    sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
 ---
 
 Serves `viewer/dist`, a read API, and a PATCH/POST/DELETE write API (with `if_mtime` stale-write guard), watching files for live reload. Shares the byte-preserving writer with the MCP path. `DELETE /api/card/PLAN-PROJECT` is refused (400 `INVALID_HANDLE`) — same guard as MCP `delete_card`.

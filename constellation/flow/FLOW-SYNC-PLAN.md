@@ -1,12 +1,12 @@
 ---
 name: Sync the plan to the code
 kind: sync
-status: built
+status: verified
 connections:
   - FILE-GIT
   - DOC-CHANGE-TRACKING
-verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
-verified_at: '2026-08-16T00:47:22.586Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T02:33:32.749Z'
 ---
 
 "Sync the plan to the code" brings CODE up to a changed plan — the plan is the source of truth, so behavior changes in the plan first.

@@ -1,12 +1,14 @@
 ---
 name: Change tracking & sync
 kind: spec
-status: built
+status: verified
 connections:
   - FILE-GIT
   - FILE-SYNC
   - FILE-STALE
   - DOC-MCP-UPGRADES
+verified_at: '2026-08-16T02:32:41.939Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
 ---
 
 # Change tracking & sync

@@ -1,11 +1,11 @@
 ---
 name: git
 kind: cli
-status: built
+status: verified
 connections:
   - FILE-GIT
-verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
-verified_at: '2026-08-16T00:47:22.586Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T02:32:46.634Z'
 ---
 
 The change-tracking backbone; [[FILE-GIT]] shells out to it for diff / log / rev-list (revisions guarded by safeRev + --end-of-options).

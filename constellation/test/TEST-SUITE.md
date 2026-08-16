@@ -1,15 +1,21 @@
 ---
 name: Test suite (vitest)
 kind: integration
-status: built
+status: verified
 code_refs:
   - tests
 connections:
   - FILE-LINT
   - FILE-INDEXER
   - FILE-MCP-SERVER
-verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
-verified_at: '2026-08-16T00:47:22.586Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T02:33:52.810Z'
+notes:
+  - kind: verified
+    text: >-
+      Suite is green at this sha: 47 files, 477 tests. The tests/viewer lane grew a board case
+      asserting the card links to /board/card/HANDLE and carries its data-puzzle-morph pairing id.
+    sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
 ---
 
 The vitest suite (460+ tests): core unit tests, MCP integration via an in-memory client, and git-backed drift/security tests. The golden plan `examples/constellation/` doubles as a fixture and must lint clean (0 errors). Exercises [[FILE-LINT]], [[FILE-INDEXER]], [[FILE-MCP-SERVER]].

@@ -1,9 +1,18 @@
 ---
 name: git.ts
-status: built
+status: verified
 path: src/core/git.ts
 language: typescript
 summary: Git plumbing for change tracking + drift
+verified_at: '2026-08-16T02:31:42.740Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+notes:
+  - kind: verified
+    text: >-
+      Re-read against git.ts: the export list now carries repoRemoteUrl, with its own paragraph
+      noting it answers "where does the code live" rather than "how did it change" — the one
+      function here outside the change-tracking remit.
+    sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
 ---
 
 `diffPlan` (per-card delta), `planLog`, sync-marker read/write, `headSha`, `changedFilesSince`, `lastCommitByPath`, `dirtyFilesAmong`, `countCodeCommitsSince`, `recentPlanActivity`, `recentCodeActivity`, `latestTag`, `repoRemoteUrl`. Every caller-supplied revision is guarded by `safeRev` + `--end-of-options` so a dash-leading value can't be parsed as a git option.

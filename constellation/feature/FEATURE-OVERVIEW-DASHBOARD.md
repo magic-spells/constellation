@@ -2,13 +2,13 @@
 name: Overview mission-control dashboard
 release: RELEASE-V0-5-0
 change: feature
-status: built
+status: verified
 branch: feat/overview-dashboard
 connections:
   - PAGE-VIEWER-HOME
   - FILE-SERVE
-verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
-verified_at: '2026-08-16T00:47:22.586Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T02:32:56.352Z'
 ---
 
 # Overview mission-control dashboard

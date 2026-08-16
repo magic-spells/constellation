@@ -1,13 +1,20 @@
 ---
 name: Viewer — home
 kind: route
-status: built
+status: verified
 code_refs:
   - viewer/app/views/Home.pzl
   - viewer/app/lib/dashboard.js
   - viewer/app/lib/icons.js
-verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
-verified_at: '2026-08-16T00:47:22.586Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T02:31:54.701Z'
+notes:
+  - kind: verified
+    text: >-
+      Re-read: the AppShell topbar the page sits inside is now described here (it has no card of its
+      own), including the repo_url-driven GitHub link. Home.pzl and dashboard.js themselves are
+      unchanged since the last baseline.
+    sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
 ---
 
 The viewer landing page: a status board for the plan. Served by [[FILE-SERVE]].

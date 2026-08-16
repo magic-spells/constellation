@@ -1,6 +1,6 @@
 ---
 name: indexer.ts
-status: built
+status: verified
 path: src/core/indexer.ts
 language: typescript
 summary: 'loadPlan(root): the heart of the system'
@@ -12,8 +12,8 @@ connections:
   - FILE-LINT
   - FILE-MCP-SERVER
   - FILE-SERVE
-verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
-verified_at: '2026-08-16T00:47:22.586Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T02:32:10.200Z'
 ---
 
 Reads every card, dedupes handles, resolves references, builds the undirected connection set, and collects structural issues (E001–E006, W001, W004). The single source of the derived graph — recomputed on every load, never stored.

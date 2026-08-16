@@ -1,6 +1,6 @@
 ---
 name: version.ts
-status: built
+status: verified
 path: src/core/version.ts
 language: typescript
 summary: This package's own version, read once
@@ -9,6 +9,8 @@ connections:
   - FILE-MCP-SERVER
   - FILE-SCAFFOLD
   - FILE-SERVE
+verified_at: '2026-08-16T02:33:23.542Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
 ---
 
 `CONSTELLATION_VERSION` — the version of the Constellation the caller is *running*, read once from the package root (`../..` resolves there from both `src/core/` and `dist/core/`). Distinct from [[FILE-SYNC]]'s `packageVersion`, which reads the **workspace's** package.json; `orient` compares the two.

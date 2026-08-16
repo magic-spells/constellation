@@ -1,12 +1,21 @@
 ---
 name: Board card preview dialog
-status: built
+status: verified
 release: RELEASE-V0-5-0
 change: feature
 branch: release/0.5.0
 connections:
   - PAGE-VIEWER-BOARD
   - PAGE-VIEWER-CARD
+verified_at: '2026-08-16T02:33:59.467Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+notes:
+  - kind: verified
+    text: >-
+      Round trip driven in a real browser against this build: show → reveal → shown on open, hide →
+      reveal → hidden on close, engine back to idle, hash back to #/board, dialog view destroyed,
+      the source card's inline transform cleared and no blob left in the body.
+    sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
 ---
 
 Clicking a card on [[PAGE-VIEWER-BOARD]] used to leave the board for the card

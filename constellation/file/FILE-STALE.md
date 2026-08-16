@@ -1,6 +1,6 @@
 ---
 name: stale.ts
-status: built
+status: verified
 path: src/core/stale.ts
 language: typescript
 summary: The shared code-side drift verdict
@@ -8,8 +8,8 @@ connections:
   - FILE-GIT
   - FILE-CODE
   - FILE-SYNC
-verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
-verified_at: '2026-08-16T00:47:22.586Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T02:33:10.918Z'
 ---
 
 `computeStaleCards` compares every claim card (status built/verified, or carrying a

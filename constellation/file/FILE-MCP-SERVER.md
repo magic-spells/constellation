@@ -1,6 +1,6 @@
 ---
 name: mcp/server.ts
-status: built
+status: verified
 path: src/mcp/server.ts
 language: typescript
 summary: 'The MCP server: tools + INSTRUCTIONS'
@@ -10,6 +10,8 @@ connections:
   - FILE-WRITER
   - FILE-SYNC
   - FILE-STALE
+verified_at: '2026-08-16T02:33:01.010Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
 ---
 
 `constellation mcp` (stdio). Registers every tool, embeds the agent-facing `INSTRUCTIONS` string (one of the three guidance copies), and resolves the target plan — the home plan or, when `repo` is passed, a connected sibling. The server handshake version is the package version (same source as the CLI), not a hardcoded leftover.

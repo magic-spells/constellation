@@ -1,7 +1,7 @@
 ---
 name: Viewer — board
 kind: route
-status: built
+status: verified
 code_refs:
   - viewer/app/views/BoardPage.pzl
   - viewer/app/views/BoardCardDialog.pzl
@@ -12,8 +12,15 @@ connections:
   - FILE-SERVE
   - COMPONENT-STATUS-SELECT
   - PAGE-VIEWER-FEATURES
-verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
-verified_at: '2026-08-16T00:47:22.586Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T02:31:24.894Z'
+notes:
+  - kind: verified
+    text: >-
+      Re-read against the board sources: the card now describes the preview dialog, the child route,
+      and the morph pairing, and code_refs covers BoardCardDialog/BoardOverlayEmpty. The old
+      "clicking a card goes to its card page" claim is gone.
+    sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
 ---
 
 The `#/board` route: every FEATURE card as a Kanban board, one column per value of

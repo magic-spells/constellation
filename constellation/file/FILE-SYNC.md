@@ -1,11 +1,11 @@
 ---
 name: sync.ts
-status: built
+status: verified
 path: src/core/sync.ts
 language: typescript
 summary: 'computeSyncStatus: a live freshness verdict'
-verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
-verified_at: '2026-08-16T00:47:22.586Z'
+verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T02:33:18.002Z'
 ---
 
 Composes git + lint + status rollup into one glanceable state — `in-sync` / `drifted` / `dirty` / `never-synced` / `no-git`, plus a `marker_error` (forcing `drifted`) when the marker sha is unreachable. Per-card reverse drift from [[FILE-STALE]] is part of the verdict: a non-empty stale list is `drifted`, not `in-sync` (uncommitted edits to bound code, or a vanished bound file). Uncommitted plan edits still report `dirty` first. Computed live on every call, never stored.
