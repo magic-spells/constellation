@@ -5,6 +5,8 @@ status: built
 connections:
   - FILE-GIT
   - DOC-CHANGE-TRACKING
+verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
+verified_at: '2026-08-16T00:47:22.586Z'
 ---
 
 "Sync the plan to the code" brings CODE up to a changed plan — the plan is the source of truth, so behavior changes in the plan first.
