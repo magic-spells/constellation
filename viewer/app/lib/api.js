@@ -45,6 +45,7 @@ export async function loadPlan(store) {
 	store.upsert('plan', {
 		id: 'plan',
 		editable: payload.editable,
+		repoUrl: payload.repo_url || '',
 		errors: payload.errors,
 		warnings: payload.warnings,
 		connections: payload.connections,

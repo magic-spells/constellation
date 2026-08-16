@@ -3,7 +3,7 @@ import { readFile, rm, stat } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { writeSyncPoint } from '../core/git.js';
+import { repoRemoteUrl, writeSyncPoint } from '../core/git.js';
 import { CONSTELLATION_VERSION } from '../core/version.js';
 import { isHandleShaped, typeForHandle } from '../core/handles.js';
 import { lintPlan } from '../core/lint.js';
@@ -122,7 +122,11 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     json(res, status, { error: { code, message } });
   }
 
+  // The remote can't change under a running server; resolve it once, lazily.
+  let repoUrl: string | null | undefined;
+
   async function handleGetPlan(res: http.ServerResponse): Promise<void> {
+    if (repoUrl === undefined) repoUrl = await repoRemoteUrl(planRoot).catch(() => null);
     const lint = await lintPlan(planRoot);
     const cards = await Promise.all(
       [...lint.index.cards.values()]
@@ -131,6 +135,7 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     );
     json(res, 200, {
       editable,
+      repo_url: repoUrl,
       cards,
       connections: lint.index.connections,
       errors: lint.errors,

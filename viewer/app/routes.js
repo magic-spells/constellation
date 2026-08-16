@@ -1,6 +1,8 @@
 import AppShell from './layouts/AppShell.pzl';
 import Home from './views/Home.pzl';
 import BoardPage from './views/BoardPage.pzl';
+import BoardCardDialog from './views/BoardCardDialog.pzl';
+import BoardOverlayEmpty from './views/BoardOverlayEmpty.pzl';
 import ConstellationView from './views/ConstellationView.pzl';
 import FeaturesPanel from './views/FeaturesPanel.pzl';
 import StyleGuide from './views/StyleGuide.pzl';
@@ -32,6 +34,16 @@ export default [
 		view: BoardPage,
 		layout: AppShell,
 		meta: { title: 'Constellation — Board' },
+		// The preview dialog is a CHILD route rendered in BoardPage's <Slot/>,
+		// not a `{#if}` toggle — that is the shape a shared-element morph needs
+		// (puzzle D55). The board, and with it the clicked card, stays mounted for
+		// the dialog's whole lifetime, so the blob can fly back into the card on
+		// close (including via the browser Back button). A `{#if}` branch is
+		// removed at patch time and a patch-time removal can't be awaited.
+		children: [
+			{ path: '', name: 'board-index', view: BoardOverlayEmpty },
+			{ path: 'card/:handle', name: 'board-card', view: BoardCardDialog },
+		],
 	},
 	{
 		path: '/constellation',

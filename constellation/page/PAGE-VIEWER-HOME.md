@@ -12,6 +12,8 @@ verified_at: '2026-08-16T00:47:22.586Z'
 
 The viewer landing page: a status board for the plan. Served by [[FILE-SERVE]].
 
+The shell around it (`viewer/app/layouts/AppShell.pzl`) owns the topbar every route shares: plan name, [[COMPONENT-SYNC-BADGE]], the ⌘K palette button, appearance controls, and — when [[FILE-SERVE]] reports a `repo_url` — a GitHub link out to the repo. No remote means no link rather than a dead icon.
+
 Four blocks, in order: the **health strip**, the **panel grid**, the `PLAN-PROJECT` body (editable in place), and connected repos. The page widens to 96rem for a two-column panel grid (one column under 900px) while the prose stays capped at 70rem so its left edge lines up with the panels.
 
 **Health strip** — the freshness verdict ([[COMPONENT-SYNC-BADGE]] says the same thing in the topbar), the counts that qualify it (cards, connections, integrity, warnings, drift) and the one action that changes it: a **Set sync point** button that POSTs `/api/sync-point`. Stamping the marker is what gives every claim card a drift baseline, so it is the fix the drift panel points at. The strip replaced both the old sync panel and the standalone stat row — the numbers only mean something next to the verdict. A `no-git` plan keeps the counts and loses the verdict and the button.

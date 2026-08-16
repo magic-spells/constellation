@@ -65,7 +65,7 @@
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
-		"@magic-spells/morph-engine": "^0.1.2",
+		"@magic-spells/morph-engine": "^0.2.0",
 		"@magic-spells/puzzle": "^0.6.0",
 		"@tailwindcss/cli": "^4.3.3",
 		"@types/d3-force": "^3.0.10",

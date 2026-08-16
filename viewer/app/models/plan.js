@@ -4,6 +4,7 @@ export default class Plan extends PuzzleModel {
 	static schema = {
 		id: Puzzle.string().primary(),
 		editable: Puzzle.boolean().default(false),
+		repoUrl: Puzzle.string().default(''),
 		errors: Puzzle.array().default(() => []),
 		warnings: Puzzle.array().default(() => []),
 		connections: Puzzle.array().default(() => []),

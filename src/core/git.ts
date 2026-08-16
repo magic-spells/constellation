@@ -33,6 +33,24 @@ export async function repoRootFor(planRoot: string): Promise<string> {
   return (await git(planRoot, 'rev-parse', '--show-toplevel')).trim();
 }
 
+/**
+ * The repo's `origin` remote as a browsable https URL (ssh forms normalized,
+ * trailing `.git` stripped), or null when there is no remote or no repo.
+ */
+export async function repoRemoteUrl(planRoot: string): Promise<string | null> {
+  let raw: string;
+  try {
+    raw = (await git(planRoot, 'remote', 'get-url', 'origin')).trim();
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  const ssh = /^(?:ssh:\/\/)?git@([^:/]+)[:/](.+)$/.exec(raw);
+  const url = ssh ? `https://${ssh[1]}/${ssh[2]}` : raw;
+  if (!/^https?:\/\//.test(url)) return null;
+  return url.replace(/\.git$/, '');
+}
+
 const SYNC_FILE = '.sync.json';
 
 /**

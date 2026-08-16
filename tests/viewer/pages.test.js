@@ -468,11 +468,15 @@ describe('BoardPage', () => {
 		view.destroy();
 	});
 
-	it('links a card to its card page and summarises its body', async () => {
+	it('links a card to its preview dialog and summarises its body', async () => {
 		const view = await mountWith(BoardPage, features);
 
 		const building = view.find('[data-kb-col="building"] [data-kb-card]');
-		expect(building.getAttribute('href')).toBe('/feature/FEATURE-SEARCH');
+		// The board's own child route, not the card page — the dialog morphs out
+		// of this card, which needs both to stay mounted (see routes.js).
+		expect(building.getAttribute('href')).toBe('/board/card/FEATURE-SEARCH');
+		// The pairing id BoardCardDialog's shell mints from the same handle.
+		expect(building.getAttribute('data-puzzle-morph')).toBe('board-card-FEATURE-SEARCH');
 		expect(building.textContent).toContain('Search');
 		expect(building.textContent).toContain('FEATURE-SEARCH');
 		// First real paragraph only — the heading is skipped and [[CARD]] unwrapped.

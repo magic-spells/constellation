@@ -24,6 +24,10 @@
       <Kanban columns={ columns } label="Feature board" empty="Nothing here yet."/>
     {/if}
   </div>
+
+  <!-- Where the preview dialog mounts (`#/board/card/HANDLE`). The board stays
+       put underneath it — see the child routes in routes.js. -->
+  <Slot/>
 </puzzle-view>
 
 <script>
@@ -31,7 +35,6 @@ import { PuzzleView } from '@magic-spells/puzzle';
 import Empty from '../components/ui/Empty.pzl';
 import Kanban from '../components/ui/Kanban.pzl';
 import { planIndex } from '../lib/plan-index.js';
-import { hrefForHandle } from '../lib/types.js';
 
 // BoardPage — `#/board`: every FEATURE card in the four status-enum columns.
 // Read-only: a card's column IS its `status:` frontmatter, so drag-to-move must
@@ -40,6 +43,18 @@ import { hrefForHandle } from '../lib/types.js';
 // board answers "where is everything right now" — name, handle, one line.
 // Unset status sits in Planned with a pill (never masquerading as a decision);
 // unrecognised status lands there too rather than vanishing.
+//
+// A card opens its full content as a preview dialog that MORPHS out of the card
+// you clicked (puzzle D55). Three things make that work and they have to agree:
+//
+//   1. The dialog is a CHILD ROUTE in the <Slot/> above, so this view — and the
+//      clicked card — survives the dialog's whole lifetime and the blob has
+//      something to fly back into. See routes.js.
+//   2. `href` therefore points at that child route, not at the card page. It is
+//      still a real link: ⌘-click deep-links to the board with the dialog open,
+//      and the footer's "Open full card" is the way through to CardPage.
+//   3. `morph` is the pairing id, minted here from the handle and matched by
+//      BoardCardDialog's shell. KanbanCard renders it as `data-puzzle-morph`.
 
 const DOT = 'size-1.5 shrink-0 rounded-full';
 
@@ -123,9 +138,11 @@ export default class BoardPage extends PuzzleView {
 			const bucket = buckets.has(status) ? status : 'planned';
 			buckets.get(bucket).push({
 				id: card.handle,
-				href: hrefForHandle(card.handle),
+				href: `/board/card/${card.handle}`,
+				morph: `board-card-${card.handle}`,
 				title: card.name || card.handle,
 				handle: card.handle,
+				accent: 'var(--color-ink)',
 				summary: summaryOf(card.body),
 				note: status ? '' : 'no status',
 			});
