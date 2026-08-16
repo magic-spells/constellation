@@ -26,14 +26,27 @@ const legacyCard = ({ to }) => hrefForHandle(to.params.handle);
 /** `/type/:folder` → `/:folder`; an unknown folder still renders its own state. */
 const legacyType = ({ to }) => `/${to.params.folder}`;
 
+// Tasks is ONE destination with two views of the same FEATURE cards, so `/tasks`
+// is not a page — it resolves to whichever view is the default. Board leads
+// because "where is everything right now" is the question people arrive with.
+const tasksIndex = () => '/tasks/board';
+
+// The pre-0.5.1 shapes. `/board` and `/features` were two sidebar rows before
+// they became two views of Tasks; both still resolve so bookmarks, pasted links
+// and older builds keep working. Redirects replace() rather than push, so the
+// dead URL never lands in history.
+const legacyBoard = () => '/tasks/board';
+const legacyFeatures = () => '/tasks/list';
+
 export default [
 	{ path: '/', name: 'home', view: Home, layout: AppShell, meta: { title: 'Constellation' } },
+	{ path: '/tasks', name: 'tasks', view: BoardPage, guard: tasksIndex },
 	{
-		path: '/board',
-		name: 'board',
+		path: '/tasks/board',
+		name: 'tasks-board',
 		view: BoardPage,
 		layout: AppShell,
-		meta: { title: 'Constellation — Board' },
+		meta: { title: 'Constellation — Tasks' },
 		// The preview dialog is a CHILD route rendered in BoardPage's <Slot/>,
 		// not a `{#if}` toggle — that is the shape a shared-element morph needs
 		// (puzzle D55). The board, and with it the clicked card, stays mounted for
@@ -41,9 +54,16 @@ export default [
 		// close (including via the browser Back button). A `{#if}` branch is
 		// removed at patch time and a patch-time removal can't be awaited.
 		children: [
-			{ path: '', name: 'board-index', view: BoardOverlayEmpty },
-			{ path: 'card/:handle', name: 'board-card', view: BoardCardDialog },
+			{ path: '', name: 'tasks-board-index', view: BoardOverlayEmpty },
+			{ path: 'card/:handle', name: 'tasks-board-card', view: BoardCardDialog },
 		],
+	},
+	{
+		path: '/tasks/list',
+		name: 'tasks-list',
+		view: FeaturesPanel,
+		layout: AppShell,
+		meta: { title: 'Constellation — Tasks' },
 	},
 	{
 		path: '/constellation',
@@ -51,13 +71,6 @@ export default [
 		view: ConstellationView,
 		layout: AppShell,
 		meta: { title: 'Constellation — Graph' },
-	},
-	{
-		path: '/features',
-		name: 'features',
-		view: FeaturesPanel,
-		layout: AppShell,
-		meta: { title: 'Constellation — Features' },
 	},
 	{
 		path: '/style-guide',
@@ -68,6 +81,8 @@ export default [
 	},
 	// Legacy shapes. The guard always redirects, so the view never constructs —
 	// it is named only because a route needs something to point at.
+	{ path: '/board', name: 'legacy-board', view: BoardPage, guard: legacyBoard },
+	{ path: '/features', name: 'legacy-features', view: FeaturesPanel, guard: legacyFeatures },
 	{ path: '/card/:handle', name: 'legacy-card', view: CardPage, guard: legacyCard },
 	{ path: '/type/:folder', name: 'legacy-type', view: TypeIntro, guard: legacyType },
 	{

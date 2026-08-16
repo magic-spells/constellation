@@ -10,9 +10,17 @@ verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
 verified_at: '2026-08-16T02:33:46.258Z'
 ---
 
-The `#/features` route: a roadmap view of every FEATURE card, served by
+The `#/tasks/list` route: a roadmap view of every FEATURE card, served by
 [[FILE-SERVE]] alongside [[PAGE-VIEWER-HOME]]. Two sections — *Up next*
 (`planned` / `building` / no status) on top, *Shipped* (`built` / `verified`)
 below — each sorted by file mtime, freshest edit first. Rows link to the card
 page and surface the feature's `release:` target (chip → the RELEASE card),
 `branch:`, `pr:` (external link when it's a URL), and status pill.
+
+**The List tab of Tasks.** Since 0.5.1 this is not its own destination: it and
+[[PAGE-VIEWER-BOARD]] show the same FEATURE cards and differ only in the reading,
+so they sit behind one **Tasks** sidebar row as two tabs sharing a heading and
+strip (`components/TasksHeader.pzl`). Its container matches the board's exactly —
+left-aligned, same padding — so the strip stays anchored when you switch; the row
+width is capped on the CONTENT instead, because a feature row stretched across a
+wide display is unreadable. `#/features` still resolves as a redirect.

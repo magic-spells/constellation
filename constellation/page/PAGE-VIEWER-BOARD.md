@@ -23,7 +23,7 @@ notes:
     sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
 ---
 
-The `#/board` route: every FEATURE card as a Kanban board, one column per value of
+The `#/tasks/board` route: every FEATURE card as a Kanban board, one column per value of
 the `status:` enum — *Planned*, *Building*, *Built*, *Verified*. Served by
 [[FILE-SERVE]]; the sidebar entry sits directly under Overview and is always
 present, because the board is a fixed view of the plan's work rather than a row
@@ -42,7 +42,7 @@ for work — but says so in a quiet dashed pill, so an unset field never
 masquerades as a decision. An unrecognised status lands there too rather than
 vanishing off the board.
 
-**Preview dialog.** A card opens at `#/board/card/HANDLE` as a centred dialog
+**Preview dialog.** A card opens at `#/tasks/board/card/HANDLE` as a centred dialog
 that *morphs out of the card you clicked* — type-tinted handle, name, status,
 the rendered body, its connections grouped by type, and a link on to the full
 card page. Closing (✕, backdrop, Escape, or the browser Back button) flies it
@@ -73,6 +73,17 @@ read-only board wants, and dormant machinery would have lied about what the boar
 does. `Kanban.pzl`'s header records how to re-merge the original when the status
 flip ships.
 
-[[PAGE-VIEWER-FEATURES]] is the same cards asked a different question — ahead vs
-shipped, with release / branch / PR provenance. The board answers "where is
-everything right now".
+**One of two Tasks views.** Board and [[PAGE-VIEWER-FEATURES]] render the SAME
+cards — every FEATURE in the plan — and differ only in the question they answer:
+the board says "where is everything right now", the list says what is ahead
+versus shipped with release / branch / PR provenance. Since 0.5.1 they are
+therefore two tabs behind a single **Tasks** row in the sidebar rather than two
+destinations, sharing a heading and tab strip (`components/TasksHeader.pzl`).
+Two rows also put a second "Features" in the rail directly above the FEATURE
+*type* row — the same word for two different pages.
+
+The tabs NAVIGATE (`#/tasks/board`, `#/tasks/list`) rather than toggling in
+place, because everything else here is URL-driven — deep links, Back, and this
+board's own morph dialog. Both views therefore share one container so the tab
+strip does not shift when you switch. The pre-0.5.1 `#/board` and `#/features`
+still resolve as redirects.

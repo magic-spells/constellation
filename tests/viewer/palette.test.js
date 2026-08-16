@@ -112,6 +112,10 @@ describe('CommandPalette', () => {
 		expect(groups(view)).toEqual(['Go to', 'API endpoints', 'Database', 'Scheme']);
 		expect(options(view)).toEqual([
 			'Overview',
+			// Both Tasks views, unconditionally — they are two readings of the same
+			// FEATURE cards, and the empty state is what teaches the card type.
+			'Tasks — Board',
+			'Tasks — List',
 			'Constellation',
 			'Tickets endpoint API-TICKETS',
 			'Users endpoint API-USERS',
@@ -144,7 +148,7 @@ describe('CommandPalette', () => {
 		expect(view.element.textContent).toContain('Nothing matches that.');
 
 		await view.type('input', '');
-		expect(options(view)).toHaveLength(10);
+		expect(options(view)).toHaveLength(12);
 		view.destroy();
 	});
 
@@ -188,12 +192,18 @@ describe('CommandPalette', () => {
 		view.destroy();
 	});
 
-	it('hides the Features and Style guide rows when the plan has no such cards', async () => {
+	it('gates the Style guide row on the plan having such cards, but never Tasks', async () => {
 		const { view } = await mount();
 		const labels = options(view);
 
-		expect(labels).not.toContain('Features');
+		// This fixture has no STYLE cards, so that row stays out.
 		expect(labels).not.toContain('Style guide');
+		// It has no FEATURE cards either, and Tasks shows anyway: the sidebar row
+		// is unconditional for the same reason, and its empty state is what
+		// teaches someone what a FEATURE card is. Gating it would hide the
+		// explanation from exactly the plan that needs it.
+		expect(labels).toContain('Tasks — Board');
+		expect(labels).toContain('Tasks — List');
 		view.destroy();
 	});
 });

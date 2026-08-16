@@ -1,0 +1,77 @@
+<puzzle-view>
+  <header class="mb-5">
+    <h2 class="mb-1 flex items-center gap-2 text-[1.3rem] text-ink">
+      <span class="text-[0.9rem]" style="color: var(--t-FEATURE, var(--color-brand))">✦</span>
+      Tasks
+    </h2>
+    <p class="mb-4 text-sm text-muted">{ blurb }</p>
+    <!-- Bare reference, not `go(value)`: a callback prop's own arguments are not
+         identifiers the template expression can name, so the call form would
+         pass undefined. The piece hands (value, event) to whatever it is given. -->
+    <Tabs id="tasks" tabs={ tabs } value={ active } @change={ go }/>
+  </header>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Tabs from './ui/Tabs.pzl';
+
+// TasksHeader — the title + view switcher shared by the two Tasks views.
+//
+//   <TasksHeader active="board"/>
+//   <TasksHeader active="list"/>
+//
+// ONE SUBJECT, TWO VIEWS. Board and List render the SAME cards — every FEATURE
+// in the plan — and differ only in the question they answer. Board groups by
+// `status:` and answers "where is everything right now"; List orders by
+// ahead-vs-shipped and carries release / branch / PR provenance. That is why
+// they share a heading and sit behind one sidebar row rather than reading as
+// two destinations.
+//
+// THE TABS NAVIGATE. Each one is a route (`#/tasks/board`, `#/tasks/list`), not
+// an in-place toggle, because everything else in this viewer is URL-driven:
+// deep links, the Back button, and the board's own morph dialog (a child route)
+// all depend on it. A local toggle would be the single view where a URL stopped
+// describing what you are looking at. `router.push` also means Back steps
+// between views, which is what a reader expects after clicking a tab.
+//
+// The panels stay parent-owned: the Tabs piece renders only the tablist (see
+// its header — Puzzle's named slots are static, so it cannot host N panels), so
+// each view marks up its own `role="tabpanel"` region with the matching ids.
+//
+// Props
+//   active  'board' | 'list' — which tab reads as selected
+
+const TABS = [
+	{ value: 'board', label: 'Board' },
+	{ value: 'list', label: 'List' },
+];
+
+const BLURB = {
+	board:
+		'Every FEATURE card by status: — a card moves column when its status does. Read-only.',
+	list: 'Every FEATURE card by what is ahead and what has shipped, with release provenance.',
+};
+
+const PATH = {
+	board: '/tasks/board',
+	list: '/tasks/list',
+};
+
+export default class TasksHeader extends PuzzleView {
+	data(params, props) {
+		const active = props.active === 'list' ? 'list' : 'board';
+		return { active, tabs: TABS, blurb: BLURB[active] };
+	}
+
+	events = {
+		go: (value) => {
+			const path = PATH[value];
+			// Guard the no-op: pushing the route you are already on would stack a
+			// duplicate history entry, so Back would need two presses to leave.
+			if (!path || value === this.getData().active) return;
+			void this.ctx.router.push(path);
+		},
+	};
+}
+</script>
