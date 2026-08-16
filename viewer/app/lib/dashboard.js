@@ -120,8 +120,9 @@ const DRIFT_ROW_CAP = 6;
  *
  * Shape rule: this panel is a verdict, not a list. Stale rows cap at
  * DRIFT_ROW_CAP, and cards with no reachable baseline collapse to a single
- * counted line — a plan that has never been synced has every claim in that
- * bucket, and rendering 49 identical rows says nothing 1 sentence can't.
+ * counted line — rendering 49 identical rows says nothing 1 sentence can't.
+ * That bucket is now small by construction: a claim only lands in it when git
+ * has never seen its card file, since every committed card is its own baseline.
  */
 export function driftModel(sync) {
 	const verdict = sync?.stale;
@@ -172,11 +173,10 @@ export function driftModel(sync) {
 				: {
 						count: noBaseline.length,
 						unreachable: noBaseline.filter((entry) => entry.reason).length,
-						// The fix depends on why: with no marker at all, one sync point
-						// baselines every claim at once.
-						hint: sync?.marker
-							? 'stamp them with set_verified to track their code'
-							: 'set a sync point to give every claim a baseline',
+						// Drift is card-relative now, so a claim only lands here when
+						// git has never seen its card file: commit it (or stamp it)
+						// and it gets a baseline.
+						hint: 'commit them, or stamp them with set_verified, to track their code',
 					},
 	};
 }

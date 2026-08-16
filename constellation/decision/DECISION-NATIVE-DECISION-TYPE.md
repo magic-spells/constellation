@@ -32,7 +32,7 @@ typed as documentation.
 
 ## Decision
 
-Add `DECISION-` / `decision/` as the 18th type. A DECISION card is an ADR — the
+Add `DECISION-` / `decision/` as a native card type (one of the 21). A DECISION card is an ADR — the
 choice, the why, the alternatives rejected — **connected to every card it
 shaped**. Cards are **living, one per decision topic**: when a decision changes,
 the existing card is rewritten to state only the current choice and why (the

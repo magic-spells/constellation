@@ -1,0 +1,78 @@
+<puzzle-view>
+  <a class={ rootClass } href="{ href | link }" data-kb-card={ cardId }>
+    <div class="flex items-start justify-between gap-2">
+      <span class="text-sm font-medium text-ink">{ title }</span>
+      {#if badge}
+        <span class={ badgeClass }>{ badge }</span>
+      {/if}
+    </div>
+    {#if handle}
+      <span class="mt-0.5 block font-mono text-[0.7rem] text-faint">{ handle }</span>
+    {/if}
+    {#if summary}
+      <p class="mt-1.5 line-clamp-2 text-xs text-muted">{ summary }</p>
+    {/if}
+    {#if note}
+      <span class="mt-2 inline-flex items-center rounded-full border border-dashed border-border px-1.5 py-0.5 text-[0.65rem] text-faint">{ note }</span>
+    {/if}
+  </a>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// KanbanCard — the visual body of a single Kanban card. Presentational only.
+// THIS is the file to edit when you want different card content; the board
+// renders nothing about a card itself.
+//
+//   <KanbanCard card={ card }/>
+//
+// ADAPTED PIECE — the registry's version is a focusable `role="button"` div
+// carrying the drag gesture's pointerdown/keydown forwards and its
+// aria-grabbed state. Constellation's board is read-only, so a card is what it
+// reads as: a LINK to the card page. The href is piped through the built-in
+// `link` formatter here rather than at the call site, so the board stays
+// correct in every router mode.
+//
+// Props
+//   card   the raw card object:
+//          { id, title, href, handle, summary, badge, badgeVariant, note }
+//          - href      card page path, '/'-leading (piped through `link`)
+//          - handle    the plan handle, rendered mono under the title
+//          - summary   one short line of prose, clamped to two lines
+//          - badge     optional chip text; badgeVariant picks its tone
+//          - note      a quiet dashed pill for a caveat ("no status")
+//   class  merged onto the root
+
+const BASE =
+  'block rounded-lg border border-border bg-surface p-3 text-left shadow-sm ' +
+  'transition-shadow hover:border-border-strong hover:shadow-md ' +
+  'outline-ring focus-visible:outline-2 focus-visible:outline-offset-2';
+
+const BADGE_BASE =
+  'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap';
+const BADGE_VARIANT = {
+  default: 'bg-surface-sunken text-body',
+  brand: 'bg-brand-tint text-brand',
+  danger: 'bg-danger-tint text-danger',
+  outline: 'border border-border bg-transparent text-body',
+};
+
+export default class KanbanCard extends PuzzleView {
+  data(params, props) {
+    const card = props.card || {};
+
+    return {
+      rootClass: [BASE, props.class || ''].filter(Boolean).join(' '),
+      cardId: card.id || false,
+      href: card.href || '',
+      title: card.title || '',
+      handle: card.handle || '',
+      summary: card.summary || '',
+      badge: card.badge || '',
+      badgeClass: `${BADGE_BASE} ${BADGE_VARIANT[card.badgeVariant] || BADGE_VARIANT.default}`,
+      note: card.note || '',
+    };
+  }
+}
+</script>

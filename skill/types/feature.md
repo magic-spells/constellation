@@ -30,7 +30,8 @@ A shipped FEATURE card stays — it's the record of why the system grew, alongsi
 any [DECISION cards](./decision.md) it produced.
 
 Body: intent (the problem), scope (in/out), acceptance (how you know it's done),
-with `[[links]]` to the cards involved.
+with `[[links]]` to the cards involved — and every card the feature actually
+touches in `connections:`, since a `[[link]]` is a link, not a connection.
 
 Example — `constellation/feature/FEATURE-AUTO-ASSIGNMENT.md`:
 

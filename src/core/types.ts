@@ -6,14 +6,19 @@ export const TYPE_NAMES = [
 
 export type TypeName = (typeof TYPE_NAMES)[number];
 
+/**
+ * A card's outbound references. The first two are STRUCTURAL — they are what the
+ * connection graph is built from. The last two are LINKS: hyperlinks for readers
+ * and the viewer, linted for dangling targets (W004) but never graph edges.
+ */
 export interface CardRefs {
   /** Handles listed in the frontmatter `connections` key. */
   connections: string[];
   /** Handle-shaped values found elsewhere in frontmatter (e.g. response_schema). */
   frontmatter: string[];
-  /** [[HANDLE]] wiki-links in the body. */
+  /** [[HANDLE]] wiki-links in the body — a link, not a connection. */
   body: string[];
-  /** Handle-shaped identifiers inside ```mermaid blocks. */
+  /** Handle-shaped identifiers inside ```mermaid blocks — a link, not a connection. */
   mermaid: string[];
 }
 
@@ -32,7 +37,12 @@ export interface Card {
   refs: CardRefs;
 }
 
-/** Undirected connection; endpoints are stored in sorted order so each pair is unique. */
+/**
+ * Undirected connection; endpoints are stored in sorted order so each pair is
+ * unique. Connections come from frontmatter ONLY — the `connections:` list and
+ * handle-shaped values in other frontmatter fields. A `[[HANDLE]]` body link or
+ * a mermaid node ID is a hyperlink, never an edge.
+ */
 export interface Connection {
   a: string;
   b: string;
@@ -67,7 +77,7 @@ export interface PlanIndex {
   /** Cards by handle. */
   cards: Map<string, Card>;
   connections: Connection[];
-  /** handle -> set of connected handles (both directions). */
+  /** handle -> set of connected handles, both directions. */
   connectedHandles: Map<string, Set<string>>;
   /** Structural issues found while loading (E001–E006, W001, W004). */
   issues: Issue[];

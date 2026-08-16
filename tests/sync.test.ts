@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import {
+  appendFile,
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +38,19 @@ beforeAll(async () => {
 afterAll(async () => {
   await rm(repo, { recursive: true, force: true });
 });
+
+/**
+ * Give every card file a fresh last commit by appending a blank line — the
+ * fixture's stand-in for "the plan was updated alongside the code".
+ */
+async function touchPlanCards(): Promise<void> {
+  const entries = await readdir(planRoot, { recursive: true, withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+    const file = path.join(entry.parentPath, entry.name);
+    await appendFile(file, '\n');
+  }
+}
 
 // These run in order and build on each other (like mcp-git.test.ts), each
 // mutating the shared repo to drive the status through its lifecycle.
@@ -106,8 +127,11 @@ describe('computeSyncStatus', () => {
     await writeFile(path.join(repo, 'src', 'api', 'tickets.ts'), 'export const v = 1;\n');
     await writeFile(path.join(repo, 'src', 'types', 'ticket.ts'), 'export type Ticket = {};\n');
     await writeFile(path.join(repo, 'src', 'styles', 'tokens.css'), ':root {}\n');
+    // Drift is card-relative: code that lands AFTER its card is drift. Here the
+    // cards and the code they claim land together, which is the ordinary loop.
+    await touchPlanCards();
     git('add', '-A');
-    git('commit', '-q', '-m', 'add bound source files');
+    git('commit', '-q', '-m', 'add bound source files with their cards');
     await writeSyncPoint(planRoot);
     const status = await computeSyncStatus(planRoot);
     expect(status.stale?.stale ?? []).toEqual([]);

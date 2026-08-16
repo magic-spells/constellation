@@ -1,0 +1,140 @@
+<puzzle-view>
+  <div class="board px-5 pb-16 pt-8 sm:px-8">
+    <h2 class="mb-1 flex items-center gap-2 text-[1.3rem] text-ink">
+      <span class="text-[0.9rem]" style="color: var(--t-FEATURE, var(--color-brand))">✦</span>
+      Board
+    </h2>
+    <p class="mb-5 text-sm text-muted">
+      Every FEATURE card by <code class="font-mono text-xs">status:</code>. Read-only —
+      a card moves column when its status does.
+    </p>
+
+    {#if empty}
+      <Empty
+        class="rounded-xl border border-dashed border-border"
+        title="No FEATURE cards yet"
+        description="A FEATURE groups a coherent slice of future work. Create one in feature/FEATURE-*.md, connect the cards it touches, and it lands on this board.">
+        <svg slot="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="4" width="5" height="16" rx="1"/>
+          <rect x="9.5" y="4" width="5" height="11" rx="1"/>
+          <rect x="16" y="4" width="5" height="7" rx="1"/>
+        </svg>
+      </Empty>
+    {:else}
+      <Kanban columns={ columns } label="Feature board" empty="Nothing here yet."/>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Empty from '../components/ui/Empty.pzl';
+import Kanban from '../components/ui/Kanban.pzl';
+import { planIndex } from '../lib/plan-index.js';
+import { hrefForHandle } from '../lib/types.js';
+
+// BoardPage — `#/board`: every FEATURE card in the four status-enum columns.
+// Read-only: a card's column IS its `status:` frontmatter, so drag-to-move must
+// land as a status PATCH through the write API before the gesture can mean
+// anything. FeaturesPanel answers ahead-vs-shipped with release provenance; the
+// board answers "where is everything right now" — name, handle, one line.
+// Unset status sits in Planned with a pill (never masquerading as a decision);
+// unrecognised status lands there too rather than vanishing.
+
+const DOT = 'size-1.5 shrink-0 rounded-full';
+
+// Enum order — planned → verified reads as the life of a feature. Tone dots
+// match CardList's status dots so a status is one colour everywhere.
+const COLUMNS = [
+	{ id: 'planned', title: 'Planned', dotClass: `${DOT} bg-faint`, empty: 'Nothing queued.' },
+	{ id: 'building', title: 'Building', dotClass: `${DOT} bg-warning`, empty: 'Nothing in flight.' },
+	{ id: 'built', title: 'Built', dotClass: `${DOT} bg-brand`, empty: 'Nothing built yet.' },
+	{
+		id: 'verified',
+		title: 'Verified',
+		dotClass: `${DOT} bg-success`,
+		empty: 'Nothing verified yet.',
+	},
+];
+
+const SUMMARY_MAX = 120;
+
+/**
+ * One line of intent: the first real PARAGRAPH of the body (cards have no
+ * summary field). Paragraph, not line — bodies hard-wrap, so consecutive prose
+ * lines are joined before the clamp. Fenced blocks are skipped WHOLE; skipping
+ * only the ``` delimiters would let the interior read as the summary.
+ */
+function summaryOf(body) {
+	const lines = String(body ?? '').split('\n');
+	const paragraph = [];
+	let fence = '';
+
+	for (const raw of lines) {
+		const line = raw.trim();
+		const delimiter = /^(```+|~~~+)/.exec(line)?.[1];
+
+		if (fence) {
+			// Inside a fence: only its own closing delimiter is meaningful.
+			if (delimiter && line.startsWith(fence)) fence = '';
+			continue;
+		}
+
+		// Non-prose ends a started paragraph, and is skipped before one starts.
+		if (delimiter) {
+			if (paragraph.length > 0) break;
+			fence = delimiter;
+			continue;
+		}
+		if (!line || /^(#{1,6}\s|>|[-*+]\s|\d+\.\s|\||<!--|:::)/.test(line)) {
+			if (paragraph.length > 0) break;
+			continue;
+		}
+
+		paragraph.push(line);
+	}
+
+	if (paragraph.length === 0) return '';
+
+	const plain = paragraph
+		.join(' ')
+		.replace(/\[\[([^\]|]+)(\|[^\]]+)?\]\]/g, '$1') // [[HANDLE]] → HANDLE
+		.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1') // [text](url) → text
+		.replace(/[`*_]/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+
+	if (plain.length <= SUMMARY_MAX) return plain;
+	const cut = plain.slice(0, SUMMARY_MAX);
+	const space = cut.lastIndexOf(' ');
+	return `${(space > 60 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+export default class BoardPage extends PuzzleView {
+	data() {
+		const features = [...(planIndex(this.ctx.store).byType.get('FEATURE') ?? [])].sort(
+			(a, b) => b.mtime - a.mtime,
+		);
+
+		const buckets = new Map(COLUMNS.map((column) => [column.id, []]));
+
+		for (const card of features) {
+			const status = card.status ?? '';
+			const bucket = buckets.has(status) ? status : 'planned';
+			buckets.get(bucket).push({
+				id: card.handle,
+				href: hrefForHandle(card.handle),
+				title: card.name || card.handle,
+				handle: card.handle,
+				summary: summaryOf(card.body),
+				note: status ? '' : 'no status',
+			});
+		}
+
+		return {
+			empty: features.length === 0,
+			columns: COLUMNS.map((column) => ({ ...column, cards: buckets.get(column.id) })),
+		};
+	}
+}
+</script>

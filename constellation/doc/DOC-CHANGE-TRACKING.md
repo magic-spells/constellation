@@ -2,6 +2,11 @@
 name: Change tracking & sync
 kind: spec
 status: built
+connections:
+  - FILE-GIT
+  - FILE-SYNC
+  - FILE-STALE
+  - DOC-MCP-UPGRADES
 ---
 
 # Change tracking & sync
@@ -15,6 +20,11 @@ branches and PRs, and reviewing a plan PR is the human approval gate before an A
 `computeSyncStatus` reports `drifted` when the plan moved past the marker or code commits land
 after it, and `marker_error` → `drifted` when the marker sha is unreachable (rebase / shallow
 clone / hand-edited marker).
+
+**Per-card drift is card-relative** ([[FILE-STALE]]): a claim card is measured against its
+own last commit, so code committed after its card is drift and a card committed with its code
+is not. The marker is only the *fallback* for cards git has never seen change — keeping it
+current is an option, not a chore.
 
 **Lifecycle** — `status` (`planned`→`building`→`built`→`verified`) is a card property,
 orthogonal to history. Verify only against real code.

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "registry": "/Users/coryschulz/Code/@magic-spells/puzzle-pieces/registry",
-  "puzzle": "dev+v0.5.0-70-gd4f5029",
+  "puzzle": "0.6.0",
   "pieces": {
     "alert-dialog": {
       "files": {
@@ -36,6 +36,12 @@
     "empty": {
       "files": {
         "app/components/ui/Empty.pzl": "sha256:9508da2a54c7de6d95e1a26bfbbcc23dcf83a8e7fcca1b4f003c5dedf39c3c29"
+      }
+    },
+    "kanban": {
+      "files": {
+        "app/components/ui/Kanban.pzl": "sha256:d59b4a8da8cd6459fd8d37fb306be5e190eca864cd66dbeeb3eea836c30787ad",
+        "app/components/ui/KanbanCard.pzl": "sha256:ca078ed2199db3f34eb013d738d0cebd116ceaf3cc9d6be4339f8e14d80c78d7"
       }
     },
     "kbd": {

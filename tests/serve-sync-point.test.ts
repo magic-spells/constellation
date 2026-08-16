@@ -73,9 +73,9 @@ describe('POST /api/sync-point', () => {
   });
 
   it('gives every unverified claim card a baseline, so drift becomes answerable', async () => {
-    // Before the marker there is nothing to diff against, so every claim card
-    // lands in no_baseline — the bucket that used to fill the drift panel with
-    // rows that said nothing. After it, each one gets a real verdict instead.
+    // No claim card should land in no_baseline — the bucket that used to fill
+    // the drift panel with rows that said nothing. Each one is measured against
+    // its own last commit (the marker is only the fallback now).
     const { sync } = await (await post(running)).json();
     expect(sync.stale.checked).toBeGreaterThan(0);
     expect(sync.stale.no_baseline).toEqual([]);
@@ -83,7 +83,7 @@ describe('POST /api/sync-point', () => {
     // its claims are stale for the honest reason: the bound file is missing.
     expect(sync.stale.stale.length).toBeGreaterThan(0);
     for (const entry of sync.stale.stale) {
-      expect(entry.baseline_source).toBe('sync-marker');
+      expect(entry.baseline_source).toBe('card-commit');
       expect(entry.missing_files.length).toBeGreaterThan(0);
     }
   });

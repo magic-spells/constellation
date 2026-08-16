@@ -5,71 +5,143 @@ description: Author and edit Constellation plan cards — markdown files in a co
 
 # Constellation cards
 
-A Constellation plan is a folder of markdown files. Each file is one **card** — one
-typed piece of the plan, linked to other cards by **connections**. Filenames are
-identities, frontmatter is structure, the body is prose, and git is the
-change-tracking system.
+A Constellation plan is a folder of markdown files. Each file is one **card** — one typed
+piece of the plan, linked to other cards by undirected **connections**. Filenames are
+identities, frontmatter is structure, the body is prose, and git is the change-tracking
+system.
+
+**The MCP server is the interface.** It carries the always-on rules and serves the type
+reference; this file is the deeper reference behind them.
+
+- `describe_type` — the field table and golden example for any of the 21 types. Call it
+  instead of memorizing types; no args gives the catalog.
+- [`methodology.md`](./methodology.md) — building or auditing a whole plan from a codebase:
+  the architect stance, macro→micro, gap-finding, orchestration. Read it before any large
+  pass, and whenever a repo has no `constellation/` folder yet — when tools return
+  `NO_PLAN_FOUND`, call `init_plan` once; never create the folder or hand-write `plan.md`
+  yourself.
+- No MCP server connected? See *Working without MCP* at the end.
 
 ## Why it exists: durable cross-session memory
 
-Constellation is the project's **durable, cross-session memory** for AI agents — memory you
-share with every past and future agent, not docs you skim. Before changing code an area's
-cards cover, read those cards: you're recovering prior agents' understanding, not starting
-fresh. After changing that code, bring the cards back into line — that's part of "done,"
-like updating tests. Understanding then **compounds** across sessions instead of being
-re-derived each time — but only if the cards stay true, so **a card you can't trust is worse
-than no card.** Put in cards what code can't say (intent, decisions, current state, gotchas,
-cross-cutting rules); never duplicate DDL / signatures / code that lives in the repo — link
-to it, because copies drift. The same goes for the plan itself: never create index cards
-that enumerate other cards (a `DOC-DECISIONS` listing every DECISION, a card-type table of
-contents) — those are derived views `list_cards` / `search` / the viewer produce live, and
-a stored copy is stale by the next card; delete any you find. `built`/`verified` is a claim, not a fact: mark it with
-`set_verified` so a later agent can re-check whether the bound code moved (`stale_report` /
-`check_sync`). Durability, not distrust.
+The plan is memory you share with every past and future agent, not docs you skim. Before
+changing code an area's cards cover, read those cards. After changing that code, bring the
+cards back into line — that's part of "done," like updating tests. Understanding then
+compounds across sessions instead of being re-derived, but only if the cards stay true, so
+**a card you can't trust is worse than no card.**
+
+The bar to hold a card to: **a later agent can change this area without rediscovering the
+why, the gotchas, and the contracts.** That's what decides whether a card earns its tokens.
+So put in cards what code can't say — intent, decisions and rejected alternatives, current
+state, gotchas, cross-cutting rules — and never duplicate DDL, signatures, or code that
+lives in the repo; link to it, because copies drift. Never create index cards that
+enumerate other cards (a `DOC-DECISIONS` listing every DECISION, a type table of contents):
+those are derived views `list_cards` / `search` / the viewer produce live; delete any you
+find.
 
 ## The one rule that matters most
 
 **The filename is the handle.** `constellation/api/API-TICKETS.md` defines the card
-`API-TICKETS`. The prefix (before the first dash) determines the type. Never put
-`handle:` or `type:` in frontmatter.
+`API-TICKETS`; the prefix before the first dash is the type. Never put `handle:` or `type:`
+in frontmatter. Handle grammar: `^[A-Z][A-Z0-9]*-[A-Z0-9][A-Z0-9-]*$` — uppercase, digits,
+dashes. `plan.md` at the plan root is the one exception: its handle is `PLAN-PROJECT`.
 
-Handle grammar: `^[A-Z][A-Z0-9]*-[A-Z0-9][A-Z0-9-]*$` — uppercase letters, digits,
-dashes only. No underscores, no lowercase.
+## All card writes go through MCP
 
-## Types, prefixes, folders
+The rule: all card writes go through the Constellation tools; never edit a card file
+directly — hand-edits invent fields and formats the schema doesn't support, feeding bad
+data to the viewer and to every future agent that loads the plan.
 
-| Prefix       | Folder       | Use for                          | Reference            |
-|--------------|--------------|----------------------------------|----------------------|
-| `API-`       | `api/`       | HTTP/RPC endpoints               | `types/api.md`       |
-| `DB-`        | `db/`        | Tables / collections             | `types/db.md`        |
-| `DATATYPE-`  | `datatype/`  | Type schemas                     | `types/datatype.md`  |
-| `ROLE-`      | `role/`      | Roles / permissions              | `types/role.md`      |
-| `DOC-`       | `doc/`       | Documentation, guides, rules     | `types/doc.md`       |
-| `DECISION-`  | `decision/`  | Architecture decisions (ADRs)    | `types/decision.md`  |
-| `FILE-`      | `file/`      | Source file references           | `types/file.md`      |
-| `TEST-`      | `test/`      | Test specs                       | `types/test.md`      |
-| `EXTERNAL-`  | `external/`  | External services                | `types/external.md`  |
-| `EVENT-`     | `event/`     | Domain events                    | `types/event.md`     |
-| `COMPONENT-` | `component/` | UI components                    | `types/component.md` |
-| `PAGE-`      | `page/`      | Routes / screens                 | `types/page.md`      |
-| `JOB-`       | `job/`       | Background / scheduled work      | `types/job.md`       |
-| `FLOW-`      | `flow/`      | Step-by-step processes           | `types/flow.md`      |
-| `STATE-`     | `state/`     | State machines                   | `types/state.md`     |
-| `DIAGRAM-`   | `diagram/`   | Architecture diagrams            | `types/diagram.md`   |
-| `AGENT-`     | `agent/`     | AI agent instructions            | `types/agent.md`     |
-| `PLAN-`      | `plan/`      | Plan docs (`plan.md` at root = `PLAN-PROJECT`) | `types/plan.md` |
-| `FEATURE-`   | `feature/`   | Future work units (iteration)    | `types/feature.md`   |
-| `RELEASE-`   | `release/`   | Version milestones               | `types/release.md`   |
-| `STYLE-`     | `style/`     | Design tokens (colors, fonts, scales) | `types/style.md` |
+The writers: `create_card` / `create_cards`, `update_card`, `edit_section`, `append_note`,
+`add_connection` / `add_connections`, `remove_connection`, `set_verified`, `rename_card`,
+`delete_card`. They validate against the schema, reject reserved keys in `fields`,
+serialize predictably, and lint on every write, returning the issues for the file they
+touched — a card is still written when issues come back (issues are lint state, not
+failure).
 
-Read the matching `types/<type>.md` before writing a card of a type you haven't
-authored in this session — it has the field table and a golden example.
+**When a write fails, don't route around it.** When a write tool errors (STALE, NOT_FOUND,
+a reserved-key rejection, a timeout), re-read the card and retry, or report the failure —
+never fall through to editing the file. The file-edit path exists only when no server is
+connected at all (below).
+
+### What each write costs
+
+- **`append_note` and `edit_section` are byte-preserving** — `append_note` appends one typed
+  note (`decision` | `gotcha` | `state` | `deviation` | `verified`); `edit_section` replaces
+  a single `##` section and leaves every other byte alone. These are the everyday writes:
+  record a correction the moment you learn it instead of saving it for a full rewrite.
+- **`update_card` is coarser — know its patch semantics.** `patch.name` / `kind` / `status`
+  set (or delete with `null`). `patch.fields` **deep-merges** into type-specific
+  frontmatter: nested objects merge, **arrays replace wholesale**, and `null` deletes a key.
+  `patch.connections` **replaces** the entire list. `body` **replaces the entire body** —
+  there is no partial body patch, so send the complete body or use `edit_section`. Only the
+  top-level frontmatter keys whose values actually changed are re-serialized, and a
+  body-only update never reformats frontmatter; but "byte-preserving" describes the cheap
+  writes, not an `update_card` that rewrites a body or a connections list.
+- **Never bulk-rewrite `plan.md`.** It's the biggest card in most plans and the one every
+  session reads. Use `edit_section` on the one section that changed.
+- **Batch scaffolds.** `create_cards` + `add_connections` lint once and resolve intra-batch
+  references, so migrations don't emit transient "does not resolve" errors.
+- **Renames are plan-wide.** `rename_card` moves the file and rewrites every reference
+  (connections, frontmatter values, `[[links]]`, mermaid node IDs) as whole tokens — and
+  never delete-and-recreate to rename, or hand-rename the file. For bulk changes loop the
+  singular tools (CLI: `constellation rename`), never search-and-replace the plan folder.
+- **`delete_card` does not clean up after itself.** It removes the file and returns
+  `referenced_by` — the cards that still point at the deleted handle, now dangling E005
+  errors. Fix those references (usually `remove_connection` or an `update_card` field
+  patch) in the same pass.
+- **`remove_connection` only strips the `connections:` list.** If the edge is also declared
+  by a handle-shaped value in another frontmatter field, the cards stay connected — the tool
+  tells you which source remains; clear it with a field patch. A leftover `[[link]]` or
+  mermaid node ID never keeps them connected.
+- **Verify:** `npx constellation lint` (errors break the graph and must be fixed; warnings
+  are quality signals). `check_integrity` runs the same checks plus orphans.
+
+## Reading
+
+**Start with `orient`.** One call at session start returns a small read-only briefing —
+what the project is, the type and status histogram, what's drifting, the newest notes
+across all cards, connected repos, and a server-vs-workspace version check. It never
+hydrates, so it costs a fraction of the `list_cards` + `check_sync` + `list_notes` opening
+ritual it replaces. Follow it with `search` or `get_card` on whatever it points you at.
+
+Grep on card files is allowed — but `search` is usually the better first call:
+
+- ranked handles instead of raw matching lines;
+- one call instead of grep → map paths → `get_card`;
+- it covers notes, `path`/`code_refs`, and connected repos, which grep on this repo's cards
+  misses.
+
+Retrieval defaults are lean, and every default is a token decision:
+
+- **Summaries unless you name the card.** Full content is for cards you asked for, not for
+  everything within two hops of them.
+- **Walks travel the connection graph**, which is frontmatter-derived (see *Connections*).
+  `traverse` and `assemble` follow the relationships you declared; a `[[link]]` steers
+  nothing.
+- **`assemble` returns an index.** `hydration: "index"` (the default) gives units, seeds,
+  bound paths and neighbor summaries with no bodies — read the index, then pull the three
+  or four cards a unit actually needs. `hydration: "full"` restores hydrated neighbors under
+  the dedupe and budget rules below.
+- **Hydration never truncates silently.** A card is spelled out at most once per response
+  (repeats come back as summaries with `hydrated_elsewhere`), DIAGRAM cards and
+  `PLAN-PROJECT` never hydrate as *neighbors* (asking for them directly still returns
+  everything), and anything past the byte budget degrades to a summary rather than being
+  cut mid-card. Everything held back is named in `hydration_budget` and refetchable by
+  handle.
+- **Flat lists page.** `search`, `list_cards` and `list_notes` take `limit` + `offset` and
+  report `total` (`total_hits` for search) plus `more` and the `next` offset. Page through
+  rather than raising `limit` blindly — and never read a truncated page as the whole answer.
+- **Notes come back newest-first and capped** (`notes_limit`, with `notes_truncated` naming
+  what was held back). `list_notes` reads the whole stream across cards by kind — every
+  gotcha or decision in one call. `get_card code: "paths" | "direct"` returns the code a
+  card is bound to (connected FILE `path:` plus its own `code_refs`).
 
 ## Frontmatter
 
-Four reserved keys, all optional. Everything else is a type-specific field (see the
-type reference). Don't invent fields when the type reference defines one for the
-purpose — but unknown extra fields are allowed (lint warns, doesn't fail).
+Four reserved keys — `name`, `kind`, `status`, `connections` — all optional. Everything else
+is a type-specific field (`describe_type`), and type-specific `fields` may not reuse a
+reserved key. Unknown extra fields are allowed but warn (W003).
 
 ```yaml
 name: List & create tickets        # display label (handle is the identity)
@@ -79,289 +151,159 @@ connections:                       # plain list of handles — no kinds, no dire
   - DB-TICKETS
 ```
 
-Beyond the four reserved keys, a few **cross-type metadata fields** are valid on any card
-(defined in `schemas/card.json`) but are tool-managed, not hand-authored: `code_refs` (extra
-code this card is bound to — `path` or `path:symbol`), `verified_sha` / `verified_at` (set by
-`set_verified` — the drift baseline), and `notes` (append-only typed memory, via
-`append_note`). Reach for the tools rather than writing these by hand. Notes are
-retrievable: `search` matches note text, `list_notes` lists them across cards by kind
-(every gotcha / every decision in one call), and `get_card` filters them per card.
-A `decision` note is for a choice local to that one card; a decision that shaped
-*several* cards gets its own `DECISION` card, connected to each of them.
+A few **cross-type metadata fields** are valid on any card but tool-managed, not
+hand-authored: `code_refs` (extra bound code — `path` or `path:symbol`), `verified_sha` /
+`verified_at` (`set_verified`), and `notes` (`append_note`).
 
-## Connections — how the graph gets wired
+Author in the types the plan already uses. A plan with a settled palette stays readable;
+importing a new type for one card usually doesn't earn it.
 
-Connections are undirected and come from four places; all count equally:
+## Connections
 
-1. The `connections:` list.
-2. Any handle-shaped value in other frontmatter fields (`response_schema: DATATYPE-TICKET`
-   connects automatically — don't repeat it in `connections`).
-3. `[[HANDLE]]` wiki-links in the body — use these freely in prose; they're the
-   cheapest way to connect cards.
-4. Handle-shaped node IDs inside ```mermaid blocks.
+**Connections come only from frontmatter** — the `connections:` list and handle-shaped
+values in other frontmatter fields (`response_schema: DATATYPE-TICKET` connects — don't
+repeat it). **A prose `[[link]]` is a hyperlink and a pointer for readers, never an edge**:
+so is a handle used as a mermaid node ID. Put every relationship you want the graph to know
+in `connections:` — the API a FLOW crosses, the DATATYPE a table materializes, the FILE a
+DOC specifies. Connections are undirected: declare one on whichever card you're editing and
+the other side sees it via the index; never edit two cards to record one connection.
 
-Declare a connection on whichever card you're editing — the other card sees it via
-the index. Never edit two cards just to record one connection.
+**Structured refs are contracts; prose refs are aspirational.** A `connections:` entry or a
+handle-shaped frontmatter value pointing at a card that doesn't exist is an **error
+(E005)** — it breaks the graph. A body `[[link]]` or mermaid ID with no target is only a
+**warning (W004)**, because prose may legitimately point at a card not yet written; that's
+how you mark future work. Keep `[[links]]` for exactly that — the aspirational and the
+merely mentioned — and remember they still render as clickable links in the viewer.
 
-**Frontmatter references must resolve** (lint error if the target card doesn't
-exist). Body `[[links]]` may point at cards not yet written (lint warning only) —
-that's how you mark future work.
+Body conventions: DATATYPE = the type declaration in a fenced block; FLOW = a numbered list
+(real branching becomes a STATE card or a mermaid flowchart); STATE = `stateDiagram-v2`;
+DECISION = Context / Decision / Alternatives / Consequences; everything else = prose with
+`[[links]]`. Use handles as mermaid node IDs sparingly — see *DIAGRAM* in `describe_type`.
 
-## Body conventions
+## Changing code
 
-- DATATYPE: the type declaration as a fenced code block (```ts).
-- FLOW: a numbered markdown list of steps; nested items for error/edge branches.
-  If it genuinely branches, it's a Mermaid flowchart or a STATE card instead.
-- STATE: a ```mermaid stateDiagram-v2 block.
-- DIAGRAM: a ```mermaid flowchart with **handles as node IDs** so the diagram joins
-  the graph.
-- DECISION: `## Context` / `## Decision` / `## Alternatives` / `## Consequences`
-  sections (suggested, not enforced).
-- Everything else: prose with `[[links]]`. Put relationship nuance in prose, not
-  in structure.
+**Plan-first applies to behavior changes** — a new FEATURE, an API contract, a STATE change,
+a new surface. There the plan is the spec:
 
-## Bootstrapping & auditing a plan
+1. **Read the neighborhood** — `get_card` / `traverse` / `search` the cards the change
+   touches, so you work from the real architecture.
+2. **Express the end state in the plan** — with the write tools, add or update the cards
+   that describe what you're about to build, wiring the connections; if `PLAN-PROJECT`
+   needs a change, `edit_section` the one section. Unbuilt work is `status: planned` —
+   honest intent, not a claim.
+3. **Get sign-off on the plan diff** — `git diff -- constellation/` is the proposal.
+4. **Bring the code up to match**, then reconcile: re-read the touched cards against the
+   code, bump `status`, and commit the cards with the code.
 
-Act as a senior engineer and architect advising the user, not a scribe — don't assume they
-know everything; bring expertise, flag risks, propose what's missing, and hold a high bar
-with integrity (honest about built-vs-planned and verified-vs-assumed). But don't
-over-engineer — there's elegance in simplicity: calibrate to the project's scope and
-recommend the smallest change that most improves the plan. The goal is a plan they'd be
-proud to ship — and the bar above all: if the code were deleted, the app could be rebuilt
-from the plan alone (coverage, not volume).
+**Refactors, CSS, renames, dependency bumps and other non-behavioral work go straight to
+code** — then fix whatever cards they made wrong. Don't stage a plan diff for work that
+changes no contract.
 
-No `constellation/` folder yet? Create one — `init_plan` (MCP) or `constellation init`
-(CLI) — then build the plan from the code, working **macro→micro**:
+"Sync the plan" means bringing code and cards into agreement — not stamping a marker, and
+not rewriting cards to match whatever the code happens to do. Which side moves depends on
+which one is right: for a behavior change the cards lead, for an undocumented change the
+cards catch up.
 
-1. **Orient** — manifest, routes, folder layout. Seed `PLAN-PROJECT` + one system `DIAGRAM`.
-   Propose a human-readable project name (folder `pyramid-server` → `Pyramid Server`) and
-   confirm it with the user — it's `plan.md`'s `name:` and the viewer's title; editable anytime.
-2. **Follow the data** — `DB → DATATYPE → API → PAGE`; paths become `FLOW`, lifecycles `STATE`.
-3. **Follow the user** — `ROLE` + auth `FLOW` first, then `PAGE`/`COMPONENT` and key journeys.
-4. **Follow the edges** — `EXTERNAL`, `JOB`, `EVENT`.
-5. **Zoom in** — detail only central or complex areas.
-6. **Ask** — only for intent, priorities, and history the code can't reveal.
-7. **Find gaps in the plan** — step back and hunt blind spots the user may not have
-   considered: missing unhappy paths/states, auth gaps, forgotten cross-cutting concerns
-   (security, privacy, observability, rate limits, pagination, migrations, testing). Plus a
-   quick mechanical sweep: `check_integrity` orphans, dangling refs, code-without-cards.
-8. **Recommend** — a short, prioritized list, separating "you likely forgot this" from
-   "consider whether you need this"; speculative cards go in as `status: planned`.
+In plan mode the write tools are unavailable by design; the read tools stay. Spend plan mode
+reading the plan, and fold the card edits you intend into the plan you present.
 
-Reverse-engineering shipped code: default cards to `built`, promote to `verified` only
-after checking against the implementation. **The full method — what to read, what to ask,
-how to find gaps and recommend tastefully — is in [`methodology.md`](./methodology.md),
-which also backs the `bootstrap_plan` / `audit_plan` MCP prompts.** Read it before a large
-pass.
+### Drift follows git
 
-**Orchestrate a large build.** For a non-trivial plan, after the macro pass act as the **orchestrator**: split the work into independent neighborhoods (the data, the user, the edges) and fan out a sub-agent per neighborhood in parallel — assign each card to exactly one agent (one handle = one file, so this also keeps writes to disjoint plan files and concurrent `update_card`s can't clobber), partition the research on area/file boundaries, and have them return card specs you write via batched `create_cards`/`add_connections`, then verify each agent's work and lint once. A single agent for a small plan — don't over-engineer.
+A card is stale when its bound code has commits newer than the card's own last commit.
+Commit the card together with the code; stale_report on a dirty tree flags work in progress
+— expected, not drift to fix. `set_verified` is the explicit override: it stamps
+`verified_sha` / `verified_at` as the baseline to measure against (a claim about *committed*
+code — it warns if the bound files are dirty), which is what makes `built` / `verified` a
+re-checkable claim rather than faith. `stale_report` lists the drifted cards; `check_sync`
+rolls that into one definition-of-done verdict.
 
-## Changing code: plan-first
+"What changed in the plan" is never tracked in cards — that's `diff_plan` / `plan_log` /
+`git diff -- constellation/`. No dirty flags, no changelogs in frontmatter.
 
-When the user asks to build a feature or change behavior in an area the plan covers, the
-plan **is** the spec — so do **not** edit code first. The plan you make leads with
-Constellation:
-
-1. **Read the neighborhood** — `get_card` / `traverse` / `search` (`connected: "full"`) the
-   cards the change touches, so you work from the real architecture, not a guess.
-2. **Express the end state in the plan** — add or update the cards (and `plan.md`) so they
-   describe what you're about to build, wiring every connection between the affected cards.
-   Work that doesn't exist yet is `status: planned` — honest intent, not a claim it's built.
-3. **Get sign-off on the plan diff** — show the user that set of card changes as the
-   proposal (`git diff -- constellation/` is the diff). The plan is what they approve.
-4. **Then bring the code up to match** — via the sync loop below.
-5. **Reconcile at the end** — re-read the touched cards against the code, run
-   `check_integrity` to confirm no affected card is left an orphan and every intended
-   connection is set, bump `status` (`planned → building → built → verified`), commit, and
-   `set_sync_point`.
-
-**In plan mode, read as much of the plan as you can.** The write tools are unavailable there
-by design (the read tools — `get_card`, `list_cards`, `search`, `traverse`, `assemble`,
-`describe_type`, `check_integrity`, `diff_plan`, `plan_log`, `stale_report`, `check_sync`,
-`list_connected_repos` — are marked read-only and stay available). Spend
-plan mode pulling the relevant plan into context — `traverse` from the entry points with
-`connected: "full"` — to build a strong model of the project fast, and fold the card edits
-you intend into the plan you present. Execute those Constellation writes first, before any
-code, once the user approves.
+**Orchestrate large changes.** When the affected areas don't share files, partition them and
+fan out a sub-agent per neighborhood — split on file boundaries so no two agents edit the
+same file, **and assign each card to exactly one agent** (two agents calling `update_card`
+on the same card race; the later write clobbers the earlier). Always verify their work
+yourself against the cards it was meant to satisfy before you call it done.
 
 ## Iterating: features & releases
 
-PLAN cards and phases carry the *initial* build. Once a project is live, work
-arrives as feature branches and ships as versions — model that with FEATURE and
-RELEASE cards:
-
-- A coherent slice of future work is a **FEATURE** card: connect it to every card
-  it adds or touches (new work as `status: planned`), record intent / scope /
-  acceptance in the body, and set `branch:` while it's in flight. Its status is
-  the arc: `planned` → `building` (on its branch) → `built` (merged — set `pr:`
-  to the merged PR's link then, as provenance) → `verified`. A shipped FEATURE
-  stays — it's the record of why the system grew.
-- Set `change:` to how the work reads in its release — `feature` (default) /
-  `fix` / `breaking` / `chore`. Set `breaking` the moment you know callers must
-  change; it's the one a reader scans for.
-- A version milestone is a **RELEASE** card; features target it via their
-  `release:` field. The body is theme + upgrade/migration notes — **never a
-  changelog** (what shipped is git's job). A release describes itself from the
-  FEATURE cards pointing at it, grouped by `change:` — that's why the field
-  exists, and why the changelog never has to be written twice.
-- Not a ticket tracker: work that's one card's status flip needs no FEATURE
-  card. The backlog stays `list_cards status: ["planned", "building", "none"]`;
-  a FEATURE's neighborhood (`traverse` from its handle) is the feature's spec.
-
-## Syncing the plan to code
-
-The plan is the source of truth: you change behavior by editing the **plan first**, then
-bringing the code up to match — never the reverse. When the user says "sync the plan" or
-"sync the plan to the code," they mean this loop (not merely stamping the sync marker):
-
-1. **Diff the plan** — `diff_plan` (base = the `.sync.json` marker, else `HEAD`) lists the
-   cards added / modified / removed since code was last reconciled, with the changed
-   frontmatter keys and bodies.
-2. **Find the blast radius** — `traverse` the changed handles (`detail: "full"`) to pull in
-   every connected card the change touches: the `API` a `DATATYPE` feeds, the `PAGE`s a
-   `FLOW` crosses, the `DB` a migration implies.
-3. **Update the code** to match those cards — contracts, schemas, routes, states, flows.
-4. **Verify and mark** — run the project's build/tests, bump card `status` as code lands
-   (`planned → building → built`), then commit and `set_sync_point` to advance the marker.
-
-**Orchestrate large syncs.** When the diff is large and the affected areas don't share
-files, act as the **orchestrator** instead of editing everything yourself: partition the
-blast radius into independent neighborhoods and hand each to a sub-agent working in
-parallel, each given its hydrated cards and the files it owns. Split only along clean file
-boundaries so two agents never edit the same file, **and assign each card to exactly one
-agent** — two agents writing the same card (e.g. a shared `DATATYPE` both neighborhoods
-touch) race, and the later `update_card` silently clobbers the earlier. Keep it to a single
-agent when the change is small or the areas overlap. Delegating this way keeps your own context clean and lets you
-hold the macro view of the whole change rather than drowning in file-level edits.
-
-**Always verify the agents' work yourself once they have all finished** — re-read each
-change against the cards it was meant to satisfy and run the project's build/tests; never
-trust the sub-agents' reports alone. Only after that whole-plan verification passes do you
-commit and `set_sync_point` (once, as the orchestrator).
+- A coherent slice of future work is a **FEATURE** card connected to every card it adds or
+  touches (new work `status: planned`), with intent / scope / acceptance in the body and
+  `branch:` while in flight. Status is the arc: `planned` → `building` → `built` (set `pr:`
+  to the merged PR as provenance) → `verified`. Shipped FEATUREs stay — they're the record
+  of why the system grew.
+- `change:` says how the work reads in its release — `feature` (default) / `fix` /
+  `breaking` / `chore`. Set `breaking` the moment you know callers must change.
+- A **RELEASE** card is a version milestone; features point at it via `release:`. Its body
+  is theme plus upgrade notes, **never a changelog** — the release describes itself from the
+  FEATURE cards grouped by `change:`.
+- Not a ticket tracker: work that's one card's status flip needs no FEATURE card. The
+  backlog is `list_cards status: ["planned", "building", "none"]`, and the viewer's Board
+  view (`/board`) shows every FEATURE in its status column.
 
 ## Compaction — keeping cards lean
 
-Cards grow two ways. Note streams accumulate interim verified stamps, `state` notes
-that later notes supersede, and gotcha/resolution pairs a reader must reconcile
-chronologically. Bodies accumulate history: superseded details, "we used to / now we"
-narration, folded-in state that was never pruned, restatements of what the code
-already says. Every future hydration of that card pays for all of it. Compaction is
-the curation pass that keeps the working set lean — **git preserves every deleted
-line**, so compacting curates what agents load, it never destroys history. A card
-body should read in about a minute and describe the *current* system, present tense.
+Every future hydration pays for a bloated card. A body should read in about a minute and
+describe the **current** system, present tense. Git preserves every deleted line, so
+compaction curates what agents load; it never destroys history.
 
-**Compact opportunistically.** When you are already updating a card — editing a
-section, folding in a change, re-stamping `verified` — and you see bloat (triggers
-below), compact it as part of that write; don't leave the mess for the next agent.
-Small, obviously-safe cleanups spotted while exploring (a superseded interim note, a
-paragraph describing behavior that no longer exists) are also fine to fix in passing.
-Reserve "recommend, don't touch" for the big jobs: a compaction large enough to
-derail your current task, or one where you'd have to delete something on the
-keep-list below — those get a one-line recommendation instead.
+**Compact opportunistically** — when you're already writing to a card and see bloat, fix it
+in that write. Reserve "recommend, don't touch" for jobs big enough to derail your task, or
+that would delete something on the keep-list.
 
-**Triggers** (any of these → compact, or recommend if it's a big job):
-- The note stream exceeds ~10 entries.
-- A later note explicitly resolves or supersedes an earlier one (a gotcha marked
-  RESOLVED, a `state` note refining a previous `state` note).
-- Several interim `verified` stamps predate the newest one.
-- The body narrates history ("previously… but now…"), describes removed behavior,
-  or has grown well past what a reader needs to understand the current state.
-- You are about to re-stamp the card `verified` after a merge — the natural moment:
-  you have already re-read everything, so fold while you stamp.
+**Triggers:** the note stream passes ~10 entries; a later note supersedes an earlier one;
+several interim `verified` stamps predate the newest; the body narrates history ("we used
+to… now we…"), describes removed behavior, or restates the code; you're about to re-stamp
+`verified` after a merge (the natural moment — you've just re-read everything).
 
-**The pass** (per card):
-1. **Fold** still-true `state` notes into the body — the body IS current reality;
-   a `state` note is a delta waiting to be merged.
-2. **Keep** (never delete): unresolved gotchas; **negative results** (disproven
-   hypotheses are the most valuable notes in the system — they stop the next agent
-   from re-investigating); the newest `verified` stamp; any note another card or
-   doc cites (`search` the note's distinctive phrases before deleting).
-3. **Delete**: superseded interim notes, resolved gotcha/resolution pairs (if the
-   episode leaves a lasting rule, fold that rule into the body first), and stale
-   `verified` stamps.
-4. **Trim the body**: rewrite bloated sections (`edit_section`) down to present-tense
-   current truth — cut superseded details, "used to be" narration, and anything that
-   restates the code. Keep the why; cut the was.
-5. **Mark it**: append one `state` note — "Note stream compacted into body at
-   `<sha>` — full history in git." A reader then knows the stream is curated, and
-   where the archaeology lives.
-6. **Never rewrite a kept note's text** to say something different — that is claim
-   revision, not compaction. If reality changed, the body is where you say so.
+**The pass:** fold still-true `state` notes into the body (a `state` note is a delta waiting
+to be merged) → **keep** unresolved gotchas, negative results (disproven hypotheses stop the
+next agent from re-investigating), the newest `verified` stamp, and anything another card
+cites → delete superseded interim notes, resolved gotcha/resolution pairs (fold any lasting
+rule into the body first), and stale `verified` stamps → trim bloated sections with
+`edit_section` down to present-tense truth → append one `state` note: "compacted at `<sha>`
+— full history in git." Never rewrite a kept note's text; that's claim revision, not
+compaction.
 
-**DECISION cards compact hardest.** One card per decision topic, updated in place:
-when a decision changes, rewrite the existing card to state only the current choice
-and why — the abandoned approach becomes a line in Alternatives, and git holds the
-full trail. Never create a successor DECISION card for the same topic; if you find
-a supersession chain, merge it into one card.
+**DECISION cards compact hardest.** One card per decision topic, updated in place: when a
+decision changes, rewrite it to state only the current choice and why — the abandoned
+approach becomes a line in Alternatives. Never create a successor DECISION card for the same
+topic; merge any supersession chain into one card. A `decision` note is for a choice local
+to one card; a decision that shaped several cards gets its own DECISION card, connected to
+each.
 
 ## Connected repos (multi-repo work)
 
-One change often spans several sibling repos (e.g. `pyramid-web`, `pyramid-server`,
-`pyramid-mcp`). Constellation models this with **repo-level links**, not cross-repo card
-connections: each project lists its siblings in `PLAN-PROJECT` frontmatter, and every plan
+Repo-level links, not cross-repo card connections: each project lists its siblings in
+`PLAN-PROJECT.connected_repos` (`name` + relative `path` + `description`), and every plan
 stays self-contained and lints on its own.
 
-```yaml
-# plan.md (PLAN-PROJECT) frontmatter
-connected_repos:
-  - name: pyramid-server          # the `repo` selector value (lowercase id)
-    path: ../pyramid-server       # relative to this repo's root
-    description: Back-end API for Pyramid, written in Go.
-```
+- Manage them with `add_connected_repo` (`reciprocate: true` writes the reverse link into
+  the other repo — only with the user's OK), `list_connected_repos`, `remove_connected_repo`.
+  A missing path is never a lint error, just "not reachable here."
+- Pass `repo: "<name>"` to any read or write tool to target that repo's plan. Omit it for
+  the current repo. On a cross-repo change, set `repo:` on **every** write or it lands in
+  the wrong plan.
+- For "how does the other repo actually work" — real code, not its plan — spawn a sub-agent
+  scoped to that repo's path; if its plan had the gap, have it fill the gap.
 
-- **Declare** links with `add_connected_repo` (`reciprocate: true` also writes the reverse
-  link into the other repo — only with the user's OK, since it edits that repo). List them
-  with `list_connected_repos` or `constellation repos`; remove with `remove_connected_repo`.
-  Paths are local topology — a missing path is never a lint error, just "not reachable here."
-- **Target** a connected repo by passing `repo: "<name>"` to any read or write tool
-  (`get_card`, `search`, `traverse`, `update_card`, `create_card`, `set_sync_point`, …); it
-  reads/writes THAT repo's plan. Omit `repo` for the current one — single-repo work is
-  unchanged.
-- **Answer cross-repo questions two ways.** For "what does the back end's plan say," read it
-  in-process with `repo:`. For "how does the back end actually work" — real code, or the
-  connected plan can't answer — spawn a **sub-agent scoped to that repo's path** to
-  investigate and report back, and if its plan had the gap, have it fill the gap.
-- **One change across repos:** examine each repo's affected area (`repo:` reads), write the
-  per-repo card updates with `repo:` set on **every** write (never omit it cross-repo, or the
-  write lands in the wrong repo), then fan out a per-repo implementer sub-agent — each runs
-  in plain single-repo mode inside its repo, blind to the others — and reconcile +
-  `set_sync_point` per repo.
+## Working without MCP
 
-Cards never connect across repos; the relationship between repos lives in the
-`connected_repos` links and in your reasoning, not in card connections.
+If no Constellation MCP server is connected, you are the write path: edit the files
+directly, follow the frontmatter rules above, keep the byte discipline (touch only what
+changes), consult `types/<type>.md` in this skill folder in place of `describe_type`, and
+run `npx constellation lint` after every batch. Use `constellation rename OLD NEW` for
+renames — never move a card file by hand. This is the only case where editing card files is
+correct; a failed write tool is not (see above). Reconnect the server when you can.
 
-## Workflow
-
-1. Before creating a card, check it doesn't exist: the filename is deterministic,
-   so look up `constellation/<folder>/<HANDLE>.md`; grep for the handle to find
-   prose references.
-2. Write or edit the card — prefer small, byte-cheap writes over rewriting a whole card:
-   `append_note` for a typed note (decision / gotcha / state / deviation / verified),
-   `edit_section` to replace a single `##` section in place.
-3. Renaming a handle is a plan-wide operation: use the MCP `rename_card`, which moves the
-   file and rewrites every reference (connections, frontmatter values, `[[links]]`, mermaid
-   node IDs) as whole tokens. Never hand-rename the file and chase references yourself.
-4. Verify: `npx constellation lint` (errors break the graph and must be fixed;
-   warnings are quality signals).
-5. Update `status` when reality changes: `planned → building → built`, and mark
-   `verified` only after checking the card against the actual code — use `set_verified`,
-   which records the git sha you checked against so later drift is detectable
-   (`stale_report` / `check_sync`). The backlog view — everything not yet built — is
-   `list_cards status: ["planned", "building", "none"]` (`"none"` = no status set).
-6. Never bulk-rewrite `constellation/plan.md` — edit the relevant section.
-   Decisions go in DECISION cards, one file each, not in the plan — connected to
-   the cards they shaped (card-local choices: `append_note(kind: decision)`).
-
-"What changed in the plan" is never tracked in cards — that's
-`git diff -- constellation/`. Don't add dirty flags or changelogs to frontmatter. The one
-recorded baseline that's allowed is verification provenance — `verified_sha` / `verified_at`
-(set by `set_verified`), the basis of a "verified" claim, not a change flag; the staleness
-verdict itself is always recomputed live, never stored.
+**Contributing to Constellation itself is also different.** The MCP-writes rule governs
+plans consumed as project memory. If you are working *on the Constellation source repo*,
+follow that repo's `CLAUDE.md`: its spec cards in `constellation/` and the golden fixture in
+`examples/constellation/` are maintained as ordinary lint-gated files.
 
 ## Meta-feedback
 
-While you work with Constellation, notice anything that would make it better — a tool that
-was awkward or missing, an instruction that misled you, friction in the workflow, output
-that wasted your context. Collect these as you go, and at the end of the conversation give
-the user a short list of concrete improvement recommendations for Constellation itself
-(skip it if you have none).
+Notice anything that would make Constellation better as you work — an awkward or missing
+tool, an instruction that misled you, output that wasted context — and give the user a short
+list of concrete improvements at the end of the conversation (skip it if you have none).

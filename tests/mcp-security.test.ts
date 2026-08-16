@@ -107,12 +107,29 @@ describe('code attach path containment', () => {
   });
 });
 
-describe('stale_report no_baseline (before any marker)', () => {
-  it('reports built+bound cards that have no verified_sha and no marker', async () => {
+describe('stale_report baselines (before any marker)', () => {
+  it('answers a committed claim card from its own commit, with no marker at all', async () => {
+    const res = await call('stale_report');
+    const handles = (list: Array<{ handle: string }>) => list.map((n) => n.handle);
+    // API-TICKETS is built and bound to src/api/tickets.ts, and card and code
+    // landed in the same commit — card-relative drift answers it without a
+    // verified_sha and without a marker.
+    expect(handles(res.data.no_baseline)).not.toContain('API-TICKETS');
+    expect(handles(res.data.stale)).not.toContain('API-TICKETS');
+  });
+
+  it('still reports no_baseline for a card git has never seen change', async () => {
+    await call('create_card', {
+      handle: 'DOC-UNSEEN',
+      name: 'Unseen',
+      status: 'built',
+      fields: { code_refs: ['src/api/tickets.ts'] },
+      body: 'Written but never committed, so git has no commit for it.',
+    });
     const res = await call('stale_report');
     const noBaseline = res.data.no_baseline.map((n: { handle: string }) => n.handle);
-    // API-TICKETS is status built and bound to src/api/tickets.ts, but unverified.
-    expect(noBaseline).toContain('API-TICKETS');
+    expect(noBaseline).toContain('DOC-UNSEEN');
+    await call('delete_card', { handle: 'DOC-UNSEEN' });
   });
 });
 

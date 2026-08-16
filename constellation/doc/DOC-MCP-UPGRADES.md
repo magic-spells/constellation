@@ -2,6 +2,8 @@
 name: MCP upgrades & memory model
 kind: decision
 status: built
+connections:
+  - FILE-CODE
 ---
 
 # MCP upgrades & memory model (decisions)

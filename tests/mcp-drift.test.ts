@@ -131,6 +131,118 @@ describe('stale_report + check_sync (Phases 3 & 6)', () => {
   });
 });
 
+// The ordinary loop is "change the code, update its card, commit both" — and it
+// must leave drift quiet without anyone running set_sync_point. So a card with no
+// verified_sha is measured against ITS OWN last commit: code committed after the
+// card is drift, code committed with it is not.
+describe('card-relative drift', () => {
+  let billingCommit: string;
+  const invoice = () => path.join(repo, 'src', 'billing', 'invoice.ts');
+  const cardFile = 'constellation/doc/DOC-BILLING.md';
+  const staleFor = async (handle: string, args: Record<string, unknown> = {}) => {
+    const report = await call('stale_report', args);
+    return report.stale.find((s: { handle: string }) => s.handle === handle);
+  };
+
+  beforeAll(async () => {
+    await mkdir(path.join(repo, 'src', 'billing'), { recursive: true });
+    await writeFile(invoice(), 'export const invoice = 1;\n', 'utf8');
+    await call('create_card', {
+      handle: 'DOC-BILLING',
+      name: 'Billing',
+      status: 'built',
+      fields: { code_refs: ['src/billing/invoice.ts'] },
+      body: 'How invoices are produced.',
+    });
+    // The card and the code it claims land together.
+    git('add', 'src/billing', cardFile);
+    git('commit', '-q', '-m', 'feat: billing + its card');
+    billingCommit = git('rev-parse', 'HEAD').trim();
+  });
+
+  it('is not stale when the card and its bound code land in the SAME commit', async () => {
+    expect(await staleFor('DOC-BILLING')).toBeUndefined();
+  });
+
+  it('goes stale when the bound code moves in a LATER commit than the card', async () => {
+    await writeFile(invoice(), 'export const invoice = 2;\n', 'utf8');
+    git('add', 'src/billing');
+    git('commit', '-q', '-m', 'fix: invoice rounding');
+
+    const stale = await staleFor('DOC-BILLING');
+    expect(stale).toBeDefined();
+    expect(stale.baseline_source).toBe('card-commit');
+    expect(stale.changed_files).toEqual(['src/billing/invoice.ts']);
+  });
+
+  it('goes quiet again when the card is committed after the code — no sync point needed', async () => {
+    await call('append_note', {
+      handle: 'DOC-BILLING',
+      kind: 'state',
+      text: 'Rounding is half-up as of the invoice fix.',
+    });
+    git('add', cardFile);
+    git('commit', '-q', '-m', 'docs: refresh the billing card');
+
+    expect(await staleFor('DOC-BILLING')).toBeUndefined();
+  });
+
+  it('still flags uncommitted changes to bound code', async () => {
+    await writeFile(invoice(), 'export const invoice = 3;\n', 'utf8');
+    const stale = await staleFor('DOC-BILLING');
+    expect(stale.baseline_source).toBe('card-commit');
+    expect(stale.changed_files).toEqual(['src/billing/invoice.ts']);
+
+    await writeFile(invoice(), 'export const invoice = 2;\n', 'utf8');
+    expect(await staleFor('DOC-BILLING')).toBeUndefined();
+  });
+
+  it('check_sync reports drifted while a card-relative claim is stale', async () => {
+    // Commit the plan and anchor the marker at HEAD so nothing BUT the per-card
+    // drift can explain the verdict.
+    git('add', 'constellation');
+    git('commit', '-q', '-m', 'chore: commit the working plan');
+    await call('set_sync_point');
+
+    await writeFile(invoice(), 'export const invoice = 4;\n', 'utf8');
+    const res = await call('check_sync');
+    expect(res.state).toBe('drifted');
+    expect(res.stale_cards.map((s: { handle: string }) => s.handle)).toContain(
+      'DOC-BILLING',
+    );
+    await writeFile(invoice(), 'export const invoice = 2;\n', 'utf8');
+  });
+
+  it('verified_sha still wins over the card commit', async () => {
+    // Verify at the CURRENT head, then move the card past it: the card commit is
+    // newer than the code, but the stamped baseline is what gets checked.
+    await call('set_verified', { handle: 'DOC-BILLING' });
+    git('add', cardFile);
+    git('commit', '-q', '-m', 'chore: stamp billing verified');
+    expect(await staleFor('DOC-BILLING')).toBeUndefined();
+
+    await writeFile(invoice(), 'export const invoice = 5;\n', 'utf8');
+    const stale = await staleFor('DOC-BILLING');
+    expect(stale.baseline_source).toBe('verified_sha');
+    await writeFile(invoice(), 'export const invoice = 2;\n', 'utf8');
+  });
+
+  it('falls back to the passed base for a card git has never seen change', async () => {
+    const before = billingCommit; // predates the invoice fix
+    await call('create_card', {
+      handle: 'DOC-BILLING-NOTES',
+      name: 'Billing notes',
+      status: 'built',
+      fields: { code_refs: ['src/billing/invoice.ts'] },
+      body: 'Never committed, so git has no last commit for it.',
+    });
+    const stale = await staleFor('DOC-BILLING-NOTES', { base: before });
+    expect(stale).toBeDefined();
+    expect(stale.baseline_source).toBe('argument');
+    expect(stale.baseline).toBe(before.slice(0, 12));
+  });
+});
+
 // A card may bind a whole FOLDER (`code_refs: [tests]`) when the unit it
 // describes is the folder. That has to behave like a binding, not like a
 // missing file: `tests` is not a file, so an existence check written as

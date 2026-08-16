@@ -4,6 +4,8 @@ kind: route
 status: built
 code_refs:
   - viewer/app/views/FeaturesPanel.pzl
+connections:
+  - FILE-SERVE
 ---
 
 The `#/features` route: a roadmap view of every FEATURE card, served by

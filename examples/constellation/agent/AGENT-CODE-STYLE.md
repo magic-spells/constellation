@@ -4,6 +4,9 @@ status: built
 scope: src/**
 applies_to: all-agents
 priority: 1
+connections:
+  - DATATYPE-TICKET
+  - DATATYPE-CREATE-TICKET-INPUT
 ---
 
 # Code style

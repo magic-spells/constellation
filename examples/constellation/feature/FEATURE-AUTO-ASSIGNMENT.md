@@ -6,6 +6,9 @@ change: feature
 branch: feature/auto-assign
 connections:
   - JOB-AUTO-ASSIGN
+  - API-TICKETS
+  - DB-TICKETS
+  - STATE-TICKET
 ---
 
 # Auto-assignment of new tickets

@@ -7,16 +7,63 @@ export interface SearchHit {
 }
 
 /**
- * Scored full-text search over handle, name, kind, body, and appended notes.
- * Handle matches dominate; body/note occurrences break ties.
+ * Dropped before the AND pass — otherwise a natural-language query would require
+ * every card to contain "the" and "does".
+ */
+const STOPWORDS = new Set([
+  'a', 'about', 'all', 'an', 'and', 'any', 'are', 'as', 'at', 'be', 'been', 'but',
+  'by', 'can', 'did', 'do', 'does', 'for', 'from', 'get', 'had', 'has', 'have',
+  'how', 'i', 'if', 'in', 'into', 'is', 'it', 'its', 'just', 'me', 'my', 'no',
+  'not', 'of', 'on', 'or', 'our', 'out', 'so', 'than', 'that', 'the', 'their',
+  'them', 'then', 'there', 'these', 'they', 'this', 'to', 'up', 'use', 'used',
+  'was', 'we', 'were', 'what', 'when', 'where', 'which', 'who', 'why', 'will',
+  'with', 'would', 'you', 'your',
+]);
+
+/**
+ * Split a query into needles. Double-quoted runs stay whole; bare tokens split
+ * on whitespace and lose edge punctuation (`API-TICKETS,` matches the handle).
+ * Stopwords and one-char tokens drop unless that would leave nothing.
+ */
+export function queryNeedles(q: string): string[] {
+  const raw: string[] = [];
+  const re = /"([^"]*)"|(\S+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(q)) !== null) {
+    if (m[1] !== undefined) {
+      const phrase = m[1].trim().toLowerCase();
+      if (phrase) raw.push(phrase);
+    } else {
+      const token = trimEdges(m[2].toLowerCase());
+      if (token) raw.push(token);
+    }
+  }
+  const significant = raw.filter((t) => t.length > 1 && !STOPWORDS.has(t));
+  return significant.length > 0 ? significant : raw;
+}
+
+/** Strip leading/trailing punctuation, keeping path, handle and identifier characters. */
+function trimEdges(token: string): string {
+  return token
+    .replace(/^["'`([{<*~,;:!?.]+/, '')
+    .replace(/["'`)\]}>*~,;:!?.]+$/, '');
+}
+
+/**
+ * Scored full-text search over handle, name, kind/type, `summary`, `path`,
+ * `code_refs`, body, and appended notes.
+ *
+ * Matching is AND: every significant needle must appear somewhere on the card.
+ * Scoring only orders the cards that already matched — handle matches dominate,
+ * body/note occurrences break ties.
  */
 export function searchCards(
   index: PlanIndex,
   q: string,
   types?: TypeName[],
 ): SearchHit[] {
-  const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return [];
+  const needles = queryNeedles(q);
+  if (needles.length === 0) return [];
   const typeFilter = types && types.length > 0 ? new Set(types) : null;
 
   const hits: SearchHit[] = [];
@@ -25,31 +72,92 @@ export function searchCards(
 
     const handle = card.handle.toLowerCase();
     const name = (card.name ?? '').toLowerCase();
-    // Notes are memory (append_note) — they must be findable like the body is.
-    const noteLines = noteLinesOf(card);
-    const text =
-      noteLines.length > 0
-        ? `${card.body}\n${noteLines.join('\n')}`
-        : card.body;
-    const searchable = text.toLowerCase();
+    const bound = boundValues(card);
+    const text = cardText(card);
+    const searchable = `${handle}\n${name}\n${card.kind ?? ''}\n${card.type}\n${text}`
+      .toLowerCase();
 
     let score = 0;
-    for (const token of tokens) {
-      if (handle === token) score += 12;
-      else if (handle.includes(token)) score += 6;
-      if (name.includes(token)) score += 4;
-      if (card.kind?.toLowerCase() === token || card.type.toLowerCase() === token)
+    let matchedAll = true;
+    for (const needle of needles) {
+      let hit = false;
+      if (handle === needle) {
+        score += 12;
+        hit = true;
+      } else if (handle.includes(needle)) {
+        score += 6;
+        hit = true;
+      }
+      if (name.includes(needle)) {
+        score += 4;
+        hit = true;
+      }
+      if (card.kind?.toLowerCase() === needle || card.type.toLowerCase() === needle) {
         score += 2;
-      score += Math.min(countOccurrences(searchable, token), 5);
+        hit = true;
+      }
+      // A card that BINDS the queried path outranks one that mentions it in prose.
+      if (bound.some((b) => b === needle)) {
+        score += 10;
+        hit = true;
+      } else if (bound.some((b) => b.includes(needle))) {
+        score += 3;
+        hit = true;
+      }
+      const occurrences = countOccurrences(searchable, needle);
+      score += Math.min(occurrences, 5);
+      if (occurrences > 0) hit = true;
+      if (!hit) {
+        matchedAll = false;
+        break;
+      }
     }
-    if (score === 0) continue;
+    if (!matchedAll || score === 0) continue;
 
-    hits.push({ card, score, excerpt: makeExcerpt(text, tokens) });
+    hits.push({ card, score, excerpt: makeExcerpt(text, needles) });
   }
 
   return hits.sort(
     (a, b) => b.score - a.score || a.card.handle.localeCompare(b.card.handle),
   );
+}
+
+/**
+ * Searchable prose: `summary`/`path`/`code_refs` frontmatter, body, then notes —
+ * as readable lines so the excerpt can quote whichever matched.
+ */
+function cardText(card: Card): string {
+  const lines: string[] = [];
+  const fm = card.frontmatter;
+  if (typeof fm.summary === 'string' && fm.summary.trim()) {
+    lines.push(`summary: ${fm.summary}`);
+  }
+  if (typeof fm.path === 'string' && fm.path.trim()) {
+    lines.push(`path: ${fm.path}`);
+  }
+  const refs = Array.isArray(fm.code_refs)
+    ? fm.code_refs.filter((r): r is string => typeof r === 'string')
+    : [];
+  if (refs.length > 0) lines.push(`code_refs: ${refs.join(', ')}`);
+  lines.push(card.body);
+  lines.push(...noteLinesOf(card));
+  return lines.join('\n');
+}
+
+/** The card's own binding values — its `path` and each `code_ref` path, lowercased. */
+function boundValues(card: Card): string[] {
+  const out: string[] = [];
+  const fm = card.frontmatter;
+  if (typeof fm.path === 'string' && fm.path.trim()) out.push(fm.path.trim().toLowerCase());
+  if (Array.isArray(fm.code_refs)) {
+    for (const ref of fm.code_refs) {
+      if (typeof ref !== 'string' || !ref.trim()) continue;
+      out.push(ref.trim().toLowerCase());
+      const colon = ref.indexOf(':');
+      if (colon > 0) out.push(ref.slice(0, colon).trim().toLowerCase());
+    }
+  }
+  return out;
 }
 
 /** A card's notes as `note(kind): text` lines — searchable and excerpt-able. */
@@ -77,12 +185,12 @@ function countOccurrences(haystack: string, needle: string): number {
   return count;
 }
 
-function makeExcerpt(body: string, tokens: string[]): string {
+function makeExcerpt(body: string, needles: string[]): string {
   const lines = body.split('\n');
   const hit =
     lines.find((line) => {
       const lower = line.toLowerCase();
-      return tokens.some((t) => lower.includes(t));
+      return needles.some((t) => lower.includes(t));
     }) ?? lines.find((line) => line.trim().length > 0);
   return (hit ?? '').trim().slice(0, 160);
 }

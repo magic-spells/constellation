@@ -58,6 +58,7 @@ import Badge from './ui/Badge.pzl';
 // `baseline_source` is a wire token — say what it means instead.
 const BASELINE_COPY = {
 	verified_sha: 'since verify',
+	'card-commit': 'since the card was last committed',
 	'sync-marker': 'since sync point',
 	argument: 'since base',
 };
