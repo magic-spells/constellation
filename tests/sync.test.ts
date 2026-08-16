@@ -79,6 +79,27 @@ describe('computeSyncStatus', () => {
     expect(status.plan_dirty).toBe(false);
   });
 
+  // Regression: every other call here lets writeSyncPoint default to HEAD, which
+  // is why an explicit revision went uncovered. That branch used to run a bare
+  // `rev-parse --end-of-options <rev>` — and rev-parse echoes that flag back as
+  // its own first output line, so the marker got "--end-of-options\n<sha>": a sha
+  // nothing resolves, which reads as marker_error and pins the plan at drifted.
+  it('resolves an explicitly passed revision to a bare sha', async () => {
+    const head = git('rev-parse', 'HEAD').trim();
+    const point = await writeSyncPoint(planRoot, 'HEAD');
+    expect(point.synced_sha).toBe(head);
+    expect(point.synced_sha).toMatch(/^[0-9a-f]{40}$/);
+
+    // And the marker it wrote is reachable, not a marker_error.
+    const status = await computeSyncStatus(planRoot);
+    expect(status.marker?.synced_sha).toBe(head);
+    expect(status.marker_error).toBeNull();
+  });
+
+  it('refuses a revision that does not exist rather than stamping garbage', async () => {
+    await expect(writeSyncPoint(planRoot, 'no-such-rev')).rejects.toThrow();
+  });
+
   it('drifts with a clear error when the sync marker is unreachable', async () => {
     await writeFile(
       path.join(planRoot, '.sync.json'),

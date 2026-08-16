@@ -110,8 +110,15 @@ export async function writeSyncPoint(
   sha?: string,
   options: { formatReview?: string } = {},
 ): Promise<SyncPoint> {
+  // A caller-supplied revision goes through resolveCommit, NOT a bare
+  // `rev-parse --end-of-options <rev>`: rev-parse echoes that flag back as its
+  // own first output line, so the bare form wrote a two-line "--end-of-options\n<sha>"
+  // into the marker — a sha nothing can resolve, which reads as marker_error and
+  // pins the plan at `drifted` forever. `--verify` (what resolveCommit uses)
+  // prints exactly one line and fails loudly on a revision that does not exist,
+  // rather than stamping garbage.
   const resolved = sha
-    ? (await git(planRoot, 'rev-parse', '--end-of-options', safeRev(sha))).trim()
+    ? await resolveCommit(planRoot, sha)
     : (await git(planRoot, 'rev-parse', 'HEAD')).trim();
   // Merge over whatever is already there: stamping a commit must not silently
   // drop a format_review somebody recorded (and vice versa).
