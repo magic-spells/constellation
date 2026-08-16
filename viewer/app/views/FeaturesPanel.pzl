@@ -126,18 +126,6 @@ export default class FeaturesPanel extends PuzzleView {
 .features { width: 100%; }
 .features .feat-section { max-width: 62rem; }
 
-.feat-title {
-	--c: var(--t-FEATURE, var(--color-brand));
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	margin: 0 0 1rem;
-	color: var(--color-ink);
-	font-family: var(--font-display, var(--font-sans));
-	font-size: 1.3rem;
-}
-.feat-title .star { color: var(--c); font-size: 0.9rem; }
-
 .feat-section { margin-bottom: 1.75rem; }
 .feat-section h3 {
 	display: flex;

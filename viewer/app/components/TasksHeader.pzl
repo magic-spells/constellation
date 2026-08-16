@@ -1,9 +1,6 @@
 <puzzle-view>
   <header class="mb-5">
-    <h2 class="mb-1 flex items-center gap-2 text-[1.3rem] text-ink">
-      <span class="text-[0.9rem]" style="color: var(--t-FEATURE, var(--color-brand))">✦</span>
-      Tasks
-    </h2>
+    <h2 class="mb-1 text-[1.3rem] text-ink">Tasks</h2>
     <p class="mb-4 text-sm text-muted">{ blurb }</p>
     <!-- Bare reference, not `go(value)`: a callback prop's own arguments are not
          identifiers the template expression can name, so the call form would
