@@ -1,11 +1,18 @@
 ---
 name: Cap the Verified column at the 20 most recent
-status: planned
+status: built
 change: feature
 connections:
   - PAGE-VIEWER-BOARD
   - PAGE-VIEWER-FEATURES
 release: RELEASE-V0-6-0
+notes:
+  - kind: state
+    text: >-
+      Built. Kanban gained two optional column keys — `total` (the count badge reads it instead of
+      cards.length) and `overflow` ({text, href}) — so the cap is BoardPage policy, not board
+      behaviour. Left `set_verified` as the only stamper of `verified_at`; an unstamped verified
+      card sorts below every stamped one on the mtime fallback.
 ---
 
 Planned, Building and Built all drain — a card leaves them. **Verified does

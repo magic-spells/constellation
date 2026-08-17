@@ -68,6 +68,11 @@ const COLUMNS = [
 	},
 ];
 
+// Planned, Building and Built all drain — a card leaves them. Verified never
+// does, so uncapped it grows forever and the board stops being a snapshot. Cap
+// it here; the list view stays the complete archive.
+const VERIFIED_MAX = 20;
+
 const SUMMARY_MAX = 120;
 
 /**
@@ -121,33 +126,63 @@ function summaryOf(body) {
 	return `${(space > 60 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }
 
+/** Epoch ms of the `set_verified` stamp; 0 when the card carries none. */
+function verifiedAt(card) {
+	const stamped = Date.parse(card.frontmatter?.verified_at ?? '');
+	return Number.isNaN(stamped) ? 0 : stamped;
+}
+
+/** A raw FEATURE card in the shape KanbanCard reads. */
+function cardRow(card) {
+	return {
+		id: card.handle,
+		href: `/tasks/board/card/${card.handle}`,
+		morph: `board-card-${card.handle}`,
+		title: card.name || card.handle,
+		handle: card.handle,
+		accent: 'var(--color-ink)',
+		summary: summaryOf(card.body),
+		note: card.status ? '' : 'no status',
+	};
+}
+
 export default class BoardPage extends PuzzleView {
 	data() {
-		const features = [...(planIndex(this.ctx.store).byType.get('FEATURE') ?? [])].sort(
-			(a, b) => b.mtime - a.mtime,
-		);
-
+		const features = planIndex(this.ctx.store).byType.get('FEATURE') ?? [];
 		const buckets = new Map(COLUMNS.map((column) => [column.id, []]));
 
 		for (const card of features) {
 			const status = card.status ?? '';
-			const bucket = buckets.has(status) ? status : 'planned';
-			buckets.get(bucket).push({
-				id: card.handle,
-				href: `/tasks/board/card/${card.handle}`,
-				morph: `board-card-${card.handle}`,
-				title: card.name || card.handle,
-				handle: card.handle,
-				accent: 'var(--color-ink)',
-				summary: summaryOf(card.body),
-				note: status ? '' : 'no status',
-			});
+			buckets.get(buckets.has(status) ? status : 'planned').push(card);
 		}
 
-		return {
-			empty: features.length === 0,
-			columns: COLUMNS.map((column) => ({ ...column, cards: buckets.get(column.id) })),
-		};
+		const columns = COLUMNS.map((column) => {
+			const cards = buckets.get(column.id);
+
+			// Freshest edit first everywhere EXCEPT Verified, where mtime is the
+			// wrong clock: appending a note to an old card would read as "just
+			// shipped". There the stamp leads, and mtime only breaks its ties.
+			cards.sort(
+				column.id === 'verified'
+					? (a, b) =>
+							verifiedAt(b) - verifiedAt(a) ||
+							b.mtime - a.mtime ||
+							a.handle.localeCompare(b.handle)
+					: (a, b) => b.mtime - a.mtime,
+			);
+
+			const shown = column.id === 'verified' ? cards.slice(0, VERIFIED_MAX) : cards;
+			const hidden = cards.length - shown.length;
+
+			return {
+				...column,
+				total: cards.length,
+				cards: shown.map(cardRow),
+				overflow: hidden > 0 ? { text: `+${hidden} more verified`, href: '/tasks/list' } : null,
+			};
+		});
+
+		return { empty: features.length === 0, columns };
 	}
 }
 </script>

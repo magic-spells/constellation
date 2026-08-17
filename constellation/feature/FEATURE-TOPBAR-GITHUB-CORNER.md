@@ -1,6 +1,6 @@
 ---
 name: GitHub link moves to the top-right corner
-status: planned
+status: built
 change: chore
 connections:
   - PAGE-VIEWER-HOME
