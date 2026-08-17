@@ -1,6 +1,6 @@
 ---
 name: v0.5.2 — CLI friction
-status: building
+status: built
 version: 0.5.2
 ---
 
