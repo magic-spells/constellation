@@ -8,8 +8,8 @@ connections:
   - FILE-LINT
   - FILE-INDEXER
   - FILE-MCP-SERVER
-verified_sha: ad9102466a2b41bad67c0a46d1050e0343d0972f
-verified_at: '2026-08-16T18:26:42.992Z'
+verified_sha: b68341fab1d50f297248b83eccc2f936ad6b9234
+verified_at: '2026-08-16T19:03:08.426Z'
 notes:
   - kind: verified
     text: >-
@@ -22,6 +22,13 @@ notes:
       /tasks/board/card/HANDLE, and the palette cases cover both Tasks rows plus the deliberate
       choice not to gate them on the plan having FEATURE cards.
     sha: ad9102466a2b41bad67c0a46d1050e0343d0972f
+  - kind: verified
+    text: >-
+      Green at 485. Two new lanes: a real-binary integration test that occupies a port and reads
+      serve's banner (confirmed to fail against the old refuse-and-exit code), and unit tests over
+      applySkillPickerKey — the picker's terminal plumbing needs a pty, so the escape codes and
+      wrap-around are covered as a pure reducer instead.
+    sha: b68341fab1d50f297248b83eccc2f936ad6b9234
 ---
 
 The vitest suite (460+ tests): core unit tests, MCP integration via an in-memory client, and git-backed drift/security tests. The golden plan `examples/constellation/` doubles as a fixture and must lint clean (0 errors). Exercises [[FILE-LINT]], [[FILE-INDEXER]], [[FILE-MCP-SERVER]].
