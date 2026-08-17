@@ -53,10 +53,8 @@
 
               {#for card in section.cards}
                 <article key={ card.handle } id={ card.handle } data-doc-anchor={ card.handle } class="docs-card">
-                  <h3 class="docs-card-title">
-                    { card.name }
-                    <a class="docs-card-source" href="{ card.cardHref | link }" title={ card.sourceTitle }>{ card.handle }</a>
-                  </h3>
+                  <a class="docs-card-source" style={ card.typeStyle } href="{ card.cardHref | link }" title={ card.sourceTitle }>{ card.handle }</a>
+                  <h3 class="docs-card-title">{ card.name }</h3>
                   <MarkdownBlock src={ card.body } docHandles={ handles } docBase={ base }/>
                 </article>
               {/for}
@@ -74,7 +72,7 @@ import Empty from '../components/ui/Empty.pzl';
 import DocsToc from '../components/DocsToc.pzl';
 import MarkdownBlock from '../components/MarkdownBlock.pzl';
 import { anchorAt, sectionAnchor, setActiveDocAnchor } from '../lib/docs.js';
-import { hrefForHandle } from '../lib/types.js';
+import { hrefForHandle, typeForHandle } from '../lib/types.js';
 
 // DocsPage — `#/docs` and `#/docs/:section`: every sectioned card compiled into
 // one document, read top to bottom.
@@ -146,6 +144,9 @@ export default class DocsPage extends PuzzleView {
 					body: card.body,
 					cardHref: hrefForHandle(card.handle),
 					sourceTitle: `Open ${card.handle}`,
+					// Same per-type token the connection chips and the graph use, so a
+					// handle is one colour everywhere in the app.
+					typeStyle: `--c: var(--t-${typeForHandle(card.handle) ?? 'DOC'})`,
 				})),
 			})),
 			empty: sections.length === 0,
@@ -324,9 +325,11 @@ export default class DocsPage extends PuzzleView {
 .docs-card { margin-top: 3rem; scroll-margin-top: 1.5rem; }
 .docs-card-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.7rem; color: var(--docs-ink); font-size: 1.5rem; font-weight: 640; letter-spacing: -0.015em; line-height: 1.25; }
 /* Quiet on purpose: the way back to the editable card, not a call to action. */
-.docs-card-source { color: var(--color-faint); font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.08em; opacity: 0; transition: opacity 0.15s, color 0.15s; }
-.docs-card:hover .docs-card-source, .docs-card-source:focus-visible { opacity: 1; }
-.docs-card-source:hover { color: var(--color-brand); }
+/* An overline above the card title, not a hover affordance: it says which card
+   you are reading, which is half of what makes the compiled document navigable.
+   `--c` is the card's type token, set inline — one colour per type app-wide. */
+.docs-card-source { --c: var(--color-brand); display: inline-block; margin-bottom: 0.3rem; color: var(--c); font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-decoration: none; transition: opacity 0.15s; }
+.docs-card-source:hover, .docs-card-source:focus-visible { opacity: 0.75; }
 
 /*
  * The document's own type scale, over MarkdownBlock's. Prose runs on --docs-ink
