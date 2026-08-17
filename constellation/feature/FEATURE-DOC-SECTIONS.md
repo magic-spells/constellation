@@ -1,15 +1,25 @@
 ---
 name: Documentation sections and export
-status: planned
+status: built
 change: feature
 connections:
   - DOC-CARD-TYPES
   - DOC-FILE-FORMAT
   - PAGE-VIEWER-HOME
+  - PAGE-VIEWER-DOCS
   - FILE-SERVE
   - FILE-CLI
   - FILE-MCP-SERVER
 release: RELEASE-V0-6-0
+notes:
+  - kind: state
+    text: >-
+      Built and merged into release/0.6.0. Shipped: schema keys, src/core/docs.ts, GET /api/docs,
+      /docs + /docs/:section, print stylesheet, golden plan sectioned (3 sections, 10 cards).
+      Deferred by design: `constellation docs --out`, the `get_docs` MCP tool, Paged.js page
+      numbers, handle-valued `section:`. Agent guidance (skill/SKILL.md, skill/methodology.md, MCP
+      INSTRUCTIONS) does not yet mention `section:`/`order:` — describe_type self-serves them from
+      the schemas, so it is a gap rather than a break.
 ---
 
 DOC cards are a flat pile: one folder, alphabetical, no order and no grouping.
@@ -67,27 +77,27 @@ follow it.
 ## The viewer
 
 
-A **Documentation** row in the top rail group next to Tasks — the same
-altitude, because it answers a peer question ("what is this project", vs "what
-is in flight").
+A **Documentation** row in the top rail group next to Tasks — the same altitude,
+because it answers a peer question ("what is this project", vs "what is in
+flight"). Full detail of what shipped is on [[PAGE-VIEWER-DOCS]].
 
-Layout: table of contents on the left, one long document in the centre. That
-needs no new layout — `AppShell` already runs a `SplitPanel` with `CardList` in
-`slot="first"`, so the TOC takes that slot and inherits the drag-to-resize.
+The layout went through one correction worth recording. The first plan put the
+table of contents in `AppShell`'s existing `SplitPanel` left slot, to reuse the
+drag-to-resize. Wrong: a fixed left pane pushes the document to the right, and
+the document is the one thing that has to be centred. `/docs` opts out of the
+split entirely — centred column, contents floating in the left gutter as sticky
+marginalia with no panel chrome.
 
-- `/docs` — every sectioned card compiled into one scrolling document, centre
-  column capped near 70rem so it reads like a page and not a wall.
-- The TOC is **two levels**, section → card. A ten-card section needs its cards
-  clickable, not just its heading. Scroll-spy lights the current one.
-- Per-card anchors, so `/docs#DOC-FILE-FORMAT` is a real deep link.
-- `/docs/:section` — one section on its own.
-- Each card heading carries a quiet link back to its own card page for editing;
-  the compiled view stays read-only.
+The column is **48rem, not the 70rem** first specified. At document type size
+70rem is far past a readable measure; the narrower column also widens the gutter,
+so the rail survives at more window sizes.
 
-Sticky TOC and printed TOC are the same tree, different renders: the printed one
-drops scroll-spy and eventually gains page numbers.
-
-See [[PAGE-VIEWER-HOME]] for where the rail rows live.
+- `/docs` — the whole document, one scroll. `/docs/:section` — one section.
+- Contents are **two levels**, section → card, with scroll-spy.
+- Per-card anchors. The app is hash-routed, so the deep link is
+  `#/docs#DOC-FILE-FORMAT` — two fragments, not the `/docs#HANDLE` first specced.
+- Each card heading links back to its own card page; the compiled view is
+  read-only.
 
 ## Export
 
@@ -137,15 +147,27 @@ section with no duplicated title to keep in sync.
 
 ## Open questions
 
-- **Slug vs display name.** A free-string `section:` means renaming a section is
-  an edit to every card in it. A slug plus a display name on `doc_sections`
-  fixes that at the cost of one indirection. Leaning slug.
-- **Nesting.** One level to start. Reserve `section: guides/authoring` as the
-  path syntax if a third level is ever needed, so the field doesn't have to
-  change shape later.
-- **`order:` collisions and gaps.** Sparse numbering (10, 20, 30) by convention;
-  no lint code for duplicates, just a stable tiebreak.
-- **Is `/docs` per-plan only, or does it span connected repos?** Per-plan first.
+
+Settled while building:
+
+- **Slug**, with the display name on `doc_sections` (`{id, name, summary?}`).
+- **One level.** `section: guides/authoring` stays reserved for a third level.
+- **`order:` is sparse by convention**, unset sorts last, ties break on name then
+  handle. No lint code for duplicates.
+- **A registered section with no cards is dropped** — a heading over nothing helps
+  nobody, least of all on paper.
+- **Grouping accepts any non-empty string**, not only a valid slug: a typo'd
+  `section: Getting Started` shows up in the document where you can see and fix
+  it, rather than silently vanishing. W002 is what says it isn't a slug.
+- **Per-plan.** `/docs` does not span connected repos.
+
+Still open:
+
+- **`doc_title` on PLAN-PROJECT** — not shipped; the H1 is the project name.
+- **The card.json tension is real and unresolved.** `section`/`order` are
+  *authored*, while every other cross-type key there is tool-managed provenance.
+  The schema descriptions distinguish them and so does [[DOC-FILE-FORMAT]], but
+  the invariant in `CLAUDE.md` still calls card.json tool-managed wholesale.
 
 ## Acceptance
 

@@ -28,14 +28,25 @@ before the first dash is the type and must be one of the 21 canonical prefixes (
 
 ## Frontmatter
 
+
 YAML frontmatter is optional; a card with none is valid. Four keys are **reserved**
 (`schemas/card.json`): `name`, `kind` (lowercase-slug subtype), `status`
 (`planned`→`building`→`built`→`verified`), `connections` (list of handles). Beyond those,
-card.json also defines **cross-type metadata** valid on any card, tool-managed rather than
-hand-authored: `code_refs` (code binding, `path` or `path:symbol`), `verified_sha` /
-`verified_at` (the drift baseline — see [[DOC-CHANGE-TRACKING]]), and `notes` (append-only
-typed memory `{kind,text,sha?}`). Everything else is a type-specific field. Schemas are
-permissive: almost nothing is required; unknown fields warn (W003) rather than fail.
+card.json defines **cross-type metadata** valid on any card, in two flavours that behave
+differently:
+
+- **Tool-managed provenance** — `code_refs` (code binding, `path` or `path:symbol`),
+  `verified_sha` / `verified_at` (the drift baseline — see [[DOC-CHANGE-TRACKING]]), and
+  `notes` (append-only typed memory `{kind,text,sha?}`). The tools write these; don't
+  hand-author them.
+- **Authored placement** — `section` (a lowercase slug) and `order` (an integer) put a card
+  into the compiled document at `/docs`. Sections are themselves ordered by `doc_sections:`
+  on `PLAN-PROJECT` (`{id, name, summary?}`); a slug used on a card but never registered
+  there falls to the end rather than erroring. A card with no `section` is simply not in
+  the document. See [[PAGE-VIEWER-DOCS]].
+
+Everything else is a type-specific field. Schemas are permissive: almost nothing is
+required; unknown fields warn (W003) rather than fail.
 
 ## The graph (frontmatter only)
 
