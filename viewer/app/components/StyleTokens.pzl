@@ -18,8 +18,9 @@
             {#for t in tokens}
               <div key={ t.key } class="specimen">
                 {#if t.role}<div class="specimen-role">{ t.role }</div>{/if}
-                <div class="specimen-name" style={ t.stackStyle }>{ t.name }</div>
-                {#if t.weights}<div class="specimen-weights">{ t.weights }</div>{/if}
+                <div class="specimen-name" style={ t.stackStyle }>{ t.family }</div>
+                <div class="specimen-stack">{ t.value }</div>
+                <div class="specimen-meta">{ t.meta }</div>
                 {#for row in t.rows}
                   <div key={ row.label } class="specimen-row">
                     <div class="specimen-label">{ row.label }</div>
@@ -121,6 +122,12 @@ function fontStack(t) {
 	return t.src ? `"cst-${t.name}", ${t.value}` : t.value;
 }
 
+/** First family in a stack, unquoted — the name a specimen should show large. */
+function primaryFamily(value) {
+	const first = String(value).split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+	return first || String(value);
+}
+
 export default class StyleTokens extends PuzzleView {
 	data(params, props) {
 		const card = props.card;
@@ -138,12 +145,15 @@ export default class StyleTokens extends PuzzleView {
 			if (category === 'color') return { ...base, chipStyle: `background: ${t.value}` };
 
 			if (category === 'font') {
-				const stackStyle = `font-family: ${fontStack(t)}`;
+				// The big line is the FAMILY, set in itself — a specimen showing the
+				// token name ("display") never said which face you were looking at.
+				// Token name and weights drop to the meta line under the stack.
 				return {
 					...base,
 					role: t.role,
-					weights: t.weights,
-					stackStyle,
+					family: primaryFamily(t.value),
+					meta: [t.name, t.weights].filter(Boolean).join(' · '),
+					stackStyle: `font-family: ${fontStack(t)}`,
 					rows: SPECIMEN_ROWS.map(([label, chars]) => ({ label, chars })),
 				};
 			}
@@ -238,11 +248,15 @@ export default class StyleTokens extends PuzzleView {
 .swatch-chip { height: 64px; border: 1px solid var(--color-border-strong); border-radius: 6px; }
 .swatch-value { color: var(--color-faint); font-family: var(--font-mono); font-size: 0.7rem; }
 
-.specimen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+/* Two per row, not auto-fit: a specimen needs width to be legible, and three
+   narrow columns made every face look the same. Single column when it can't. */
+.specimen-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 700px) { .specimen-grid { grid-template-columns: minmax(0, 1fr); } }
 .specimen { border: 1px solid var(--color-border); border-radius: 8px; padding: 16px; }
 .specimen-role { color: var(--color-faint); font-size: 0.7rem; }
 .specimen-name { margin: 2px 0; color: var(--color-ink); font-size: 1.6rem; }
-.specimen-weights { margin-bottom: 10px; color: var(--color-faint); font-size: 0.7rem; }
+.specimen-stack { overflow-wrap: anywhere; color: var(--color-muted); font-family: var(--font-mono); font-size: 0.7rem; }
+.specimen-meta { margin-bottom: 10px; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.7rem; }
 .specimen-row { margin-top: 8px; }
 .specimen-label { color: var(--color-faint); font-size: 0.65rem; }
 .specimen-chars { overflow-wrap: anywhere; font-size: 1.05rem; }
