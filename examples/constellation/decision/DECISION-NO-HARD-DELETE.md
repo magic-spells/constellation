@@ -1,6 +1,8 @@
 ---
 name: Tickets are never hard-deleted
 status: built
+section: overview
+order: 30
 connections:
   - DB-TICKETS
   - STATE-TICKET

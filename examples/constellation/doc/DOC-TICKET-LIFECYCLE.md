@@ -2,6 +2,8 @@
 name: How tickets move through the system
 kind: guide
 status: built
+section: ticket-lifecycle
+order: 10
 connections:
   - API-TICKETS
   - FLOW-CREATE-TICKET

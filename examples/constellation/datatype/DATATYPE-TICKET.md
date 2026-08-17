@@ -1,6 +1,8 @@
 ---
 name: Ticket
 status: built
+section: ticket-lifecycle
+order: 50
 connections:
   - DB-TICKETS
 code_refs:

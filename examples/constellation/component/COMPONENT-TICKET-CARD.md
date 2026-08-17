@@ -1,6 +1,8 @@
 ---
 name: Ticket card
 status: building
+section: interface
+order: 20
 framework: svelte
 props:
   - { name: ticket, type: DATATYPE-TICKET, required: true }

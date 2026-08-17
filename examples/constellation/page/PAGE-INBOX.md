@@ -1,6 +1,8 @@
 ---
 name: Inbox
 status: building
+section: interface
+order: 10
 route: /inbox/:ticket_id?
 path_params:
   - { name: ticket_id, type: string, required: false }

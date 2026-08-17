@@ -1,6 +1,8 @@
 ---
 name: Support agent
 status: built
+section: overview
+order: 20
 permissions:
   - tickets:read
   - tickets:write

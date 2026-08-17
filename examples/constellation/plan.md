@@ -1,5 +1,15 @@
 ---
 name: Ticketing Example
+doc_sections:
+  - id: overview
+    name: Overview
+    summary: What the app is, who uses it, and the one rule everything else follows.
+  - id: ticket-lifecycle
+    name: Ticket lifecycle
+    summary: How a ticket is created, moves through its states, and what shape it has.
+  - id: interface
+    name: Interface
+    summary: What a support agent actually sees.
 connections:
   - FLOW-CREATE-TICKET
   - API-TICKETS
