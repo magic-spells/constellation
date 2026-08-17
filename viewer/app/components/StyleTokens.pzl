@@ -19,8 +19,7 @@
               <div key={ t.key } class="specimen">
                 {#if t.role}<div class="specimen-role">{ t.role }</div>{/if}
                 <div class="specimen-name" style={ t.stackStyle }>{ t.family }</div>
-                <div class="specimen-stack">{ t.value }</div>
-                <div class="specimen-meta">{ t.meta }</div>
+                {#if t.weights}<div class="specimen-weights">{ t.weights }</div>{/if}
                 {#for row in t.rows}
                   <div key={ row.label } class="specimen-row">
                     <div class="specimen-label">{ row.label }</div>
@@ -28,6 +27,16 @@
                   </div>
                 {/for}
                 {#if t.description}<div class="token-desc">{ t.description }</div>{/if}
+              </div>
+            {/for}
+          </div>
+
+          <h4 class="styles-title">Font Styles</h4>
+          <div class="font-styles">
+            {#for t in tokens}
+              <div key={ t.key } class="fs-pair">
+                <div class="fs-name">{ t.name }</div>
+                <div class="fs-stack">{ t.value }</div>
               </div>
             {/for}
           </div>
@@ -173,14 +182,16 @@ export default class StyleTokens extends PuzzleView {
 			if (category === 'color') return { ...base, chipStyle: `background: ${t.value}` };
 
 			if (category === 'font') {
-				// The big line is the FAMILY, set in itself — a specimen showing the
-				// token name ("display") never said which face you were looking at.
-				// Token name and weights drop to the meta line under the stack.
+				// A specimen showcases the FACE — its name, its weights, its
+				// characters — so the big line is the family, set in itself. The
+				// token name and the CSS stack are a different question ("what do I
+				// write to get this?") and are answered by the Font Styles list
+				// below, off these same tokens so the two cannot drift.
 				return {
 					...base,
 					role: t.role,
+					weights: t.weights,
 					family: primaryFamily(t.value),
-					meta: [t.name, t.weights].filter(Boolean).join(' · '),
 					stackStyle: `font-family: ${fontStack(t)}`,
 					rows: SPECIMEN_ROWS.map(([label, chars]) => ({ label, chars })),
 				};
@@ -283,8 +294,16 @@ export default class StyleTokens extends PuzzleView {
 .specimen { border: 1px solid var(--color-border); border-radius: 8px; padding: 16px; }
 .specimen-role { color: var(--color-faint); font-size: 0.7rem; }
 .specimen-name { margin: 2px 0; color: var(--color-ink); font-size: 1.6rem; }
-.specimen-stack { overflow-wrap: anywhere; color: var(--color-muted); font-family: var(--font-mono); font-size: 0.7rem; }
-.specimen-meta { margin-bottom: 10px; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.7rem; }
+.specimen-weights { margin-bottom: 10px; color: var(--color-faint); font-size: 0.7rem; }
+
+/* Font Styles — the same tokens as a reference list: what to write to get the
+   face above. Kept off one token array so a stack can never disagree with the
+   specimen rendering it. */
+.styles-title { margin: 22px 0 8px; color: var(--color-ink); font-size: 0.95rem; font-weight: 600; }
+.font-styles { display: grid; grid-template-columns: max-content 1fr; gap: 6px 20px; align-items: baseline; }
+.fs-pair { display: contents; }
+.fs-name { color: var(--color-ink); font-family: var(--font-mono); font-size: 0.78rem; font-weight: 600; }
+.fs-stack { overflow-wrap: anywhere; color: var(--color-muted); font-family: var(--font-mono); font-size: 0.75rem; }
 .specimen-row { margin-top: 8px; }
 .specimen-label { color: var(--color-faint); font-size: 0.65rem; }
 .specimen-chars { overflow-wrap: anywhere; font-size: 1.05rem; }
