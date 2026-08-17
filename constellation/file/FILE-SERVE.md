@@ -8,8 +8,8 @@ connections:
   - FILE-WRITER
   - FILE-SYNC
   - PAGE-VIEWER-HOME
-verified_at: '2026-08-16T02:31:48.534Z'
-verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+verified_at: '2026-08-16T19:02:59.388Z'
+verified_sha: b68341fab1d50f297248b83eccc2f936ad6b9234
 notes:
   - kind: verified
     text: >-
@@ -17,6 +17,11 @@ notes:
       /api/plan, resolved once and memoised for the server's lifetime. Now documented, including the
       null case rendering no link.
     sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+  - kind: verified
+    text: >-
+      server.ts itself is unchanged — the port walk is CLI policy ([[FILE-CLI]]), which is why
+      startServer still takes one port and rejects on EADDRINUSE. Nothing this card claims moved.
+    sha: b68341fab1d50f297248b83eccc2f936ad6b9234
 ---
 
 Serves `viewer/dist`, a read API, and a PATCH/POST/DELETE write API (with `if_mtime` stale-write guard), watching files for live reload. Shares the byte-preserving writer with the MCP path. `DELETE /api/card/PLAN-PROJECT` is refused (400 `INVALID_HANDLE`) — same guard as MCP `delete_card`.

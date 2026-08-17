@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  applySkillPickerKey,
   classifySkillTargets,
   detectSkillTargets,
   installSkills,
@@ -86,5 +87,52 @@ describe('installSkills', () => {
     const stamp = await readFile(path.join(dest, SKILL_VERSION_FILE), 'utf8');
     expect(stamp.trim()).toBe('1.2.3');
     await expect(readFile(path.join(dest, 'leftover.md'), 'utf8')).rejects.toThrow();
+  });
+});
+
+// The picker's key handling, as a pure reducer. Driving raw-mode stdin from a
+// test needs a pty and hangs the moment input runs out, so the escape codes and
+// wrap-around are tested here instead of through the terminal.
+describe('skill picker keys', () => {
+  const S = (cursor: number, checked: boolean[]) => ({ cursor, checked });
+  const press = (state: ReturnType<typeof S>, key: string, n = 3) =>
+    applySkillPickerKey(state, key, n);
+
+  it('starts every target checked and toggles one with space', () => {
+    const after = press(S(0, [true, true, true]), ' ');
+    expect(after.action).toBe('redraw');
+    expect(after.state.checked).toEqual([false, true, true]);
+    // Toggling is per-row, and the cursor does not move.
+    expect(after.state.cursor).toBe(0);
+  });
+
+  it('wraps the cursor at both ends', () => {
+    expect(press(S(0, [true, true, true]), '\x1b[A').state.cursor).toBe(2);
+    expect(press(S(2, [true, true, true]), '\x1b[B').state.cursor).toBe(0);
+    // j/k mirror the arrows.
+    expect(press(S(0, [true, true, true]), 'k').state.cursor).toBe(2);
+    expect(press(S(2, [true, true, true]), 'j').state.cursor).toBe(0);
+  });
+
+  it('makes `a` a true toggle, not a one-way "select all"', () => {
+    // Anything unchecked → check everything.
+    expect(press(S(0, [true, false, true]), 'a').state.checked).toEqual([true, true, true]);
+    // Already all checked → clear, so pressing twice returns you where you were.
+    expect(press(S(0, [true, true, true]), 'a').state.checked).toEqual([false, false, false]);
+  });
+
+  it('separates confirm from cancel', () => {
+    expect(press(S(0, [true, true, true]), '\r').action).toBe('confirm');
+    expect(press(S(0, [true, true, true]), '\n').action).toBe('confirm');
+    // Esc and Ctrl+C cancel — raw mode swallows SIGINT, so 0x03 is explicit.
+    expect(press(S(0, [true, true, true]), '\x1b').action).toBe('cancel');
+    expect(press(S(0, [true, true, true]), '\x03').action).toBe('cancel');
+  });
+
+  it('ignores unmapped keys without disturbing state', () => {
+    const before = S(1, [true, false, true]);
+    const after = press(before, 'z');
+    expect(after.action).toBe('ignore');
+    expect(after.state).toBe(before);
   });
 });

@@ -39,7 +39,13 @@ async function openUrl(url: string): Promise<void> {
 async function upgradeCli(): Promise<void> {
   const { spawn } = await import('node:child_process');
   const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const child = spawn(npm, ['install', '-g', `${name}@latest`], {
+  // `--prefer-online` forces a fresh registry read for the packument. Without
+  // it npm may answer `@latest` from its cached copy, which is up to five
+  // minutes stale — and the single most likely moment to run `upgrade` is right
+  // after hearing a release exists, which is exactly inside that window. The
+  // symptom is the worst kind: the command succeeds and installs the version
+  // you already had.
+  const child = spawn(npm, ['install', '-g', '--prefer-online', `${name}@latest`], {
     stdio: 'inherit',
   });
   const code = await new Promise<number>((resolve) => {
@@ -247,24 +253,47 @@ program
     }
     const { startServer } = await import('../serve/server.js');
     const started = Date.now();
-    let running: Awaited<ReturnType<typeof startServer>>;
-    try {
-      running = await startServer({
-        planRoot: root,
-        port: Number(opts.port),
-        readonly: opts.readonly ?? false,
-      });
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException)?.code;
-      if (code === 'EADDRINUSE') {
-        console.error(
-          pc.red(`Port ${opts.port} is already in use.`) +
-            ` Pick another with: constellation serve -p <port>`,
-        );
-      } else {
-        console.error(pc.red(err instanceof Error ? err.message : String(err)));
+
+    // A busy port is not a failure worth stopping for — serving a second plan
+    // (or restarting after a stray process kept the socket) is routine, and
+    // "pick another port yourself" made the user do arithmetic the CLI can do.
+    // So walk upward until one binds. The chosen port is always printed in the
+    // banner below, and `taken` drives a note so a URL that is not the port you
+    // asked for never looks like a typo.
+    const requested = Number(opts.port);
+    const MAX_PORT_TRIES = 20;
+    let running: Awaited<ReturnType<typeof startServer>> | undefined;
+    let port = requested;
+    let taken = 0;
+
+    while (running === undefined) {
+      try {
+        running = await startServer({
+          planRoot: root,
+          port,
+          readonly: opts.readonly ?? false,
+        });
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException)?.code;
+        // EACCES shows up the same way for a privileged port (<1024) that is
+        // free but not ours to bind, and walking upward from 80 to 99 would be
+        // twenty useless attempts — so only EADDRINUSE advances.
+        const retryable = code === 'EADDRINUSE' && taken + 1 < MAX_PORT_TRIES && port < 65535;
+        if (retryable) {
+          taken += 1;
+          port += 1;
+          continue;
+        }
+        if (code === 'EADDRINUSE') {
+          console.error(
+            pc.red(`Ports ${requested}–${port} are all in use.`) +
+              ` Pick another with: constellation serve -p <port>`,
+          );
+        } else {
+          console.error(pc.red(err instanceof Error ? err.message : String(err)));
+        }
+        process.exit(2);
       }
-      process.exit(2);
     }
     const elapsed = Date.now() - started;
 
@@ -287,6 +316,15 @@ program
     );
     console.log();
     line('Local:', pc.cyan(url));
+    if (taken > 0) {
+      line(
+        'Port:',
+        pc.dim(
+          `${requested} was in use, using ${running.port}` +
+            (taken > 1 ? ` (tried ${taken + 1})` : ''),
+        ),
+      );
+    }
     line('Plan:', planLabel);
     if (opts.readonly) line('Mode:', pc.dim('read-only (browser edits disabled)'));
 
