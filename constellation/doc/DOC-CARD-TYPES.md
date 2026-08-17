@@ -5,6 +5,8 @@ status: built
 connections:
   - FILE-TYPES
   - FILE-HANDLES
+section: format
+order: 20
 ---
 
 # The 21 card types

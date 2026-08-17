@@ -77,6 +77,47 @@ export function anchorAt(anchors, scrollTop, atBottom = false) {
 	return current;
 }
 
+/**
+ * How many diagrams a card body will produce: its ```mermaid fences.
+ *
+ * WHY COUNT THE SOURCE AT ALL. The print window has to know when the diagrams
+ * have finished rendering, and the obvious test — "no `.mermaid-block` is still
+ * empty" — is true of a document whose markdown has not been written to the DOM
+ * yet, which is the state the window is in for its first frames. Absence would
+ * read as done, print would fire early, and every diagram would come out blank:
+ * exactly the failure being guarded against. An expected count from the SOURCE
+ * cannot be satisfied by an empty page.
+ */
+export function countDiagrams(body) {
+	return String(body ?? '').match(/^[ \t]{0,3}(?:```+|~~~+)[ \t]*mermaid\b/gm)?.length ?? 0;
+}
+
+/**
+ * How many of `root`'s diagram placeholders have been drawn.
+ *
+ * Mermaid runs asynchronously off a vendored bundle (lib/markdown.js) and fills
+ * each `.mermaid-block` with an <svg> — or, when the diagram itself is bad,
+ * with the source in a <pre>. Either way the box now has a child, so "has a
+ * child" is "settled", whichever way it ended.
+ */
+export function diagramsDrawn(root) {
+	return [...root.querySelectorAll('.mermaid-block')].filter((el) => el.firstElementChild).length;
+}
+
+/**
+ * The print window's URL for a document, hash included (`#/print`,
+ * `#/print/overview`). It is a top-level route rather than `/docs/print`
+ * because a section slug and a mode word would otherwise share one segment —
+ * a section actually called `print` would be unreachable.
+ *
+ * Hand-encoded rather than routed through `router.url()`: the caller is opening
+ * a NEW window, so it needs a string it can hand to `window.open`, not a
+ * navigation.
+ */
+export function printHref(solo = '') {
+	return solo ? `#/print/${solo}` : '#/print';
+}
+
 /** Cover line: what this document is OF, so a printed copy dates itself. */
 function imprintOf(plan) {
 	const version = plan?.sync?.package_version;
@@ -131,6 +172,17 @@ export function docModel(store, solo = '') {
 				typeStyle: `--c: var(--t-${typeForHandle(card.handle) ?? 'DOC'})`,
 			})),
 		})),
+		// How many diagrams this document contains — what the print window waits
+		// for. Counted from the bodies about to be rendered, not from the page.
+		diagrams: sections.reduce(
+			(total, section) =>
+				total + section.cards.reduce((n, card) => n + countDiagrams(card.body), 0),
+			0,
+		),
+		// Whether the document has ARRIVED, which "no sections" alone cannot say:
+		// the plan hydrates async, so an empty document and a document still in
+		// flight look identical from the tree. The print window waits on this.
+		loaded: !!docs,
 		empty: sections.length === 0,
 		// A slug no card claims, as opposed to a plan with no document at all —
 		// the two want different things said about them.

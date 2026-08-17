@@ -6,6 +6,8 @@ connections:
   - FILE-CODE
   - FILE-SYNC
   - FILE-STALE
+section: plan-and-code
+order: 30
 ---
 
 Makes a `built`/`verified` claim re-verifiable instead of taken on faith (reverse drift).

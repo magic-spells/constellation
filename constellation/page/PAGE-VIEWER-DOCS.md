@@ -11,8 +11,9 @@ connections:
   - FILE-SERVE
   - DOC-FILE-FORMAT
   - PAGE-VIEWER-CARD
+section: viewer
+order: 50
 ---
-
 
 Every sectioned card compiled into ONE ordered document — the answer to "what is
 this project", read top to bottom, and the thing you print. `/docs` for the whole

@@ -5,6 +5,8 @@ status: built
 connections:
   - FILE-EXTRACT
   - DOC-FILE-FORMAT
+section: format
+order: 40
 ---
 
 # Diagrams and flows

@@ -5,13 +5,14 @@
   <div>
     {#if compact}
       <div class="docs-compact">
-        <label class="sr-only" for={ selectId }>Jump to a section</label>
-        <select id={ selectId } class="dtoc-select" @change={ jump(event) }>
-          <option value="">Contents…</option>
-          {#for row in flat}
-            <option key={ row.href } value={ row.href } selected={ row.selected }>{ row.label }</option>
-          {/for}
-        </select>
+        <Select
+          class="w-full"
+          label="Jump to a section"
+          options={ flat }
+          value={ current }
+          placeholder="Contents…"
+          indicator="chevrons"
+          @change={ jump }/>
       </div>
     {:else}
       <nav class="dtoc" aria-label="Documentation contents">
@@ -42,6 +43,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import Select from './ui/Select.pzl';
 import { onActiveDocAnchor, activeDocAnchor, tocTree } from '../lib/docs.js';
 
 // DocsToc — the compiled document's table of contents.
@@ -57,9 +59,13 @@ import { onActiveDocAnchor, activeDocAnchor, tocTree } from '../lib/docs.js';
 // navigable and the document itself a scroll hunt.
 //
 // TWO RENDERS, ONE TREE. The gutter cannot hold a legible rail on a narrow
-// screen, so the same tree also renders as a jump `<select>` above the document
+// screen, so the same tree also renders as a jump control above the document
 // (`variant="compact"`). DocsPage mounts both and CSS picks; neither placement
 // can move the document sideways.
+//
+// That control is the Select PIECE, not a native `<select>` — the same one the
+// topbar wears for the colour scheme, so the two read as one control rather
+// than as an app widget and a browser widget on the same page.
 //
 // The highlight is SCROLL-DRIVEN, not route-driven: DocsPage publishes which
 // anchor the viewport is on (lib/docs.js) and this subscribes.
@@ -94,10 +100,25 @@ export default class DocsToc extends PuzzleView {
 			};
 		};
 
+		// The jump control flattens the same two levels. An em space is the indent
+		// — a run of ordinary spaces collapses in HTML, and the piece renders a
+		// label as text.
+		const flat = tree.flatMap((section) => [
+			{ value: section.href, label: section.name, anchor: section.anchor },
+			...section.cards.map((card) => ({
+				value: card.href,
+				label: ` ${card.name}`,
+				anchor: card.anchor,
+			})),
+		]);
+
 		return {
 			solo,
 			compact,
-			selectId: 'dtoc-jump',
+			flat,
+			// Whatever the scroll is on, so the control names the section you are
+			// reading rather than the last one you picked.
+			current: flat.find((row) => row.anchor === active)?.value ?? null,
 			sections: tree.map((section) => ({
 				...section,
 				...row(section.anchor, 'dtoc-section text-sm font-semibold text-ink'),
@@ -106,16 +127,6 @@ export default class DocsToc extends PuzzleView {
 					...row(card.anchor, 'dtoc-card pl-3 text-[0.8rem] text-muted'),
 				})),
 			})),
-			// The select flattens the same two levels; an em space is the only
-			// indent an <option> is allowed to have.
-			flat: tree.flatMap((section) => [
-				{ href: section.href, label: section.name, selected: section.anchor === active },
-				...section.cards.map((card) => ({
-					href: card.href,
-					label: ` ${card.name}`,
-					selected: card.anchor === active,
-				})),
-			]),
 			emptyText: docs ? 'No card carries a section: yet.' : 'Loading…',
 		};
 	}
@@ -133,8 +144,8 @@ export default class DocsToc extends PuzzleView {
 	}
 
 	events = {
-		jump: (event) => {
-			const href = event.target.value;
+		// The piece hands over the chosen option's value, which IS the href.
+		jump: (href) => {
 			if (href) void this.ctx.router.push(href);
 		},
 	};
@@ -152,6 +163,4 @@ export default class DocsToc extends PuzzleView {
 .dtoc-row.is-active { background: color-mix(in oklab, var(--color-brand) 16%, transparent); }
 .dtoc-card.is-active { color: var(--color-ink); }
 .dtoc-empty { padding: 0.5rem; color: var(--color-muted); font-size: 0.75rem; }
-
-.dtoc-select { width: 100%; border: 1px solid var(--color-border); border-radius: 0.5rem; background: var(--color-surface); padding: 0.4rem 0.6rem; color: var(--color-body); font-size: 0.85rem; }
 </style>

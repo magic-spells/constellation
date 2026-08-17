@@ -8,6 +8,8 @@ connections:
   - DOC-CARD-TYPES
   - DOC-LINT-CODES
   - DOC-CONNECTED-REPOS
+section: format
+order: 10
 ---
 
 # File format

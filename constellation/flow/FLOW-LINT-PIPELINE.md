@@ -7,6 +7,8 @@ connections:
   - FILE-VALIDATE
   - FILE-LINT
   - DOC-LINT-CODES
+section: plan-and-code
+order: 40
 ---
 
 How a plan folder becomes validated graph state.

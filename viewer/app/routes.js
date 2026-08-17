@@ -5,6 +5,7 @@ import BoardCardDialog from './views/BoardCardDialog.pzl';
 import BoardOverlayEmpty from './views/BoardOverlayEmpty.pzl';
 import ConstellationView from './views/ConstellationView.pzl';
 import DocsPage from './views/DocsPage.pzl';
+import DocsPrint from './views/DocsPrint.pzl';
 import FeaturesPanel from './views/FeaturesPanel.pzl';
 import StyleGuide from './views/StyleGuide.pzl';
 import TypeIntro from './views/TypeIntro.pzl';
@@ -81,6 +82,18 @@ export default [
 		view: DocsPage,
 		layout: AppShell,
 		meta: { title: 'Constellation — Documentation' },
+	},
+	// The document on a page-width sheet, in a window of its own — what "Export
+	// as PDF" opens, and the only route with NO layout: the app's chrome is
+	// exactly what a printable page must not carry. It is a top-level path
+	// rather than `/docs/print` because that segment already holds a section
+	// slug, and a section called `print` would be unreachable behind it.
+	{ path: '/print', name: 'docs-print', view: DocsPrint, meta: { title: 'Constellation — Print' } },
+	{
+		path: '/print/:section',
+		name: 'docs-print-section',
+		view: DocsPrint,
+		meta: { title: 'Constellation — Print' },
 	},
 	{
 		path: '/constellation',

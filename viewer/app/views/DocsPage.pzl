@@ -25,41 +25,18 @@
                narrow to hold the rail legibly. CSS picks exactly one. -->
           <DocsToc variant="compact" solo={ solo }/>
 
-          <header class="docs-cover">
-            <p class="docs-eyebrow">Documentation</p>
-            <h1 class="docs-title">{ title }</h1>
-            <p class="docs-imprint">{ imprint }</p>
-          </header>
-
-          <!-- The printed contents page. Same tree as the rail's TOC, no
-               scroll-spy and no links to follow — on paper it is a map, not a
-               control. -->
-          <nav class="docs-paper-toc" aria-label="Contents">
-            <h2>Contents</h2>
-            {#for section in sections}
-              <div key={ section.id } class="ptoc-group">
-                <p class="ptoc-section">{ section.name }</p>
-                {#for card in section.cards}
-                  <p key={ card.handle } class="ptoc-card">{ card.name }</p>
-                {/for}
-              </div>
-            {/for}
-          </nav>
-
-          {#for section in sections}
-            <section key={ section.id } class="docs-section">
-              <h2 id={ section.anchor } class="docs-section-title">{ section.name }</h2>
-              {#if section.summary}<p class="docs-section-summary">{ section.summary }</p>{/if}
-
-              {#for card in section.cards}
-                <article key={ card.handle } id={ card.handle } data-doc-anchor={ card.handle } class="docs-card">
-                  <a class="docs-card-source" style={ card.typeStyle } href="{ card.cardHref | link }" title={ card.sourceTitle }>{ card.handle }</a>
-                  <h3 class="docs-card-title">{ card.name }</h3>
-                  <MarkdownBlock src={ card.body } docHandles={ handles } docBase={ base }/>
-                </article>
-              {/for}
-            </section>
-          {/for}
+          <DocsDocument solo={ solo }>
+            <Button
+              class="shrink-0 print:hidden"
+              variant="outline"
+              size="sm"
+              @press={ exportPdf }>
+              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M7 9V4h10v5M7 17v3h10v-3M5 9h14a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1v-5a1 1 0 011-1M8 12.5h.01"/>
+              </svg>
+              Export as PDF
+            </Button>
+          </DocsDocument>
         </div>
       </div>
     {/if}
@@ -68,11 +45,12 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import Button from '../components/ui/Button.pzl';
 import Empty from '../components/ui/Empty.pzl';
+import DocsDocument from '../components/DocsDocument.pzl';
 import DocsToc from '../components/DocsToc.pzl';
-import MarkdownBlock from '../components/MarkdownBlock.pzl';
-import { anchorAt, sectionAnchor, setActiveDocAnchor } from '../lib/docs.js';
-import { hrefForHandle, typeForHandle } from '../lib/types.js';
+import { toast } from '../components/ui/toast.js';
+import { anchorAt, docModel, printHref, setActiveDocAnchor } from '../lib/docs.js';
 
 // DocsPage — `#/docs` and `#/docs/:section`: every sectioned card compiled into
 // one document, read top to bottom.
@@ -82,16 +60,9 @@ import { hrefForHandle, typeForHandle } from '../lib/types.js';
 // a capped content column, so the page is centred in the viewport and stays
 // centred whether or not the contents rail is showing beside it.
 //
-// READ-ONLY BY DESIGN. Every other card surface in this viewer edits in place;
-// this one does not. The compiled view is a reading order over cards that live
-// elsewhere, and an edit box in it would invite writing prose into a document
-// that isn't a file. Each card heading carries its handle as a quiet link back
-// to the card page, which is where editing happens.
-//
-// Ordering and heading levels arrive already decided — `GET /api/docs` runs
-// src/core/docs.ts, the one compiler, and hands over bodies whose own headings
-// are already two levels down. What this view adds is the frame (title, section
-// H2, card H3), the anchors, the scroll, and the typography.
+// What this view owns is the FRAME — the grid, the rail, the scroll and the
+// export affordance. The document inside it is DocsDocument, which the print
+// window renders too; nothing about the document's own shape is decided here.
 //
 // DEEP LINKS UNDER HASH ROUTING. The app routes on `location.hash`, so a card
 // anchor rides as a SECOND fragment: `#/docs#DOC-FILE-FORMAT` parses to pathname
@@ -105,6 +76,9 @@ import { hrefForHandle, typeForHandle } from '../lib/types.js';
 // against the SplitPanel's second pane, which is the element that actually
 // scrolls on every route (see its `overflow-auto` pane class).
 
+/** The export's window name — see `exportPdf`. */
+const PRINT_WINDOW = 'constellation-print';
+
 /** How far below the pane's top edge the "you are reading this" line sits. */
 const READING_LINE = 96;
 
@@ -115,58 +89,16 @@ function atBottom(scroller) {
 
 export default class DocsPage extends PuzzleView {
 	data() {
-		const store = this.ctx.store;
-		const plan = store.findOne('plan', 'plan');
-		const docs = plan?.docs;
 		const solo = String(this.route.params?.section ?? '');
-		const all = docs?.sections ?? [];
-		const sections = solo ? all.filter((section) => section.id === solo) : all;
-
-		// In-document link targets are the handles actually RENDERED here: on
-		// `/docs/:section` a card in another section is not on this page, so a
-		// [[link]] to it must stay a link to its card, not a dead anchor.
-		const handles = sections.flatMap((section) => section.cards.map((card) => card.handle));
+		const model = docModel(this.ctx.store, solo);
 
 		return {
-			solo,
-			base: solo ? `/docs/${solo}` : '/docs',
-			title: docs?.title || 'Documentation',
-			imprint: this._imprint(plan),
-			handles,
-			sections: sections.map((section) => ({
-				id: section.id,
-				name: section.name,
-				summary: section.summary || '',
-				anchor: sectionAnchor(section.id),
-				cards: section.cards.map((card) => ({
-					handle: card.handle,
-					name: card.name,
-					body: card.body,
-					cardHref: hrefForHandle(card.handle),
-					sourceTitle: `Open ${card.handle}`,
-					// Same per-type token the connection chips and the graph use, so a
-					// handle is one colour everywhere in the app.
-					typeStyle: `--c: var(--t-${typeForHandle(card.handle) ?? 'DOC'})`,
-				})),
-			})),
-			empty: sections.length === 0,
-			emptyTitle: solo && all.length > 0 ? 'No such section' : 'No documentation yet',
-			emptyDescription:
-				solo && all.length > 0
-					? `No card declares section: ${solo}.`
-					: 'Give a card a section: slug and it joins this document. Register the slugs in order on PLAN-PROJECT as doc_sections: to name them and set how they read.',
+			...model,
+			emptyTitle: model.unknownSection ? 'No such section' : 'No documentation yet',
+			emptyDescription: model.unknownSection
+				? `No card declares section: ${solo}.`
+				: 'Give a card a section: slug and it joins this document. Register the slugs in order on PLAN-PROJECT as doc_sections: to name them and set how they read.',
 		};
-	}
-
-	/** Cover line: what this document is OF, so a printed copy dates itself. */
-	_imprint(plan) {
-		const version = plan?.sync?.package_version;
-		const today = new Date().toLocaleDateString(undefined, {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric',
-		});
-		return version ? `v${version} · ${today}` : today;
 	}
 
 	mounted() {
@@ -232,25 +164,53 @@ export default class DocsPage extends PuzzleView {
 		this._appliedHash = hash;
 		this._scroller.scrollTo({ top: target.offsetTop - this._scroller.offsetTop - 24 });
 	}
+
+	events = {
+		// EXPORT IS PRINT. A browser cannot write a PDF without a library, so the
+		// only native path is the print dialog with "Save as PDF" as the
+		// destination — which nobody reaches for by pressing ⌘P on an app. So the
+		// button opens the document in a window of its own, sized to a page, and
+		// that window's Print button (DocsPrint) opens the dialog once the
+		// diagrams have settled.
+		//
+		// A click IS the user gesture window.open needs, so the popup is allowed —
+		// unless the browser blocks popups outright, which is silent and returns
+		// null. Say so rather than looking broken.
+		exportPdf: () => {
+			const url = new URL(printHref(this.getData().solo), window.location.href).href;
+			const width = Math.min(940, window.screen.availWidth);
+			const height = Math.min(1180, window.screen.availHeight);
+			const left = Math.max(0, Math.round((window.screen.availWidth - width) / 2));
+			// A NAMED window, so exporting twice refocuses the one already open
+			// instead of stacking copies. The exception is a window already
+			// carrying that name — a print window someone navigated back into the
+			// app — where reusing it would replace the app with its own print view.
+			const target = window.name === PRINT_WINDOW ? '_blank' : PRINT_WINDOW;
+			const win = window.open(
+				url,
+				target,
+				`popup=yes,width=${width},height=${height},left=${left},top=0`,
+			);
+			if (win) {
+				win.focus();
+				return;
+			}
+			toast({
+				title: 'Pop-up blocked',
+				message: 'Allow pop-ups for this site, or press ⌘P and choose “Save as PDF”.',
+				variant: 'danger',
+			});
+		},
+	};
 }
 </script>
 
 <style>
 /*
- * TYPOGRAPHY IS SCOPED TO THIS ROUTE. Everything below is under `.docs`, and
- * deliberately so: the rest of the viewer is chrome — rails, lists, tables —
- * and is sized for scanning. This is long-form reading and wants a bigger,
- * higher-contrast setting. Card pages keep the app's type.
- *
- * `--docs-ink` is the seam for that contrast. Document prose runs on the
- * STRONGEST text token rather than the app's mid `--color-body`, and reading it
- * through a docs-scoped variable means a scheme that ever needs a different
- * value can be corrected here without repainting the whole app. (As of now
- * every scheme's `--color-ink` is already near-white in dark and near-black in
- * light, so the alias is enough — checked across all five, both themes.)
+ * The page's frame. The document's own type lives in DocsDocument — the print
+ * window renders that half without any of this.
  */
 .docs {
-	--docs-ink: var(--color-ink);
 	--docs-measure: 48rem;
 	--docs-rail: 13rem;
 	--docs-rail-gap: 2.5rem;
@@ -313,69 +273,10 @@ export default class DocsPage extends PuzzleView {
 	.docs-compact { display: block; }
 }
 
-.docs-cover { border-bottom: 1px solid var(--color-border); padding-bottom: 2.25rem; margin-bottom: 3rem; }
-.docs-eyebrow { color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; }
-.docs-title { margin-top: 0.7rem; color: var(--docs-ink); font-size: clamp(2.2rem, 5vw, 3.25rem); font-weight: 650; letter-spacing: -0.035em; line-height: 1.05; }
-.docs-imprint { margin-top: 0.8rem; color: var(--color-muted); font-size: 0.9rem; }
-
-.docs-section { margin-top: 4rem; }
-.docs-section-title { scroll-margin-top: 1.5rem; color: var(--docs-ink); font-size: 2.1rem; font-weight: 650; letter-spacing: -0.025em; line-height: 1.15; }
-.docs-section-summary { margin-top: 0.6rem; color: var(--color-muted); font-size: 1.02rem; line-height: 1.6; }
-
-.docs-card { margin-top: 3rem; scroll-margin-top: 1.5rem; }
-.docs-card-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.7rem; color: var(--docs-ink); font-size: 1.5rem; font-weight: 640; letter-spacing: -0.015em; line-height: 1.25; }
-/* Quiet on purpose: the way back to the editable card, not a call to action. */
-/* An overline above the card title, not a hover affordance: it says which card
-   you are reading, which is half of what makes the compiled document navigable.
-   `--c` is the card's type token, set inline — one colour per type app-wide. */
-/* The same pill the connection chips wear, so a handle looks like a handle
-   wherever it appears. `--c` is the card's type token, set inline. */
-.docs-card-source { --c: var(--color-brand); display: inline-flex; align-items: center; margin-bottom: 0.45rem; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--color-border)); border-radius: 999px; background: color-mix(in srgb, var(--c) 12%, var(--color-surface)); padding: 0.22rem 0.7rem; color: var(--c); font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-decoration: none; transition: border-color 0.15s; }
-.docs-card-source:hover, .docs-card-source:focus-visible { border-color: var(--c); }
-
-/*
- * The document's own type scale, over MarkdownBlock's. Prose runs on --docs-ink
- * rather than --color-body: the app uses body text for secondary information,
- * and in a document the prose IS the content.
- */
-.docs-column .md-block { margin-top: 0.9rem; color: var(--docs-ink); font-size: 1.0625rem; line-height: 1.72; }
-.docs-column .md-block p { margin: 0.95rem 0; }
-.docs-column .md-block li { margin: 0.35rem 0; }
-.docs-column .md-block ul, .docs-column .md-block ol { padding-left: 1.5rem; }
-.docs-column .md-block h4 { margin: 2rem 0 0.5rem; font-size: 1.16rem; }
-.docs-column .md-block h5 { margin: 1.6rem 0 0.4rem; font-size: 1.02rem; }
-.docs-column .md-block h6 { margin: 1.5rem 0 0.4rem; font-size: 0.94rem; color: var(--color-muted); }
-.docs-column .md-block blockquote { color: var(--color-body); }
-.docs-column .md-block table { font-size: 0.95rem; }
-.docs-column .md-block pre { font-size: 0.92rem; line-height: 1.6; }
-
-/* Screen shows the rail (or the jump control); paper needs its own contents. */
-.docs-paper-toc { display: none; }
-
 @media print {
 	.docs { padding: 0; }
 	.docs-grid { display: block; }
 	.docs-rail, .docs-compact { display: none; }
 	.docs-column { max-width: none; }
-
-	.docs-cover { border-bottom: 0; break-after: page; padding-top: 25vh; text-align: center; }
-	.docs-title { font-size: 32pt; }
-	/* Keeps its identity on paper, loses the chip: tinted backgrounds print
-	   badly, and browsers drop them entirely without "background graphics". */
-	.docs-card-source { border-color: transparent; background: none; padding-left: 0; color: var(--color-muted); }
-
-	.docs-paper-toc { display: block; break-after: page; }
-	.docs-paper-toc h2 { margin-bottom: 1.2rem; font-size: 18pt; }
-	.ptoc-group { margin-bottom: 0.9rem; }
-	.ptoc-section { font-weight: 600; }
-	.ptoc-card { padding-left: 1.2rem; color: var(--color-muted); }
-
-	/* Every section starts a page; the first one follows the contents page. */
-	.docs-section { break-before: page; margin-top: 0; }
-	.docs-section-title { font-size: 20pt; }
-	.docs-card-title { font-size: 14pt; }
-	.docs-section-title, .docs-card-title { break-after: avoid; }
-	.docs-card { break-inside: auto; margin-top: 1.8rem; }
-	.docs-column .md-block { font-size: 11pt; line-height: 1.55; }
 }
 </style>

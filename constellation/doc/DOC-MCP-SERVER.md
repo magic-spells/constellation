@@ -25,6 +25,8 @@ connections:
   - FILE-CODE
   - FILE-STALE
   - DOC-CHANGE-TRACKING
+section: agents
+order: 10
 ---
 
 # MCP server

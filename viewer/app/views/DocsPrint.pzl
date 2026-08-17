@@ -1,0 +1,254 @@
+<puzzle-view>
+  <div class="print-view">
+    <header class="print-bar">
+      <div class="print-bar-inner">
+        <div class="min-w-0">
+          <p class="print-bar-title">{ title }</p>
+          <p class="print-bar-hint">{ hint }</p>
+        </div>
+        <Button
+          class="shrink-0"
+          size="lg"
+          loading={ waiting }
+          @press={ print }>
+          { action }
+        </Button>
+      </div>
+    </header>
+
+    <div class="print-sheet">
+      {#if empty}
+        <p class="print-empty">{ emptyText }</p>
+      {:else}
+        <DocsDocument solo={ solo }/>
+      {/if}
+    </div>
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Button from '../components/ui/Button.pzl';
+import DocsDocument from '../components/DocsDocument.pzl';
+import { diagramsDrawn, docModel } from '../lib/docs.js';
+
+// DocsPrint — `#/print` and `#/print/:section`: the compiled document on a
+// sheet, in a window of its own, next to the button that opens the print
+// dialog. DocsPage's "Export as PDF" opens this.
+//
+// WHY A WINDOW AND NOT A DIALOG. A browser cannot write a PDF from script
+// without shipping a PDF library; the only native route is `window.print()` →
+// the print dialog → destination "Save as PDF". So the export is not a
+// converter, it is (a) an affordance — nobody thinks "⌘P" when they want to
+// export a document — and (b) a preview at the width the page will actually be,
+// which the app's 48rem reading column is not.
+//
+// It is a ROUTE WITHOUT A LAYOUT (see routes.js): no sidebar, no topbar, no
+// contents rail, nothing that would print or distract. The window is opened
+// rather than the current tab reused so the reader keeps their place in the
+// app, and `data-paper` (styles/styles.css) turns the whole window white —
+// including for the diagram tinting, which reads its colours off the root.
+//
+// DIAGRAMS DECIDE WHEN THIS IS READY. Mermaid renders asynchronously, off the
+// vendored bundle, well after the markdown lands; print before it settles and
+// every diagram comes out an empty box, which is the one failure that would
+// make the whole feature worthless. So the Print button stays pending until
+// every placeholder has been filled in. That is also why this does NOT print by
+// itself on load — the readiness signal is a poll over the DOM, and a dialog
+// that opens on its own the moment a heuristic says yes is a dialog that
+// sometimes opens too early.
+
+/** How often to re-ask whether the diagrams have landed. */
+const POLL_MS = 120;
+
+/**
+ * When to stop waiting. Reaching this means mermaid never loaded (a failed
+ * render still fills its box with the source), and a button that is disabled
+ * forever is worse than one that prints a document with gaps in it.
+ */
+const GIVE_UP_MS = 20000;
+
+export default class DocsPrint extends PuzzleView {
+	data() {
+		const solo = String(this.route.params?.section ?? '');
+		const model = docModel(this.ctx.store, solo);
+		const state = this.getData().state ?? 'waiting';
+		const waiting = state === 'waiting';
+
+		return {
+			...model,
+			waiting,
+			action: waiting ? 'Preparing…' : 'Print',
+			hint: {
+				waiting: 'Rendering the diagrams — the document will be ready in a moment.',
+				ready: 'Choose “Save as PDF” as the destination in the print dialog.',
+				partial: 'Some diagrams did not render. Print anyway, or reload the window.',
+			}[state],
+			emptyText: model.unknownSection
+				? `No card declares section: ${solo}.`
+				: 'Nothing to print yet — no card carries a section: slug.',
+		};
+	}
+
+	mounted() {
+		document.documentElement.setAttribute('data-paper', '');
+		// A preview opens at page one. Chrome will otherwise restore whatever this
+		// window was scrolled to the last time it held this URL, which in a named
+		// window (see DocsPage) is a real possibility. Only when it has to: a
+		// no-op scroll is a "not implemented" in jsdom.
+		if (window.scrollY) window.scrollTo(0, 0);
+		this._startedAt = Date.now();
+		this._poll = setInterval(() => this._check(), POLL_MS);
+		this._check();
+	}
+
+	destroyed() {
+		clearInterval(this._poll);
+		this._poll = null;
+		document.documentElement.removeAttribute('data-paper');
+	}
+
+	/**
+	 * Ready = the document has arrived, its cards are on the page, and as many
+	 * diagrams have been DRAWN as the source says there are.
+	 *
+	 * Counting against the source is the whole trick. MarkdownBlock writes its
+	 * HTML from its own mount, one turn after this view's, so for the first
+	 * frames the page has the card articles but not a single `.mermaid-block` —
+	 * and "nothing is unrendered" would happily call that finished. Waiting for
+	 * a NUMBER the empty page cannot reach closes that window.
+	 */
+	_check() {
+		if (this.getData().state && this.getData().state !== 'waiting') return;
+		const root = this.element;
+		if (!root) return;
+
+		const { loaded, empty, diagrams } = this.getData();
+		const pending =
+			!loaded ||
+			(!empty && !root.querySelector('[data-doc-anchor]')) ||
+			diagramsDrawn(root) < diagrams;
+
+		if (pending) {
+			if (Date.now() - this._startedAt < GIVE_UP_MS) return;
+			this._settle('partial');
+			return;
+		}
+		this._settle('ready');
+	}
+
+	_settle(state) {
+		clearInterval(this._poll);
+		this._poll = null;
+		this.setData('state', state);
+		this.refresh();
+	}
+
+	events = {
+		print: () => {
+			if (this.getData().waiting) return;
+			window.print();
+		},
+	};
+}
+</script>
+
+<style>
+/*
+ * A sheet on a desk. The width is the page's, in the page's own units: 8.5in is
+ * 816 CSS pixels by definition, and the padding is the same 2cm the `@page`
+ * rule in styles/styles.css sets as the margin — so the measure on screen is
+ * the measure on paper, and a line that wraps here wraps there.
+ *
+ * What the preview does NOT do is paginate: CSS has no way to lay a document
+ * out in pages on screen. The dashed rules below stand in for that, marking
+ * every break the printer will make (cover, contents, one per section) so the
+ * preview isn't quietly lying about where the pages land.
+ */
+.print-view {
+	--print-width: 8.5in;
+	--print-margin: 2cm;
+	--print-desk: #e6e6ea;
+	min-height: 100vh;
+	background: var(--print-desk);
+	padding-bottom: 3rem;
+}
+
+.print-sheet {
+	width: min(var(--print-width), 100%);
+	margin: 0 auto;
+	background: #fff;
+	padding: var(--print-margin);
+	box-shadow: 0 1px 3px #0000001f, 0 12px 32px #0000001a;
+}
+
+.print-empty { color: var(--color-muted); text-align: center; padding: 4rem 0; }
+
+/*
+ * The bar is the whole reason this window exists, so it stays in view rather
+ * than scrolling away at the top of a fifty-page document.
+ */
+.print-bar {
+	position: sticky;
+	top: 0;
+	z-index: 10;
+	border-bottom: 1px solid #0000001a;
+	background: #fffffff2;
+	backdrop-filter: blur(6px);
+	margin-bottom: 2rem;
+}
+.print-bar-inner { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; width: min(var(--print-width), 100%); margin: 0 auto; padding: 0.85rem var(--print-margin); }
+.print-bar-title { color: var(--color-ink); font-size: 0.95rem; font-weight: 650; }
+.print-bar-hint { margin-top: 0.15rem; color: var(--color-muted); font-size: 0.8rem; }
+
+/*
+ * PAPER TYPE, ON SCREEN. These mirror DocsDocument's own `@media print` block —
+ * the same cover, the same contents page, the same point sizes — so the preview
+ * sets identically to the print. They are a copy because a class cannot join a
+ * media query's declaration list; the comment there says the same thing from
+ * the other side. Change them together.
+ */
+.print-sheet .docs-cover { border-bottom: 0; padding-top: 2in; padding-bottom: 3rem; text-align: center; }
+/* Nothing occupies the cover's action corner here, so the eyebrow stops being
+   a flex item and centres with the rest of the cover. */
+.print-sheet .docs-cover-top { display: block; }
+.print-sheet .docs-title { font-size: 32pt; }
+
+.print-sheet .docs-paper-toc { display: block; }
+.print-sheet .docs-paper-toc h2 { margin-bottom: 1.2rem; font-size: 18pt; }
+.print-sheet .ptoc-group { margin-bottom: 0.9rem; }
+.print-sheet .ptoc-section { font-weight: 600; }
+.print-sheet .ptoc-card { padding-left: 1.2rem; color: var(--color-muted); }
+
+.print-sheet .docs-section { margin-top: 0; }
+.print-sheet .docs-section-title { font-size: 20pt; }
+.print-sheet .docs-card-title { font-size: 14pt; }
+.print-sheet .docs-card { margin-top: 1.8rem; }
+.print-sheet .docs-doc .md-block { font-size: 11pt; line-height: 1.55; }
+
+/*
+ * The page breaks, drawn. Full-bleed across the sheet (hence the negative
+ * margins, which undo the sheet's own padding) so they read as the edge of a
+ * page rather than as a rule inside the text.
+ */
+.print-sheet .docs-cover,
+.print-sheet .docs-paper-toc,
+.print-sheet .docs-section + .docs-section {
+	border-bottom: 1px dashed #0000002e;
+	margin-inline: calc(var(--print-margin) * -1);
+	padding-inline: var(--print-margin);
+}
+.print-sheet .docs-paper-toc { padding-bottom: 2.5rem; margin-bottom: 2.5rem; }
+.print-sheet .docs-section + .docs-section { border-bottom: 0; border-top: 1px dashed #0000002e; padding-top: 2.5rem; margin-top: 2.5rem; }
+
+@media print {
+	/* The bar is the screen's; the desk and the sheet's own frame are too — on
+	   paper the page IS the sheet, and `@page` supplies the margins. */
+	.print-bar { display: none; }
+	.print-view { min-height: 0; background: none; padding: 0; }
+	.print-sheet { width: auto; padding: 0; box-shadow: none; }
+	.print-sheet .docs-cover,
+	.print-sheet .docs-paper-toc,
+	.print-sheet .docs-section + .docs-section { border: 0; margin-inline: 0; padding-inline: 0; }
+}
+</style>

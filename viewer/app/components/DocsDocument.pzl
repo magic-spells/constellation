@@ -1,0 +1,169 @@
+<puzzle-view>
+  <div class="docs-doc">
+    <header class="docs-cover">
+      <!-- The eyebrow shares its line with whatever the host puts in the slot —
+           on `/docs` the export button, in the print window nothing. -->
+      <div class="docs-cover-top">
+        <p class="docs-eyebrow">Documentation</p>
+        <Slot/>
+      </div>
+      <h1 class="docs-title">{ title }</h1>
+      <p class="docs-imprint">{ imprint }</p>
+    </header>
+
+    <!-- The printed contents page. Same tree as the rail's TOC, no scroll-spy
+         and no links to follow — on paper it is a map, not a control. -->
+    <nav class="docs-paper-toc" aria-label="Contents">
+      <h2>Contents</h2>
+      {#for section in sections}
+        <div key={ section.id } class="ptoc-group">
+          <p class="ptoc-section">{ section.name }</p>
+          {#for card in section.cards}
+            <p key={ card.handle } class="ptoc-card">{ card.name }</p>
+          {/for}
+        </div>
+      {/for}
+    </nav>
+
+    {#for section in sections}
+      <section key={ section.id } class="docs-section">
+        <h2 id={ section.anchor } class="docs-section-title">{ section.name }</h2>
+        {#if section.summary}<p class="docs-section-summary">{ section.summary }</p>{/if}
+
+        {#for card in section.cards}
+          <article key={ card.handle } id={ card.handle } data-doc-anchor={ card.handle } class="docs-card">
+            <a class="docs-card-source card-handle card-handle--sm" style={ card.typeStyle } href="{ card.cardHref | link }" title={ card.sourceTitle }>{ card.handle }</a>
+            <h3 class="docs-card-title">{ card.name }</h3>
+            <MarkdownBlock src={ card.body } docHandles={ handles } docBase={ base }/>
+          </article>
+        {/for}
+      </section>
+    {/for}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import MarkdownBlock from './MarkdownBlock.pzl';
+import { docModel } from '../lib/docs.js';
+
+// DocsDocument — the compiled document itself: cover, contents page, sections,
+// cards. It owns the document's TYPOGRAPHY and its print rules; what it does
+// not own is where it sits, which is the difference between its two hosts.
+//
+// TWO HOSTS, ONE DOCUMENT. DocsPage frames it for reading in the app (a centred
+// column with the contents rail in the gutter); DocsPrint frames it on a
+// page-width sheet in a window of its own, for the print dialog. Both render
+// exactly this markup, so what you preview is what prints and neither can drift
+// from the other by an edit that only landed in one place.
+//
+// READ-ONLY BY DESIGN. Every other card surface in this viewer edits in place;
+// this one does not. The compiled view is a reading order over cards that live
+// elsewhere, and an edit box in it would invite writing prose into a document
+// that isn't a file. Each card carries its handle as a quiet link back to the
+// card page, which is where editing happens.
+//
+// Ordering and heading levels arrive already decided — `GET /api/docs` runs
+// src/core/docs.ts, the one compiler, and hands over bodies whose own headings
+// are already two levels down. What this adds is the frame (title, section H2,
+// card H3), the anchors and the type.
+//
+// Props
+//   solo   section id when the route is soloed on one section, '' for the whole
+//
+// Slot: the cover's top-right corner — an action the host wants on the page
+// (DocsPage's export button). Empty in print.
+
+export default class DocsDocument extends PuzzleView {
+	data(params, props) {
+		return docModel(this.ctx.store, String(props.solo || ''));
+	}
+}
+</script>
+
+<style>
+/*
+ * TYPOGRAPHY IS SCOPED TO THE DOCUMENT. Everything below is under `.docs-doc`,
+ * and deliberately so: the rest of the viewer is chrome — rails, lists, tables —
+ * and is sized for scanning. This is long-form reading and wants a bigger,
+ * higher-contrast setting. Card pages keep the app's type.
+ *
+ * `--docs-ink` is the seam for that contrast. Document prose runs on the
+ * STRONGEST text token rather than the app's mid `--color-body`, and reading it
+ * through a docs-scoped variable means a scheme that ever needs a different
+ * value can be corrected here without repainting the whole app. (As of now
+ * every scheme's `--color-ink` is already near-white in dark and near-black in
+ * light, so the alias is enough — checked across all five, both themes.)
+ */
+.docs-doc {
+	--docs-ink: var(--color-ink);
+}
+
+.docs-cover { border-bottom: 1px solid var(--color-border); padding-bottom: 2.25rem; margin-bottom: 3rem; }
+/* The action sits on the eyebrow's line and never on the title's: a wrapping
+   title must not push it out of the corner. */
+.docs-cover-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.docs-eyebrow { color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; }
+.docs-title { margin-top: 0.7rem; color: var(--docs-ink); font-size: clamp(2.2rem, 5vw, 3.25rem); font-weight: 650; letter-spacing: -0.035em; line-height: 1.05; }
+.docs-imprint { margin-top: 0.8rem; color: var(--color-muted); font-size: 0.9rem; }
+
+.docs-section { margin-top: 4rem; }
+.docs-section-title { scroll-margin-top: 1.5rem; color: var(--docs-ink); font-size: 2.1rem; font-weight: 650; letter-spacing: -0.025em; line-height: 1.15; }
+.docs-section-summary { margin-top: 0.6rem; color: var(--color-muted); font-size: 1.02rem; line-height: 1.6; }
+
+.docs-card { margin-top: 3rem; scroll-margin-top: 1.5rem; }
+.docs-card-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.7rem; color: var(--docs-ink); font-size: 1.5rem; font-weight: 640; letter-spacing: -0.015em; line-height: 1.25; }
+/* An overline above the card title, not a hover affordance: it says which card
+   you are reading, which is half of what makes the compiled document navigable.
+   It wears `.card-handle` (styles/handles.css) — one drawing of a handle for
+   the whole viewer, paper treatment included — so all this adds is the gap
+   under it. `--c` is the card's type token, set inline. */
+.docs-card-source { margin-bottom: 0.45rem; }
+
+/*
+ * The document's own type scale, over MarkdownBlock's. Prose runs on --docs-ink
+ * rather than --color-body: the app uses body text for secondary information,
+ * and in a document the prose IS the content.
+ */
+.docs-doc .md-block { margin-top: 0.9rem; color: var(--docs-ink); font-size: 1.0625rem; line-height: 1.72; }
+.docs-doc .md-block p { margin: 0.95rem 0; }
+.docs-doc .md-block li { margin: 0.35rem 0; }
+.docs-doc .md-block ul, .docs-doc .md-block ol { padding-left: 1.5rem; }
+.docs-doc .md-block h4 { margin: 2rem 0 0.5rem; font-size: 1.16rem; }
+.docs-doc .md-block h5 { margin: 1.6rem 0 0.4rem; font-size: 1.02rem; }
+.docs-doc .md-block h6 { margin: 1.5rem 0 0.4rem; font-size: 0.94rem; color: var(--color-muted); }
+.docs-doc .md-block blockquote { color: var(--color-body); }
+.docs-doc .md-block table { font-size: 0.95rem; }
+.docs-doc .md-block pre { font-size: 0.92rem; line-height: 1.6; }
+
+/* Screen shows the rail (or the jump control); paper needs its own contents. */
+.docs-paper-toc { display: none; }
+
+/*
+ * PAPER. These rules are what turns the document into a printed one: a cover
+ * page of its own, a contents page after it, and a page per section. They are
+ * duplicated by `.print-page` in DocsPrint so the on-screen preview shows the
+ * same setting — a media query and a class cannot share one declaration list,
+ * so the two are kept deliberately side by side. Change them together.
+ */
+@media print {
+	.docs-cover { border-bottom: 0; break-after: page; padding-top: 25vh; text-align: center; }
+	/* Nothing in the cover's action corner prints, so it stops being a row. */
+	.docs-cover-top { display: block; }
+	.docs-title { font-size: 32pt; }
+
+	.docs-paper-toc { display: block; break-after: page; }
+	.docs-paper-toc h2 { margin-bottom: 1.2rem; font-size: 18pt; }
+	.ptoc-group { margin-bottom: 0.9rem; }
+	.ptoc-section { font-weight: 600; }
+	.ptoc-card { padding-left: 1.2rem; color: var(--color-muted); }
+
+	/* Every section starts a page; the first one follows the contents page. */
+	.docs-section { break-before: page; margin-top: 0; }
+	.docs-section-title { font-size: 20pt; }
+	.docs-card-title { font-size: 14pt; }
+	.docs-section-title, .docs-card-title { break-after: avoid; }
+	.docs-card { break-inside: auto; margin-top: 1.8rem; }
+	.docs-doc .md-block { font-size: 11pt; line-height: 1.55; }
+}
+</style>

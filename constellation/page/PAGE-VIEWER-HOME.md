@@ -19,6 +19,8 @@ notes:
     text: >-
       The topbar's GitHub link moved to last in the `ml-auto` group, so it sits in the actual
       top-right corner after the appearance controls. Still conditional on `repo_url`.
+section: viewer
+order: 10
 ---
 
 The viewer landing page: a status board for the plan. Served by [[FILE-SERVE]].

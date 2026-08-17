@@ -5,6 +5,7 @@
       class={ triggerClass }
       id={ triggerId }
       data-select-trigger
+      aria-label={ label }
       aria-haspopup="listbox"
       aria-expanded={ open ? 'true' : 'false' }
       aria-controls={ panelId }
@@ -106,6 +107,7 @@ import { MorphEngine } from '@magic-spells/morph-engine';
 //   <Select options={ opts } name="pet" morph={ true } @change={ setPet } />
 //   <Select options={ opts } value={ pet } position="center" @change={ setPet } />
 //   <Select options={ opts } indicator="chevrons" @change={ setPet } />
+//   <Select options={ opts } label="Pet" @change={ setPet } />
 //
 // INDICATOR. The `indicator` prop picks the trigger's dropdown glyph:
 //   'triangle' (default)  a filled triangle that flips up when open.
@@ -293,6 +295,11 @@ export default class Select extends PuzzleView {
         prev.maxHeight ? `max-height:${prev.maxHeight}px;` : '',
       ].join(''),
       name: props.name || false,
+      // Without one, the trigger announces only the current CHOICE — fine when
+      // a visible heading says what is being chosen, not when the control
+      // stands alone. `false` omits the attribute rather than emitting an empty
+      // one, the same way `name`/`id` do above.
+      label: props.label || false,
       disabled: !!props.disabled,
       triggerClass: TRIGGER_CLASS,
       rootClass: props.class || '',

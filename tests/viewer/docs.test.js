@@ -3,13 +3,22 @@
 // The viewer half of the compiled document: link resolution, the TOC tree, and
 // the scroll-spy rule. Ordering and heading levels are the server's job and are
 // covered in tests/docs.test.ts — nothing here re-decides them.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { installFakeAnimate, mountView, settled } from '@magic-spells/puzzle/testing';
 import AppShell from '../../viewer/app/layouts/AppShell.pzl';
 import DocsPage from '../../viewer/app/views/DocsPage.pzl';
+import DocsPrint from '../../viewer/app/views/DocsPrint.pzl';
 import DocsToc from '../../viewer/app/components/DocsToc.pzl';
 import models from '../../viewer/app/models/index.js';
-import { anchorAt, sectionAnchor, tocTree } from '../../viewer/app/lib/docs.js';
+import routes from '../../viewer/app/routes.js';
+import {
+	anchorAt,
+	countDiagrams,
+	diagramsDrawn,
+	printHref,
+	sectionAnchor,
+	tocTree,
+} from '../../viewer/app/lib/docs.js';
 import { renderDocMarkdown, renderMarkdown } from '../../viewer/app/lib/markdown.js';
 
 const SECTIONS = [
@@ -216,6 +225,175 @@ describe('DocsPage', () => {
 	});
 });
 
+describe('export as PDF', () => {
+	/**
+	 * A browser cannot write a PDF from script, so the export is a print view in
+	 * a window of its own. Everything worth testing about it is on either side of
+	 * that window.open: the URL going in, and the gate on the Print button once
+	 * the document is up.
+	 */
+	it('opens the print route in a window of its own, and says so when blocked', async () => {
+		const view = await mountDocs(DocsPage);
+		const open = vi.spyOn(window, 'open').mockReturnValue({ focus: () => {} });
+
+		view.find('.docs-cover-top button').click();
+
+		expect(open).toHaveBeenCalledTimes(1);
+		expect(open.mock.calls[0][0]).toContain('#/print');
+		// A named window, so a second export reuses the one already open.
+		expect(open.mock.calls[0][1]).toBe('constellation-print');
+
+		// A blocked pop-up returns null, silently. That must not look like nothing
+		// happened — lib/edit's toasts are the app's channel for "it didn't".
+		open.mockReturnValue(null);
+		view.find('.docs-cover-top button').click();
+		const { getToasts } = await import('../../viewer/app/components/ui/toast.js');
+		expect(getToasts().at(-1).title).toBe('Pop-up blocked');
+
+		open.mockRestore();
+		view.destroy();
+	});
+
+	it('carries a soloed section into the print window', () => {
+		expect(printHref('')).toBe('#/print');
+		expect(printHref('overview')).toBe('#/print/overview');
+	});
+
+	it('routes /print with no layout at all', () => {
+		const print = routes.filter((route) => route.path.startsWith('/print'));
+
+		expect(print.map((route) => route.name)).toEqual(['docs-print', 'docs-print-section']);
+		// The app's chrome is exactly what a printable page must not carry.
+		expect(print.every((route) => route.layout === undefined)).toBe(true);
+		// And it is declared before the catch-all pair, which matches in order.
+		expect(routes.indexOf(print[0])).toBeLessThan(
+			routes.findIndex((route) => route.path === '/:folder'),
+		);
+	});
+});
+
+describe('waiting for the diagrams', () => {
+	function host(html) {
+		const el = document.createElement('div');
+		el.innerHTML = html;
+		return el;
+	}
+
+	it('counts a drawn diagram however it ended', () => {
+		expect(diagramsDrawn(host('<div class="mermaid-block"></div>'))).toBe(0);
+		expect(diagramsDrawn(host('<div class="mermaid-block"><svg></svg></div>'))).toBe(1);
+		// A diagram that failed to parse is rendered as its own source — still an
+		// outcome, so it is not something to keep waiting for.
+		expect(diagramsDrawn(host('<div class="mermaid-block"><pre>graph</pre></div>'))).toBe(1);
+	});
+
+	it('knows from the SOURCE how many to expect', () => {
+		// The trap this closes: for its first frames the print window has the card
+		// articles but no `.mermaid-block` at all, and "nothing is unrendered" is
+		// true of that page. A count taken from the body is not.
+		expect(countDiagrams('```mermaid\ngraph LR\nA-->B\n```')).toBe(1);
+		expect(countDiagrams('a\n\n```mermaid\nx\n```\n\nb\n\n~~~mermaid\ny\n~~~\n')).toBe(2);
+		expect(countDiagrams('```js\nconst a = 1;\n```')).toBe(0);
+		expect(countDiagrams('')).toBe(0);
+		expect(countDiagrams(undefined)).toBe(0);
+	});
+});
+
+describe('DocsPrint', () => {
+	/** The readiness check runs on an interval; give it a couple of turns. */
+	const tick = () => new Promise((resolve) => setTimeout(resolve, 300));
+
+	it('is the document on a sheet, with none of the app around it', async () => {
+		const view = await mountDocs(DocsPrint);
+
+		expect(view.find('.print-sheet .docs-doc')).toBeTruthy();
+		expect(view.findAll('[data-doc-anchor]')).toHaveLength(3);
+		// No rail, no jump control, no shell — the window is the page.
+		expect(view.find('.docs-rail')).toBeNull();
+		expect(view.find('.docs-compact')).toBeNull();
+
+		view.destroy();
+	});
+
+	it('paints the whole window as paper while it is open, and cleans up after', async () => {
+		const view = await mountDocs(DocsPrint);
+
+		// On the ROOT, not the sheet: the mermaid tinting reads its colours off
+		// documentElement, so a diagram bound for white paper has to see white.
+		expect(document.documentElement.hasAttribute('data-paper')).toBe(true);
+
+		view.destroy();
+		expect(document.documentElement.hasAttribute('data-paper')).toBe(false);
+	});
+
+	it('holds the Print button until the document is up', async () => {
+		const view = await mountView(DocsPrint, { models, route: { params: {} } });
+
+		// Nothing rendered yet: printing now would produce an empty page.
+		expect(view.find('button').textContent).toContain('Preparing');
+		expect(view.find('button').disabled).toBe(true);
+
+		view.store.createRecord('plan', {
+			id: 'plan',
+			generation: 1,
+			editable: true,
+			errors: [],
+			warnings: [],
+			connections: [],
+			sync: { package_version: '9.9.9' },
+			docs: { title: 'Ticketing', sections: SECTIONS },
+		});
+		await settled();
+		await tick();
+
+		expect(view.find('button').textContent).toContain('Print');
+		expect(view.find('button').disabled).toBe(false);
+
+		view.destroy();
+	});
+
+	it('keeps holding it while a diagram the source promises is still missing', async () => {
+		// The failure this guards: the articles are on the page a turn before
+		// MarkdownBlock writes their HTML, so for a moment there is not one
+		// `.mermaid-block` to be found — and the window would happily print a
+		// document whose every diagram is a blank box.
+		const view = await mountDocs(DocsPrint, {
+			docs: {
+				title: 'Ticketing',
+				sections: [
+					{
+						id: 'overview',
+						name: 'Overview',
+						summary: '',
+						cards: [
+							{
+								handle: 'DIAGRAM-SYSTEM',
+								name: 'System',
+								type: 'DIAGRAM',
+								body: '```mermaid\ngraph LR\nA-->B\n```',
+							},
+						],
+					},
+				],
+			},
+		});
+		await new Promise((resolve) => setTimeout(resolve, 300));
+
+		expect(view.find('button').textContent).toContain('Preparing');
+		expect(view.find('button').disabled).toBe(true);
+
+		view.destroy();
+	});
+
+	it('prints only what the route asks for', async () => {
+		const view = await mountDocs(DocsPrint, { route: { params: { section: 'reference' } } });
+
+		expect(view.findAll('[data-doc-anchor]').map((el) => el.id)).toEqual(['DB-TICKETS']);
+
+		view.destroy();
+	});
+});
+
 describe('AppShell wiring', () => {
 	it('gives Documentation a top-rail row beside Tasks', async () => {
 		const animate = installFakeAnimate();
@@ -305,19 +483,38 @@ describe('DocsToc', () => {
 		const view = await mountDocs(DocsToc, { props: { variant: 'compact', solo: '' } });
 
 		expect(view.find('.dtoc')).toBeNull();
-		const options = view.findAll('option');
-		expect(options[0].value).toBe('');
-		expect(options.map((o) => [o.value, o.textContent.trim()]).slice(1)).toEqual([
-			['/docs#section-overview', 'Overview'],
-			['/docs#DOC-INTRO', 'Introduction'],
-			['/docs#DOC-DETAIL', 'The detail'],
-			['/docs#section-reference', 'Reference'],
-			['/docs#DB-TICKETS', 'Tickets table'],
+		// The Select PIECE, not a native control: the same one the topbar wears.
+		expect(view.findAll('select')).toHaveLength(0);
+		const trigger = view.find('[data-select-trigger]');
+		expect(trigger.getAttribute('aria-label')).toBe('Jump to a section');
+
+		trigger.click();
+		await settled();
+
+		const options = view.findAll('[role="option"]');
+		expect(options.map((o) => o.textContent.trim())).toEqual([
+			'Overview',
+			'Introduction',
+			'The detail',
+			'Reference',
+			'Tickets table',
 		]);
 		// Both levels are there, and the cards are indented under their section.
-		expect(options[2].textContent.startsWith(options[2].textContent.trim())).toBe(false);
-		expect(options[1].textContent.startsWith(options[1].textContent.trim())).toBe(true);
+		expect(options[1].textContent.startsWith(options[1].textContent.trim())).toBe(false);
+		expect(options[0].textContent.startsWith(options[0].textContent.trim())).toBe(true);
 
+		view.destroy();
+	});
+
+	it('keeps the jump control naming the section being read', async () => {
+		const view = await mountDocs(DocsToc, { props: { variant: 'compact', solo: '' } });
+		const { setActiveDocAnchor } = await import('../../viewer/app/lib/docs.js');
+
+		setActiveDocAnchor('DOC-DETAIL');
+		await settled();
+		expect(view.find('[data-select-trigger]').textContent).toContain('The detail');
+
+		setActiveDocAnchor('');
 		view.destroy();
 	});
 
