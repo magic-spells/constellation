@@ -17,6 +17,17 @@
       <SyncBadge/>
 
       <div class="ml-auto flex shrink-0 items-center gap-3">
+        <button
+          type="button"
+          class="hidden cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface-sunken px-2 py-1 text-xs text-muted transition-colors hover:text-ink md:flex outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          aria-label="Open the command palette"
+          @click={ openPalette }>
+          Search
+          <Kbd>⌘</Kbd>
+          <Kbd>K</Kbd>
+        </button>
+        <ThemeControls/>
+        <!-- Last in the row on purpose: "out to the repo" belongs in the corner. -->
         {#if repoUrl}
           <a
             href={ repoUrl }
@@ -29,16 +40,6 @@
             </svg>
           </a>
         {/if}
-        <button
-          type="button"
-          class="hidden cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface-sunken px-2 py-1 text-xs text-muted transition-colors hover:text-ink md:flex outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          aria-label="Open the command palette"
-          @click={ openPalette }>
-          Search
-          <Kbd>⌘</Kbd>
-          <Kbd>K</Kbd>
-        </button>
-        <ThemeControls/>
       </div>
     </header>
 

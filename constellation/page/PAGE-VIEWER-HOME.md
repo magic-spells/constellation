@@ -15,6 +15,10 @@ notes:
       own), including the repo_url-driven GitHub link. Home.pzl and dashboard.js themselves are
       unchanged since the last baseline.
     sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+  - kind: state
+    text: >-
+      The topbar's GitHub link moved to last in the `ml-auto` group, so it sits in the actual
+      top-right corner after the appearance controls. Still conditional on `repo_url`.
 ---
 
 The viewer landing page: a status board for the plan. Served by [[FILE-SERVE]].

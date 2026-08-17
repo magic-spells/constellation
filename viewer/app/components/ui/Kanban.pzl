@@ -22,6 +22,12 @@
               {/for}
             </ul>
           {/if}
+
+          {#if column.overflow}
+            <a
+              class="mx-2 mb-3 block rounded-lg border border-dashed border-border px-3 py-2 text-center text-xs text-muted transition-colors hover:border-border-strong hover:text-ink outline-ring focus-visible:outline-2 focus-visible:outline-offset-2"
+              href="{ column.overflow.href | link }">{ column.overflow.text }</a>
+          {/if}
         </section>
       {/for}
     </div>
@@ -52,8 +58,13 @@ import KanbanCard from './KanbanCard.pzl';
 //       dotClass: 'size-1.5 ...',   // optional tone dot before the heading
 //       empty: 'Nothing planned.',  // optional per-column empty hint
 //       cards: [ /* KanbanCard card objects — see KanbanCard.pzl */ ],
+//       total: 50,                  // optional true size when `cards` is capped
+//       overflow: { text, href },    // optional footer link for the remainder
 //     },
 //   ]
+//
+// A capped column reports `total` in its count badge, not `cards.length` — the
+// badge answers "how many are there", the list answers "which ones fit".
 //
 // CARD RENDERING lives in the sibling KanbanCard.pzl, not here: it takes the
 // raw card object and decides every pixel of it. Edit that file to change what
@@ -79,7 +90,8 @@ export default class Kanban extends PuzzleView {
         title: col.title || '',
         dotClass: col.dotClass || '',
         empty: col.empty || fallbackEmpty,
-        count: cards.length,
+        count: Number.isFinite(col.total) ? col.total : cards.length,
+        overflow: col.overflow || null,
         items: cards.map((card) => ({ key: card.id, card })),
         listClass: 'flex min-h-12 flex-1 flex-col gap-2 px-2 pb-3',
       };
