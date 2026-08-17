@@ -1,7 +1,14 @@
 <puzzle-view class="shell-root flex h-screen overflow-hidden bg-page text-body">
   <Sidebar class="cnav shrink-0" label="Plan navigation" items={ navItems } activePath={ activePath }>
-    <!-- pl-5 = the list's p-2 + row px-3, so the brand lines up with nav rows. -->
-    <div slot="header" class="cnav-brand flex items-center gap-2.5 overflow-hidden pl-5 pr-3 pb-1 pt-4">
+    <!--
+      Expanded, the brand shares the nav rows' two alignments. A nav icon sits
+      at 20px (list p-2 + row px-3) and is 20px wide, so its centre is 30px and
+      its label starts at 52px (gap-3). The brand tile is 32px, so it centres on
+      30px from pl-[0.875rem], and gap-1.5 puts its label at the same 52px.
+      Matching the tile's LEFT EDGE instead is what looked wrong: it pushed the
+      glyph inside it 6px right of every icon below.
+    -->
+    <div slot="header" class="cnav-brand flex items-center gap-1.5 overflow-hidden pl-[0.875rem] pr-3 pb-1 pt-4">
       <span class="cnav-brand-tile grid size-8 shrink-0 place-items-center rounded-lg bg-brand-tint text-brand">
         <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 3l1.7 4.1L18 8.8l-4.3 1.7L12 14.6l-1.7-4.1L6 8.8l4.3-1.7zM18.5 15l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8zM5.5 14l.6 1.5 1.5.6-1.5.6L5.5 18l-.6-1.3L3.4 16l1.5-.5z"/>

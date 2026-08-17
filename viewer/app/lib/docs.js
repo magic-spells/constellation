@@ -3,8 +3,9 @@
  *
  * Ordering is NOT decided here — `GET /api/docs` hands over the tree already in
  * author-intended order, with each body's headings already shifted (src/core/docs.ts
- * is the one compiler). What lives here is what only the browser can do: turn
- * that tree into a table of contents, and keep the TOC in step with the scroll.
+ * is the one compiler). What lives here is what only the browser can do: dress
+ * that tree for rendering (`docModel`), turn it into a table of contents, and
+ * keep the TOC in step with the scroll.
  *
  * Scroll-spy crosses a component boundary: the document is the routed view, the
  * TOC sits in AppShell's split pane, and neither owns the other. So the page
@@ -12,6 +13,8 @@
  * shape as `theme.js`'s `onThemeChange`, and the reason neither has to know the
  * other exists.
  */
+
+import { hrefForHandle, typeForHandle } from './types.js';
 
 const listeners = new Set();
 let active = '';
@@ -72,6 +75,67 @@ export function anchorAt(anchors, scrollTop, atBottom = false) {
 		current = anchor.id;
 	}
 	return current;
+}
+
+/** Cover line: what this document is OF, so a printed copy dates itself. */
+function imprintOf(plan) {
+	const version = plan?.sync?.package_version;
+	const today = new Date().toLocaleDateString(undefined, {
+		year: 'numeric',
+		month: 'long',
+		day: 'numeric',
+	});
+	return version ? `v${version} · ${today}` : today;
+}
+
+/**
+ * The document ready to render: the cover line, the sections in order, and each
+ * card already carrying its anchor, its link home and its type colour.
+ *
+ * TWO SURFACES READ THIS. The `/docs` route shows the document in the app, and
+ * the print window (`/print`) shows the same document on a page-width sheet —
+ * so the shape is assembled once here rather than in whichever view happened to
+ * need it first. Neither surface decides anything about the document; they
+ * differ only in the frame they put around it.
+ *
+ * `solo` narrows it to one section (`/docs/:section`); `''` is the whole thing.
+ */
+export function docModel(store, solo = '') {
+	const plan = store.findOne('plan', 'plan');
+	const docs = plan?.docs;
+	const all = docs?.sections ?? [];
+	const sections = solo ? all.filter((section) => section.id === solo) : all;
+
+	return {
+		solo,
+		base: solo ? `/docs/${solo}` : '/docs',
+		title: docs?.title || 'Documentation',
+		imprint: imprintOf(plan),
+		// In-document link targets are the handles actually RENDERED here: on
+		// `/docs/:section` a card in another section is not on this page, so a
+		// [[link]] to it must stay a link to its card, not a dead anchor.
+		handles: sections.flatMap((section) => section.cards.map((card) => card.handle)),
+		sections: sections.map((section) => ({
+			id: section.id,
+			name: section.name,
+			summary: section.summary || '',
+			anchor: sectionAnchor(section.id),
+			cards: section.cards.map((card) => ({
+				handle: card.handle,
+				name: card.name,
+				body: card.body,
+				cardHref: hrefForHandle(card.handle),
+				sourceTitle: `Open ${card.handle}`,
+				// Same per-type token the connection chips and the graph use, so a
+				// handle is one colour everywhere in the app.
+				typeStyle: `--c: var(--t-${typeForHandle(card.handle) ?? 'DOC'})`,
+			})),
+		})),
+		empty: sections.length === 0,
+		// A slug no card claims, as opposed to a plan with no document at all —
+		// the two want different things said about them.
+		unknownSection: sections.length === 0 && !!solo && all.length > 0,
+	};
 }
 
 /**
