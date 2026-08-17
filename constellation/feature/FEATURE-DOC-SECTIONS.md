@@ -9,8 +9,8 @@ connections:
   - FILE-SERVE
   - FILE-CLI
   - FILE-MCP-SERVER
+release: RELEASE-V0-6-0
 ---
-
 
 DOC cards are a flat pile: one folder, alphabetical, no order and no grouping.
 That is fine for reference lookup and useless as *documentation* — nobody reads
@@ -66,16 +66,26 @@ follow it.
 
 ## The viewer
 
+
 A **Documentation** row in the top rail group next to Tasks — the same
 altitude, because it answers a peer question ("what is this project", vs "what
 is in flight").
 
-- `/docs` — the whole compiled document, one scrolling page, with a sticky
-  table of contents (sections → cards) and per-card anchors, so
-  `/docs#DOC-FILE-FORMAT` is a real deep link.
+Layout: table of contents on the left, one long document in the centre. That
+needs no new layout — `AppShell` already runs a `SplitPanel` with `CardList` in
+`slot="first"`, so the TOC takes that slot and inherits the drag-to-resize.
+
+- `/docs` — every sectioned card compiled into one scrolling document, centre
+  column capped near 70rem so it reads like a page and not a wall.
+- The TOC is **two levels**, section → card. A ten-card section needs its cards
+  clickable, not just its heading. Scroll-spy lights the current one.
+- Per-card anchors, so `/docs#DOC-FILE-FORMAT` is a real deep link.
 - `/docs/:section` — one section on its own.
 - Each card heading carries a quiet link back to its own card page for editing;
   the compiled view stays read-only.
+
+Sticky TOC and printed TOC are the same tree, different renders: the printed one
+drops scroll-spy and eventually gains page numbers.
 
 See [[PAGE-VIEWER-HOME]] for where the rail rows live.
 

@@ -5,8 +5,8 @@ change: feature
 connections:
   - PAGE-VIEWER-BOARD
   - PAGE-VIEWER-FEATURES
+release: RELEASE-V0-6-0
 ---
-
 
 Planned, Building and Built all drain — a card leaves them. **Verified does
 not.** Every feature ever shipped accumulates there forever, so on a mature plan

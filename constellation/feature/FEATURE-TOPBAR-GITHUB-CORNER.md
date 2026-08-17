@@ -4,8 +4,8 @@ status: planned
 change: chore
 connections:
   - PAGE-VIEWER-HOME
+release: RELEASE-V0-6-0
 ---
-
 
 The GitHub link is the first item in the topbar's right-hand group, so it sits
 between the plan name and the Search button rather than in the corner. Move it

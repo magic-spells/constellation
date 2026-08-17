@@ -6,8 +6,8 @@ connections:
   - DOC-DIAGRAMS
   - FILE-SERVE
   - PAGE-VIEWER-HOME
+release: RELEASE-V0-6-0
 ---
-
 
 The constellation canvas at `#/constellation` answers *what connects to what*.
 It does not answer *what is this system shaped like* or *where does data go*.
