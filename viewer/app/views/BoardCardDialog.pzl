@@ -6,7 +6,7 @@
       {#if card}
         <header class="board-dialog-head" style={ typeStyle }>
           <div class="board-dialog-eyebrow">
-            <span class="board-dialog-handle">{ card.handle }</span>
+            <span class="card-handle card-handle--sm">{ card.handle }</span>
             {#if status}
               <span class={ statusClass }>{ status }</span>
             {:else}
@@ -239,20 +239,6 @@ export default class BoardCardDialog extends PuzzleView {
 }
 
 /* The handle IS the type pill, same treatment as CardPage's `.card-handle`. */
-.board-dialog-handle {
-	display: inline-flex;
-	align-items: center;
-	border: 1px solid color-mix(in srgb, var(--c) 38%, transparent);
-	border-radius: 7px;
-	background: color-mix(in srgb, var(--c) 15%, transparent);
-	padding: 0.24rem 0.6rem;
-	color: var(--c);
-	font-family: var(--font-mono);
-	font-size: 0.72rem;
-	font-weight: 600;
-	letter-spacing: 0.09em;
-}
-
 /* Tones match CardList's status dots and the board's column dots, so a status
    is one colour everywhere in the viewer. */
 .board-dialog-status {

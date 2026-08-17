@@ -8,6 +8,12 @@
    card-type hues. */
 @import './schemes.css';
 
+/* Bundled Inter + the sans/display stacks it fills. */
+@import './fonts.css';
+
+/* The one way a card handle is drawn, wherever it appears. */
+@import './handles.css';
+
 /* Tailwind v4 content detection — paths are relative to this stylesheet
    (app/styles/), so "../" is the app root. */
 @source "../**/*.pzl";
@@ -182,6 +188,48 @@
 /* Not opacity: the label is a flex item, and a transparent one still takes
    width and shoves the tile off centre. */
 [data-collapsed='true'] .cnav-brand-label {
+	display: none;
+}
+
+/*
+ * PAPER, ON SCREEN.
+ *
+ * `data-paper` on <html> is the print window (views/DocsPrint.pzl) saying "this
+ * window is a sheet of paper": white page, black ink, whatever scheme the app
+ * is wearing. It is what makes the preview show what the printer will produce.
+ *
+ * It has to sit on the ROOT rather than on the sheet element, because the
+ * things that most need to agree with the paper don't read CSS at all — the
+ * mermaid tinting in lib/markdown.js resolves `--color-surface`, `--color-ink`
+ * and the `--t-*` hues off document.documentElement and bakes them into the
+ * SVG. Scoped to the sheet, every diagram would come out dressed for a dark app
+ * and print unreadable.
+ *
+ * The same values appear again in the @media print block below, which covers
+ * printing any route from the app itself. A media query and an attribute cannot
+ * share one declaration list, so the two are kept side by side deliberately:
+ * change them together. `[data-scheme]` is in the second selector only to
+ * outrank the scheme blocks in schemes.css whatever the source order.
+ */
+:root[data-paper],
+:root[data-scheme][data-paper] {
+	color-scheme: light;
+	--color-ink: #000;
+	--color-body: #1c1c1c;
+	--color-muted: #555;
+	--color-faint: #888;
+	--color-page: #fff;
+	--color-surface: #fff;
+	--color-surface-sunken: #f5f5f5;
+	--color-border: #ddd;
+	--color-border-strong: #bbb;
+	/* Links stay a colour so they read as references, not emphasis. */
+	--color-brand: #1a4fa0;
+	--color-brand-tint: #eef2fa;
+}
+
+/* Observatory's starfield is a scheme flourish, and paper has no sky. */
+:root[data-scheme][data-paper] body::before {
 	display: none;
 }
 

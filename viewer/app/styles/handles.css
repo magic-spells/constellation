@@ -1,0 +1,89 @@
+/*
+ * CARD HANDLE — the one way a handle is drawn anywhere in the viewer.
+ *
+ * A handle is a LABEL, not a chip: it names the card you are looking at. That
+ * is why the corners are barely rounded rather than a full pill. The text is a
+ * monospace, letterspaced, capital token — a rectangular word — and a pill
+ * radius fights it. The pill is also already spoken for: `.connection-chip` is
+ * a pill and means "a relationship to ANOTHER card", so if a card's own handle
+ * wore one too, two different meanings would share one shape. Status badges are
+ * pills for the same reason — a label beside a badge should not look like two
+ * of the same thing.
+ *
+ * COLOUR IS NOT A MODIFIER. The card's type hue arrives as `--c`, set inline by
+ * whoever renders it (`style="--c: var(--t-FEATURE)"`), which is the same
+ * pattern the connection chips and the graph already use. Per-type modifier
+ * classes would mean 21 of them kept in sync with TYPE_NAMES by hand — a fifth
+ * place to edit when a type is added, and one that fails silently: a new type
+ * would simply render uncoloured.
+ */
+
+.card-handle {
+	--c: var(--color-brand);
+	display: inline-flex;
+	align-items: center;
+	border: 1px solid color-mix(in srgb, var(--c) 38%, transparent);
+	border-radius: 7px;
+	background: color-mix(in srgb, var(--c) 15%, transparent);
+	padding: 0.28rem 0.68rem;
+	color: var(--c);
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+	font-weight: 600;
+	letter-spacing: 0.09em;
+}
+
+/* Only when it navigates — a handle is often just an identity, not a link. */
+a.card-handle {
+	transition: border-color 0.15s;
+}
+
+a.card-handle:hover,
+a.card-handle:focus-visible {
+	border-color: var(--c);
+}
+
+/* Dense contexts: dialogs, list rows, anywhere the label sits beside body text. */
+.card-handle--sm {
+	padding: 0.22rem 0.56rem;
+	font-size: 0.7rem;
+	letter-spacing: 0.08em;
+}
+
+/*
+ * No box at all, for places that are already a list of handles — a bordered
+ * label per row there reads as a grid of buttons. Keeps the type colour and the
+ * mono/tracking so it is still recognisably the same thing.
+ */
+.card-handle--bare {
+	border-color: transparent;
+	background: none;
+	padding: 0;
+}
+
+/*
+ * Paper drops the tint and the border: browsers omit backgrounds entirely
+ * without "background graphics" enabled, so a label that relied on one would
+ * print as floating text with mysterious padding. Identity survives, chrome
+ * does not. Mirrors the split in styles.css between [data-paper] and @media
+ * print — change them together.
+ */
+:root[data-paper] .card-handle,
+:root[data-paper] .card-handle--sm {
+	border-color: transparent;
+	background: none;
+	padding-left: 0;
+	padding-right: 0;
+	color: var(--color-muted);
+}
+
+@media print {
+	.card-handle,
+	.card-handle--sm {
+		border-color: transparent;
+		background: none;
+		padding-left: 0;
+		padding-right: 0;
+		color: var(--color-muted);
+	}
+}

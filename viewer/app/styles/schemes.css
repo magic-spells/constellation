@@ -149,9 +149,9 @@
  */
 
 :root[data-scheme='observatory'] {
-	/* Type. Old: --sans / --display / --body-font all shared one stack. */
-	--font-sans: 'Avenir Next', Seravek, 'Gill Sans', 'Segoe UI', sans-serif;
-	--font-display: var(--font-sans);
+	/* No type override: every scheme now uses the bundled Inter from fonts.css.
+	   Observatory used to ask for 'Avenir Next', which only macOS has — a scheme
+	   is a palette, and it should not change the typeface per platform. */
 
 	/* Text. Old --text → ink, --text-muted → muted, --text-faint → faint.
 	   pieces adds a fourth step (`body`) between ink and muted; derived. */
