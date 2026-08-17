@@ -61,7 +61,7 @@ describe('orient', () => {
     expect(data.project.summary).toContain('minimal support-ticket app');
     expect(data.project.summary.length).toBeLessThanOrEqual(301);
 
-    expect(data.cards.total).toBe(25);
+    expect(data.cards.total).toBe(26);
     // Only types actually in use appear.
     expect(data.cards.by_type.API).toBe(1);
     expect(data.cards.by_type.NOPE).toBeUndefined();

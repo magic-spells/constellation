@@ -1,6 +1,8 @@
 ---
 name: System overview
 status: built
+section: overview
+order: 10
 ---
 
 # System overview

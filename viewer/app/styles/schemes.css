@@ -159,7 +159,7 @@
 	   (never stark white for the page), navy ink, the periwinkle deepened to
 	   #3d6bd0 so it clears contrast on pale surfaces. Dark halves unchanged. */
 	--color-ink: light-dark(#232a45, #e6e8f2);
-	--color-body: light-dark(#3a4260, #c3cbe0);
+	--color-body: light-dark(#3a4260, #cfd5e8);
 	--color-muted: light-dark(#6b7390, #8d93ad);
 	--color-faint: light-dark(#9ba3bc, #5a5f78);
 

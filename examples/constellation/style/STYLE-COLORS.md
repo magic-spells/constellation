@@ -5,6 +5,7 @@ status: built
 connections:
   - PAGE-INBOX
   - COMPONENT-TICKET-CARD
+  - STYLE-UTILITY-COLORS
 code_refs:
   - src/styles/tokens.css
 tokens:
@@ -20,19 +21,13 @@ tokens:
   - name: brand-soft
     value: "#eef2ff"
     description: Selected rows, subtle highlights
-  - name: success
-    value: "#16a34a"
-    description: Resolved tickets
-  - name: warning
-    value: "#d97706"
-    description: SLA at risk
-  - name: danger
-    value: "#dc2626"
-    description: Breached SLA, destructive actions
 ---
 
 # Colors
 
-Status colors map to ticket state everywhere — the status chip on
-[[COMPONENT-TICKET-CARD]] reads its color from [[STATE-TICKET]], so a resolved
-ticket is always `success`, never brand. Backgrounds stay on `paper`/`brand-soft`.
+The base palette: text, background, and the one brand colour everything
+interactive is built from. Backgrounds stay on `paper`/`brand-soft` — a tinted
+surface is the only way to mark a row, never a border colour.
+
+State lives in [[STYLE-UTILITY-COLORS]] instead, so nothing here has to carry a
+meaning: `brand` is what you click, not what something *is*.

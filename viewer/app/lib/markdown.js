@@ -31,6 +31,20 @@ function sanitizeUrl(href) {
 
 const marked = new Marked({ gfm: true });
 
+/**
+ * The compiled-document context for the current parse, or null outside one.
+ * `renderDocMarkdown` sets it around a SYNCHRONOUS `marked.parse`, so there is
+ * never a second parse to interleave with — a per-instance renderer would mean
+ * a second Marked with a second copy of every extension below.
+ */
+let docContext = null;
+
+/** Where a `[[HANDLE]]` points: an anchor when the target is on the page, else its card route. */
+function wikiHref(handle) {
+	if (docContext?.handles.has(handle)) return `#${docContext.base}#${handle}`;
+	return `#${hrefForHandle(handle)}`;
+}
+
 marked.use({
   // Sanitize link/image targets in-place; the default renderer then escapes the
   // (now-safe) href, so `[x](javascript:…)` and `data:` URLs can't reach the DOM.
@@ -52,7 +66,7 @@ marked.use({
       renderer(token) {
         // Plain hash href — the app runs the router in hash mode, so a static
         // string is all a card link needs (no router call at render time).
-        return `<a class="wiki" href="#${hrefForHandle(token.handle)}">${token.handle}</a>`;
+        return `<a class="wiki" href="${wikiHref(token.handle)}">${token.handle}</a>`;
       },
     },
   ],
@@ -71,6 +85,22 @@ marked.use({
 
 export function renderMarkdown(md) {
   return marked.parse(md, { async: false });
+}
+
+/**
+ * Render a card body as part of the compiled document at `base` (`/docs` or
+ * `/docs/<section>`). The only difference from `renderMarkdown` is where
+ * `[[HANDLE]]` goes: a card that is ON THIS PAGE gets an in-page anchor, and
+ * everything else keeps its normal card route — a link out of the document is
+ * still a link, just to somewhere else.
+ */
+export function renderDocMarkdown(md, handles, base = '/docs') {
+  docContext = { handles: handles instanceof Set ? handles : new Set(handles), base };
+  try {
+    return marked.parse(md, { async: false });
+  } finally {
+    docContext = null;
+  }
 }
 
 /**

@@ -9,6 +9,7 @@ export default class Plan extends PuzzleModel {
 		warnings: Puzzle.array().default(() => []),
 		connections: Puzzle.array().default(() => []),
 		sync: Puzzle.object().default(null),
+		docs: Puzzle.object().default(null),
 		generation: Puzzle.number().default(0),
 	};
 }

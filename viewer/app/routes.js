@@ -4,6 +4,7 @@ import BoardPage from './views/BoardPage.pzl';
 import BoardCardDialog from './views/BoardCardDialog.pzl';
 import BoardOverlayEmpty from './views/BoardOverlayEmpty.pzl';
 import ConstellationView from './views/ConstellationView.pzl';
+import DocsPage from './views/DocsPage.pzl';
 import FeaturesPanel from './views/FeaturesPanel.pzl';
 import StyleGuide from './views/StyleGuide.pzl';
 import TypeIntro from './views/TypeIntro.pzl';
@@ -64,6 +65,22 @@ export default [
 		view: FeaturesPanel,
 		layout: AppShell,
 		meta: { title: 'Constellation — Tasks' },
+	},
+	// The compiled document. `/docs/:section` must be declared before the
+	// `/:folder/:handle` catch-all below or that pair would swallow it.
+	{
+		path: '/docs',
+		name: 'docs',
+		view: DocsPage,
+		layout: AppShell,
+		meta: { title: 'Constellation — Documentation' },
+	},
+	{
+		path: '/docs/:section',
+		name: 'docs-section',
+		view: DocsPage,
+		layout: AppShell,
+		meta: { title: 'Constellation — Documentation' },
 	},
 	{
 		path: '/constellation',

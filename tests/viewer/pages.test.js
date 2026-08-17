@@ -713,7 +713,11 @@ describe('StyleGuide', () => {
 		expect(sections[0].querySelector('h2 a').getAttribute('href')).toBe('/style/STYLE-FONTS');
 
 		// Per-category layouts: a specimen for fonts, proportional bars for spacing.
-		expect(sections[0].querySelector('.specimen-name').textContent).toBe('display');
+		// The big line names the FACE, not the token — "display" tells you nothing
+		// about what you are looking at, and the full stack sits under it.
+		expect(sections[0].querySelector('.specimen-name').textContent).toBe('Inter');
+		expect(sections[0].querySelector('.specimen-stack').textContent).toBe("'Inter', sans-serif");
+		expect(sections[0].querySelector('.specimen-meta').textContent).toBe('display');
 		const bars = [...sections[2].querySelectorAll('.spacing-bar')].map((b) =>
 			b.getAttribute('style'),
 		);

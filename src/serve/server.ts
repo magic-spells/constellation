@@ -3,6 +3,7 @@ import { readFile, rm, stat } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { compileDocs, prepareDocBody } from '../core/docs.js';
 import { repoRemoteUrl, writeSyncPoint } from '../core/git.js';
 import { CONSTELLATION_VERSION } from '../core/version.js';
 import { isHandleShaped, typeForHandle } from '../core/handles.js';
@@ -140,6 +141,28 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
       connections: lint.index.connections,
       errors: lint.errors,
       warnings: lint.warnings,
+    });
+  }
+
+  /**
+   * The compiled document: every sectioned card, in author-intended order, with
+   * each body already through the render half (`prepareDocBody`) so the heading
+   * levels the viewer prints and the ones a future CLI export writes come from
+   * one implementation. Link resolution stays with the renderer — it is the only
+   * consumer that knows what an in-page anchor looks like.
+   */
+  async function handleGetDocs(res: http.ServerResponse): Promise<void> {
+    const lint = await lintPlan(planRoot);
+    const project = lint.index.cards.get('PLAN-PROJECT');
+    json(res, 200, {
+      title: project?.name ?? 'Documentation',
+      sections: compileDocs(lint.index).map((section) => ({
+        ...section,
+        cards: section.cards.map((card) => ({
+          ...card,
+          body: prepareDocBody(card.body, card.name),
+        })),
+      })),
     });
   }
 
@@ -331,6 +354,9 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
       }
       if (url.pathname === '/api/sync' && method === 'GET') {
         return json(res, 200, await computeSyncStatus(planRoot));
+      }
+      if (url.pathname === '/api/docs' && method === 'GET') {
+        return await handleGetDocs(res);
       }
       if (url.pathname === '/api/style-asset' && method === 'GET') {
         return await handleStyleAsset(url, res);

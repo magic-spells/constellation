@@ -14,9 +14,25 @@ do/don'ts, pairing guidance.
 
 Fields: `category` — one of `font`, `color`, `type-scale`, `spacing`, `radius`,
 `shadow`, `other`. `tokens` — list of `{name, value, description?}` plus
-category extras: fonts take `role` ("Display Font"), `weights` ("Black (900)"),
+category extras: fonts take `role` ("Heading Font"), `weights` ("Black (900)"),
 `src` (repo-relative woff2/ttf so specimens render in the real font);
 type-scale takes `line_height`, `weight`, `sample`.
+
+**Default names.** A type scale is `heading-1`, `heading-2`, `heading-3`,
+`overline-heading`, `body-lg`, `body-md` (the default), `body-sm`; utility
+colours are `success`, `warning`, `danger`, `info`. Rename any of these when a
+project already uses its own vocabulary; the point is that a plan with no
+opinion gets one.
+
+Two naming rules behind those defaults. Heading steps are **numbered to match
+the element** — `heading-2` sets an `h2` — rather than named ("subheading"
+leaves you guessing where it sits). And nothing is called `display` or
+`overline`: the first invites a size above the top step, and the second collides
+with Tailwind's text-decoration utility.
+
+Split colours across two cards rather than one long ramp: `STYLE-COLORS` for the
+base palette (text, background, brand) and `STYLE-UTILITY-COLORS` for the four
+that carry meaning. It keeps "what you click" separate from "what something is".
 
 Example — `constellation/style/STYLE-COLORS.md`:
 

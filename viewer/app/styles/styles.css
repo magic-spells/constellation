@@ -155,3 +155,107 @@
 		border-color: var(--color-brand);
 	}
 }
+
+/*
+ * PRINT.
+ *
+ * The app is a fixed, three-region, scroll-inside-panes layout: printed as-is a
+ * browser gets one screenful and stops. So printing drops the chrome and hands
+ * the routed view a plain, unbounded document flow — which is what makes
+ * `/docs` print as a real document (see DocsPage's own @media print rules for
+ * the cover, the contents page and the per-section page breaks).
+ *
+ * It applies on every route, not just /docs: a chrome-free print of a card page
+ * is strictly better than a cropped screenshot of the app.
+ *
+ * These are all !important because the layout is built from Tailwind
+ * utilities, and @layer utilities outranks @layer components whatever the
+ * specificity.
+ */
+@media print {
+	@page {
+		margin: 2cm;
+	}
+
+	/*
+	 * Paper is white, whatever the app is wearing. Redeclaring the semantic
+	 * tokens is the only fix that covers every scheme: observatory (the default)
+	 * is dark on BOTH halves of its light-dark() pairs, so flipping color-scheme
+	 * would leave white ink on white paper. The `[data-scheme]` half matches the
+	 * specificity of the scheme blocks in schemes.css and wins by coming later.
+	 */
+	:root,
+	:root[data-scheme] {
+		color-scheme: light;
+		--color-ink: #000;
+		--color-body: #1c1c1c;
+		--color-muted: #555;
+		--color-faint: #888;
+		--color-page: #fff;
+		--color-surface: #fff;
+		--color-surface-sunken: #f5f5f5;
+		--color-border: #ddd;
+		--color-border-strong: #bbb;
+		/* Links stay a colour so they read as references, not emphasis. */
+		--color-brand: #1a4fa0;
+		--color-brand-tint: #eef2fa;
+	}
+
+	html,
+	body {
+		height: auto;
+		background: #fff;
+	}
+
+	/* Undo the fixed shell: every box grows to its content and nothing clips. */
+	.shell-root,
+	.shell-body,
+	.shell-main,
+	.shell-main > *,
+	.shell-main [data-split-pane='second'] {
+		display: block !important;
+		height: auto !important;
+		max-height: none !important;
+		min-height: 0 !important;
+		overflow: visible !important;
+	}
+
+	/* Navigation, controls and the list/TOC pane are all screen affordances. */
+	.cnav,
+	.shell-topbar,
+	.shell-pane-list,
+	[data-split-divider] {
+		display: none !important;
+	}
+
+	/* Widow/orphan control, and blocks that must not be split across a page. */
+	p,
+	li {
+		orphans: 3;
+		widows: 3;
+	}
+
+	pre,
+	table,
+	blockquote,
+	.mermaid-block {
+		break-inside: avoid;
+	}
+
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		break-after: avoid;
+	}
+
+	/* The card-link pill is a screen affordance; the handle it wraps is content. */
+	.md-block a.wiki {
+		background: none;
+		border: 0;
+		padding: 0;
+		color: inherit;
+	}
+}

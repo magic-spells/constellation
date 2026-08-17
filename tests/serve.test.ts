@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,13 +23,13 @@ describe('constellation serve', () => {
     const res = await fetch(`http://localhost:${running.port}/api/plan`);
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.cards).toHaveLength(25);
-    expect(data.connections).toHaveLength(47);
+    expect(data.cards).toHaveLength(26);
+    expect(data.connections).toHaveLength(50);
     // The golden plan promises every card is connected.
     const endpoints = new Set(
       data.connections.flatMap((c: { a: string; b: string }) => [c.a, c.b]),
     );
-    expect(endpoints.size).toBe(25);
+    expect(endpoints.size).toBe(26);
     expect(data.errors).toEqual([]);
     const api = data.cards.find((c: { handle: string }) => c.handle === 'API-TICKETS');
     expect(api.frontmatter.path).toBe('/api/v1/tickets');
@@ -53,6 +53,55 @@ describe('constellation serve', () => {
     if (res.status === 200) {
       // Must be the SPA fallback, never the actual escaped file.
       expect(await res.text()).not.toContain('"name": "@magic-spells/constellation-next"');
+    }
+  });
+});
+
+describe('GET /api/docs', () => {
+  it('compiles the golden plan into an ordered document', async () => {
+    const res = await fetch(`http://localhost:${running.port}/api/docs`);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+
+    expect(data.title).toBe('Ticketing Example');
+    expect(data.sections.map((s: { id: string }) => s.id)).toEqual([
+      'overview',
+      'ticket-lifecycle',
+      'interface',
+    ]);
+    expect(data.sections[0].summary).toContain('who uses it');
+    expect(data.sections[1].cards.map((c: { handle: string }) => c.handle)).toEqual([
+      'DOC-TICKET-LIFECYCLE',
+      'FLOW-CREATE-TICKET',
+      'STATE-TICKET',
+      'API-TICKETS',
+      'DATATYPE-TICKET',
+    ]);
+
+    // Bodies arrive render-ready: a leading H1 that restated the card name is
+    // gone, and everything else is two levels down under the card's heading.
+    const overview = data.sections[0].cards[0];
+    expect(overview.handle).toBe('DIAGRAM-SYSTEM-OVERVIEW');
+    expect(overview.body).not.toContain('# System overview');
+    expect(overview.body).toContain('```mermaid');
+
+    const decision = data.sections[0].cards[2].body;
+    expect(decision).toContain('#### Context');
+    expect(decision).not.toContain('\n## Context');
+  });
+
+  it('answers with an empty document when no card carries a section', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'constellation-nodocs-'));
+    const planRoot = path.join(dir, 'constellation');
+    await mkdir(planRoot, { recursive: true });
+    await writeFile(path.join(planRoot, 'plan.md'), '---\nname: Bare\n---\n\nNothing.\n');
+    const server = await startServer({ planRoot, port: 0 });
+    try {
+      const data = await (await fetch(`http://localhost:${server.port}/api/docs`)).json();
+      expect(data).toEqual({ title: 'Bare', sections: [] });
+    } finally {
+      await server.close();
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });

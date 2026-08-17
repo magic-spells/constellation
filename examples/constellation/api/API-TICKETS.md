@@ -1,6 +1,8 @@
 ---
 name: List & create tickets
 status: built
+section: ticket-lifecycle
+order: 40
 path: /api/v1/tickets
 methods:
   GET:
