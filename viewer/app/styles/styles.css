@@ -157,6 +157,35 @@
 }
 
 /*
+ * COLLAPSED RAIL.
+ *
+ * Collapsed, the sidebar is a single column of icons, so everything in it has
+ * to be the same 3rem square on the same centre line — the nav rows get there
+ * via their own padding (Sidebar's `rowPad`), and the brand tile has to match
+ * or it reads as a different kind of control sitting slightly off-axis.
+ *
+ * The brand lives in a consumer-owned header slot, so Sidebar can't style it;
+ * it publishes `data-collapsed` on the nav instead and the slot reacts here.
+ * Expanded, the tile stays 2rem with the brand text beside it.
+ */
+[data-collapsed='true'] .cnav-brand {
+	justify-content: center;
+	padding-left: 0.5rem;
+	padding-right: 0.5rem;
+}
+
+[data-collapsed='true'] .cnav-brand-tile {
+	width: 3rem;
+	height: 3rem;
+}
+
+/* Not opacity: the label is a flex item, and a transparent one still takes
+   width and shoves the tile off centre. */
+[data-collapsed='true'] .cnav-brand-label {
+	display: none;
+}
+
+/*
  * PRINT.
  *
  * The app is a fixed, three-region, scroll-inside-panes layout: printed as-is a
