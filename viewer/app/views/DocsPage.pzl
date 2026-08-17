@@ -328,8 +328,10 @@ export default class DocsPage extends PuzzleView {
 /* An overline above the card title, not a hover affordance: it says which card
    you are reading, which is half of what makes the compiled document navigable.
    `--c` is the card's type token, set inline — one colour per type app-wide. */
-.docs-card-source { --c: var(--color-brand); display: inline-block; margin-bottom: 0.3rem; color: var(--c); font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-decoration: none; transition: opacity 0.15s; }
-.docs-card-source:hover, .docs-card-source:focus-visible { opacity: 0.75; }
+/* The same pill the connection chips wear, so a handle looks like a handle
+   wherever it appears. `--c` is the card's type token, set inline. */
+.docs-card-source { --c: var(--color-brand); display: inline-flex; align-items: center; margin-bottom: 0.45rem; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--color-border)); border-radius: 999px; background: color-mix(in srgb, var(--c) 12%, var(--color-surface)); padding: 0.22rem 0.7rem; color: var(--c); font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-decoration: none; transition: border-color 0.15s; }
+.docs-card-source:hover, .docs-card-source:focus-visible { border-color: var(--c); }
 
 /*
  * The document's own type scale, over MarkdownBlock's. Prose runs on --docs-ink
@@ -358,7 +360,9 @@ export default class DocsPage extends PuzzleView {
 
 	.docs-cover { border-bottom: 0; break-after: page; padding-top: 25vh; text-align: center; }
 	.docs-title { font-size: 32pt; }
-	.docs-card-source { display: none; }
+	/* Keeps its identity on paper, loses the chip: tinted backgrounds print
+	   badly, and browsers drop them entirely without "background graphics". */
+	.docs-card-source { border-color: transparent; background: none; padding-left: 0; color: var(--color-muted); }
 
 	.docs-paper-toc { display: block; break-after: page; }
 	.docs-paper-toc h2 { margin-bottom: 1.2rem; font-size: 18pt; }
