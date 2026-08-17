@@ -105,6 +105,7 @@ DIAGRAM AGENT PLAN FEATURE RELEASE STYLE` (defined in `src/core/types.ts`; folde
 
 `constellation mcp` exposes the plan over stdio. Design notes worth preserving:
 
+- **Self-serving entry points:** `orient` is the one-call session opener (project, histogram, stale count, recent notes, server-vs-workspace version); `describe_type` returns a type's schema and authoring guidance, so an agent needs no skill install.
 - **Hydrated retrieval:** `get_card` / `search` / `traverse` can return connected cards' *full* frontmatter and body in one call (`connected: "full"`). `list_cards` / `traverse` filter by status — one value or a list, `"none"` = unset — so `["planned","building","none"]` is the backlog view; traverse's status filter is a *post-filter* (the walk passes through built hubs), unlike `types` which prunes the walk.
 - **Validated writes:** every write tool lints and returns the issues for the file it touched. A card is still created/updated when issues come back — issues are lint *state*, not failure. `create_cards` / `add_connections` batch and lint **once** so intra-batch references resolve.
 - **Cheap writes (keep the memory honest):** `append_note` (append-only typed note — decision/gotcha/state/deviation/verified) and `edit_section` (replace one `##` section) are byte-preserving — the low-friction path that prevents drift. Notes are retrievable: `search` indexes note text, `list_notes` queries them across cards by kind.
@@ -117,7 +118,7 @@ DIAGRAM AGENT PLAN FEATURE RELEASE STYLE` (defined in `src/core/types.ts`; folde
 ## Conventions / gotchas
 
 - **ESM, Node ≥ 22.** `package.json` is `"type": "module"`; imports use explicit `.js` extensions even from `.ts` sources (NodeNext). Keep them.
-- **`strict` TypeScript**, `tsc` → `dist/`. The published package ships `dist`, `schemas`, `skill`, `docs`, `examples`, `viewer/dist` (see `files` in `package.json`).
+- **`strict` TypeScript**, `tsc` → `dist/`. The published package ships `dist`, `schemas`, `skill`, `constellation`, `examples`, `viewer/dist` (see `files` in `package.json`).
 - **The golden plan is load-bearing.** `examples/constellation/` is both the showcase and the test fixture — after changing core/schema behavior, run `npm run lint:examples` and `npm test`; the example plan must lint with zero errors.
 - **Ajv ships CJS** — `validate.ts` uses `createRequire` to load `ajv/dist/2020.js`; don't "modernize" that import.
 - **The viewer's write path and the MCP write path share `src/core/writer.ts`.** Fix patch/serialization bugs there once, not in two places.

@@ -43,6 +43,7 @@ constellation rename A-X A-Y  # rename a card + rewrite every reference to it
 constellation mcp           # run the MCP server (stdio) for AI agents
 constellation serve         # open the local viewer (editable; --readonly to disable)
 constellation repos         # list sibling repos declared in connected_repos
+constellation add skills    # install the authoring skill into ~/.claude, ~/.codex, ~/.cursor, ~/.agents
 constellation version       # print the CLI version (`v` also works)
 constellation upgrade       # npm install -g @magic-spells/constellation@latest
 ```
@@ -59,8 +60,9 @@ unknown fields, dangling prose links) don't block.
 | `schemas/` | JSON Schemas: `card.json` (reserved keys) + one per type |
 | `skill/` | AI authoring skill: `SKILL.md` + per-type references with golden examples |
 | `src/core/` | Parser, reference extraction, indexer, schema validation, lint |
-| `src/cli/` | The `constellation` binary (`init`, `lint`, `rename`, `mcp`, `serve`, `repos`) |
+| `src/cli/` | The `constellation` binary (`init`, `lint`, `rename`, `mcp`, `serve`, `repos`, `add skills`, `version`, `upgrade`) |
 | `src/mcp/` | MCP server: hydrated retrieval, validated writes, git tools |
+| `viewer/` | The Puzzle single-page viewer — themes, card pages, neighborhood diagrams |
 | `examples/constellation/` | Golden sample plan — one card of every type, lints clean, doubles as the test fixture |
 
 ## Development
@@ -76,6 +78,9 @@ npm run build            # tsc → dist/
 
 `constellation mcp` exposes the plan to AI agents over stdio:
 
+- **Self-serving**: `orient` opens a session with the whole plan at a glance in
+  one small call; `describe_type` hands back a card type's schema and authoring
+  guidance, so an agent can write correct cards with no skill installed.
 - **Hydrated retrieval**: `get_card`, `search`, and `traverse` can return
   connected cards with their complete frontmatter and body in one call.
   `list_cards` and `traverse` filter by status — `["planned", "building", "none"]`
@@ -195,7 +200,7 @@ render in-browser, `[[HANDLE]]` links navigate, and the page live-reloads when p
 files change on disk.
 
 ```sh
-constellation serve     # http://localhost:4747 (assets ship prebuilt with the package)
+constellation serve     # http://localhost:4747 (walks upward if busy; assets ship prebuilt)
 npm run build:viewer    # only when developing from source
 ```
 
