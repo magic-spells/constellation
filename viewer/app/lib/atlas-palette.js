@@ -12,22 +12,23 @@
 
 import { cssColor, darken, luminance, mix } from './colors.js';
 
-/** Schemes that paint as ink on paper rather than lit solids. */
-const PAPER_SCHEMES = new Set(['warm']);
-
-function currentScheme() {
-	if (typeof document === 'undefined') return 'default';
-	return document.documentElement.dataset.scheme || 'default';
-}
-
 /**
  * Build the palette for the current theme.
  *
  * @param types  the card types present, so per-type tokens resolve once
+ * @param opts.drafting  draw as ink-on-ground with hatched faces (the Flat
+ *   engine) rather than as solids (the Lit engine)
+ *
+ * `drafting` follows the ENGINE, not the scheme. It used to key off `warm`,
+ * which meant the two engine buttons produced nearly identical pictures in every
+ * other scheme — the switch looked broken because the only difference left was
+ * shading subtlety. Tying it to the button is what makes the choice mean
+ * something wherever you are.
  */
 export function atlasPalette(types = []) {
-	const scheme = currentScheme();
-	const paper = PAPER_SCHEMES.has(scheme);
+	// Kept as a flag rather than a branch: the flat map wants map-ish flat fills,
+	// which is what `false` selects below.
+	const paper = false;
 
 	const page = cssColor('--color-page', '#111');
 	const ink = cssColor('--color-ink', '#eee');
@@ -82,7 +83,8 @@ export function atlasPalette(types = []) {
 		routeDot: paper ? ink : cssColor('--t-FLOW', brand),
 		routeCasing: page,
 
-		districtFont: '600 11px ui-monospace, SFMono-Regular, Menlo, monospace',
+		districtFont: '700 11px ui-monospace, SFMono-Regular, Menlo, monospace',
+		buildingFont: '600 10px ui-monospace, SFMono-Regular, Menlo, monospace',
 		// Literal stacks: a canvas font shorthand is not CSS and does not resolve
 		// var(), so a `var(--font-sans)` here would silently fall back to serif.
 		summaryFont: "400 11px 'Inter Variable', Inter, system-ui, sans-serif",
@@ -129,6 +131,24 @@ export function atlasPalette(types = []) {
 		route(route, active) {
 			const base = cssColor('--t-FLOW', brand);
 			return active ? base : mix(base, page, 0.45);
+		},
+
+		// ── Street map ──────────────────────────────────────────────────────────
+		// A street is two strokes: a darker casing and a lighter surface. That pair
+		// is what makes a line read as a road rather than as a connector.
+		streetCasing: mix(page, ink, light ? 0.22 : 0.14),
+		streetArrow: mix(page, ink, light ? 0.55 : 0.5),
+
+		street(route, active) {
+			const base = cssColor('--t-FLOW', brand);
+			return active ? mix(base, page, 0.25) : mix(base, page, 0.6);
+		},
+
+		/** Label on a building square. Dark on light fills, light on dark ones. */
+		buildingLabel(building) {
+			const base = token(building.tone) ?? typeColor[building.type] ?? brand;
+			const fill = faces(base).top;
+			return luminance(fill) > 0.5 ? mix(ink, fill, 0.15) : mix('#ffffff', fill, 0.2);
 		},
 	};
 }

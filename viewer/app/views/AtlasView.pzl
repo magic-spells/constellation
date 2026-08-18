@@ -13,7 +13,7 @@
       <canvas
         ref="canvas"
         class="atlas-canvas"
-        hidden={ engine !== 'iso' }
+        hidden={ engine !== 'flat' }
         tabindex="0"
         aria-label={ canvasLabel }
         @pointerdown={ onPointerDown(event) }
@@ -54,10 +54,10 @@
            "Paper"/"Lit 3D" and "2D"/"3D" both promised a difference that is not
            there, and reasonable people read them as a change of viewpoint. -->
       <div class="at-engine" role="group" aria-label="Shading">
-        <button type="button" title="Flat shading on canvas — crisp, prints and exports cleanly"
-          class={ engine === 'iso' ? 'is-on' : '' } @click={ useIso }>Flat</button>
-        <button type="button" title="Real lighting and shadows in WebGL — same city, same angle"
-          class={ engine === 'lit' ? 'is-on' : '' } @click={ useLit }>Lit</button>
+        <button type="button" title="Street map — seen from above, with the streets data runs along"
+          class={ engine === 'flat' ? 'is-on' : '' } @click={ useFlat }>Flat</button>
+        <button type="button" title="The same plan as a 3D city of blocks"
+          class={ engine === 'lit' ? 'is-on' : '' } @click={ useLit }>3D</button>
       </div>
 
       <div class="at-controls">
@@ -114,12 +114,8 @@ import { buildScene } from '../lib/atlas-scene.js';
 import { LENSES, lensModel, normalizeLens } from '../lib/atlas-lenses.js';
 import { atlasPalette } from '../lib/atlas-palette.js';
 import { loadThree, threeReady, ThreeRenderer } from '../lib/atlas-three.js';
-import {
-  fitProjected,
-  IsoRenderer,
-  project,
-  projectedBounds,
-} from '../lib/atlas-iso.js';
+import { fitProjected, project, projectedBounds } from '../lib/atlas-iso.js';
+import { fitFlat, flatBounds, FlatRenderer } from '../lib/atlas-flat.js';
 import {
   now as clockNow,
   Ticker,
@@ -168,7 +164,7 @@ export default class AtlasView extends PuzzleView {
     });
 
     this.scene = null;
-    this.renderer = new IsoRenderer();
+    this.renderer = new FlatRenderer();
     this.palette = null;
     this.tx = 0;
     this.ty = 0;
@@ -214,7 +210,7 @@ export default class AtlasView extends PuzzleView {
       config,
       metrics: plan?.atlasMetrics ?? null,
       lens,
-      engine: this.getData?.().engineChoice ?? (config?.engine === 'lit' ? 'lit' : 'iso'),
+      engine: this.getData?.().engineChoice ?? (config?.engine === 'lit' ? 'lit' : 'flat'),
       lensOptions: LENSES.map((l) => ({ value: l.id, label: l.label })),
       lensHint: LENSES.find((l) => l.id === lens)?.hint ?? '',
       inside,
@@ -350,7 +346,7 @@ export default class AtlasView extends PuzzleView {
     fitAll: () => this.fitAll(),
     exportPng: () => this.exportPng(),
     goOutside: () => this.ctx.router.push('/constellation/atlas'),
-    useIso: () => this.setEngine('iso'),
+    useFlat: () => this.setEngine('flat'),
     useLit: () => this.setEngine('lit'),
     traceStep: (delta) => this.stepTrace(delta),
     traceToggle: () => this.toggleTrace(),
@@ -495,8 +491,11 @@ export default class AtlasView extends PuzzleView {
       building.scaffolded = card ? model.scaffolded(card) : false;
     }
 
-    this.renderer.invalidate();
+    // Frame the new city here rather than waiting on a resize: a rebuild can
+    // change the bounds (a lens change, going inside), and until something else
+    // happened to fire the ResizeObserver the camera still framed the old one.
     this.fitted = false;
+    if (this.width) this.fitAll(true);
     this.requestDraw();
   }
 
@@ -530,7 +529,7 @@ export default class AtlasView extends PuzzleView {
     // Flip the state SYNCHRONOUSLY, inside the click's own tick — a setData that
     // lands after an await is outside the event and does not re-render, which
     // made the first version load three and then keep drawing the paper map.
-    this.setData({ engineChoice: engine });
+    this.setData({ engineChoice: engine, engine });
     this.three?.dispose?.();
     this.three = null;
 
@@ -539,20 +538,40 @@ export default class AtlasView extends PuzzleView {
         await loadThree();
       } catch {
         // Fall back rather than leaving a blank canvas.
-        this.setData({ engineChoice: 'iso' });
+        this.setData({ engineChoice: 'flat', engine: 'flat' });
         return;
       }
       if (!this.isMounted) return;
     }
 
     this.resizeCanvas();
+    // Refit: the two engines are different PROJECTIONS, not two shadings of one,
+    // so a camera computed for the map means nothing to the 3D city and framed
+    // empty space. Each engine frames the scene its own way on arrival.
+    this.fitted = false;
+    this.fitAll(true);
     this.requestDraw();
   }
 
+  /**
+   * Switching a lens must take effect NOW.
+   *
+   * setData does not re-run data(), so writing only `lensChoice` left every
+   * derived value — `lens`, the hint, and the scene key syncScene compares —
+   * holding the old lens until something else forced a re-render. In practice
+   * that was the 20s /api/sync poll, so a lens change appeared to take up to
+   * 20 seconds and looked like a computation cost. It was a latch.
+   *
+   * So the derived values are written alongside the choice. Same for setEngine.
+   */
   setLens(value) {
     const lens = normalizeLens(value);
     if (lens === this.getData().lens) return;
-    this.setData({ lensChoice: lens });
+    this.setData({
+      lensChoice: lens,
+      lens,
+      lensHint: LENSES.find((l) => l.id === lens)?.hint ?? '',
+    });
     this.syncScene();
   }
 
@@ -581,7 +600,6 @@ export default class AtlasView extends PuzzleView {
     // three owns its own canvas's backing store; asking it to resize is how the
     // WebGL viewport and the camera frustum stay in step with the CSS box.
     this.three?.resize(this.width, this.height, dpr);
-    this.renderer.invalidate();
     if (!this.fitted) this.fitAll(true);
     this.requestDraw();
   }
@@ -598,7 +616,6 @@ export default class AtlasView extends PuzzleView {
       this.tx = moved.tx;
       this.ty = moved.ty;
       this.scale = moved.scale;
-      this.renderer.invalidate();
     }
     this.advancePlayback(now);
     this.draw(now);
@@ -699,7 +716,6 @@ export default class AtlasView extends PuzzleView {
     this.tx = view.tx;
     this.ty = view.ty;
     this.scale = view.scale;
-    this.renderer.invalidate();
     this.requestDraw();
   }
 
@@ -707,10 +723,13 @@ export default class AtlasView extends PuzzleView {
 
   fitAll(immediate = false) {
     if (!this.scene || !this.width) return;
-    const target = fitProjected(projectedBounds(this.scene), {
-      width: this.width,
-      height: this.height,
-    });
+    // Top-down and 3D are different viewpoints, not two shadings of one, so each
+    // computes its own framing. Switching engines refits instead of carrying a
+    // camera that means something else.
+    const target =
+      this.getData().engine === 'lit'
+        ? fitProjected(projectedBounds(this.scene), { width: this.width, height: this.height })
+        : fitFlat(flatBounds(this.scene), { width: this.width, height: this.height });
     this.fitted = true;
     if (immediate) {
       this.applyView(target);
@@ -752,13 +771,7 @@ export default class AtlasView extends PuzzleView {
     const x = clientX - rect.left;
     const y = clientY - rect.top;
     if (this.getData().engine === 'lit') return this.three?.pick(x, y) ?? null;
-    return this.renderer.pick(
-      this.scene,
-      this.view(),
-      { width: this.width, height: this.height },
-      x,
-      y,
-    );
+    return this.renderer.pick(this.scene, this.view(), x, y);
   }
 
   onPointerDown(event) {

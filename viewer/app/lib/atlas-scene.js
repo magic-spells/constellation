@@ -394,11 +394,11 @@ export function buildScene(input) {
 		const heightFor = (card) =>
 			clampHeight(height ? height(card) : 1.4);
 
-		// Tall at the back so nothing important hides behind a tower — the trick
-		// every one of the reference cities uses. Handle breaks the tie.
-		const ordered = [...members].sort(
-			(a, b) => heightFor(b) - heightFor(a) || byHandle(a, b),
-		);
+		// Ordered by HANDLE, never by height. Sorting by height would move every
+		// building whenever the lens changed — the city rearranging under you is
+		// exactly the spatial-memory failure this module exists to prevent, and it
+		// also makes a lens change a full re-layout instead of a recolour.
+		const ordered = [...members].sort(byHandle);
 
 		ordered.forEach((card, index) => {
 			const pinned = pin.get(card.handle);

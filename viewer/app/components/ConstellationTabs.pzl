@@ -1,15 +1,19 @@
 <puzzle-view>
-  <div class="cn-tabs">
-    <!-- Bare reference, not `go(value)`: a callback prop's own arguments are not
-         identifiers the template expression can name, so the call form would
-         pass undefined. The piece hands (value, event) to whatever it is given. -->
-    <Tabs id="constellation" tabs={ tabs } value={ active } @change={ go }/>
+  <div class="cn-tabs" role="group" aria-label="Constellation view">
+    {#for tab in tabs}
+      <button
+        type="button"
+        key={ tab.value }
+        class={ tab.active ? 'is-on' : '' }
+        aria-pressed={ tab.active ? 'true' : 'false' }
+        title={ tab.hint }
+        @click={ go(tab.value) }>{ tab.label }</button>
+    {/for}
   </div>
 </puzzle-view>
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
-import Tabs from './ui/Tabs.pzl';
 
 // ConstellationTabs — the Graph/Atlas switch shared by the two canvas views.
 //
@@ -23,21 +27,23 @@ import Tabs from './ui/Tabs.pzl';
 // is a FEATURE, a building is a card and a road is a FLOW. Neither is a subset
 // of the other, which is why they sit behind one sidebar row as peers.
 //
-// This is the Tasks pattern (see TasksHeader) with one difference: both routes
-// are full-bleed, where the canvas owns the entire box. There is no page header
-// to live in, so this floats OVER the canvas — same family as the view's own
-// search box and zoom controls, positioned by `.cn-tabs` below.
+// A SEGMENTED GROUP, not a tablist. Tasks uses underline tabs because it frames
+// a document region, where "these are panels of one page" is the right reading.
+// Here the whole box is a canvas with controls floating over it, and this is a
+// MODE switch sitting beside another one (Flat/Lit). Underlines read as document
+// chrome that has drifted onto a map; matching buttons read as what they are.
 //
-// THE TABS NAVIGATE, for the reasons TasksHeader spells out: deep links, Back,
-// and the atlas drill-down (`/constellation/atlas/HANDLE`, a route of its own)
-// all depend on the URL describing what you are looking at.
+// THE BUTTONS NAVIGATE. Each is a route, not an in-place toggle, because
+// everything else in this viewer is URL-driven: deep links, Back, and the atlas
+// drill-down (`/constellation/atlas/HANDLE`, a route of its own) all depend on
+// the URL describing what you are looking at.
 //
 // Props
-//   active  'graph' | 'atlas' — which tab reads as selected
+//   active  'graph' | 'atlas' — which button reads as selected
 
 const TABS = [
-	{ value: 'graph', label: 'Graph' },
-	{ value: 'atlas', label: 'Atlas' },
+	{ value: 'graph', label: 'Graph', hint: 'Force-clustered nodes — what connects to what' },
+	{ value: 'atlas', label: 'Atlas', hint: 'An isometric city — what shape the system is' },
 ];
 
 const PATH = {
@@ -48,7 +54,10 @@ const PATH = {
 export default class ConstellationTabs extends PuzzleView {
 	data(params, props) {
 		const active = props.active === 'atlas' ? 'atlas' : 'graph';
-		return { active, tabs: TABS };
+		return {
+			active,
+			tabs: TABS.map((t) => ({ ...t, active: t.value === active })),
+		};
 	}
 
 	events = {
@@ -64,20 +73,43 @@ export default class ConstellationTabs extends PuzzleView {
 </script>
 
 <style>
-/* Floats over the canvas, top-left, clear of the view's own search box. The
-   canvas is the whole box in bleed mode, so every control here is an overlay.
+/* Floats over the canvas, top-left, in BOTH readings — a switcher that moves
+   when you switch is worse than none. Same family as the view's own zoom
+   controls, and deliberately the same shape as the atlas's Flat/Lit group.
 
    Plain, not scoped: .pzl <style> blocks are collected into one sheet, and
    `scoped` on a COMPONENT applies nothing at all. */
 .cn-tabs {
 	position: absolute;
 	top: 0.75rem;
-	left: 0.75rem;
+	left: 0.9rem;
 	z-index: 3;
+	display: flex;
+	gap: 0.15rem;
 	border: 1px solid var(--color-border);
-	border-radius: 0.6rem;
+	border-radius: 0.5rem;
 	background: color-mix(in oklab, var(--color-surface) 90%, transparent);
-	padding: 0.2rem;
+	padding: 0.15rem;
 	backdrop-filter: blur(6px);
+}
+
+.cn-tabs button {
+	border: 0;
+	border-radius: 0.35rem;
+	background: none;
+	padding: 0.25rem 0.7rem;
+	color: var(--color-muted);
+	font-size: 0.78rem;
+	line-height: 1.4;
+	cursor: pointer;
+}
+
+.cn-tabs button:hover:not(.is-on) {
+	color: var(--color-ink);
+}
+
+.cn-tabs button.is-on {
+	background: var(--color-brand);
+	color: var(--color-brand-ink);
 }
 </style>
