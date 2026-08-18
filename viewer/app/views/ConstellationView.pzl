@@ -46,6 +46,8 @@
         {/if}
       </div>
 
+      <ConstellationTabs active="graph"/>
+
       <div class="cn-legend">
         {#for item in presentTypes}
           <span class="cn-legend-item">
@@ -77,6 +79,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import ConstellationTabs from '../components/ConstellationTabs.pzl';
 import { hrefForHandle, TYPE_META } from '../lib/types.js';
 import { planIndex } from '../lib/plan-index.js';
 import { cssColor, darken as darkenHex, mix as mixHex, luminance as relLum } from '../lib/colors.js';
@@ -89,6 +92,15 @@ import {
   fitToBounds,
   fitToCircle,
 } from '../lib/constellation-layout.js';
+import {
+  now as clockNow,
+  Progress,
+  Ticker,
+  ViewportTween,
+  wheelFactor,
+  zoomAt,
+  zoomAtCenter,
+} from '../lib/canvas-camera.js';
 
 // Travel under this many *screen* pixels glides; longer hops fade-out/pop-in instead.
 const SHORT_SCREEN = 280;
@@ -102,9 +114,6 @@ const SETTLE_RESEED = 70;
 const BASE_RING = 240;
 const RING_STEP = 300;
 const CARD_GAP = 36;
-
-const ZOOM_WHEEL = 0.0015;
-const ZOOM_PINCH = 0.004;
 
 export default class ConstellationView extends PuzzleView {
   created() {
@@ -136,15 +145,11 @@ export default class ConstellationView extends PuzzleView {
 
     this.transBefore = new Set();
     this.transAfter = new Set();
-    this.na = { active: false, start: 0, dur: 650, t: 0 };
-    this.vp = {
-      active: false,
-      from: { tx: 0, ty: 0, scale: 1 },
-      target: { tx: 0, ty: 0, scale: 1 },
-      start: 0,
-      dur: 520,
-    };
-    this.loopRaf = null;
+    // Node settle (`na.t` is consumed by nodeRender) and viewport move. Both live in
+    // canvas-camera so the atlas drives its city with the same two primitives.
+    this.na = new Progress({ duration: 650 });
+    this.vp = new ViewportTween({ duration: 520 });
+    this.ticker = new Ticker((now) => this.frame(now));
     this.pendingDraw = false;
     this.drag = null;
     this.reduceMotion = false;
@@ -172,7 +177,6 @@ export default class ConstellationView extends PuzzleView {
     this.resultsKey = '';
     this.isMounted = false;
 
-    this.loop = (now) => this.frame(now);
     this.resize = () => this.resizeCanvas();
   }
 
@@ -268,9 +272,9 @@ export default class ConstellationView extends PuzzleView {
 
     if (typeof window.matchMedia === 'function') {
       this.motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-      this.reduceMotion = this.motionQuery.matches;
+      this.setReduceMotion(this.motionQuery.matches);
       this.motionChange = (event) => {
-        this.reduceMotion = event.matches;
+        this.setReduceMotion(event.matches);
       };
       this.motionQuery.addEventListener('change', this.motionChange);
     }
@@ -298,12 +302,18 @@ export default class ConstellationView extends PuzzleView {
     }
   }
 
+  /** Reduce-motion lives on the tweens, so no call site has to branch on it. */
+  setReduceMotion(reduce) {
+    this.reduceMotion = reduce;
+    this.na.reduceMotion = reduce;
+    this.vp.reduceMotion = reduce;
+  }
+
   destroyed() {
     this.isMounted = false;
-    if (this.loopRaf != null) cancelAnimationFrame(this.loopRaf);
-    this.loopRaf = null;
-    this.na.active = false;
-    this.vp.active = false;
+    this.ticker.cancel();
+    this.na.cancel();
+    this.vp.cancel();
 
     if (this.resizeObserver) this.resizeObserver.disconnect();
     this.resizeObserver = null;
@@ -702,94 +712,63 @@ export default class ConstellationView extends PuzzleView {
   }
 
   // ── Animation driver: one rAF loop advances the node transition + viewport tween ──
-  easeOutCubic(k) {
-    return 1 - Math.pow(1 - k, 3);
-  }
-
-  easeInOutCubic(k) {
-    return k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-  }
-
-  ensureLoop() {
-    if (this.loopRaf == null) this.loopRaf = requestAnimationFrame(this.loop);
-  }
-
   requestDraw() {
     if (!this.isMounted) return;
     this.pendingDraw = true;
-    this.ensureLoop();
+    this.ticker.request();
   }
 
   frame(now) {
-    this.loopRaf = null;
-    let cont = false;
-    if (this.vp.active) {
-      const k = Math.min(1, (now - this.vp.start) / this.vp.dur);
-      const eased = this.easeOutCubic(k);
-      this.tx = this.vp.from.tx + (this.vp.target.tx - this.vp.from.tx) * eased;
-      this.ty = this.vp.from.ty + (this.vp.target.ty - this.vp.from.ty) * eased;
-      this.scale =
-        this.vp.from.scale + (this.vp.target.scale - this.vp.from.scale) * eased;
-      if (k < 1) cont = true;
-      else this.vp.active = false;
+    const moved = this.vp.advance(now);
+    if (moved) {
+      this.tx = moved.tx;
+      this.ty = moved.ty;
+      this.scale = moved.scale;
     }
-    if (this.na.active) {
-      const k = Math.min(1, (now - this.na.start) / this.na.dur);
-      this.na.t = this.easeInOutCubic(k);
-      if (k < 1) cont = true;
-      else {
-        this.na.active = false;
-        for (const graphNode of this.nodes) {
-          graphNode.px = graphNode.x ?? 0;
-          graphNode.py = graphNode.y ?? 0;
-        }
-      }
-    }
+    const settling = this.na.advance(now);
+    // The settle just finished: adopt the final positions as the new previous ones.
+    if (settling && !this.na.active) this.snapNodePositions();
+
     this.draw();
     this.pendingDraw = false;
-    if (cont || this.pendingDraw) this.ensureLoop();
+    return this.vp.active || this.na.active || this.pendingDraw;
+  }
+
+  snapNodePositions() {
+    for (const graphNode of this.nodes) {
+      graphNode.px = graphNode.x ?? 0;
+      graphNode.py = graphNode.y ?? 0;
+    }
   }
 
   startNodeAnim(before, after) {
     this.transBefore = before;
     this.transAfter = after;
-    if (this.reduceMotion) {
-      for (const graphNode of this.nodes) {
-        graphNode.px = graphNode.x ?? 0;
-        graphNode.py = graphNode.y ?? 0;
-      }
-      this.na.active = false;
+    if (!this.na.begin(clockNow())) {
+      this.snapNodePositions();
       this.requestDraw();
       return;
     }
-    this.na.start = performance.now();
-    this.na.t = 0;
-    this.na.active = true;
-    this.ensureLoop();
+    this.ticker.request();
   }
 
   beginTransition(before, after, setTargets) {
-    for (const graphNode of this.nodes) {
-      graphNode.px = graphNode.x ?? 0;
-      graphNode.py = graphNode.y ?? 0;
-    }
+    this.snapNodePositions();
     setTargets();
     this.startNodeAnim(before, after);
   }
 
   tweenTo(target) {
-    if (this.reduceMotion) {
-      this.tx = target.tx;
-      this.ty = target.ty;
-      this.scale = target.scale;
-      this.requestDraw();
-      return;
-    }
-    this.vp.from = { tx: this.tx, ty: this.ty, scale: this.scale };
-    this.vp.target = target;
-    this.vp.start = performance.now();
-    this.vp.active = true;
-    this.ensureLoop();
+    const view = this.vp.begin(
+      { tx: this.tx, ty: this.ty, scale: this.scale },
+      target,
+      clockNow(),
+    );
+    this.tx = view.tx;
+    this.ty = view.ty;
+    this.scale = view.scale;
+    if (this.vp.active) this.ticker.request();
+    else this.requestDraw();
   }
 
   // ── Per-node render state (position, alpha, scale) for the current frame ──
@@ -1055,17 +1034,16 @@ export default class ConstellationView extends PuzzleView {
   }
 
   // ── Viewport: zoom, fit ───────────────────────────────────────────────────
-  clamp(value, lo, hi) {
-    return Math.min(hi, Math.max(lo, value));
+  zoomBy(factor) {
+    this.applyView(
+      zoomAtCenter({ tx: this.tx, ty: this.ty, scale: this.scale }, this.width, this.height, factor),
+    );
   }
 
-  zoomBy(factor) {
-    const cx = this.width / 2;
-    const cy = this.height / 2;
-    const nextScale = this.clamp(this.scale * factor, 0.05, 4);
-    this.tx = cx - ((cx - this.tx) / this.scale) * nextScale;
-    this.ty = cy - ((cy - this.ty) / this.scale) * nextScale;
-    this.scale = nextScale;
+  applyView(view) {
+    this.tx = view.tx;
+    this.ty = view.ty;
+    this.scale = view.scale;
     this.requestDraw();
   }
 
@@ -1088,18 +1066,14 @@ export default class ConstellationView extends PuzzleView {
   onWheel(event) {
     event.preventDefault();
     const rect = this.canvasEl.getBoundingClientRect();
-    const px = event.clientX - rect.left;
-    const py = event.clientY - rect.top;
-    const k = event.ctrlKey ? ZOOM_PINCH : ZOOM_WHEEL;
-    const nextScale = this.clamp(
-      this.scale * Math.exp(-event.deltaY * k),
-      0.05,
-      4,
+    this.applyView(
+      zoomAt(
+        { tx: this.tx, ty: this.ty, scale: this.scale },
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+        wheelFactor(event.deltaY, event.ctrlKey),
+      ),
     );
-    this.tx = px - ((px - this.tx) / this.scale) * nextScale;
-    this.ty = py - ((py - this.ty) / this.scale) * nextScale;
-    this.scale = nextScale;
-    this.requestDraw();
   }
 
   // ── Drag (node move / background pan; no-move = click). No live physics. ──
@@ -1322,13 +1296,14 @@ export default class ConstellationView extends PuzzleView {
 
 .cn-legend {
   position: absolute;
-  top: 0.8rem;
+  /* Below ConstellationTabs, which owns the top-left corner in both readings. */
+  top: 3.4rem;
   left: 0.9rem;
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
   padding: 0.5rem 0.7rem;
-  max-height: calc(100% - 2rem);
+  max-height: calc(100% - 4.6rem);
   overflow-y: auto;
   border: 1px solid var(--color-border);
   border-radius: 8px;

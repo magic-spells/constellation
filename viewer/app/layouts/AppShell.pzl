@@ -88,6 +88,9 @@ import ThemeControls from '../components/ThemeControls.pzl';
 import { planIndex } from '../lib/plan-index.js';
 import { GROUPS, TYPE_META, typeForFolder } from '../lib/types.js';
 
+/** The routes under the one Constellation destination: both readings + the drill-down. */
+const CONSTELLATION_ROUTES = new Set(['graph', 'atlas', 'atlas-card']);
+
 // AppShell — the persistent chrome every route renders inside: the pieces
 // Sidebar rail on the left, a topbar carrying the plan's name + freshness +
 // appearance controls, and the single Toaster host.
@@ -192,7 +195,7 @@ export default class AppShell extends PuzzleView {
 			{ label: 'Overview', href: url('/'), icon: PAGE_ICON.overview },
 			{ label: 'Tasks', href: url('/tasks/board'), icon: PAGE_ICON.board },
 			{ label: 'Documentation', href: url('/docs'), icon: PAGE_ICON.docs },
-			{ label: 'Constellation', href: url('/constellation'), icon: PAGE_ICON.constellation },
+			{ label: 'Constellation', href: url('/constellation/graph'), icon: PAGE_ICON.constellation },
 		];
 		if (count('STYLE') > 0) {
 			navItems.push({ label: 'Style guide', href: url('/style-guide'), icon: PAGE_ICON.style });
@@ -284,7 +287,9 @@ export default class AppShell extends PuzzleView {
 	_region() {
 		const base = { docs: false, folder: null, handle: null };
 
-		if (this.route.route?.name === 'graph') return { ...base, mode: 'bleed' };
+		// Every Constellation reading is full-bleed: the canvas owns the whole box,
+		// with its controls floating over it rather than sitting in page chrome.
+		if (CONSTELLATION_ROUTES.has(this.route.route?.name)) return { ...base, mode: 'bleed' };
 
 		const params = this.route.params || {};
 
@@ -319,6 +324,9 @@ export default class AppShell extends PuzzleView {
 		// preview dialog, whose pathname grows to `/tasks/board/card/HANDLE` while
 		// it is open. The rail highlights the destination, not the current view.
 		if (String(this.route.route?.name ?? '').startsWith('tasks')) return url('/tasks/board');
+		// Likewise for Constellation: graph, atlas and the atlas drill-down all
+		// highlight the one Constellation row.
+		if (CONSTELLATION_ROUTES.has(this.route.route?.name)) return url('/constellation/graph');
 		return url(this.route.pathname || '/');
 	}
 

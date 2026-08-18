@@ -20,6 +20,9 @@ reference; this file is the deeper reference behind them.
   pass, and whenever a repo has no `constellation/` folder yet — when tools return
   `NO_PLAN_FOUND`, call `init_plan` once; never create the folder or hand-write `plan.md`
   yourself.
+- [`atlas.md`](./atlas.md) — authoring so the plan reads well as a city: districts come
+  from FEATURE connections, roads from FLOW steps, floors from bound code. Read it when
+  an atlas looks empty or flat.
 - No MCP server connected? See *Working without MCP* at the end.
 
 ## Why it exists: durable cross-session memory

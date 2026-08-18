@@ -1,12 +1,28 @@
 ---
 name: Architecture atlas — the plan as an isometric city
-status: planned
+status: built
 change: feature
 connections:
   - DOC-DIAGRAMS
   - FILE-SERVE
   - PAGE-VIEWER-HOME
+  - PAGE-VIEWER-ATLAS
+  - PAGE-VIEWER-CONSTELLATION
+  - FILE-ATLAS-SCENE
+  - DECISION-ATLAS-TWO-ENGINES
+  - DECISION-ATLAS-CONFIG-FILE
 release: RELEASE-V0-6-0
+branch: feat/architecture-atlas
+notes:
+  - kind: deviation
+    text: >-
+      Both aesthetics shipped together, not paper-first-then-3D as this card proposed. A pure
+      scene-graph module made the second painter additive rather than a rewrite, so phasing bought
+      nothing. See DECISION-ATLAS-TWO-ENGINES.
+  - kind: deviation
+    text: >-
+      `constellation atlas --png` was not built; in-app PNG download was. A CLI flag needs a
+      headless browser, which is a disproportionate dependency for a still image.
 ---
 
 The constellation canvas at `#/constellation` answers *what connects to what*.
