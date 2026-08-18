@@ -1,0 +1,282 @@
+<puzzle-view>
+  <main class="docs">
+    {#if empty}
+      <div class="docs-grid">
+        <div class="docs-column">
+          <Empty
+            class="min-h-[22rem]"
+            title={ emptyTitle }
+            description={ emptyDescription }>
+            <svg slot="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M7 3h7l4 4v14H7zM14 3v4h4M10 12h6M10 16h4"/>
+            </svg>
+          </Empty>
+        </div>
+      </div>
+    {:else}
+      <div class="docs-grid">
+        <!-- Track 1: the contents, right-aligned against the page and sticky.
+             It never changes track 2's width, so the document cannot shift
+             sideways when this appears or disappears. -->
+        <div class="docs-rail"><DocsToc variant="rail" solo={ solo }/></div>
+
+        <div class="docs-column">
+          <!-- The same tree as a jump control, for viewports whose gutter is too
+               narrow to hold the rail legibly. CSS picks exactly one. -->
+          <DocsToc variant="compact" solo={ solo }/>
+
+          <DocsDocument solo={ solo }>
+            <Button
+              class="shrink-0 print:hidden"
+              variant="outline"
+              size="sm"
+              @press={ exportPdf }>
+              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M7 9V4h10v5M7 17v3h10v-3M5 9h14a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1v-5a1 1 0 011-1M8 12.5h.01"/>
+              </svg>
+              Export as PDF
+            </Button>
+          </DocsDocument>
+        </div>
+      </div>
+    {/if}
+  </main>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Button from '../components/ui/Button.pzl';
+import Empty from '../components/ui/Empty.pzl';
+import DocsDocument from '../components/DocsDocument.pzl';
+import DocsToc from '../components/DocsToc.pzl';
+import { toast } from '../components/ui/toast.js';
+import { anchorAt, docModel, printHref, setActiveDocAnchor } from '../lib/docs.js';
+
+// DocsPage — `#/docs` and `#/docs/:section`: every sectioned card compiled into
+// one document, read top to bottom.
+//
+// A DOCUMENT, NOT A PANEL. This route is one of AppShell's `wide` shapes, and
+// the layout here is a three-track grid: equal flexible gutters either side of
+// a capped content column, so the page is centred in the viewport and stays
+// centred whether or not the contents rail is showing beside it.
+//
+// What this view owns is the FRAME — the grid, the rail, the scroll and the
+// export affordance. The document inside it is DocsDocument, which the print
+// window renders too; nothing about the document's own shape is decided here.
+//
+// DEEP LINKS UNDER HASH ROUTING. The app routes on `location.hash`, so a card
+// anchor rides as a SECOND fragment: `#/docs#DOC-FILE-FORMAT` parses to pathname
+// `/docs` + hash `#DOC-FILE-FORMAT`. The browser can't resolve that itself (it
+// would look for an element whose id is the whole string), so `_scrollToHash`
+// does it — which is also what makes Back work between two anchors on the same
+// page: each is its own history entry, and the route change re-runs this.
+//
+// SCROLL-SPY publishes rather than renders: the two TOC renders subscribe to
+// lib/docs.js, so neither has to know this view exists. Anchor tops are measured
+// against the SplitPanel's second pane, which is the element that actually
+// scrolls on every route (see its `overflow-auto` pane class).
+
+/** The export's window name — see `exportPdf`. */
+const PRINT_WINDOW = 'constellation-print';
+
+/** How far below the pane's top edge the "you are reading this" line sits. */
+const READING_LINE = 96;
+
+/** Nothing left to scroll, within a pixel of rounding. */
+function atBottom(scroller) {
+	return scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
+}
+
+export default class DocsPage extends PuzzleView {
+	data() {
+		const solo = String(this.route.params?.section ?? '');
+		const model = docModel(this.ctx.store, solo);
+
+		return {
+			...model,
+			emptyTitle: model.unknownSection ? 'No such section' : 'No documentation yet',
+			emptyDescription: model.unknownSection
+				? `No card declares section: ${solo}.`
+				: 'Give a card a section: slug and it joins this document. Register the slugs in order on PLAN-PROJECT as doc_sections: to name them and set how they read.',
+		};
+	}
+
+	mounted() {
+		this._onScroll = () => this._spy();
+		this._attach();
+	}
+
+	afterUpdate() {
+		this._attach();
+		// Cards arrive a render or two after mount (the plan hydrates async), so
+		// the hash can only be honoured once they exist.
+		this._scrollToHash();
+		this._spy();
+	}
+
+	destroyed() {
+		this._scroller?.removeEventListener('scroll', this._onScroll);
+		this._scroller = null;
+		this._onScroll = null;
+		setActiveDocAnchor('');
+	}
+
+	/** The pane this view scrolls inside; the view itself never scrolls. */
+	_attach() {
+		if (this._scroller || !this.element) return;
+		const scroller = this.element.closest?.('[data-split-pane="second"]');
+		if (!scroller) return;
+		this._scroller = scroller;
+		scroller.addEventListener('scroll', this._onScroll, { passive: true });
+	}
+
+	/** Every anchor in document order, with its top relative to the scroller. */
+	_anchors() {
+		if (!this._scroller) return [];
+		return [...this._scroller.querySelectorAll('[data-doc-anchor], .docs-section-title')].map(
+			(el) => ({
+				id: el.id,
+				top: el.offsetTop - this._scroller.offsetTop,
+			}),
+		);
+	}
+
+	_spy() {
+		if (!this._scroller) return;
+		const anchors = this._anchors().filter((anchor) => anchor.id);
+		setActiveDocAnchor(
+			anchorAt(anchors, this._scroller.scrollTop + READING_LINE, atBottom(this._scroller)),
+		);
+	}
+
+	_scrollToHash() {
+		const hash = this.route.hash || '';
+		if (hash === this._appliedHash) return;
+		const id = hash.replace(/^#/, '');
+		// An empty hash still counts as applied — otherwise navigating from an
+		// anchored URL back to bare /docs would re-scroll on every update.
+		if (!id) {
+			this._appliedHash = hash;
+			return;
+		}
+		const target = this._scroller?.querySelector(`[id="${CSS.escape(id)}"]`);
+		if (!target) return;
+		this._appliedHash = hash;
+		this._scroller.scrollTo({ top: target.offsetTop - this._scroller.offsetTop - 24 });
+	}
+
+	events = {
+		// EXPORT IS PRINT. A browser cannot write a PDF without a library, so the
+		// only native path is the print dialog with "Save as PDF" as the
+		// destination — which nobody reaches for by pressing ⌘P on an app. So the
+		// button opens the document in a window of its own, sized to a page, and
+		// that window's Print button (DocsPrint) opens the dialog once the
+		// diagrams have settled.
+		//
+		// A click IS the user gesture window.open needs, so the popup is allowed —
+		// unless the browser blocks popups outright, which is silent and returns
+		// null. Say so rather than looking broken.
+		exportPdf: () => {
+			const url = new URL(printHref(this.getData().solo), window.location.href).href;
+			const width = Math.min(940, window.screen.availWidth);
+			const height = Math.min(1180, window.screen.availHeight);
+			const left = Math.max(0, Math.round((window.screen.availWidth - width) / 2));
+			// A NAMED window, so exporting twice refocuses the one already open
+			// instead of stacking copies. The exception is a window already
+			// carrying that name — a print window someone navigated back into the
+			// app — where reusing it would replace the app with its own print view.
+			const target = window.name === PRINT_WINDOW ? '_blank' : PRINT_WINDOW;
+			const win = window.open(
+				url,
+				target,
+				`popup=yes,width=${width},height=${height},left=${left},top=0`,
+			);
+			if (win) {
+				win.focus();
+				return;
+			}
+			toast({
+				title: 'Pop-up blocked',
+				message: 'Allow pop-ups for this site, or press ⌘P and choose “Save as PDF”.',
+				variant: 'danger',
+			});
+		},
+	};
+}
+</script>
+
+<style>
+/*
+ * The page's frame. The document's own type lives in DocsDocument — the print
+ * window renders that half without any of this.
+ */
+.docs {
+	--docs-measure: 48rem;
+	--docs-rail: 13rem;
+	--docs-rail-gap: 2.5rem;
+	padding: 2rem clamp(1rem, 3vw, 2.5rem) 6rem;
+	/* The rail's breakpoint is about how much room the DOCUMENT has, not how
+	   wide the window is — collapsing the sidebar should bring the rail back. */
+	container: docs / inline-size;
+}
+
+/*
+ * Equal flexible gutters around a capped column: the document sits in the
+ * middle of the content area and STAYS there whether or not the rail is beside
+ * it — that is the whole point of putting the contents in a gutter rather than
+ * in a pane.
+ *
+ * The middle track is `min(cap, 100%)`, a definite size, rather than
+ * `minmax(0, cap)`. The latter has a fixed 0 minimum, so the two `fr` tracks
+ * win the free space and the column collapses on a narrow viewport. There is no
+ * `gap` either, for the same reason — the rail pays for its own separation, so
+ * the gutters never have to subtract anything from the column.
+ */
+.docs-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) min(var(--docs-measure), 100%) minmax(0, 1fr);
+	align-items: start;
+}
+
+/*
+ * Placement is EXPLICIT, not by source order. A `display: none` grid item is
+ * removed from the grid entirely, so auto-placement would slide the column into
+ * the rail's track the moment the rail is hidden — the document shifting
+ * sideways, which is exactly what this layout exists to prevent.
+ */
+.docs-rail { grid-column: 1; }
+.docs-column { grid-column: 2; min-width: 0; }
+
+/* Marginalia: no border, no fill, no divider, and it scrolls on its own so a
+   long contents list never drags the page with it. */
+.docs-rail {
+	position: sticky;
+	top: 1.5rem;
+	justify-self: end;
+	width: calc(var(--docs-rail) + var(--docs-rail-gap));
+	padding-right: var(--docs-rail-gap);
+	max-height: calc(100vh - 8rem);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+/*
+ * The rail shows only when a gutter can hold it WITHOUT overflowing into the
+ * document — measure + two full rails, hence the threshold. Below that it goes
+ * away and the jump control above the document takes over; the column's width
+ * and centring are identical either way.
+ */
+.docs-compact { display: none; margin-bottom: 1.75rem; }
+
+@container docs (max-width: 78.9rem) {
+	.docs-rail { display: none; }
+	.docs-compact { display: block; }
+}
+
+@media print {
+	.docs { padding: 0; }
+	.docs-grid { display: block; }
+	.docs-rail, .docs-compact { display: none; }
+	.docs-column { max-width: none; }
+}
+</style>

@@ -46,7 +46,7 @@ afterAll(async () => {
 describe('list_cards paging', () => {
   it('reports the total, the page it returned, and how to get the rest', async () => {
     const first = await call('list_cards', { limit: 10 });
-    expect(first.total).toBe(25);
+    expect(first.total).toBe(26);
     expect(first.cards).toHaveLength(10);
     expect(first.offset).toBe(0);
     expect(first.limit).toBe(10);
@@ -69,7 +69,7 @@ describe('list_cards paging', () => {
   it('an offset past the end returns an empty page and still states the total', async () => {
     const data = await call('list_cards', { offset: 999 });
     expect(data.cards).toEqual([]);
-    expect(data.total).toBe(25);
+    expect(data.total).toBe(26);
     expect(data.returned).toBe(0);
     expect(data.more).toBe(false);
   });

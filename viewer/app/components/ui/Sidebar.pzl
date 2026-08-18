@@ -1,5 +1,5 @@
 <puzzle-view>
-  <nav class={ rootClass } aria-label={ navLabel }>
+  <nav class={ rootClass } aria-label={ navLabel } data-collapsed={ collapsed ? 'true' : false }>
     <div class="shrink-0 empty:hidden">
       <Slot name="header"/>
     </div>
@@ -221,11 +221,13 @@ const BADGE =
   'shrink-0 rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-medium text-muted';
 
 // A top-level link/button pad: comfortable when expanded; when collapsed the
-// LEFT padding centers the size-5 icon in the row box — the rail is w-16 but
+// padding centers the size-5 icon in a SQUARE row box — the rail is w-16 but
 // the list wraps rows in p-2, so the row spans 3rem: (3rem − 1.25rem)/2 =
-// 0.875rem. Padding (unlike justify-center) animates, so the icon slides
-// into place with the width transition.
-const rowPad = (collapsed) => (collapsed ? 'pl-[0.875rem] pr-2 py-2' : 'px-3 py-2');
+// 0.875rem on every side. Square matters because the collapsed rail is a
+// column of icons: an oblong active pill reads as a different control from the
+// brand tile above it. Padding (unlike justify-center) animates, so the icon
+// slides into place with the width transition.
+const rowPad = (collapsed) => (collapsed ? 'p-[0.875rem]' : 'px-3 py-2');
 
 const linkClass = (active, collapsed) =>
   [ROW_BASE, rowPad(collapsed), active ? ACTIVE : IDLE].join(' ');

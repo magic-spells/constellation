@@ -540,6 +540,66 @@ describe('BoardPage', () => {
 		view.destroy();
 	});
 
+	it('orders Verified by its set_verified stamp, not by file mtime', async () => {
+		// The trap this guards: FEATURE-OLD was verified long ago and edited just
+		// now (a note append). Under mtime it would head the column as though it
+		// had just shipped.
+		const view = await mountWith(BoardPage, [
+			card('FEATURE-OLD', 'FEATURE', {
+				status: 'verified',
+				mtime: NOW,
+				frontmatter: { verified_at: '2020-01-01T00:00:00.000Z' },
+			}),
+			card('FEATURE-NEW', 'FEATURE', {
+				status: 'verified',
+				mtime: NOW - 9000,
+				frontmatter: { verified_at: '2026-01-01T00:00:00.000Z' },
+			}),
+			// No stamp at all — falls back to mtime, and sorts below anything stamped.
+			card('FEATURE-UNSTAMPED', 'FEATURE', { status: 'verified', mtime: NOW }),
+		]);
+
+		expect(byColumn(view).verified).toEqual([
+			'FEATURE-NEW',
+			'FEATURE-OLD',
+			'FEATURE-UNSTAMPED',
+		]);
+
+		view.destroy();
+	});
+
+	it('caps Verified at 20 and sends the remainder to the list view', async () => {
+		// Verified is the one column that never drains, so it is the one that has
+		// to be capped; the other three render whatever they hold.
+		const verified = Array.from({ length: 23 }, (_, i) =>
+			card(`FEATURE-V${String(i).padStart(2, '0')}`, 'FEATURE', {
+				status: 'verified',
+				frontmatter: { verified_at: new Date(NOW - i * 1000).toISOString() },
+			}),
+		);
+
+		const view = await mountWith(BoardPage, verified);
+		const column = view.find('[data-kb-col="verified"]');
+
+		expect(column.querySelectorAll('[data-kb-card]').length).toBe(20);
+		// The badge answers "how many are there", not "how many fit".
+		expect(column.querySelector('header span:last-child').textContent).toBe('23');
+
+		const overflow = column.querySelector('a[href="/tasks/list"]');
+		expect(overflow.textContent.trim()).toBe('+3 more verified');
+
+		view.destroy();
+	});
+
+	it('leaves an uncapped Verified column with no overflow link', async () => {
+		const view = await mountWith(BoardPage, features);
+
+		const column = view.find('[data-kb-col="verified"]');
+		expect(column.querySelector('a[href="/tasks/list"]')).toBe(null);
+
+		view.destroy();
+	});
+
 	it('marks a card with no status instead of letting it read as planned', async () => {
 		const view = await mountWith(BoardPage, features);
 
@@ -653,7 +713,14 @@ describe('StyleGuide', () => {
 		expect(sections[0].querySelector('h2 a').getAttribute('href')).toBe('/style/STYLE-FONTS');
 
 		// Per-category layouts: a specimen for fonts, proportional bars for spacing.
-		expect(sections[0].querySelector('.specimen-name').textContent).toBe('display');
+		// The big line names the FACE, not the token — "display" tells you nothing
+		// about what you are looking at.
+		expect(sections[0].querySelector('.specimen-name').textContent).toBe('Inter');
+		// The token and its stack are a separate question, answered by the Font
+		// Styles list off the SAME tokens — so the two can never disagree.
+		expect(sections[0].querySelector('.fs-name').textContent).toBe('display');
+		expect(sections[0].querySelector('.fs-stack').textContent).toBe("'Inter', sans-serif");
+		expect(sections[0].querySelector('.specimen-stack')).toBe(null);
 		const bars = [...sections[2].querySelectorAll('.spacing-bar')].map((b) =>
 			b.getAttribute('style'),
 		);

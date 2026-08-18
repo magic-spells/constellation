@@ -27,6 +27,8 @@ notes:
       Board is one of two Tasks tabs, not a destination. Checked against routes.js, BoardPage.pzl
       and TasksHeader.pzl.
     sha: dbaa7fc23fb5a41ce5672978f990c3080c3e5f3a
+section: viewer
+order: 20
 ---
 
 The `#/tasks/board` route: every FEATURE card as a Kanban board, one column per value of

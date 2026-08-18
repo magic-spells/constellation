@@ -8,6 +8,12 @@
    card-type hues. */
 @import './schemes.css';
 
+/* Bundled Inter + the sans/display stacks it fills. */
+@import './fonts.css';
+
+/* The one way a card handle is drawn, wherever it appears. */
+@import './handles.css';
+
 /* Tailwind v4 content detection — paths are relative to this stylesheet
    (app/styles/), so "../" is the app root. */
 @source "../**/*.pzl";
@@ -153,5 +159,180 @@
 		opacity: 1;
 		color: var(--color-muted);
 		border-color: var(--color-brand);
+	}
+}
+
+/*
+ * COLLAPSED RAIL.
+ *
+ * Collapsed, the sidebar is a single column of icons, so everything in it has
+ * to be the same 3rem square on the same centre line — the nav rows get there
+ * via their own padding (Sidebar's `rowPad`), and the brand tile has to match
+ * or it reads as a different kind of control sitting slightly off-axis.
+ *
+ * The brand lives in a consumer-owned header slot, so Sidebar can't style it;
+ * it publishes `data-collapsed` on the nav instead and the slot reacts here.
+ * Expanded, the tile stays 2rem with the brand text beside it.
+ */
+[data-collapsed='true'] .cnav-brand {
+	justify-content: center;
+	padding-left: 0.5rem;
+	padding-right: 0.5rem;
+}
+
+[data-collapsed='true'] .cnav-brand-tile {
+	width: 3rem;
+	height: 3rem;
+}
+
+/* Not opacity: the label is a flex item, and a transparent one still takes
+   width and shoves the tile off centre. */
+[data-collapsed='true'] .cnav-brand-label {
+	display: none;
+}
+
+/*
+ * PAPER, ON SCREEN.
+ *
+ * `data-paper` on <html> is the print window (views/DocsPrint.pzl) saying "this
+ * window is a sheet of paper": white page, black ink, whatever scheme the app
+ * is wearing. It is what makes the preview show what the printer will produce.
+ *
+ * It has to sit on the ROOT rather than on the sheet element, because the
+ * things that most need to agree with the paper don't read CSS at all — the
+ * mermaid tinting in lib/markdown.js resolves `--color-surface`, `--color-ink`
+ * and the `--t-*` hues off document.documentElement and bakes them into the
+ * SVG. Scoped to the sheet, every diagram would come out dressed for a dark app
+ * and print unreadable.
+ *
+ * The same values appear again in the @media print block below, which covers
+ * printing any route from the app itself. A media query and an attribute cannot
+ * share one declaration list, so the two are kept side by side deliberately:
+ * change them together. `[data-scheme]` is in the second selector only to
+ * outrank the scheme blocks in schemes.css whatever the source order.
+ */
+:root[data-paper],
+:root[data-scheme][data-paper] {
+	color-scheme: light;
+	--color-ink: #000;
+	--color-body: #1c1c1c;
+	--color-muted: #555;
+	--color-faint: #888;
+	--color-page: #fff;
+	--color-surface: #fff;
+	--color-surface-sunken: #f5f5f5;
+	--color-border: #ddd;
+	--color-border-strong: #bbb;
+	/* Links stay a colour so they read as references, not emphasis. */
+	--color-brand: #1a4fa0;
+	--color-brand-tint: #eef2fa;
+}
+
+/* Observatory's starfield is a scheme flourish, and paper has no sky. */
+:root[data-scheme][data-paper] body::before {
+	display: none;
+}
+
+/*
+ * PRINT.
+ *
+ * The app is a fixed, three-region, scroll-inside-panes layout: printed as-is a
+ * browser gets one screenful and stops. So printing drops the chrome and hands
+ * the routed view a plain, unbounded document flow — which is what makes
+ * `/docs` print as a real document (see DocsPage's own @media print rules for
+ * the cover, the contents page and the per-section page breaks).
+ *
+ * It applies on every route, not just /docs: a chrome-free print of a card page
+ * is strictly better than a cropped screenshot of the app.
+ *
+ * These are all !important because the layout is built from Tailwind
+ * utilities, and @layer utilities outranks @layer components whatever the
+ * specificity.
+ */
+@media print {
+	@page {
+		margin: 2cm;
+	}
+
+	/*
+	 * Paper is white, whatever the app is wearing. Redeclaring the semantic
+	 * tokens is the only fix that covers every scheme: observatory (the default)
+	 * is dark on BOTH halves of its light-dark() pairs, so flipping color-scheme
+	 * would leave white ink on white paper. The `[data-scheme]` half matches the
+	 * specificity of the scheme blocks in schemes.css and wins by coming later.
+	 */
+	:root,
+	:root[data-scheme] {
+		color-scheme: light;
+		--color-ink: #000;
+		--color-body: #1c1c1c;
+		--color-muted: #555;
+		--color-faint: #888;
+		--color-page: #fff;
+		--color-surface: #fff;
+		--color-surface-sunken: #f5f5f5;
+		--color-border: #ddd;
+		--color-border-strong: #bbb;
+		/* Links stay a colour so they read as references, not emphasis. */
+		--color-brand: #1a4fa0;
+		--color-brand-tint: #eef2fa;
+	}
+
+	html,
+	body {
+		height: auto;
+		background: #fff;
+	}
+
+	/* Undo the fixed shell: every box grows to its content and nothing clips. */
+	.shell-root,
+	.shell-body,
+	.shell-main,
+	.shell-main > *,
+	.shell-main [data-split-pane='second'] {
+		display: block !important;
+		height: auto !important;
+		max-height: none !important;
+		min-height: 0 !important;
+		overflow: visible !important;
+	}
+
+	/* Navigation, controls and the list/TOC pane are all screen affordances. */
+	.cnav,
+	.shell-topbar,
+	.shell-pane-list,
+	[data-split-divider] {
+		display: none !important;
+	}
+
+	/* Widow/orphan control, and blocks that must not be split across a page. */
+	p,
+	li {
+		orphans: 3;
+		widows: 3;
+	}
+
+	pre,
+	table,
+	blockquote,
+	.mermaid-block {
+		break-inside: avoid;
+	}
+
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		break-after: avoid;
+	}
+
+	/* The card-link pill is a screen affordance; the handle it wraps is content. */
+	.md-block a.wiki {
+		background: none;
+		border: 0;
+		padding: 0;
+		color: inherit;
 	}
 }

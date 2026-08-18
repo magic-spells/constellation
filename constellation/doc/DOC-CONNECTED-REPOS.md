@@ -5,6 +5,8 @@ status: built
 connections:
   - FILE-REPOS
   - FILE-RESOLVE
+section: format
+order: 50
 ---
 
 # Connected repos (multi-repo)

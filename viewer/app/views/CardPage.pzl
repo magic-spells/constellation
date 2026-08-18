@@ -431,22 +431,8 @@ export default class CardPage extends PuzzleView {
 .card-header { margin-bottom: 2.75rem; }
 .card-eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; margin-bottom: 0.65rem; }
 .card-kind { color: var(--color-muted); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.75rem; letter-spacing: 0.035em; }
-/* The handle IS the type pill (old-viewer design): handle text tinted by the
-   card's type hue, wrapped in a matching 15%-tint pill. No separate type chip. */
-.card-handle {
-	--c: var(--color-brand);
-	display: inline-flex;
-	align-items: center;
-	border: 1px solid color-mix(in srgb, var(--c) 38%, transparent);
-	border-radius: 7px;
-	background: color-mix(in srgb, var(--c) 15%, transparent);
-	padding: 0.3rem 0.72rem;
-	color: var(--c);
-	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-	font-size: 0.8rem;
-	font-weight: 600;
-	letter-spacing: 0.1em;
-}
+/* `.card-handle` itself lives in styles/handles.css — this page was where the
+   label was designed, and every other handle now matches it. */
 .card-delete {
 	margin-left: auto;
 	border-radius: 5px;

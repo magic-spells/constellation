@@ -9,6 +9,8 @@ connections:
   - DOC-MCP-UPGRADES
 verified_at: '2026-08-16T02:39:51.183Z'
 verified_sha: c813887e9d1d4021d5129c1534e33f12efbc533d
+section: plan-and-code
+order: 10
 ---
 
 # Change tracking & sync

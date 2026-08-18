@@ -20,6 +20,8 @@ notes:
       Only change since the last stamp is the dropped star glyph and its orphaned .feat-title rules
       — the heading moved to TasksHeader when the views merged. Nothing this card claims changed.
     sha: ee8384873bdb280e2f7c9b6cf6790bb217af19f7
+section: viewer
+order: 30
 ---
 
 The `#/tasks/list` route: a roadmap view of every FEATURE card, served by

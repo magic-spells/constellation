@@ -1,6 +1,8 @@
 ---
 name: Ticket lifecycle
 status: built
+section: ticket-lifecycle
+order: 30
 states:
   - { name: open, initial: true }
   - { name: assigned }

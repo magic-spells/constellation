@@ -17,6 +17,8 @@ notes:
       since routes moved to #/folder/HANDLE. Now documents the real shape plus CardPage's folder
       canonicalisation, and the redirect that keeps old links alive.
     sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+section: viewer
+order: 40
 ---
 
 A single card at `#/<folder>/<HANDLE>` — the URL mirrors the file on disk, so `constellation/api/API-TICKETS.md` is `#/api/API-TICKETS`. The folder segment is decoration as far as matching goes (the handle alone identifies the card), so the view *canonicalises* a wrong one back to the card's real folder with `replace()` semantics, keeping the bad URL out of history. `#/card/<HANDLE>` still resolves as a legacy redirect, so older bookmarks and pasted links keep working.

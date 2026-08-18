@@ -6,6 +6,8 @@ connections:
   - FILE-INDEXER
   - FILE-VALIDATE
   - FILE-LINT
+section: format
+order: 30
 ---
 
 # Lint codes

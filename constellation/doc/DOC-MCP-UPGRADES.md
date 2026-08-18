@@ -4,6 +4,8 @@ kind: decision
 status: built
 connections:
   - FILE-CODE
+section: agents
+order: 20
 ---
 
 # MCP upgrades & memory model (decisions)

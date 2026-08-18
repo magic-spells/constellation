@@ -32,6 +32,16 @@
       },
       "description": "Plain list of handles this card is connected to. Undirected; declare on whichever card you are editing."
     },
+    "section": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "maxLength": 64,
+      "description": "Documentation section this card belongs to, lowercase slug (same grammar as kind). A card with a section joins the compiled document at /docs; a card without one stays out of it. Register the slug in PLAN-PROJECT `doc_sections` to give it a display name and a position — an unregistered slug still renders, appended at the end."
+    },
+    "order": {
+      "type": "integer",
+      "description": "Position within this card's `section:`, ascending. Sparse by convention (10, 20, 30) so a card can be slotted between two others; ties break on name, then handle, and a card with no order sorts after every numbered one."
+    },
     "code_refs": {
       "type": "array",
       "maxItems": 200,

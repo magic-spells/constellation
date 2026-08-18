@@ -61,6 +61,17 @@ export async function loadSync(store) {
 	return sync;
 }
 
+/**
+ * The compiled document. Kept on the plan singleton rather than fetched by the
+ * /docs view, so the TOC (which lives in AppShell, not in the view) reads it
+ * from the same store subscription and the SSE reload below refreshes both.
+ */
+export async function loadDocs(store) {
+	const docs = await request('/api/docs');
+	store.upsert('plan', { id: 'plan', docs });
+	return docs;
+}
+
 export function startLive(store) {
 	const events = new EventSource('/events');
 	let reloadTimer = null;
@@ -71,6 +82,7 @@ export function startLive(store) {
 		reloadTimer = setTimeout(() => {
 			reloadTimer = null;
 			void loadPlan(store).catch(() => {});
+			void loadDocs(store).catch(() => {});
 		}, 100);
 	};
 

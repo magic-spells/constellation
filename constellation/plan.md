@@ -6,6 +6,25 @@ connections:
   - PAGE-VIEWER-HOME
   - DOC-FILE-FORMAT
   - DIAGRAM-ARCHITECTURE
+doc_sections:
+  - id: format
+    name: The card format
+    summary: What a card is, the 21 types, how the graph is derived, and what lint enforces.
+  - id: plan-and-code
+    name: Keeping the plan true
+    summary: 'How a plan stays honest against the code it describes: change tracking, sync, and drift.'
+  - id: agents
+    name: Working with agents
+    summary: The MCP surface an agent sees, the memory model behind it, and the guidance it reads.
+  - id: viewer
+    name: The viewer
+    summary: Every route the local server serves, and what question each one answers.
+  - id: design-system
+    name: Design system
+    summary: The tokens the viewer is built from — type, colour, and the hue per card type.
+  - id: decisions
+    name: Decisions
+    summary: Choices that shaped the format, kept with their alternatives and their reasons.
 ---
 
 # Constellation

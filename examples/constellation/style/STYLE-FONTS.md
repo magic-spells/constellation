@@ -5,9 +5,9 @@ status: built
 connections:
   - PAGE-INBOX
 tokens:
-  - name: display
+  - name: heading
     value: "'Inter', system-ui, sans-serif"
-    role: Display Font
+    role: Heading Font
     weights: "Bold (700)"
     description: Headings and ticket titles
   - name: body

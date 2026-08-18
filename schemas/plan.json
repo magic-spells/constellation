@@ -9,6 +9,33 @@
       "type": "string",
       "description": "Area this plan covers, e.g. frontend. Omit for the project plan."
     },
+    "doc_sections": {
+      "type": "array",
+      "description": "Ordered documentation sections for the compiled document at /docs (declare on PLAN-PROJECT). Authored ordering, not derived state — membership is self-declared by each card's `section:`, and this only says what the sections are called and what order they read in. A slug used on cards but missing here is appended at the end, alphabetically, titled from the slug.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "maxLength": 64,
+            "description": "Section slug — the value cards carry as `section:`."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Display name, rendered as the section's heading."
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "One line under the section heading, saying what the section covers."
+          }
+        },
+        "required": ["id", "name"],
+        "additionalProperties": false
+      }
+    },
     "connected_repos": {
       "type": "array",
       "description": "Sibling repos this project coordinates with (declare on PLAN-PROJECT). Repo-level links only — NOT card connections; cards never reference another repo's cards. Each entry's path is local topology and is never validated by lint.",

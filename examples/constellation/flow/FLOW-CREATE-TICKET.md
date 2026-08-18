@@ -1,6 +1,8 @@
 ---
 name: Create ticket
 status: built
+section: ticket-lifecycle
+order: 20
 triggers:
   - { kind: manual }
 connections:

@@ -18,7 +18,7 @@
             {#for t in tokens}
               <div key={ t.key } class="specimen">
                 {#if t.role}<div class="specimen-role">{ t.role }</div>{/if}
-                <div class="specimen-name" style={ t.stackStyle }>{ t.name }</div>
+                <div class="specimen-name" style={ t.stackStyle }>{ t.family }</div>
                 {#if t.weights}<div class="specimen-weights">{ t.weights }</div>{/if}
                 {#for row in t.rows}
                   <div key={ row.label } class="specimen-row">
@@ -27,6 +27,16 @@
                   </div>
                 {/for}
                 {#if t.description}<div class="token-desc">{ t.description }</div>{/if}
+              </div>
+            {/for}
+          </div>
+
+          <h4 class="styles-title">Font Styles</h4>
+          <div class="font-styles">
+            {#for t in tokens}
+              <div key={ t.key } class="fs-pair">
+                <div class="fs-name">{ t.name }</div>
+                <div class="fs-stack">{ t.value }</div>
               </div>
             {/for}
           </div>
@@ -121,6 +131,40 @@ function fontStack(t) {
 	return t.src ? `"cst-${t.name}", ${t.value}` : t.value;
 }
 
+/** CSS generic families — fallbacks by definition, never a typeface's name. */
+const GENERIC_FAMILIES = new Set([
+	'serif',
+	'sans-serif',
+	'monospace',
+	'cursive',
+	'fantasy',
+	'math',
+	'emoji',
+	'system-ui',
+	'ui-serif',
+	'ui-sans-serif',
+	'ui-monospace',
+	'ui-rounded',
+	'-apple-system',
+	'blinkmacsystemfont',
+]);
+
+/**
+ * The name a specimen shows large: the first REAL typeface the stack asks for.
+ * Generics are skipped — `ui-monospace` is a promise about a category, and
+ * titling a specimen with it tells a reader nothing. A trailing "Variable" goes
+ * too: that is how a webfont package names its files, not what the face is
+ * called. The full stack renders underneath either way, so nothing is hidden.
+ */
+function primaryFamily(value) {
+	const families = String(value)
+		.split(',')
+		.map((family) => family.trim().replace(/^['"]|['"]$/g, ''))
+		.filter(Boolean);
+	const named = families.find((family) => !GENERIC_FAMILIES.has(family.toLowerCase()));
+	return (named || families[0] || String(value)).replace(/\s+(Variable|VF)$/i, '');
+}
+
 export default class StyleTokens extends PuzzleView {
 	data(params, props) {
 		const card = props.card;
@@ -138,12 +182,17 @@ export default class StyleTokens extends PuzzleView {
 			if (category === 'color') return { ...base, chipStyle: `background: ${t.value}` };
 
 			if (category === 'font') {
-				const stackStyle = `font-family: ${fontStack(t)}`;
+				// A specimen showcases the FACE — its name, its weights, its
+				// characters — so the big line is the family, set in itself. The
+				// token name and the CSS stack are a different question ("what do I
+				// write to get this?") and are answered by the Font Styles list
+				// below, off these same tokens so the two cannot drift.
 				return {
 					...base,
 					role: t.role,
 					weights: t.weights,
-					stackStyle,
+					family: primaryFamily(t.value),
+					stackStyle: `font-family: ${fontStack(t)}`,
 					rows: SPECIMEN_ROWS.map(([label, chars]) => ({ label, chars })),
 				};
 			}
@@ -238,11 +287,23 @@ export default class StyleTokens extends PuzzleView {
 .swatch-chip { height: 64px; border: 1px solid var(--color-border-strong); border-radius: 6px; }
 .swatch-value { color: var(--color-faint); font-family: var(--font-mono); font-size: 0.7rem; }
 
-.specimen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+/* Two per row, not auto-fit: a specimen needs width to be legible, and three
+   narrow columns made every face look the same. Single column when it can't. */
+.specimen-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 700px) { .specimen-grid { grid-template-columns: minmax(0, 1fr); } }
 .specimen { border: 1px solid var(--color-border); border-radius: 8px; padding: 16px; }
 .specimen-role { color: var(--color-faint); font-size: 0.7rem; }
 .specimen-name { margin: 2px 0; color: var(--color-ink); font-size: 1.6rem; }
 .specimen-weights { margin-bottom: 10px; color: var(--color-faint); font-size: 0.7rem; }
+
+/* Font Styles — the same tokens as a reference list: what to write to get the
+   face above. Kept off one token array so a stack can never disagree with the
+   specimen rendering it. */
+.styles-title { margin: 22px 0 8px; color: var(--color-ink); font-size: 0.95rem; font-weight: 600; }
+.font-styles { display: grid; grid-template-columns: max-content 1fr; gap: 6px 20px; align-items: baseline; }
+.fs-pair { display: contents; }
+.fs-name { color: var(--color-ink); font-family: var(--font-mono); font-size: 0.78rem; font-weight: 600; }
+.fs-stack { overflow-wrap: anywhere; color: var(--color-muted); font-family: var(--font-mono); font-size: 0.75rem; }
 .specimen-row { margin-top: 8px; }
 .specimen-label { color: var(--color-faint); font-size: 0.65rem; }
 .specimen-chars { overflow-wrap: anywhere; font-size: 1.05rem; }

@@ -2,7 +2,7 @@ import { PuzzleApp } from '@magic-spells/puzzle';
 import { hashRouter } from '@magic-spells/puzzle/router-modes';
 import { enableMorph } from '@magic-spells/puzzle/morph';
 import { adapter } from '@magic-spells/puzzle/adapter';
-import { loadPlan, loadSync, startLive } from './lib/api.js';
+import { loadDocs, loadPlan, loadSync, startLive } from './lib/api.js';
 import models from './models/index.js';
 import routes from './routes.js';
 
@@ -20,7 +20,7 @@ const app = new PuzzleApp({
 	models,
 	async beforeMount(app) {
 		if (typeof document === 'undefined') return;
-		await Promise.all([loadPlan(app.store), loadSync(app.store)]).catch((e) => console.error('[viewer] plan hydration failed:', e));
+		await Promise.all([loadPlan(app.store), loadSync(app.store), loadDocs(app.store)]).catch((e) => console.error('[viewer] plan hydration failed:', e));
 	},
 	mounted(app) {
 		if (typeof document === 'undefined') return;

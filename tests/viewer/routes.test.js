@@ -41,6 +41,7 @@ describe('legacy route redirects', () => {
 		await app.router.push(path);
 		return {
 			path: app.router.current?.path,
+			name: app.router.current?.route?.name,
 			done: () => {
 				app.destroy();
 				animate.uninstall();
@@ -70,5 +71,17 @@ describe('legacy route redirects', () => {
 		const nav = await bootAt('/card/NOPE-THING');
 		expect(nav.path).toBe('/');
 		nav.done();
+	});
+
+	// Routes match in ORDER, and `/:folder/:handle` would happily eat
+	// `/docs/getting-started` — so the document's own pair has to come first.
+	it('routes /docs and /docs/:section rather than letting the folder pair eat them', async () => {
+		const doc = await bootAt('/docs');
+		expect(doc.name).toBe('docs');
+		doc.done();
+
+		const section = await bootAt('/docs/getting-started');
+		expect(section.name).toBe('docs-section');
+		section.done();
 	});
 });
