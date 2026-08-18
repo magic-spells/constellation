@@ -46,6 +46,8 @@
         {/if}
       </div>
 
+      <ConstellationTabs active="graph"/>
+
       <div class="cn-legend">
         {#for item in presentTypes}
           <span class="cn-legend-item">
@@ -77,6 +79,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import ConstellationTabs from '../components/ConstellationTabs.pzl';
 import { hrefForHandle, TYPE_META } from '../lib/types.js';
 import { planIndex } from '../lib/plan-index.js';
 import { cssColor, darken as darkenHex, mix as mixHex, luminance as relLum } from '../lib/colors.js';
@@ -1293,13 +1296,14 @@ export default class ConstellationView extends PuzzleView {
 
 .cn-legend {
   position: absolute;
-  top: 0.8rem;
+  /* Below ConstellationTabs, which owns the top-left corner in both readings. */
+  top: 3.4rem;
   left: 0.9rem;
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
   padding: 0.5rem 0.7rem;
-  max-height: calc(100% - 2rem);
+  max-height: calc(100% - 4.6rem);
   overflow-y: auto;
   border: 1px solid var(--color-border);
   border-radius: 8px;

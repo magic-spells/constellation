@@ -6,6 +6,12 @@ section: decisions
 order: 31
 connections:
   - PAGE-VIEWER-ATLAS
+notes:
+  - kind: decision
+    text: >-
+      Drag-to-pin was built and then removed. Picking a building up implies an authority the view
+      doesn't have — placement is computed from the graph — and it read as broken. Dragging always
+      pans; `pin` is hand-authored config.
 ---
 
 Authored atlas layout lives in `constellation/atlas.json` — the plan's **second**
@@ -27,9 +33,9 @@ files already imply; this persists something they don't.
 
 Where `doc_sections` lives, and the obvious first choice. Rejected because the two
 are different shapes: `doc_sections` is a short ordered list a person types once,
-while pins are per-card coordinates that accumulate one entry per building and are
-tuned by dragging. Hundreds of coordinate pairs would swamp the project card and
-make its diff useless.
+while pins are per-card coordinates that accumulate one entry per building.
+Hundreds of coordinate pairs would swamp the project card and make its diff
+useless.
 
 ## Rejected: `.sync.json`
 

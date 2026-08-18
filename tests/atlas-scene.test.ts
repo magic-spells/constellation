@@ -461,8 +461,11 @@ describe('lenses', () => {
     }
   });
 
-  it('heightFromUnit spans a readable range', () => {
+  // Squat on purpose: a building is ~0.62 cells wide, so a tall one must stay
+  // near 3 cells or the silhouettes stop reading and the map becomes a bar chart.
+  it('heightFromUnit stays in a squat, building-shaped range', () => {
     expect(heightFromUnit(0)).toBeGreaterThan(0);
-    expect(heightFromUnit(1)).toBeGreaterThan(heightFromUnit(0) * 5);
+    expect(heightFromUnit(1)).toBeGreaterThan(heightFromUnit(0) * 2);
+    expect(heightFromUnit(1)).toBeLessThanOrEqual(3);
   });
 });

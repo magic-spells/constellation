@@ -48,9 +48,16 @@
         <span class="at-lens-hint">{ lensHint }</span>
       </div>
 
-      <div class="at-engine" role="group" aria-label="Renderer">
-        <button type="button" class={ engine === 'iso' ? 'is-on' : '' } @click={ useIso }>Paper</button>
-        <button type="button" class={ engine === 'lit' ? 'is-on' : '' } @click={ useLit }>Lit 3D</button>
+      <!-- BOTH engines draw an isometric city; neither is a flat top-down map. So
+           the labels name the SHADING, which is the only thing that differs:
+           flat per-face fills on canvas, versus real lights and shadows in WebGL.
+           "Paper"/"Lit 3D" and "2D"/"3D" both promised a difference that is not
+           there, and reasonable people read them as a change of viewpoint. -->
+      <div class="at-engine" role="group" aria-label="Shading">
+        <button type="button" title="Flat shading on canvas — crisp, prints and exports cleanly"
+          class={ engine === 'iso' ? 'is-on' : '' } @click={ useIso }>Flat</button>
+        <button type="button" title="Real lighting and shadows in WebGL — same city, same angle"
+          class={ engine === 'lit' ? 'is-on' : '' } @click={ useLit }>Lit</button>
       </div>
 
       <div class="at-controls">
@@ -84,7 +91,7 @@
         <div class="at-readout">
           <span class="card-handle card-handle--sm" style={ hoverStyle }>{ hoverCard.handle }</span>
           <span class="at-readout-name">{ hoverCard.name }</span>
-          {#if hoverCard.detail}<span class="at-readout-detail">{ hoverCard.detail }</span>{/if}
+          {#if hoverCard.detail}<span class={ hoverCard.drifted ? 'at-readout-detail is-drifted' : 'at-readout-detail' }>{ hoverCard.detail }</span>{/if}
         </div>
       {/if}
 
@@ -100,7 +107,7 @@ import AtlasTrace from '../components/AtlasTrace.pzl';
 import Select from '../components/ui/Select.pzl';
 import { extractFlowSteps } from '../lib/markdown.js';
 import { planIndex } from '../lib/plan-index.js';
-import { loadAtlasConfig, loadAtlasMetrics, saveAtlasConfig } from '../lib/api.js';
+import { loadAtlasConfig, loadAtlasMetrics } from '../lib/api.js';
 import { hrefForHandle } from '../lib/types.js';
 import { onThemeChange } from '../lib/theme.js';
 import { buildScene } from '../lib/atlas-scene.js';
@@ -112,7 +119,6 @@ import {
   IsoRenderer,
   project,
   projectedBounds,
-  unproject,
 } from '../lib/atlas-iso.js';
 import {
   now as clockNow,
@@ -255,13 +261,24 @@ export default class AtlasView extends PuzzleView {
     const building = this.scene?.buildings.find((b) => b.handle === handle);
     if (!building) return null;
     const floors = building.floors.length;
-    const detail = floors
+    const parts = floors
       ? `${floors} ${floors === 1 ? 'part' : 'parts'} · ${building.floors
           .slice(0, 3)
           .map((f) => f.label)
           .join(', ')}${floors > 3 ? '…' : ''}`
       : null;
-    return { handle, name: building.name, type: building.type, detail };
+    // The red dashed cage is the drift lens marking a card whose bound code moved
+    // since it was verified. Say so here, or it is a mystery you have to guess at.
+    const detail = building.scaffolded
+      ? `drifted since verified${parts ? ` · ${parts}` : ''}`
+      : parts;
+    return {
+      handle,
+      name: building.name,
+      type: building.type,
+      detail,
+      drifted: Boolean(building.scaffolded),
+    };
   }
 
   mounted() {
@@ -778,38 +795,12 @@ export default class AtlasView extends PuzzleView {
       this.drag.moved = true;
     }
 
-    // Drag a building to move it; drag the ground to pan. Same split the graph
-    // view uses, and it is what makes an authored pin something you place by
-    // hand rather than type into a config file.
-    if (this.drag.handle && this.editable()) {
-      this.moveBuilding(this.drag.handle, event.clientX, event.clientY);
-      return;
-    }
+    // Dragging ALWAYS pans, including on a building. Picking a building up and
+    // moving it implies an authority this view does not have: placement is
+    // computed from the graph, and a hand-dragged position is authored config
+    // (atlas.json `pin`), not a gesture. Grabbing the city to move it is the
+    // only thing a drag can mean here.
     this.applyView({ tx: this.tx + dx, ty: this.ty + dy, scale: this.scale });
-  }
-
-  editable() {
-    return Boolean(this.ctx.store.findOne('plan', 'plan')?.editable);
-  }
-
-  /** World ground point under a client point. */
-  groundAt(clientX, clientY) {
-    const rect = this.activeCanvas().getBoundingClientRect();
-    return unproject(
-      (clientX - rect.left - this.tx) / this.scale,
-      (clientY - rect.top - this.ty) / this.scale,
-    );
-  }
-
-  /** Live feedback while dragging: move the building in the scene we already have. */
-  moveBuilding(handle, clientX, clientY) {
-    const building = this.scene?.buildings.find((b) => b.handle === handle);
-    if (!building) return;
-    const at = this.groundAt(clientX, clientY);
-    building.x = at.x;
-    building.y = at.y;
-    this.renderer.invalidate();
-    this.requestDraw();
   }
 
   onPointerUp(event) {
@@ -818,43 +809,8 @@ export default class AtlasView extends PuzzleView {
     if (!drag) return;
     this.activeCanvas()?.releasePointerCapture?.(event.pointerId);
 
-    // A click that did not move: go inside that building.
-    if (!drag.moved) {
-      if (drag.handle) this.goInside(drag.handle);
-      return;
-    }
-    if (drag.handle && this.editable()) this.pinBuilding(drag.handle, event);
-  }
-
-  /**
-   * Persist where a building was dropped, as a cell in whichever district it
-   * landed on. Snapping to a cell rather than storing raw coordinates is what
-   * keeps `atlas.json` authored intent instead of a pile of floats — and it
-   * survives the district being repacked when the plan grows.
-   */
-  async pinBuilding(handle, event) {
-    const at = this.groundAt(event.clientX, event.clientY);
-    const district = this.scene?.districts.find(
-      (d) => at.x >= d.x && at.x <= d.x + d.w && at.y >= d.y && at.y <= d.y + d.h,
-    );
-    if (!district) {
-      // Dropped off the map — put it back rather than inventing a cell.
-      this.sceneKey = null;
-      this.syncScene();
-      return;
-    }
-    const col = Math.max(0, Math.floor((at.x - district.x - district.pad) / this.scene.cell));
-    const row = Math.max(0, Math.floor((at.y - district.y - district.pad) / this.scene.cell));
-
-    const config = this.getData().config ?? {};
-    const next = { ...config, pin: { ...(config.pin ?? {}), [handle]: [col, row] } };
-    try {
-      await saveAtlasConfig(this.ctx.store, next);
-    } catch {
-      // Read-only server or a write race: fall back to the computed layout.
-      this.sceneKey = null;
-      this.syncScene();
-    }
+    // A click that did not move: go inside that building. A drag was a pan.
+    if (!drag.moved && drag.handle) this.goInside(drag.handle);
   }
 
   onDblClick(event) {
@@ -1108,6 +1064,10 @@ export default class AtlasView extends PuzzleView {
 
 .at-readout-name {
   font-weight: 600;
+}
+
+.at-readout-detail.is-drifted {
+  color: var(--color-danger);
 }
 
 .at-readout-detail {

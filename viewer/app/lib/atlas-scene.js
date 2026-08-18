@@ -37,9 +37,14 @@ const DISTRICT_PAD = CELL * 0.5;
 /** Gap between districts — the gutter roads route through. */
 const DISTRICT_GAP = CELL * 1.5;
 
-/** Height range, in cells. Even a "flat" card needs enough body to read as a solid. */
-const MIN_HEIGHT = 0.6;
-const MAX_HEIGHT = 9;
+/**
+ * Height range, in cells. Even a "flat" card needs enough body to read as a
+ * solid, and the ceiling is low on purpose: a footprint is ~0.62 cells, so 3
+ * cells is already a tower. Taller than this and buildings become needles whose
+ * silhouettes — the whole shape vocabulary — stop being legible.
+ */
+const MIN_HEIGHT = 0.35;
+const MAX_HEIGHT = 3;
 
 /**
  * Cards that are never buildings. A RELEASE is a milestone, not a place, and

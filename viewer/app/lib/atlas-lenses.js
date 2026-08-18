@@ -10,8 +10,14 @@
 // Pure: no DOM, no colour resolution (the renderer owns CSS custom properties).
 // Everything here answers in numbers and token NAMES.
 
-/** Cells of height. Matches atlas-scene's clamp so a lens can't produce a spike. */
-const FLAT = 1.4;
+/**
+ * Cells of height for a lens that isn't measuring height.
+ *
+ * A footprint is ~0.62 cells, so this is very close to a cube — a flat city
+ * reads as a city rather than a bar chart, which is the point of `status` being
+ * the default. Matches atlas-scene's clamp so a lens can't produce a spike.
+ */
+const FLAT = 0.8;
 
 export const LENSES = [
 	{
@@ -72,9 +78,16 @@ export function normalizeLog(value, max) {
 	return Math.log1p(value) / Math.log1p(max);
 }
 
-/** 0..1 → cells, across the range a building may occupy. */
+/**
+ * 0..1 → cells, across the range a building may occupy.
+ *
+ * Deliberately squat: the tallest building is only ~3.5x its own footprint.
+ * A wider range turns every measuring lens into a field of needles, where the
+ * silhouettes that tell you what a card IS stop being readable — and the shape
+ * vocabulary is the thing that makes this a map instead of a chart.
+ */
 export function heightFromUnit(unit) {
-	return 0.7 + unit * 7.5;
+	return 0.45 + unit * 1.75;
 }
 
 /**

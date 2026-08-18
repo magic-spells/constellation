@@ -78,14 +78,17 @@ the nothing-derived-is-stored rule still holds:
   "shape":  { "JOB-SYNC": "plant" },    // override the type's silhouette
   "height": { "API-TICKETS": 3 },       // override the lens
   "lens":   "drift",                    // default lens
-  "engine": "iso",                      // "iso" (paper) or "lit" (3D)
+  "engine": "iso",                      // "iso" (flat shading) or "lit" (WebGL)
   "hide":   ["FILE-TSCONFIG"]           // keep noise off the map
 }
 ```
 
-Dragging a building in the viewer writes its `pin` here. Hand-editing is fine —
-it is not a card — and a malformed file degrades to defaults rather than
-breaking the atlas.
+Hand-edited — it is not a card, so it does not go through the MCP write tools.
+A malformed file degrades to defaults rather than breaking the atlas.
+
+Dragging in the viewer pans the map; it never moves a building. Placement is
+computed from the graph, so a position is either derived or authored here, never
+nudged.
 
 ## Don't
 

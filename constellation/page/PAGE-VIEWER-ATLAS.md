@@ -37,10 +37,14 @@ and why three is vendored rather than bundled.
 
 ## Interaction
 
-Hover reads a building (name, and what is inside it). Click goes inside — except
-a FLOW, where clicking **walks** it: the card's numbered steps become a guided
-tour with the camera flying to each stop. Dragging a building pins it, which is
-written to `atlas.json` ([[DECISION-ATLAS-CONFIG-FILE]]).
+Hover reads a building (name, what is inside it, and whether it has drifted).
+Click goes inside — except a FLOW, where clicking **walks** it: the card's
+numbered steps become a guided tour with the camera flying to each stop.
+
+Dragging always pans, including on a building. Moving one by hand implies an
+authority this view does not have, since placement is computed from the graph;
+an authored position is `atlas.json` config ([[DECISION-ATLAS-CONFIG-FILE]]),
+not a gesture.
 
 Going inside a card whose neighbours are all FEATUREs would leave one building
 alone on an empty plate, since features are districts rather than buildings — so
