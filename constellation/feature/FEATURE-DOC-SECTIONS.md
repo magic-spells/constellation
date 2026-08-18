@@ -20,6 +20,7 @@ notes:
       numbers, handle-valued `section:`. Agent guidance (skill/SKILL.md, skill/methodology.md, MCP
       INSTRUCTIONS) does not yet mention `section:`/`order:` — describe_type self-serves them from
       the schemas, so it is a gap rather than a break.
+branch: feat/doc-sections
 ---
 
 DOC cards are a flat pile: one folder, alphabetical, no order and no grouping.

@@ -5,6 +5,7 @@ change: chore
 connections:
   - PAGE-VIEWER-HOME
 release: RELEASE-V0-6-0
+branch: feat/viewer-polish
 ---
 
 The GitHub link is the first item in the topbar's right-hand group, so it sits

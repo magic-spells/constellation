@@ -13,6 +13,7 @@ notes:
       cards.length) and `overflow` ({text, href}) — so the cap is BoardPage policy, not board
       behaviour. Left `set_verified` as the only stamper of `verified_at`; an unstamped verified
       card sorts below every stamped one on the mtime fallback.
+branch: feat/viewer-polish
 ---
 
 Planned, Building and Built all drain — a card leaves them. **Verified does
