@@ -1,6 +1,6 @@
 ---
 name: Architecture atlas — the plan as an isometric city
-status: built
+status: verified
 change: feature
 connections:
   - DOC-DIAGRAMS
@@ -23,6 +23,13 @@ notes:
     text: >-
       `constellation atlas --png` was not built; in-app PNG download was. A CLI flag needs a
       headless browser, which is a disproportionate dependency for a still image.
+  - kind: verified
+    text: >-
+      Driven in a browser at 0.6.0: both engines, all five lenses, flow trace, drill-down, hover
+      readout, and the atlas.json config path. 645 tests green.
+    sha: 2790152d9503b921ee03c26f14a5f9e31b0b70f1
+verified_at: '2026-08-18T04:41:53.146Z'
+verified_sha: 2790152d9503b921ee03c26f14a5f9e31b0b70f1
 ---
 
 The constellation canvas at `#/constellation` answers *what connects to what*.

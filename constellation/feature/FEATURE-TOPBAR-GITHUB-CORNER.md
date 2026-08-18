@@ -1,11 +1,19 @@
 ---
 name: GitHub link moves to the top-right corner
-status: built
+status: verified
 change: chore
 connections:
   - PAGE-VIEWER-HOME
 release: RELEASE-V0-6-0
 branch: feat/viewer-polish
+verified_at: '2026-08-18T04:42:19.214Z'
+verified_sha: 2790152d9503b921ee03c26f14a5f9e31b0b70f1
+notes:
+  - kind: verified
+    text: >-
+      Verified at 0.6.0: the GitHub link sits last in the topbar's right-hand group, in the far
+      corner, across every view driven this session.
+    sha: 2790152d9503b921ee03c26f14a5f9e31b0b70f1
 ---
 
 The GitHub link is the first item in the topbar's right-hand group, so it sits
