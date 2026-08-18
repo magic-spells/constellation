@@ -1,4 +1,4 @@
-import { open, realpath, stat } from 'node:fs/promises';
+import { open, readdir, readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { repoRootFor } from './git.js';
 import type { Card, PlanIndex } from './types.js';
@@ -265,4 +265,106 @@ export async function resolveCodeForCard(
   }
 
   return { repo_root: repoRoot, files, total_bytes: total, budget_exhausted: budgetExhausted, missing };
+}
+
+/** Size of one card's bound code. */
+export interface CodeMetric {
+  files: number;
+  bytes: number;
+  lines: number;
+}
+
+// A card may bind a whole folder, so the walk is unbounded in principle (`src`,
+// or the repo root itself). These caps keep one card's measurement bounded no
+// matter what it points at — a partial count beats hanging the server.
+const METRIC_MAX_FILES = 1500;
+const METRIC_MAX_DEPTH = 12;
+const WALK_SKIP_DIRS = new Set([
+  'node_modules', 'dist', 'build', 'out', 'coverage', '.next', '.git', 'vendor',
+]);
+
+/** Add one file to a card's totals. Anything unreadable simply doesn't count. */
+async function measureFile(abs: string, rel: string, m: CodeMetric): Promise<void> {
+  // Binaries and generated blobs contribute their size but are never opened —
+  // "lines" is meaningless for them and the bytes are the whole point.
+  if (skipReason(rel)) {
+    const s = await stat(abs).catch(() => null);
+    if (s?.isFile()) {
+      m.files += 1;
+      m.bytes += s.size;
+    }
+    return;
+  }
+  const buf = await readFile(abs).catch(() => null);
+  if (!buf) return;
+  m.files += 1;
+  m.bytes += buf.length;
+  for (let i = buf.indexOf(10); i !== -1; i = buf.indexOf(10, i + 1)) m.lines += 1;
+}
+
+async function walkDir(
+  abs: string,
+  rel: string,
+  m: CodeMetric,
+  depth: number,
+  budget: { left: number },
+): Promise<void> {
+  if (depth > METRIC_MAX_DEPTH || budget.left <= 0) return;
+  const entries = await readdir(abs, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (budget.left <= 0) return;
+    // Symlinks are neither file nor directory here, which is the point: they
+    // can loop, and they can leave the repo.
+    if (entry.isDirectory()) {
+      if (WALK_SKIP_DIRS.has(entry.name)) continue;
+      await walkDir(
+        path.join(abs, entry.name),
+        `${rel}/${entry.name}`,
+        m,
+        depth + 1,
+        budget,
+      );
+    } else if (entry.isFile()) {
+      budget.left -= 1;
+      await measureFile(path.join(abs, entry.name), `${rel}/${entry.name}`, m);
+    }
+  }
+}
+
+/**
+ * Size of every card's bound code, keyed by handle — the atlas's "size" lens.
+ * Cards with no binding are absent (not zero): unbound is a different thing
+ * from bound-and-empty. A card whose bound paths have all moved away reports
+ * zeros, which is itself the signal.
+ */
+export async function codeMetrics(index: PlanIndex): Promise<Record<string, CodeMetric>> {
+  let repoRoot: string | null = null;
+  try {
+    repoRoot = await repoRootFor(await realpath(index.root));
+  } catch {
+    return {};
+  }
+
+  const out: Record<string, CodeMetric> = {};
+  for (const card of index.cards.values()) {
+    const bound = boundPathsForCard(index, card);
+    if (bound.length === 0) continue;
+    const m: CodeMetric = { files: 0, bytes: 0, lines: 0 };
+    const budget = { left: METRIC_MAX_FILES };
+    for (const b of bound) {
+      const abs = path.resolve(repoRoot, b.path);
+      // Same containment rule as resolveCodeForCard: a `..` path must not report
+      // on files outside the repo, sizes included.
+      if (abs !== repoRoot && !abs.startsWith(repoRoot + path.sep)) continue;
+      const s = await stat(abs).catch(() => null);
+      if (!s) continue;
+      if (s.isDirectory()) await walkDir(abs, b.path, m, 0, budget);
+      else if (s.isFile()) {
+        budget.left -= 1;
+        await measureFile(abs, b.path, m);
+      }
+    }
+    out[card.handle] = m;
+  }
+  return out;
 }

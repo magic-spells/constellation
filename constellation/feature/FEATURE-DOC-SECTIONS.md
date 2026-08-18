@@ -1,6 +1,6 @@
 ---
 name: Documentation sections and export
-status: built
+status: verified
 change: feature
 connections:
   - DOC-CARD-TYPES
@@ -20,7 +20,15 @@ notes:
       numbers, handle-valued `section:`. Agent guidance (skill/SKILL.md, skill/methodology.md, MCP
       INSTRUCTIONS) does not yet mention `section:`/`order:` — describe_type self-serves them from
       the schemas, so it is a gap rather than a break.
+  - kind: verified
+    text: >-
+      Verified at 0.6.0: /docs and /docs/:section render the compiled document with the gutter rail,
+      and the print sheet renders the same markup — including STYLE cards' tokens, added this
+      release.
+    sha: 2790152d9503b921ee03c26f14a5f9e31b0b70f1
 branch: feat/doc-sections
+verified_at: '2026-08-18T04:42:00.963Z'
+verified_sha: 2790152d9503b921ee03c26f14a5f9e31b0b70f1
 ---
 
 DOC cards are a flat pile: one folder, alphabetical, no order and no grouping.

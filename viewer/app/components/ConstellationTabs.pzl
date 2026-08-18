@@ -1,0 +1,115 @@
+<puzzle-view>
+  <div class="cn-tabs" role="group" aria-label="Constellation view">
+    {#for tab in tabs}
+      <button
+        type="button"
+        key={ tab.value }
+        class={ tab.active ? 'is-on' : '' }
+        aria-pressed={ tab.active ? 'true' : 'false' }
+        title={ tab.hint }
+        @click={ go(tab.value) }>{ tab.label }</button>
+    {/for}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// ConstellationTabs — the Graph/Atlas switch shared by the two canvas views.
+//
+//   <ConstellationTabs active="graph"/>
+//   <ConstellationTabs active="atlas"/>
+//
+// ONE SUBJECT, TWO READINGS. Both render the SAME cards and the SAME connections
+// and differ only in the question they answer. Graph answers "what connects to
+// what" — force-clustered by type, every edge available. Atlas answers "what
+// shape is this system" — the same graph as an isometric city, where a district
+// is a FEATURE, a building is a card and a road is a FLOW. Neither is a subset
+// of the other, which is why they sit behind one sidebar row as peers.
+//
+// A SEGMENTED GROUP, not a tablist. Tasks uses underline tabs because it frames
+// a document region, where "these are panels of one page" is the right reading.
+// Here the whole box is a canvas with controls floating over it, and this is a
+// MODE switch sitting beside another one (Flat/Lit). Underlines read as document
+// chrome that has drifted onto a map; matching buttons read as what they are.
+//
+// THE BUTTONS NAVIGATE. Each is a route, not an in-place toggle, because
+// everything else in this viewer is URL-driven: deep links, Back, and the atlas
+// drill-down (`/constellation/atlas/HANDLE`, a route of its own) all depend on
+// the URL describing what you are looking at.
+//
+// Props
+//   active  'graph' | 'atlas' — which button reads as selected
+
+const TABS = [
+	{ value: 'graph', label: 'Graph', hint: 'Force-clustered nodes — what connects to what' },
+	{ value: 'atlas', label: 'Atlas', hint: 'An isometric city — what shape the system is' },
+];
+
+const PATH = {
+	graph: '/constellation/graph',
+	atlas: '/constellation/atlas',
+};
+
+export default class ConstellationTabs extends PuzzleView {
+	data(params, props) {
+		const active = props.active === 'atlas' ? 'atlas' : 'graph';
+		return {
+			active,
+			tabs: TABS.map((t) => ({ ...t, active: t.value === active })),
+		};
+	}
+
+	events = {
+		go: (value) => {
+			const path = PATH[value];
+			// Guard the no-op: pushing the route you are already on would stack a
+			// duplicate history entry, so Back would need two presses to leave.
+			if (!path || value === this.getData().active) return;
+			void this.ctx.router.push(path);
+		},
+	};
+}
+</script>
+
+<style>
+/* Floats over the canvas, top-left, in BOTH readings — a switcher that moves
+   when you switch is worse than none. Same family as the view's own zoom
+   controls, and deliberately the same shape as the atlas's Flat/Lit group.
+
+   Plain, not scoped: .pzl <style> blocks are collected into one sheet, and
+   `scoped` on a COMPONENT applies nothing at all. */
+.cn-tabs {
+	position: absolute;
+	top: 0.75rem;
+	left: 0.9rem;
+	z-index: 3;
+	display: flex;
+	gap: 0.15rem;
+	border: 1px solid var(--color-border);
+	border-radius: 0.5rem;
+	background: color-mix(in oklab, var(--color-surface) 90%, transparent);
+	padding: 0.15rem;
+	backdrop-filter: blur(6px);
+}
+
+.cn-tabs button {
+	border: 0;
+	border-radius: 0.35rem;
+	background: none;
+	padding: 0.25rem 0.7rem;
+	color: var(--color-muted);
+	font-size: 0.78rem;
+	line-height: 1.4;
+	cursor: pointer;
+}
+
+.cn-tabs button:hover:not(.is-on) {
+	color: var(--color-ink);
+}
+
+.cn-tabs button.is-on {
+	background: var(--color-brand);
+	color: var(--color-brand-ink);
+}
+</style>

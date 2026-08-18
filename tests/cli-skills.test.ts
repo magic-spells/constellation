@@ -84,6 +84,12 @@ describe('installSkills', () => {
     const skill = await readFile(path.join(dest, 'SKILL.md'), 'utf8');
     expect(skill).toContain('constellation');
     await expect(readFile(path.join(dest, 'methodology.md'), 'utf8')).resolves.toBeTruthy();
+    // Topical references ship too — the install is a recursive copy with no manifest,
+    // and this is what keeps that true if anyone reaches for a file list.
+    await expect(readFile(path.join(dest, 'atlas.md'), 'utf8')).resolves.toBeTruthy();
+    await expect(
+      readFile(path.join(dest, 'types', 'feature.md'), 'utf8'),
+    ).resolves.toBeTruthy();
     const stamp = await readFile(path.join(dest, SKILL_VERSION_FILE), 'utf8');
     expect(stamp.trim()).toBe('1.2.3');
     await expect(readFile(path.join(dest, 'leftover.md'), 'utf8')).rejects.toThrow();

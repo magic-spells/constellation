@@ -1,0 +1,1107 @@
+<puzzle-view>
+  <div ref="container" class="atlas">
+    {#if empty}
+      <div class="atlas-empty">
+        <span class="star">▦</span>
+        <p>This plan has no cards yet.</p>
+        <p class="atlas-empty-hint">The atlas draws what the plan holds — write a card and a building appears.</p>
+      </div>
+    {:else}
+      <!-- Two canvases, not one: a canvas keeps its context type for life, so a
+           canvas that has served 2D can never give back WebGL. Only the active
+           one is visible; both carry the same input handlers. -->
+      <canvas
+        ref="canvas"
+        class="atlas-canvas"
+        hidden={ engine !== 'flat' }
+        tabindex="0"
+        aria-label={ canvasLabel }
+        @pointerdown={ onPointerDown(event) }
+        @pointermove={ onPointerMove(event) }
+        @pointerup={ onPointerUp(event) }
+        @dblclick={ onDblClick(event) }
+        @wheel={ onWheel(event) }
+        @keydown={ onCanvasKey(event) }></canvas>
+      <canvas
+        ref="glcanvas"
+        class="atlas-canvas"
+        hidden={ engine !== 'lit' }
+        tabindex="0"
+        aria-label={ canvasLabel }
+        @pointerdown={ onPointerDown(event) }
+        @pointermove={ onPointerMove(event) }
+        @pointerup={ onPointerUp(event) }
+        @dblclick={ onDblClick(event) }
+        @wheel={ onWheel(event) }
+        @keydown={ onCanvasKey(event) }></canvas>
+
+      <ConstellationTabs active="atlas"/>
+
+      <div class="at-lens">
+        <span class="at-lens-label">Lens</span>
+        <Select
+          class="w-40"
+          options={ lensOptions }
+          value={ lens }
+          indicator="chevrons"
+          @change={ setLens }/>
+        <span class="at-lens-hint">{ lensHint }</span>
+      </div>
+
+      <!-- BOTH engines draw an isometric city; neither is a flat top-down map. So
+           the labels name the SHADING, which is the only thing that differs:
+           flat per-face fills on canvas, versus real lights and shadows in WebGL.
+           "Paper"/"Lit 3D" and "2D"/"3D" both promised a difference that is not
+           there, and reasonable people read them as a change of viewpoint. -->
+      <div class="at-engine" role="group" aria-label="Shading">
+        <button type="button" title="Street map — seen from above, with the streets data runs along"
+          class={ engine === 'flat' ? 'is-on' : '' } @click={ useFlat }>Flat</button>
+        <button type="button" title="The same plan as a 3D city of blocks"
+          class={ engine === 'lit' ? 'is-on' : '' } @click={ useLit }>3D</button>
+      </div>
+
+      <div class="at-controls">
+        <button type="button" @click={ zoomIn } aria-label="Zoom in">+</button>
+        <button type="button" @click={ zoomOut } aria-label="Zoom out">−</button>
+        <button type="button" @click={ fitAll } aria-label="Fit the whole city">⤢</button>
+        <button type="button" @click={ exportPng } aria-label="Download a PNG of the atlas">⤓</button>
+      </div>
+
+      {#if inside}
+        <div class="at-inside">
+          <button type="button" @click={ goOutside }>← Come back out</button>
+          <span class="card-handle card-handle--sm" style={ insideStyle }>{ inside }</span>
+        </div>
+      {/if}
+
+      {#if trace}
+        <AtlasTrace
+          flow={ trace.flow }
+          name={ trace.name }
+          index={ trace.index }
+          total={ trace.total }
+          stepHtml={ trace.stepHtml }
+          branches={ trace.branches }
+          stop={ trace.stop }
+          playing={ trace.playing }
+          @step={ traceStep }
+          @toggle={ traceToggle }
+          @close={ traceClose }/>
+      {:else if hoverCard}
+        <div class="at-readout">
+          <span class="card-handle card-handle--sm" style={ hoverStyle }>{ hoverCard.handle }</span>
+          <span class="at-readout-name">{ hoverCard.name }</span>
+          {#if hoverCard.detail}<span class={ hoverCard.drifted ? 'at-readout-detail is-drifted' : 'at-readout-detail' }>{ hoverCard.detail }</span>{/if}
+        </div>
+      {/if}
+
+      <p class="at-legend">→ go inside · ← come back out · drag to pan · scroll to zoom · hover to read</p>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import ConstellationTabs from '../components/ConstellationTabs.pzl';
+import AtlasTrace from '../components/AtlasTrace.pzl';
+import Select from '../components/ui/Select.pzl';
+import { extractFlowSteps } from '../lib/markdown.js';
+import { planIndex } from '../lib/plan-index.js';
+import { loadAtlasConfig, loadAtlasMetrics } from '../lib/api.js';
+import { hrefForHandle } from '../lib/types.js';
+import { onThemeChange } from '../lib/theme.js';
+import { buildScene } from '../lib/atlas-scene.js';
+import { LENSES, lensModel, normalizeLens } from '../lib/atlas-lenses.js';
+import { atlasPalette } from '../lib/atlas-palette.js';
+import { loadThree, threeReady, ThreeRenderer } from '../lib/atlas-three.js';
+import { fitProjected, project, projectedBounds } from '../lib/atlas-iso.js';
+import { fitFlat, flatBounds, FlatRenderer } from '../lib/atlas-flat.js';
+import {
+  now as clockNow,
+  Ticker,
+  ViewportTween,
+  wheelFactor,
+  zoomAt,
+  zoomAtCenter,
+} from '../lib/canvas-camera.js';
+
+// AtlasView — the plan as an isometric city.
+//
+// The second reading of the same graph the node view renders (see
+// ConstellationTabs for why they are peers behind one sidebar row). Everything
+// about WHERE things sit lives in atlas-scene.js, everything about HOW they look
+// lives in atlas-iso.js + atlas-palette.js. This file is the wiring: store →
+// scene → renderer, plus camera, input and overlays.
+//
+// Same discipline as the graph view: reactive `setData` drives the HTML overlays
+// ONLY. Anything painted per frame is a plain instance field, off the reactive
+// path, because a canvas repaint must not cost a component re-render.
+//
+// The scene is rebuilt only when the plan generation or the lens changes — never
+// per frame — and cached on the instance. It is never written back to a card;
+// the graph, the districts and the layout are all derived, every time.
+
+/** One full traverse of a flow route, in ms. Slow enough to follow by eye. */
+const ROUTE_PERIOD = 4200;
+
+/** How long a played trace rests on each step before moving on. */
+const STEP_DWELL = 2600;
+
+export default class AtlasView extends PuzzleView {
+  created() {
+    // `lensChoice` is the reader's explicit pick, null until they make one, so
+    // atlas.json's default wins first. It is deliberately NOT the `lens` key
+    // data() returns: data()'s output is merged back into the data store, so
+    // reading `lens` here would read the previously RESOLVED value and the
+    // config default could never apply. Same trap as `trace` (see stepTrace).
+    this.setData({
+      hovered: null,
+      lensChoice: null,
+      engineChoice: null,
+      traceFlow: null,
+      traceIndex: 0,
+      tracePlaying: false,
+    });
+
+    this.scene = null;
+    this.renderer = new FlatRenderer();
+    this.palette = null;
+    this.tx = 0;
+    this.ty = 0;
+    this.scale = 1;
+    this.width = 0;
+    this.height = 0;
+    this.canvasEl = null;
+    this.canvasCtx = null;
+    this.drag = null;
+    this.isMounted = false;
+    this.fitted = false;
+    this.sceneKey = null;
+    this.routeStart = 0;
+
+    this.vp = new ViewportTween({ duration: 520 });
+    this.ticker = new Ticker((now) => this.frame(now));
+    this.resizeObserver = null;
+    this.unsubscribeTheme = null;
+    this.resize = () => this.resizeCanvas();
+  }
+
+  data(params, props) {
+    const store = this.ctx.store;
+    const index = planIndex(store);
+    // findOne, not peekRecord: this must re-run when the atlas config and
+    // metrics land, which they do asynchronously after mount.
+    const plan = store.findOne('plan', 'plan');
+    const cards = index ? [...index.byHandle.values()] : [];
+    const config = plan?.atlasConfig ?? null;
+    const lens = normalizeLens(this.getData?.().lensChoice ?? config?.lens);
+
+    const inside = String(this.route?.params?.handle ?? '').toUpperCase() || null;
+    const hovered = this.getData?.().hovered ?? null;
+    const hoverCard = hovered ? this.readout(hovered) : null;
+
+    return {
+      empty: cards.length === 0,
+      generation: plan?.generation ?? 0,
+      cards,
+      connections: index?.connections ?? [],
+      neighbors: index?.neighbors ?? new Map(),
+      sync: plan?.sync ?? null,
+      config,
+      metrics: plan?.atlasMetrics ?? null,
+      lens,
+      engine: this.getData?.().engineChoice ?? (config?.engine === 'lit' ? 'lit' : 'flat'),
+      lensOptions: LENSES.map((l) => ({ value: l.id, label: l.label })),
+      lensHint: LENSES.find((l) => l.id === lens)?.hint ?? '',
+      inside,
+      insideStyle: inside ? `--c: var(--t-${inside.split('-')[0]})` : '',
+      hoverCard,
+      hoverStyle: hoverCard ? `--c: var(--t-${hoverCard.type})` : '',
+      trace: this.traceModel(cards),
+      canvasLabel: `Architecture atlas — ${cards.length} cards as a city`,
+    };
+  }
+
+  /**
+   * The trace panel's props, or null when no flow is being walked.
+   *
+   * Steps come from the FLOW card's body through the SAME `extractFlowSteps`
+   * the card page uses, so a step reads identically in both places. The scene's
+   * route supplies which building each step is at.
+   */
+  traceModel(cards) {
+    const state = this.getData?.() ?? {};
+    if (!state.traceFlow) return null;
+    const card = cards.find((c) => c.handle === state.traceFlow);
+    const route = this.scene?.routes.find((r) => r.id === state.traceFlow);
+    const steps = this.flowSteps(card);
+    if (!card || steps.length === 0) return null;
+
+    const index = Math.max(0, Math.min(state.traceIndex ?? 0, steps.length - 1));
+    return {
+      flow: card.handle,
+      name: card.name || card.handle,
+      index,
+      total: steps.length,
+      stepHtml: steps[index].html,
+      branches: steps[index].branches ?? [],
+      // A step may narrate something with no building (a decision, a wait), so
+      // the stop is genuinely optional rather than an index into the route.
+      stop: route?.stops?.[index] ?? null,
+      playing: Boolean(state.tracePlaying),
+    };
+  }
+
+  /** The hover panel's three lines: handle, name, and what is inside the block. */
+  readout(handle) {
+    const building = this.scene?.buildings.find((b) => b.handle === handle);
+    if (!building) return null;
+    const floors = building.floors.length;
+    const parts = floors
+      ? `${floors} ${floors === 1 ? 'part' : 'parts'} · ${building.floors
+          .slice(0, 3)
+          .map((f) => f.label)
+          .join(', ')}${floors > 3 ? '…' : ''}`
+      : null;
+    // The red dashed cage is the drift lens marking a card whose bound code moved
+    // since it was verified. Say so here, or it is a mystery you have to guess at.
+    const detail = building.scaffolded
+      ? `drifted since verified${parts ? ` · ${parts}` : ''}`
+      : parts;
+    return {
+      handle,
+      name: building.name,
+      type: building.type,
+      detail,
+      drifted: Boolean(building.scaffolded),
+    };
+  }
+
+  mounted() {
+    this.isMounted = true;
+    this.ensureCanvas();
+
+    const container = this.refs.container;
+    if (container && typeof ResizeObserver === 'function') {
+      this.resizeObserver = new ResizeObserver(this.resize);
+      this.resizeObserver.observe(container);
+    }
+    this.resizeCanvas();
+
+    if (typeof window.matchMedia === 'function') {
+      const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+      this.vp.reduceMotion = query.matches;
+    }
+
+    this.unsubscribeTheme = onThemeChange(() => {
+      this.palette = null;
+      this.requestDraw();
+    });
+
+    // Atlas-only payloads, fetched here rather than in the app's boot load: the
+    // metrics route stats the repo, and most readers never open this view.
+    // Failures are non-fatal — the city just draws without pins or a size lens.
+    void loadAtlasConfig(this.ctx.store).catch(() => {});
+    void loadAtlasMetrics(this.ctx.store).catch(() => {});
+
+    this.syncScene();
+    this.requestDraw();
+  }
+
+  afterUpdate() {
+    if (!this.isMounted) return;
+    this.ensureCanvas();
+    this.syncScene();
+  }
+
+  destroyed() {
+    this.isMounted = false;
+    this.ticker.cancel();
+    this.vp.cancel();
+    if (this.resizeObserver) this.resizeObserver.disconnect();
+    this.resizeObserver = null;
+    if (this.unsubscribeTheme) this.unsubscribeTheme();
+    this.unsubscribeTheme = null;
+    // WebGL contexts and GPU buffers are not garbage collected on their own.
+    this.three?.dispose?.();
+    this.three = null;
+    this.scene = null;
+    this.canvasCtx = null;
+    this.canvasEl = null;
+    this.drag = null;
+  }
+
+  events = {
+    onPointerDown: (event) => this.onPointerDown(event),
+    onPointerMove: (event) => this.onPointerMove(event),
+    onPointerUp: (event) => this.onPointerUp(event),
+    onDblClick: (event) => this.onDblClick(event),
+    onWheel: (event) => this.onWheel(event),
+    onCanvasKey: (event) => this.onCanvasKey(event),
+    // Bare reference: the Select piece hands (value, event) to whatever it is
+    // given, and a call form in the template would pass undefined.
+    setLens: (value) => this.setLens(value),
+    zoomIn: () => this.zoomBy(1.25),
+    zoomOut: () => this.zoomBy(0.8),
+    fitAll: () => this.fitAll(),
+    exportPng: () => this.exportPng(),
+    goOutside: () => this.ctx.router.push('/constellation/atlas'),
+    useFlat: () => this.setEngine('flat'),
+    useLit: () => this.setEngine('lit'),
+    traceStep: (delta) => this.stepTrace(delta),
+    traceToggle: () => this.toggleTrace(),
+    traceClose: () => this.endTrace(),
+  };
+
+  // ── Flow trace ───────────────────────────────────────────────────────────
+
+  /**
+   * A flow's steps, memoised per card body.
+   *
+   * The source of truth for the trace is `traceFlow` / `traceIndex` in setData
+   * state — never the `trace` model, which is computed inside `data()` and is
+   * not readable back through `getData()`. Reading it there is what made the
+   * step buttons silently no-op.
+   */
+  flowSteps(card) {
+    if (!card) return [];
+    if (this.stepsCacheKey !== card.handle) {
+      this.stepsCacheKey = card.handle;
+      this.stepsCache = extractFlowSteps(card.body ?? '')?.steps ?? [];
+    }
+    return this.stepsCache;
+  }
+
+  /** The FLOW card being traced, read from the store rather than from data(). */
+  traceCard() {
+    const handle = this.getData().traceFlow;
+    if (!handle) return null;
+    return planIndex(this.ctx.store)?.byHandle.get(handle) ?? null;
+  }
+
+  traceTotal() {
+    return this.flowSteps(this.traceCard()).length;
+  }
+
+  startTrace(handle) {
+    this.setData({ traceFlow: handle, traceIndex: 0, tracePlaying: false, hovered: null });
+    this.goToStep(0);
+  }
+
+  stepTrace(delta) {
+    const total = this.traceTotal();
+    if (total === 0) return;
+    const current = this.getData().traceIndex ?? 0;
+    const next = Math.max(0, Math.min(current + delta, total - 1));
+    if (next === current) return;
+    this.setData({ traceIndex: next });
+    this.goToStep(next);
+  }
+
+  toggleTrace() {
+    const playing = !this.getData().tracePlaying;
+    this.setData({ tracePlaying: playing });
+    this.lastAdvance = clockNow();
+    this.requestDraw();
+  }
+
+  endTrace() {
+    this.setData({ traceFlow: null, traceIndex: 0, tracePlaying: false });
+    this.requestDraw();
+  }
+
+  /** Fly the camera to the building this step happens at, keeping the zoom. */
+  goToStep(index) {
+    const flow = this.getData().traceFlow;
+    const route = this.scene?.routes.find((r) => r.id === flow);
+    const stop = route?.stops?.[index];
+    const building = stop && this.scene.buildings.find((b) => b.handle === stop);
+    if (!building) {
+      this.requestDraw();
+      return;
+    }
+    const p = project(building.x, building.y, building.height * this.scene.cell * 0.5);
+    const target = {
+      tx: this.width / 2 - this.scale * p.x,
+      ty: this.height / 2 - this.scale * p.y,
+      scale: this.scale,
+    };
+    const view = this.vp.begin(this.view(), target, clockNow());
+    this.applyView(view);
+    if (this.vp.active) this.ticker.request();
+  }
+
+  // ── Scene ────────────────────────────────────────────────────────────────
+
+  /**
+   * Rebuild the city when the plan or the lens changed — and only then. The key
+   * is what the layout actually depends on, so a hover or a pan never rebuilds.
+   */
+  syncScene() {
+    const data = this.getData();
+    const config = data.config ?? {};
+    // The key is exactly what the LAYOUT depends on, so hovering, panning or
+    // stepping a trace never rebuilds the city.
+    const key = [
+      data.generation,
+      data.lens,
+      data.inside ?? '',
+      data.metrics ? 'm' : '',
+      JSON.stringify(config),
+    ].join('|');
+    if (key === this.sceneKey) return;
+    this.sceneKey = key;
+
+    const degree = new Map();
+    for (const { a, b } of data.connections) {
+      degree.set(a, (degree.get(a) ?? 0) + 1);
+      degree.set(b, (degree.get(b) ?? 0) + 1);
+    }
+
+    const stale = new Map(
+      (data.sync?.stale?.stale ?? []).map((entry) => [entry.handle, entry]),
+    );
+
+    const metrics = new Map(Object.entries(data.metrics ?? {}));
+    const model = lensModel(data.lens, { degree, stale, metrics, now: Date.now() });
+
+    // Going inside narrows the city to one card's neighbourhood — the same graph,
+    // one district deep. The URL carries it, so Back walks out.
+    let cards = data.cards;
+    if (data.inside) {
+      cards = cards.filter((card) => this.neighbourhood(data, data.inside).has(card.handle));
+    }
+
+    this.scene = buildScene({
+      cards,
+      connections: data.connections,
+      neighbors: data.neighbors,
+      // An authored height override wins over the lens: the author asked for it.
+      height: (card) => config.height?.[card.handle] ?? model.height(card),
+      hide: new Set(config.hide ?? []),
+      pin: new Map(Object.entries(config.pin ?? {})),
+      shape: new Map(Object.entries(config.shape ?? {})),
+      districtOrder: config.districts ?? [],
+    });
+
+    // The lens speaks through the scene, so the renderer needs no lens concept.
+    for (const building of this.scene.buildings) {
+      const card = data.cards.find((c) => c.handle === building.handle);
+      building.tone = card ? model.tone(card) : null;
+      building.scaffolded = card ? model.scaffolded(card) : false;
+    }
+
+    // Frame the new city here rather than waiting on a resize: a rebuild can
+    // change the bounds (a lens change, going inside), and until something else
+    // happened to fire the ResizeObserver the camera still framed the old one.
+    this.fitted = false;
+    if (this.width) this.fitAll(true);
+    this.requestDraw();
+  }
+
+  /**
+   * The cards to show when standing inside `handle`.
+   *
+   * One hop, normally. But most connections in a real plan run to FEATURE cards,
+   * which are districts rather than buildings — so a card whose only neighbours
+   * are features would leave you looking at a single building on an empty plate.
+   * When the first hop is that thin, take a second one.
+   */
+  neighbourhood(data, handle) {
+    const hop = (from) => data.neighbors.get(from) ?? [];
+    const keep = new Set([handle, ...hop(handle)]);
+    const buildings = [...keep].filter(
+      (h) => !['FEATURE', 'RELEASE', 'PLAN'].includes(h.split('-')[0]),
+    );
+    if (buildings.length >= 4) return keep;
+    for (const near of [...keep]) for (const far of hop(near)) keep.add(far);
+    return keep;
+  }
+
+  /**
+   * Switch renderer. The lit engine's ~750 KB is fetched on the first switch and
+   * never before, so a reader who stays on the paper map never pays for it.
+   * A failed load falls back rather than leaving a blank canvas.
+   */
+  async setEngine(engine) {
+    if (engine === this.getData().engine) return;
+
+    // Flip the state SYNCHRONOUSLY, inside the click's own tick — a setData that
+    // lands after an await is outside the event and does not re-render, which
+    // made the first version load three and then keep drawing the paper map.
+    this.setData({ engineChoice: engine, engine });
+    this.three?.dispose?.();
+    this.three = null;
+
+    if (engine === 'lit' && !threeReady()) {
+      try {
+        await loadThree();
+      } catch {
+        // Fall back rather than leaving a blank canvas.
+        this.setData({ engineChoice: 'flat', engine: 'flat' });
+        return;
+      }
+      if (!this.isMounted) return;
+    }
+
+    this.resizeCanvas();
+    // Refit: the two engines are different PROJECTIONS, not two shadings of one,
+    // so a camera computed for the map means nothing to the 3D city and framed
+    // empty space. Each engine frames the scene its own way on arrival.
+    this.fitted = false;
+    this.fitAll(true);
+    this.requestDraw();
+  }
+
+  /**
+   * Switching a lens must take effect NOW.
+   *
+   * setData does not re-run data(), so writing only `lensChoice` left every
+   * derived value — `lens`, the hint, and the scene key syncScene compares —
+   * holding the old lens until something else forced a re-render. In practice
+   * that was the 20s /api/sync poll, so a lens change appeared to take up to
+   * 20 seconds and looked like a computation cost. It was a latch.
+   *
+   * So the derived values are written alongside the choice. Same for setEngine.
+   */
+  setLens(value) {
+    const lens = normalizeLens(value);
+    if (lens === this.getData().lens) return;
+    this.setData({
+      lensChoice: lens,
+      lens,
+      lensHint: LENSES.find((l) => l.id === lens)?.hint ?? '',
+    });
+    this.syncScene();
+  }
+
+  // ── Canvas plumbing ──────────────────────────────────────────────────────
+
+  ensureCanvas() {
+    const canvas = this.refs.canvas || this.element.querySelector('canvas');
+    if (canvas === this.canvasEl) return;
+    this.canvasEl = canvas || null;
+    this.canvasCtx = null;
+  }
+
+  resizeCanvas() {
+    const canvas = this.canvasEl;
+    const container = this.refs.container;
+    if (!canvas || !container) return;
+    const rect = container.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    this.width = Math.max(1, Math.round(rect.width));
+    this.height = Math.max(1, Math.round(rect.height));
+    canvas.width = Math.round(this.width * dpr);
+    canvas.height = Math.round(this.height * dpr);
+    canvas.style.width = `${this.width}px`;
+    canvas.style.height = `${this.height}px`;
+    this.canvasCtx = null;
+    // three owns its own canvas's backing store; asking it to resize is how the
+    // WebGL viewport and the camera frustum stay in step with the CSS box.
+    this.three?.resize(this.width, this.height, dpr);
+    if (!this.fitted) this.fitAll(true);
+    this.requestDraw();
+  }
+
+  requestDraw() {
+    if (!this.isMounted) return;
+    this.pendingDraw = true;
+    this.ticker.request();
+  }
+
+  frame(now) {
+    const moved = this.vp.advance(now);
+    if (moved) {
+      this.tx = moved.tx;
+      this.ty = moved.ty;
+      this.scale = moved.scale;
+    }
+    this.advancePlayback(now);
+    this.draw(now);
+    this.pendingDraw = false;
+    // Roads animate continuously while a plan has any, which is the one thing
+    // in this view that legitimately keeps the loop alive.
+    return this.vp.active || this.pendingDraw || (this.scene?.routes.length ?? 0) > 0;
+  }
+
+  /** Auto-advance a playing trace, one step per STEP_DWELL. */
+  advancePlayback(now) {
+    const data = this.getData();
+    if (!data.tracePlaying || !data.traceFlow) return;
+    if (now - (this.lastAdvance ?? 0) < STEP_DWELL) return;
+    this.lastAdvance = now;
+    if ((data.traceIndex ?? 0) >= this.traceTotal() - 1) {
+      this.setData({ tracePlaying: false });
+      return;
+    }
+    this.stepTrace(1);
+  }
+
+  draw(now = clockNow()) {
+    if (!this.scene) return;
+
+    const types = [...new Set(this.scene.buildings.map((b) => b.type))];
+    this.palette ??= atlasPalette(types);
+
+    const data = this.getData();
+    const highlight = data.hovered
+      ? new Set([data.hovered, ...(data.neighbors.get(data.hovered) ?? [])])
+      : null;
+
+    // While tracing, the dot sits ON the current step rather than looping, so
+    // the marker and the caption always agree about where you are.
+    const flow = data.traceFlow ?? null;
+    const stepIndex = data.traceIndex ?? 0;
+    const total = flow ? this.traceTotal() : 0;
+    const progress = flow
+      ? total > 1
+        ? stepIndex / (total - 1)
+        : 0
+      : ((now - this.routeStart) % ROUTE_PERIOD) / ROUTE_PERIOD;
+    const stop = flow
+      ? this.scene.routes.find((r) => r.id === flow)?.stops?.[stepIndex]
+      : null;
+
+    const opts = {
+      width: this.width,
+      height: this.height,
+      palette: this.palette,
+      hovered: data.hovered,
+      selected: stop ?? data.inside,
+      hatch: this.palette.hatch,
+      hatchColor: this.palette.hatchColor,
+      highlightEdges: highlight,
+      activeRoute: flow,
+      routeProgress: progress,
+    };
+
+    if (data.engine === 'lit') {
+      this.drawLit(opts);
+      return;
+    }
+
+    const canvas = this.canvasEl;
+    if (!canvas) return;
+    this.canvasCtx ??= canvas.getContext('2d');
+    if (!this.canvasCtx) return;
+    const dpr = window.devicePixelRatio || 1;
+    this.canvasCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.renderer.draw(this.canvasCtx, this.scene, this.view(), opts);
+  }
+
+  drawLit(opts) {
+    if (!threeReady()) return;
+    const canvas = this.refs.glcanvas;
+    if (!canvas) return;
+    if (!this.three) {
+      this.three = new ThreeRenderer(canvas);
+      this.three.resize(this.width, this.height, window.devicePixelRatio || 1);
+      this.three.setScene(this.scene, this.palette);
+      this.threeSceneKey = this.sceneKey;
+    }
+    // The lit engine builds meshes, so re-feed it only when the city changed.
+    if (this.threeSceneKey !== this.sceneKey) {
+      this.threeSceneKey = this.sceneKey;
+      this.three.setScene(this.scene, this.palette);
+    }
+    this.three.draw(this.view(), opts);
+  }
+
+  view() {
+    return { tx: this.tx, ty: this.ty, scale: this.scale };
+  }
+
+  applyView(view) {
+    this.tx = view.tx;
+    this.ty = view.ty;
+    this.scale = view.scale;
+    this.requestDraw();
+  }
+
+  // ── Camera ───────────────────────────────────────────────────────────────
+
+  fitAll(immediate = false) {
+    if (!this.scene || !this.width) return;
+    // Top-down and 3D are different viewpoints, not two shadings of one, so each
+    // computes its own framing. Switching engines refits instead of carrying a
+    // camera that means something else.
+    const target =
+      this.getData().engine === 'lit'
+        ? fitProjected(projectedBounds(this.scene), { width: this.width, height: this.height })
+        : fitFlat(flatBounds(this.scene), { width: this.width, height: this.height });
+    this.fitted = true;
+    if (immediate) {
+      this.applyView(target);
+      return;
+    }
+    const view = this.vp.begin(this.view(), target, clockNow());
+    this.applyView(view);
+    if (this.vp.active) this.ticker.request();
+  }
+
+  zoomBy(factor) {
+    this.applyView(zoomAtCenter(this.view(), this.width, this.height, factor));
+  }
+
+  onWheel(event) {
+    event.preventDefault();
+    const rect = this.activeCanvas().getBoundingClientRect();
+    this.applyView(
+      zoomAt(
+        this.view(),
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+        wheelFactor(event.deltaY, event.ctrlKey),
+      ),
+    );
+  }
+
+  // ── Input ────────────────────────────────────────────────────────────────
+
+  /** The canvas the active engine is drawing into. */
+  activeCanvas() {
+    return this.getData().engine === 'lit' ? this.refs.glcanvas : this.canvasEl;
+  }
+
+  pickAt(clientX, clientY) {
+    const canvas = this.activeCanvas();
+    if (!this.scene || !canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    if (this.getData().engine === 'lit') return this.three?.pick(x, y) ?? null;
+    return this.renderer.pick(this.scene, this.view(), x, y);
+  }
+
+  onPointerDown(event) {
+    this.activeCanvas()?.setPointerCapture(event.pointerId);
+    const hit = this.pickAt(event.clientX, event.clientY);
+    this.drag = {
+      handle: hit?.handle ?? null,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      moved: false,
+    };
+  }
+
+  onPointerMove(event) {
+    if (!this.drag) {
+      const hit = this.pickAt(event.clientX, event.clientY);
+      const handle = hit?.handle ?? null;
+      if (handle !== this.getData().hovered) {
+        this.setData({ hovered: handle });
+        this.requestDraw();
+      }
+      const el = this.activeCanvas();
+      if (el) el.style.cursor = handle ? 'pointer' : 'grab';
+      return;
+    }
+
+    const dx = event.clientX - this.drag.lastX;
+    const dy = event.clientY - this.drag.lastY;
+    this.drag.lastX = event.clientX;
+    this.drag.lastY = event.clientY;
+    if (Math.abs(event.clientX - this.drag.startX) > 4 || Math.abs(event.clientY - this.drag.startY) > 4) {
+      this.drag.moved = true;
+    }
+
+    // Dragging ALWAYS pans, including on a building. Picking a building up and
+    // moving it implies an authority this view does not have: placement is
+    // computed from the graph, and a hand-dragged position is authored config
+    // (atlas.json `pin`), not a gesture. Grabbing the city to move it is the
+    // only thing a drag can mean here.
+    this.applyView({ tx: this.tx + dx, ty: this.ty + dy, scale: this.scale });
+  }
+
+  onPointerUp(event) {
+    const drag = this.drag;
+    this.drag = null;
+    if (!drag) return;
+    this.activeCanvas()?.releasePointerCapture?.(event.pointerId);
+
+    // A click that did not move: go inside that building. A drag was a pan.
+    if (!drag.moved && drag.handle) this.goInside(drag.handle);
+  }
+
+  onDblClick(event) {
+    const hit = this.pickAt(event.clientX, event.clientY);
+    if (hit) this.ctx.router.push(hrefForHandle(hit.handle));
+  }
+
+  onCanvasKey(event) {
+    const data = this.getData();
+    if (event.key === 'Escape' || event.key === 'ArrowLeft') {
+      if (data.inside) {
+        event.preventDefault();
+        this.ctx.router.push('/constellation/atlas');
+      }
+      return;
+    }
+    if (event.key === 'ArrowRight' && data.hovered) {
+      event.preventDefault();
+      this.goInside(data.hovered);
+    }
+  }
+
+  /**
+   * Clicking a building goes inside it — except a FLOW, where the useful thing
+   * is to WALK it. A flow's inside is its route, so the trace is the drill-down.
+   */
+  goInside(handle) {
+    const route = this.scene?.routes.find((r) => r.id === handle);
+    if (route) {
+      this.startTrace(handle);
+      return;
+    }
+    if (this.getData().inside === handle) return;
+    void this.ctx.router.push(`/constellation/atlas/${handle}`);
+  }
+
+  /**
+   * Download the city as a PNG — the README image and the cover for an exported
+   * document. Canvas is already the picture, so this is a re-encode, not a
+   * re-render.
+   */
+  exportPng() {
+    const canvas = this.activeCanvas();
+    if (!canvas) return;
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `atlas-${this.getData().lens}.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  }
+}
+</script>
+
+<style scoped>
+.atlas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background: var(--color-page);
+}
+
+.atlas:active {
+  cursor: grabbing;
+}
+
+.atlas-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+.atlas-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.atlas-empty .star {
+  color: var(--color-brand);
+  font-size: 2rem;
+}
+
+.atlas-empty p {
+  margin: 0;
+}
+
+.atlas-empty-hint {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.at-lens {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.6rem;
+  background: color-mix(in oklab, var(--color-surface) 90%, transparent);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  backdrop-filter: blur(6px);
+}
+
+.at-lens-label {
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+}
+
+.at-lens select {
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+  background: var(--color-surface);
+  padding: 0.15rem 0.4rem;
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.at-lens-hint {
+  max-width: 22rem;
+  color: var(--color-muted);
+}
+
+.at-engine {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+  display: flex;
+  gap: 0.15rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--color-surface) 90%, transparent);
+  padding: 0.15rem;
+  backdrop-filter: blur(6px);
+}
+
+.at-engine button {
+  border: 0;
+  border-radius: 0.35rem;
+  background: none;
+  padding: 0.2rem 0.55rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.at-engine button.is-on {
+  background: var(--color-brand);
+  color: var(--color-brand-ink);
+}
+
+/* The drill-down chip and the engine switch both want the top-right; the chip
+   only exists while you are inside, so it steps down out of the way. */
+.at-inside {
+  top: 3.1rem;
+}
+
+.at-controls {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 2.4rem;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.at-controls button {
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+  background: color-mix(in oklab, var(--color-surface) 90%, transparent);
+  color: var(--color-ink);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.at-controls button:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.at-inside {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.6rem;
+  background: color-mix(in oklab, var(--color-surface) 90%, transparent);
+  padding: 0.3rem 0.5rem;
+  backdrop-filter: blur(6px);
+}
+
+.at-inside button {
+  border: 0;
+  background: none;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.at-inside button:hover {
+  color: var(--color-ink);
+}
+
+.at-readout {
+  position: absolute;
+  bottom: 2.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: min(46rem, calc(100% - 2rem));
+  border: 1px solid var(--color-border);
+  border-radius: 99px;
+  background: color-mix(in oklab, var(--color-surface) 92%, transparent);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.84rem;
+  color: var(--color-ink);
+  backdrop-filter: blur(6px);
+}
+
+.at-readout-name {
+  font-weight: 600;
+}
+
+.at-readout-detail.is-drifted {
+  color: var(--color-danger);
+}
+
+.at-readout-detail {
+  color: var(--color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.at-legend {
+  position: absolute;
+  bottom: 0.6rem;
+  left: 0.9rem;
+  z-index: 1;
+  margin: 0;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  pointer-events: none;
+}
+</style>

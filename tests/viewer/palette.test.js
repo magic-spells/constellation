@@ -116,7 +116,10 @@ describe('CommandPalette', () => {
 			// FEATURE cards, and the empty state is what teaches the card type.
 			'Tasks — Board',
 			'Tasks — List',
-			'Constellation',
+			// Likewise both Constellation readings: "graph" and "atlas" are the
+			// words people reach for, not the destination name.
+			'Constellation — Graph',
+			'Constellation — Atlas',
 			'Tickets endpoint API-TICKETS',
 			'Users endpoint API-USERS',
 			'Tickets table DB-TICKETS',
@@ -148,7 +151,7 @@ describe('CommandPalette', () => {
 		expect(view.element.textContent).toContain('Nothing matches that.');
 
 		await view.type('input', '');
-		expect(options(view)).toHaveLength(12);
+		expect(options(view)).toHaveLength(13);
 		view.destroy();
 	});
 
@@ -169,7 +172,9 @@ describe('CommandPalette', () => {
 		await view.type('input', 'constellation');
 		await view.click('[role="option"]');
 
-		expect(pushed).toEqual(['/constellation']);
+		// The graph is the first of the two readings, and the canonical path —
+		// bare `/constellation` only exists now as a redirect.
+		expect(pushed).toEqual(['/constellation/graph']);
 		view.destroy();
 	});
 

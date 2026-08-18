@@ -72,6 +72,34 @@ export async function loadDocs(store) {
 	return docs;
 }
 
+/**
+ * Atlas layout config and bound-code sizes. Both are atlas-only and neither is
+ * cheap enough to ride on /api/plan — the metrics route stats the repo — so the
+ * atlas view fetches them when it opens rather than the app loading them for
+ * every reader who never visits it.
+ */
+export async function loadAtlasConfig(store) {
+	const atlasConfig = await request('/api/atlas-config');
+	store.upsert('plan', { id: 'plan', atlasConfig });
+	return atlasConfig;
+}
+
+export async function loadAtlasMetrics(store) {
+	const atlasMetrics = await request('/api/atlas-metrics');
+	store.upsert('plan', { id: 'plan', atlasMetrics });
+	return atlasMetrics;
+}
+
+export async function saveAtlasConfig(store, config) {
+	const atlasConfig = await request('/api/atlas-config', {
+		method: 'PUT',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(config),
+	});
+	store.upsert('plan', { id: 'plan', atlasConfig });
+	return atlasConfig;
+}
+
 export function startLive(store) {
 	const events = new EventSource('/events');
 	let reloadTimer = null;

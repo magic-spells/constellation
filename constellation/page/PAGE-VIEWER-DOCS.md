@@ -13,6 +13,12 @@ connections:
   - PAGE-VIEWER-CARD
 section: viewer
 order: 50
+notes:
+  - kind: state
+    text: >-
+      STYLE cards render their tokens inline in the document — the same StyleTokens the style guide
+      uses, above the card's prose. A palette described in words is not a palette, so DocCard now
+      carries `frontmatter` and not just `body`.
 ---
 
 Every sectioned card compiled into ONE ordered document — the answer to "what is

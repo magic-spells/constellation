@@ -1,6 +1,6 @@
 ---
 name: Cap the Verified column at the 20 most recent
-status: built
+status: verified
 change: feature
 connections:
   - PAGE-VIEWER-BOARD
@@ -13,7 +13,15 @@ notes:
       cards.length) and `overflow` ({text, href}) — so the cap is BoardPage policy, not board
       behaviour. Left `set_verified` as the only stamper of `verified_at`; an unstamped verified
       card sorts below every stamped one on the mtime fallback.
+  - kind: verified
+    text: >-
+      Verified at 0.6.0 by test, not by eye: the cap is conditional on more than 20 verified cards,
+      which this plan does not yet have. tests/viewer/pages.test.js covers the overflow row ("+3
+      more verified") and the recency sort.
+    sha: 2790152d9503b921ee03c26f14a5f9e31b0b70f1
 branch: feat/viewer-polish
+verified_at: '2026-08-18T04:42:10.223Z'
+verified_sha: 2790152d9503b921ee03c26f14a5f9e31b0b70f1
 ---
 
 Planned, Building and Built all drain — a card leaves them. **Verified does

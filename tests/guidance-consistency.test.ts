@@ -294,7 +294,12 @@ it('harvested the tool registry', () => {
   expect(TOOL_NAMES.size).toBeGreaterThan(20);
 });
 
-describe.each(copies)('$name', ({ text }) => {
+// atlas.md is a TOPICAL reference, like types/*.md — not a fourth copy of the canonical
+// guidance, so it is deliberately absent from `copies` and from the phrase checks above.
+// It still names tools in prose, so it joins this one check and no other.
+const namesTools = [...copies, { name: 'atlas.md', text: norm(read('skill/atlas.md')) }];
+
+describe.each(namesTools)('$name', ({ text }) => {
   it('names only tools that exist', () => {
     const tokens = new Set(text.match(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g) ?? []);
     expect([...tokens].filter((t) => !known(t))).toEqual([]);
