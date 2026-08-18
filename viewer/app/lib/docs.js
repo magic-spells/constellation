@@ -170,6 +170,13 @@ export function docModel(store, solo = '') {
 				// Same per-type token the connection chips and the graph use, so a
 				// handle is one colour everywhere in the app.
 				typeStyle: `--c: var(--t-${typeForHandle(card.handle) ?? 'DOC'})`,
+				// A STYLE card's tokens ARE its content: printing only its prose
+				// would describe a palette without showing it. The document renders
+				// the same StyleTokens the style guide does, off the same card.
+				tokens:
+					typeForHandle(card.handle) === 'STYLE'
+						? { handle: card.handle, frontmatter: card.frontmatter ?? {} }
+						: null,
 			})),
 		})),
 		// How many diagrams this document contains — what the print window waits

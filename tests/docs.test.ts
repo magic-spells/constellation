@@ -131,7 +131,7 @@ describe('compileDocs — card ordering', () => {
     ]);
   });
 
-  it('carries the card handle, name, type and raw body into the tree', async () => {
+  it('carries the card handle, name, type, raw body and frontmatter into the tree', async () => {
     const index = await planWith({
       'PLAN-PROJECT': { name: 'Thing' },
       'API-TICKETS': { name: 'Tickets', section: 'guides', body: '# Tickets\n\nBody.' },
@@ -143,7 +143,27 @@ describe('compileDocs — card ordering', () => {
       type: 'API',
       // Raw: heading shifting is a render concern, not part of the tree.
       body: '\n# Tickets\n\nBody.\n',
+      // Frontmatter rides along so the document can render a card's STRUCTURE:
+      // a STYLE card's swatches and specimens are its content, not its prose.
+      frontmatter: { name: 'Tickets', section: 'guides' },
     });
+  });
+
+  it('carries a STYLE card tokens, which are what the document renders', async () => {
+    const index = await planWith({
+      'PLAN-PROJECT': { name: 'Thing' },
+      'STYLE-COLORS': {
+        name: 'Colors',
+        section: 'guides',
+        category: 'color',
+        tokens: [{ name: 'brand', value: '#cc785c' }],
+        body: 'Prose.',
+      },
+    });
+
+    const card = compileDocs(index)[0].cards[0];
+    expect(card.frontmatter.category).toBe('color');
+    expect(card.frontmatter.tokens).toEqual([{ name: 'brand', value: '#cc785c' }]);
   });
 });
 

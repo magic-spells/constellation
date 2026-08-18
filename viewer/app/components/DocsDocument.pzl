@@ -34,6 +34,11 @@
           <article key={ card.handle } id={ card.handle } data-doc-anchor={ card.handle } class="docs-card">
             <a class="docs-card-source card-handle card-handle--sm" style={ card.typeStyle } href="{ card.cardHref | link }" title={ card.sourceTitle }>{ card.handle }</a>
             <h3 class="docs-card-title">{ card.name }</h3>
+            <!-- A STYLE card's swatches and specimens come BEFORE its prose: the
+                 tokens are what the card is, and the prose explains them. -->
+            {#if card.tokens}
+              <div class="docs-card-tokens"><StyleTokens card={ card.tokens }/></div>
+            {/if}
             <MarkdownBlock src={ card.body } docHandles={ handles } docBase={ base }/>
           </article>
         {/for}
@@ -45,6 +50,7 @@
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
 import MarkdownBlock from './MarkdownBlock.pzl';
+import StyleTokens from './StyleTokens.pzl';
 import { docModel } from '../lib/docs.js';
 
 // DocsDocument — the compiled document itself: cover, contents page, sections,

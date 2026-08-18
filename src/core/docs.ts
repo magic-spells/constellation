@@ -20,6 +20,12 @@ export interface DocCard {
   type: TypeName;
   /** The card's body, exactly as written. */
   body: string;
+  /**
+   * The card's frontmatter, so the document can render a card's STRUCTURE and
+   * not just its prose — a STYLE card's swatches and specimens are the content,
+   * and a document that printed only its body would be missing the point of it.
+   */
+  frontmatter: Record<string, unknown>;
 }
 
 export interface DocSection {
@@ -97,6 +103,7 @@ function toDocCard(card: Card): DocCard {
     name: card.name ?? card.handle,
     type: card.type,
     body: card.body,
+    frontmatter: card.frontmatter,
   };
 }
 
