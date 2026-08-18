@@ -1,0 +1,707 @@
+<puzzle-view>
+  <div ref="container" class="atlas">
+    {#if empty}
+      <div class="atlas-empty">
+        <span class="star">▦</span>
+        <p>This plan has no cards yet.</p>
+        <p class="atlas-empty-hint">The atlas draws what the plan holds — write a card and a building appears.</p>
+      </div>
+    {:else}
+      <canvas
+        ref="canvas"
+        class="atlas-canvas"
+        tabindex="0"
+        aria-label={ canvasLabel }
+        @pointerdown={ onPointerDown(event) }
+        @pointermove={ onPointerMove(event) }
+        @pointerup={ onPointerUp(event) }
+        @dblclick={ onDblClick(event) }
+        @wheel={ onWheel(event) }
+        @keydown={ onCanvasKey(event) }></canvas>
+
+      <ConstellationTabs active="atlas"/>
+
+      <div class="at-lens">
+        <label class="at-lens-label" for="atlas-lens">Lens</label>
+        <select id="atlas-lens" @change={ onLensChange(event) }>
+          {#for option in lenses}
+            <option value={ option.id } selected={ option.id === lens }>{ option.label }</option>
+          {/for}
+        </select>
+        <span class="at-lens-hint">{ lensHint }</span>
+      </div>
+
+      <div class="at-controls">
+        <button type="button" @click={ zoomIn } aria-label="Zoom in">+</button>
+        <button type="button" @click={ zoomOut } aria-label="Zoom out">−</button>
+        <button type="button" @click={ fitAll } aria-label="Fit the whole city">⤢</button>
+        <button type="button" @click={ exportPng } aria-label="Download a PNG of the atlas">⤓</button>
+      </div>
+
+      {#if inside}
+        <div class="at-inside">
+          <button type="button" @click={ goOutside }>← Come back out</button>
+          <span class="card-handle card-handle--sm" style={ insideStyle }>{ inside }</span>
+        </div>
+      {/if}
+
+      {#if hoverCard}
+        <div class="at-readout">
+          <span class="card-handle card-handle--sm" style={ hoverStyle }>{ hoverCard.handle }</span>
+          <span class="at-readout-name">{ hoverCard.name }</span>
+          {#if hoverCard.detail}<span class="at-readout-detail">{ hoverCard.detail }</span>{/if}
+        </div>
+      {/if}
+
+      <p class="at-legend">→ go inside · ← come back out · drag to pan · scroll to zoom · hover to read</p>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import ConstellationTabs from '../components/ConstellationTabs.pzl';
+import { planIndex } from '../lib/plan-index.js';
+import { hrefForHandle } from '../lib/types.js';
+import { onThemeChange } from '../lib/theme.js';
+import { buildScene } from '../lib/atlas-scene.js';
+import { LENSES, lensModel, normalizeLens } from '../lib/atlas-lenses.js';
+import { atlasPalette } from '../lib/atlas-palette.js';
+import {
+  fitProjected,
+  IsoRenderer,
+  projectedBounds,
+} from '../lib/atlas-iso.js';
+import {
+  now as clockNow,
+  Ticker,
+  ViewportTween,
+  wheelFactor,
+  zoomAt,
+  zoomAtCenter,
+} from '../lib/canvas-camera.js';
+
+// AtlasView — the plan as an isometric city.
+//
+// The second reading of the same graph the node view renders (see
+// ConstellationTabs for why they are peers behind one sidebar row). Everything
+// about WHERE things sit lives in atlas-scene.js, everything about HOW they look
+// lives in atlas-iso.js + atlas-palette.js. This file is the wiring: store →
+// scene → renderer, plus camera, input and overlays.
+//
+// Same discipline as the graph view: reactive `setData` drives the HTML overlays
+// ONLY. Anything painted per frame is a plain instance field, off the reactive
+// path, because a canvas repaint must not cost a component re-render.
+//
+// The scene is rebuilt only when the plan generation or the lens changes — never
+// per frame — and cached on the instance. It is never written back to a card;
+// the graph, the districts and the layout are all derived, every time.
+
+/** One full traverse of a flow route, in ms. Slow enough to follow by eye. */
+const ROUTE_PERIOD = 4200;
+
+export default class AtlasView extends PuzzleView {
+  created() {
+    this.setData({ hovered: null, lens: 'status' });
+
+    this.scene = null;
+    this.renderer = new IsoRenderer();
+    this.palette = null;
+    this.tx = 0;
+    this.ty = 0;
+    this.scale = 1;
+    this.width = 0;
+    this.height = 0;
+    this.canvasEl = null;
+    this.canvasCtx = null;
+    this.drag = null;
+    this.isMounted = false;
+    this.fitted = false;
+    this.sceneKey = null;
+    this.routeStart = 0;
+
+    this.vp = new ViewportTween({ duration: 520 });
+    this.ticker = new Ticker((now) => this.frame(now));
+    this.resizeObserver = null;
+    this.unsubscribeTheme = null;
+    this.resize = () => this.resizeCanvas();
+  }
+
+  data(params, props) {
+    const store = this.ctx.store;
+    const index = planIndex(store);
+    const plan = store.peekRecord?.('plan', 'plan');
+    const cards = index ? [...index.byHandle.values()] : [];
+    const lens = normalizeLens(this.getData?.().lens);
+
+    const inside = String(this.route?.params?.handle ?? '').toUpperCase() || null;
+    const hovered = this.getData?.().hovered ?? null;
+    const hoverCard = hovered ? this.readout(hovered) : null;
+
+    return {
+      empty: cards.length === 0,
+      generation: plan?.generation ?? 0,
+      cards,
+      connections: index?.connections ?? [],
+      neighbors: index?.neighbors ?? new Map(),
+      sync: plan?.sync ?? null,
+      lens,
+      lenses: LENSES,
+      lensHint: LENSES.find((l) => l.id === lens)?.hint ?? '',
+      inside,
+      insideStyle: inside ? `--c: var(--t-${inside.split('-')[0]})` : '',
+      hoverCard,
+      hoverStyle: hoverCard ? `--c: var(--t-${hoverCard.type})` : '',
+      canvasLabel: `Architecture atlas — ${cards.length} cards as a city`,
+    };
+  }
+
+  /** The hover panel's three lines: handle, name, and what is inside the block. */
+  readout(handle) {
+    const building = this.scene?.buildings.find((b) => b.handle === handle);
+    if (!building) return null;
+    const floors = building.floors.length;
+    const detail = floors
+      ? `${floors} ${floors === 1 ? 'part' : 'parts'} · ${building.floors
+          .slice(0, 3)
+          .map((f) => f.label)
+          .join(', ')}${floors > 3 ? '…' : ''}`
+      : null;
+    return { handle, name: building.name, type: building.type, detail };
+  }
+
+  mounted() {
+    this.isMounted = true;
+    this.ensureCanvas();
+
+    const container = this.refs.container;
+    if (container && typeof ResizeObserver === 'function') {
+      this.resizeObserver = new ResizeObserver(this.resize);
+      this.resizeObserver.observe(container);
+    }
+    this.resizeCanvas();
+
+    if (typeof window.matchMedia === 'function') {
+      const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+      this.vp.reduceMotion = query.matches;
+    }
+
+    this.unsubscribeTheme = onThemeChange(() => {
+      this.palette = null;
+      this.requestDraw();
+    });
+
+    this.syncScene();
+    this.requestDraw();
+  }
+
+  afterUpdate() {
+    if (!this.isMounted) return;
+    this.ensureCanvas();
+    this.syncScene();
+  }
+
+  destroyed() {
+    this.isMounted = false;
+    this.ticker.cancel();
+    this.vp.cancel();
+    if (this.resizeObserver) this.resizeObserver.disconnect();
+    this.resizeObserver = null;
+    if (this.unsubscribeTheme) this.unsubscribeTheme();
+    this.unsubscribeTheme = null;
+    this.scene = null;
+    this.canvasCtx = null;
+    this.canvasEl = null;
+    this.drag = null;
+  }
+
+  events = {
+    onPointerDown: (event) => this.onPointerDown(event),
+    onPointerMove: (event) => this.onPointerMove(event),
+    onPointerUp: (event) => this.onPointerUp(event),
+    onDblClick: (event) => this.onDblClick(event),
+    onWheel: (event) => this.onWheel(event),
+    onCanvasKey: (event) => this.onCanvasKey(event),
+    onLensChange: (event) => this.setLens(event.target.value),
+    zoomIn: () => this.zoomBy(1.25),
+    zoomOut: () => this.zoomBy(0.8),
+    fitAll: () => this.fitAll(),
+    exportPng: () => this.exportPng(),
+    goOutside: () => this.ctx.router.push('/constellation/atlas'),
+  };
+
+  // ── Scene ────────────────────────────────────────────────────────────────
+
+  /**
+   * Rebuild the city when the plan or the lens changed — and only then. The key
+   * is what the layout actually depends on, so a hover or a pan never rebuilds.
+   */
+  syncScene() {
+    const data = this.getData();
+    const key = `${data.generation}|${data.lens}|${data.inside ?? ''}`;
+    if (key === this.sceneKey) return;
+    this.sceneKey = key;
+
+    const degree = new Map();
+    for (const { a, b } of data.connections) {
+      degree.set(a, (degree.get(a) ?? 0) + 1);
+      degree.set(b, (degree.get(b) ?? 0) + 1);
+    }
+
+    const stale = new Map(
+      (data.sync?.stale?.stale ?? []).map((entry) => [entry.handle, entry]),
+    );
+
+    const model = lensModel(data.lens, { degree, stale, now: Date.now() });
+
+    // Going inside narrows the city to one card's neighbourhood — the same graph,
+    // one district deep. The URL carries it, so Back walks out.
+    let cards = data.cards;
+    if (data.inside) {
+      const keep = new Set([data.inside, ...(data.neighbors.get(data.inside) ?? [])]);
+      cards = cards.filter((card) => keep.has(card.handle));
+    }
+
+    this.scene = buildScene({
+      cards,
+      connections: data.connections,
+      neighbors: data.neighbors,
+      height: model.height,
+    });
+
+    // The lens speaks through the scene, so the renderer needs no lens concept.
+    for (const building of this.scene.buildings) {
+      const card = data.cards.find((c) => c.handle === building.handle);
+      building.tone = card ? model.tone(card) : null;
+      building.scaffolded = card ? model.scaffolded(card) : false;
+    }
+
+    this.renderer.invalidate();
+    this.fitted = false;
+    this.requestDraw();
+  }
+
+  setLens(value) {
+    const lens = normalizeLens(value);
+    if (lens === this.getData().lens) return;
+    this.setData({ lens });
+    this.syncScene();
+  }
+
+  // ── Canvas plumbing ──────────────────────────────────────────────────────
+
+  ensureCanvas() {
+    const canvas = this.refs.canvas || this.element.querySelector('canvas');
+    if (canvas === this.canvasEl) return;
+    this.canvasEl = canvas || null;
+    this.canvasCtx = null;
+  }
+
+  resizeCanvas() {
+    const canvas = this.canvasEl;
+    const container = this.refs.container;
+    if (!canvas || !container) return;
+    const rect = container.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    this.width = Math.max(1, Math.round(rect.width));
+    this.height = Math.max(1, Math.round(rect.height));
+    canvas.width = Math.round(this.width * dpr);
+    canvas.height = Math.round(this.height * dpr);
+    canvas.style.width = `${this.width}px`;
+    canvas.style.height = `${this.height}px`;
+    this.canvasCtx = null;
+    this.renderer.invalidate();
+    if (!this.fitted) this.fitAll(true);
+    this.requestDraw();
+  }
+
+  requestDraw() {
+    if (!this.isMounted) return;
+    this.pendingDraw = true;
+    this.ticker.request();
+  }
+
+  frame(now) {
+    const moved = this.vp.advance(now);
+    if (moved) {
+      this.tx = moved.tx;
+      this.ty = moved.ty;
+      this.scale = moved.scale;
+      this.renderer.invalidate();
+    }
+    this.draw(now);
+    this.pendingDraw = false;
+    // Roads animate continuously while a plan has any, which is the one thing
+    // in this view that legitimately keeps the loop alive.
+    return this.vp.active || this.pendingDraw || (this.scene?.routes.length ?? 0) > 0;
+  }
+
+  draw(now = clockNow()) {
+    const canvas = this.canvasEl;
+    if (!canvas || !this.scene) return;
+    this.canvasCtx ??= canvas.getContext('2d');
+    const ctx = this.canvasCtx;
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const types = [...new Set(this.scene.buildings.map((b) => b.type))];
+    this.palette ??= atlasPalette(types);
+
+    const data = this.getData();
+    const highlight = data.hovered
+      ? new Set([data.hovered, ...(data.neighbors.get(data.hovered) ?? [])])
+      : null;
+
+    this.renderer.draw(ctx, this.scene, this.view(), {
+      width: this.width,
+      height: this.height,
+      palette: this.palette,
+      hovered: data.hovered,
+      selected: data.inside,
+      hatch: this.palette.hatch,
+      hatchColor: this.palette.hatchColor,
+      highlightEdges: highlight,
+      routeProgress: ((now - this.routeStart) % ROUTE_PERIOD) / ROUTE_PERIOD,
+    });
+  }
+
+  view() {
+    return { tx: this.tx, ty: this.ty, scale: this.scale };
+  }
+
+  applyView(view) {
+    this.tx = view.tx;
+    this.ty = view.ty;
+    this.scale = view.scale;
+    this.renderer.invalidate();
+    this.requestDraw();
+  }
+
+  // ── Camera ───────────────────────────────────────────────────────────────
+
+  fitAll(immediate = false) {
+    if (!this.scene || !this.width) return;
+    const target = fitProjected(projectedBounds(this.scene), {
+      width: this.width,
+      height: this.height,
+    });
+    this.fitted = true;
+    if (immediate) {
+      this.applyView(target);
+      return;
+    }
+    const view = this.vp.begin(this.view(), target, clockNow());
+    this.applyView(view);
+    if (this.vp.active) this.ticker.request();
+  }
+
+  zoomBy(factor) {
+    this.applyView(zoomAtCenter(this.view(), this.width, this.height, factor));
+  }
+
+  onWheel(event) {
+    event.preventDefault();
+    const rect = this.canvasEl.getBoundingClientRect();
+    this.applyView(
+      zoomAt(
+        this.view(),
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+        wheelFactor(event.deltaY, event.ctrlKey),
+      ),
+    );
+  }
+
+  // ── Input ────────────────────────────────────────────────────────────────
+
+  pickAt(clientX, clientY) {
+    if (!this.scene || !this.canvasEl) return null;
+    const rect = this.canvasEl.getBoundingClientRect();
+    return this.renderer.pick(
+      this.scene,
+      this.view(),
+      { width: this.width, height: this.height },
+      clientX - rect.left,
+      clientY - rect.top,
+    );
+  }
+
+  onPointerDown(event) {
+    this.canvasEl.setPointerCapture(event.pointerId);
+    const hit = this.pickAt(event.clientX, event.clientY);
+    this.drag = {
+      handle: hit?.handle ?? null,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      moved: false,
+    };
+  }
+
+  onPointerMove(event) {
+    if (!this.drag) {
+      const hit = this.pickAt(event.clientX, event.clientY);
+      const handle = hit?.handle ?? null;
+      if (handle !== this.getData().hovered) {
+        this.setData({ hovered: handle });
+        this.requestDraw();
+      }
+      if (this.canvasEl) this.canvasEl.style.cursor = handle ? 'pointer' : 'grab';
+      return;
+    }
+
+    const dx = event.clientX - this.drag.lastX;
+    const dy = event.clientY - this.drag.lastY;
+    this.drag.lastX = event.clientX;
+    this.drag.lastY = event.clientY;
+    if (Math.abs(event.clientX - this.drag.startX) > 4 || Math.abs(event.clientY - this.drag.startY) > 4) {
+      this.drag.moved = true;
+    }
+    // Pan always: dragging a building to a new cell is the atlas.json pin story,
+    // and until that lands a drag should never silently do nothing.
+    this.applyView({ tx: this.tx + dx, ty: this.ty + dy, scale: this.scale });
+  }
+
+  onPointerUp(event) {
+    const drag = this.drag;
+    this.drag = null;
+    if (!drag) return;
+    this.canvasEl?.releasePointerCapture?.(event.pointerId);
+    // A click that did not pan: go inside that building.
+    if (!drag.moved && drag.handle) this.goInside(drag.handle);
+  }
+
+  onDblClick(event) {
+    const hit = this.pickAt(event.clientX, event.clientY);
+    if (hit) this.ctx.router.push(hrefForHandle(hit.handle));
+  }
+
+  onCanvasKey(event) {
+    const data = this.getData();
+    if (event.key === 'Escape' || event.key === 'ArrowLeft') {
+      if (data.inside) {
+        event.preventDefault();
+        this.ctx.router.push('/constellation/atlas');
+      }
+      return;
+    }
+    if (event.key === 'ArrowRight' && data.hovered) {
+      event.preventDefault();
+      this.goInside(data.hovered);
+    }
+  }
+
+  goInside(handle) {
+    if (this.getData().inside === handle) return;
+    void this.ctx.router.push(`/constellation/atlas/${handle}`);
+  }
+
+  /**
+   * Download the city as a PNG — the README image and the cover for an exported
+   * document. Canvas is already the picture, so this is a re-encode, not a
+   * re-render.
+   */
+  exportPng() {
+    const canvas = this.canvasEl;
+    if (!canvas) return;
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `atlas-${this.getData().lens}.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  }
+}
+</script>
+
+<style scoped>
+.atlas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background: var(--color-page);
+}
+
+.atlas:active {
+  cursor: grabbing;
+}
+
+.atlas-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+.atlas-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.atlas-empty .star {
+  color: var(--color-brand);
+  font-size: 2rem;
+}
+
+.atlas-empty p {
+  margin: 0;
+}
+
+.atlas-empty-hint {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.at-lens {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.6rem;
+  background: color-mix(in oklab, var(--color-surface) 90%, transparent);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  backdrop-filter: blur(6px);
+}
+
+.at-lens-label {
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+}
+
+.at-lens select {
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+  background: var(--color-surface);
+  padding: 0.15rem 0.4rem;
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.at-lens-hint {
+  max-width: 22rem;
+  color: var(--color-muted);
+}
+
+.at-controls {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 2.4rem;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.at-controls button {
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+  background: color-mix(in oklab, var(--color-surface) 90%, transparent);
+  color: var(--color-ink);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.at-controls button:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.at-inside {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.6rem;
+  background: color-mix(in oklab, var(--color-surface) 90%, transparent);
+  padding: 0.3rem 0.5rem;
+  backdrop-filter: blur(6px);
+}
+
+.at-inside button {
+  border: 0;
+  background: none;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.at-inside button:hover {
+  color: var(--color-ink);
+}
+
+.at-readout {
+  position: absolute;
+  bottom: 2.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: min(46rem, calc(100% - 2rem));
+  border: 1px solid var(--color-border);
+  border-radius: 99px;
+  background: color-mix(in oklab, var(--color-surface) 92%, transparent);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.84rem;
+  color: var(--color-ink);
+  backdrop-filter: blur(6px);
+}
+
+.at-readout-name {
+  font-weight: 600;
+}
+
+.at-readout-detail {
+  color: var(--color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.at-legend {
+  position: absolute;
+  bottom: 0.6rem;
+  left: 0.9rem;
+  z-index: 1;
+  margin: 0;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  pointer-events: none;
+}
+</style>

@@ -55,7 +55,10 @@ const PAGES = [
 	// the empty state is what teaches FEATURE cards.
 	{ path: '/tasks/board', label: 'Tasks — Board' },
 	{ path: '/tasks/list', label: 'Tasks — List' },
-	{ path: '/constellation', label: 'Constellation' },
+	// Both readings, for the same reason as Tasks: "atlas" and "graph" are the
+	// words people reach for, not the destination name.
+	{ path: '/constellation/graph', label: 'Constellation — Graph' },
+	{ path: '/constellation/atlas', label: 'Constellation — Atlas' },
 	// Shown only when the plan has cards behind them, exactly like the sidebar.
 	{ path: '/style-guide', label: 'Style guide', needs: 'STYLE' },
 ];

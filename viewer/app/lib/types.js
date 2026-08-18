@@ -31,6 +31,49 @@ export const TYPE_META = {
 /** Sidebar group order. */
 export const GROUPS = ['Overview', 'System', 'Interface', 'Code & tests'];
 
+/**
+ * Building silhouette per card type, for the atlas. A city is only readable if
+ * you can name a thing by its shape from across the map, so each shape is the
+ * one people already read that way: a DB is the cylinder everyone draws for a
+ * store, an EVENT is an antenna because it broadcasts, a TEST is scaffolding
+ * because it wraps something else.
+ *
+ * The renderers switch on these, so a new shape here needs a case in BOTH
+ * atlas-iso.js and atlas-three.js — and if it has none it draws as a box, which
+ * is wrong-looking rather than broken.
+ *
+ * `plate` and `offmap` are not buildings: a FILE is the ground a card sits on,
+ * and an EXTERNAL lives outside the city limits across a dashed boundary.
+ */
+export const TYPE_SHAPE = {
+  DB: 'cylinder',
+  API: 'portal',
+  PAGE: 'block',
+  COMPONENT: 'block',
+  STYLE: 'block',
+  JOB: 'plant',
+  EVENT: 'beacon',
+  EXTERNAL: 'offmap',
+  FILE: 'plate',
+  DOC: 'monument',
+  DECISION: 'monument',
+  TEST: 'scaffold',
+  FLOW: 'road',
+  AGENT: 'figure',
+  DATATYPE: 'prism',
+  STATE: 'prism',
+  ROLE: 'figure',
+  PLAN: 'monument',
+  FEATURE: 'block',
+  RELEASE: 'monument',
+  DIAGRAM: 'monument',
+};
+
+/** Silhouette for a card type; `block` for anything unmapped. */
+export function shapeForType(type) {
+  return TYPE_SHAPE[type] ?? 'block';
+}
+
 /** Folder name → card type (e.g. `api` → `API`); undefined when unknown. */
 export function typeForFolder(folder) {
   return Object.keys(TYPE_META).find((t) => TYPE_META[t].folder === folder);

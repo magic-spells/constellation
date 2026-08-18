@@ -1,0 +1,80 @@
+<puzzle-view>
+  <div class="cn-tabs">
+    <!-- Bare reference, not `go(value)`: a callback prop's own arguments are not
+         identifiers the template expression can name, so the call form would
+         pass undefined. The piece hands (value, event) to whatever it is given. -->
+    <Tabs id="constellation" tabs={ tabs } value={ active } @change={ go }/>
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import Tabs from './ui/Tabs.pzl';
+
+// ConstellationTabs — the Graph/Atlas switch shared by the two canvas views.
+//
+//   <ConstellationTabs active="graph"/>
+//   <ConstellationTabs active="atlas"/>
+//
+// ONE SUBJECT, TWO READINGS. Both render the SAME cards and the SAME connections
+// and differ only in the question they answer. Graph answers "what connects to
+// what" — force-clustered by type, every edge available. Atlas answers "what
+// shape is this system" — the same graph as an isometric city, where a district
+// is a FEATURE, a building is a card and a road is a FLOW. Neither is a subset
+// of the other, which is why they sit behind one sidebar row as peers.
+//
+// This is the Tasks pattern (see TasksHeader) with one difference: both routes
+// are full-bleed, where the canvas owns the entire box. There is no page header
+// to live in, so this floats OVER the canvas — same family as the view's own
+// search box and zoom controls, positioned by `.cn-tabs` below.
+//
+// THE TABS NAVIGATE, for the reasons TasksHeader spells out: deep links, Back,
+// and the atlas drill-down (`/constellation/atlas/HANDLE`, a route of its own)
+// all depend on the URL describing what you are looking at.
+//
+// Props
+//   active  'graph' | 'atlas' — which tab reads as selected
+
+const TABS = [
+	{ value: 'graph', label: 'Graph' },
+	{ value: 'atlas', label: 'Atlas' },
+];
+
+const PATH = {
+	graph: '/constellation/graph',
+	atlas: '/constellation/atlas',
+};
+
+export default class ConstellationTabs extends PuzzleView {
+	data(params, props) {
+		const active = props.active === 'atlas' ? 'atlas' : 'graph';
+		return { active, tabs: TABS };
+	}
+
+	events = {
+		go: (value) => {
+			const path = PATH[value];
+			// Guard the no-op: pushing the route you are already on would stack a
+			// duplicate history entry, so Back would need two presses to leave.
+			if (!path || value === this.getData().active) return;
+			void this.ctx.router.push(path);
+		},
+	};
+}
+</script>
+
+<style scoped>
+/* Floats over the canvas, top-left, clear of the view's own search box. The
+   canvas is the whole box in bleed mode, so every control here is an overlay. */
+.cn-tabs {
+	position: absolute;
+	top: 0.75rem;
+	left: 0.75rem;
+	z-index: 3;
+	border: 1px solid var(--color-border);
+	border-radius: 0.6rem;
+	background: color-mix(in oklab, var(--color-surface) 90%, transparent);
+	padding: 0.2rem;
+	backdrop-filter: blur(6px);
+}
+</style>

@@ -4,6 +4,7 @@ import BoardPage from './views/BoardPage.pzl';
 import BoardCardDialog from './views/BoardCardDialog.pzl';
 import BoardOverlayEmpty from './views/BoardOverlayEmpty.pzl';
 import ConstellationView from './views/ConstellationView.pzl';
+import AtlasView from './views/AtlasView.pzl';
 import DocsPage from './views/DocsPage.pzl';
 import DocsPrint from './views/DocsPrint.pzl';
 import FeaturesPanel from './views/FeaturesPanel.pzl';
@@ -32,6 +33,9 @@ const legacyType = ({ to }) => `/${to.params.folder}`;
 // is not a page — it resolves to whichever view is the default. Board leads
 // because "where is everything right now" is the question people arrive with.
 const tasksIndex = () => '/tasks/board';
+
+/** `/constellation` → the graph, the default reading of the two. */
+const constellationIndex = () => '/constellation/graph';
 
 // The pre-0.5.1 shapes. `/board` and `/features` were two sidebar rows before
 // they became two views of Tasks; both still resolve so bookmarks, pasted links
@@ -95,12 +99,35 @@ export default [
 		view: DocsPrint,
 		meta: { title: 'Constellation — Print' },
 	},
+	// Constellation is ONE destination with two readings of the same graph: the
+	// force-clustered node view, and the atlas — the same cards as an isometric
+	// city. Same shape as Tasks: `/constellation` is not a page, it resolves to
+	// the default view. Graph leads because it is the older, denser answer.
+	//
+	// `/constellation/atlas/:handle` is the drill-down — inside one building.
+	// It must stay above the `/:folder/:handle` catch-all below, which would
+	// otherwise read it as the card page for a folder called "constellation".
+	{ path: '/constellation', name: 'constellation-index', view: ConstellationView, guard: constellationIndex },
 	{
-		path: '/constellation',
+		path: '/constellation/graph',
 		name: 'graph',
 		view: ConstellationView,
 		layout: AppShell,
 		meta: { title: 'Constellation — Graph' },
+	},
+	{
+		path: '/constellation/atlas',
+		name: 'atlas',
+		view: AtlasView,
+		layout: AppShell,
+		meta: { title: 'Constellation — Atlas' },
+	},
+	{
+		path: '/constellation/atlas/:handle',
+		name: 'atlas-card',
+		view: AtlasView,
+		layout: AppShell,
+		meta: { title: 'Constellation — Atlas' },
 	},
 	{
 		path: '/style-guide',
