@@ -1,7 +1,7 @@
 ---
 name: atlas-scene.js — the city layout
 kind: file
-status: built
+status: verified
 path: viewer/app/lib/atlas-scene.js
 language: javascript
 summary: 'Pure scene-graph builder: districts, packing, footprints, floors, orthogonal routing.'
@@ -9,6 +9,14 @@ section: viewer
 order: 42
 connections:
   - PAGE-VIEWER-ATLAS
+verified_at: '2026-08-18T17:56:52.716Z'
+verified_sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+notes:
+  - kind: verified
+    text: >-
+      Verified deterministic handle ordering and the 0.35–3-cell lens-height clamp against
+      atlas-scene.js.
+    sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
 ---
 
 The whole atlas layout, and the contract both renderers consume. Pure — no DOM,
@@ -19,8 +27,11 @@ painters cannot show different cities.
 
 The entire value of a map is that the DB is where the DB was last time. So: no
 `Math.random`, no force simulation, no modularity clustering, no iteration over
-unsorted keys. Every ordering breaks ties on the handle, which is unique. A test
-asserts the same plan produces a byte-identical scene.
+unsorted keys. Every ordering breaks ties on the handle, which is unique.
+
+Buildings within a district sort by handle — never by lens height — so changing
+lenses cannot rearrange the city under the reader. A test asserts the same plan
+produces a byte-identical scene.
 
 ## What it decides
 
@@ -40,3 +51,7 @@ asserts the same plan produces a byte-identical scene.
 One cell is 80 world units, so a footprint is the same order as a graph node's
 box. That is what lets both canvas views share one camera and one set of zoom
 limits — a smaller cell needs a scale the shared camera would clamp away.
+
+Lens height is clamped to 0.35–3 cells. Three cells is already a tower over a
+roughly 0.62-cell footprint; taller buildings become needles whose type
+silhouettes stop being legible.

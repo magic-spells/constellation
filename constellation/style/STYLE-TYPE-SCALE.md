@@ -1,19 +1,19 @@
 ---
 name: Type scale
 kind: tokens
-status: built
+status: verified
 category: type-scale
 code_refs:
   - viewer/app/components/DocsDocument.pzl
 tokens:
   - name: heading-1
     value: 3.25rem
-    weight: '700'
-    line_height: '1.04'
+    weight: '650'
+    line_height: '1.05'
     description: Document title — clamps down to 2.2rem on narrow viewports
   - name: heading-2
     value: 2.1rem
-    weight: '680'
+    weight: '650'
     line_height: '1.15'
     description: Section title
   - name: heading-3
@@ -23,8 +23,8 @@ tokens:
     description: Card title inside a document
   - name: overline-heading
     value: 0.72rem
-    weight: '600'
-    line_height: '1.4'
+    weight: '400'
+    line_height: normal
     sample: DOCUMENTATION
     description: Label above a heading — uppercase, letterspaced
   - name: body-lg
@@ -44,6 +44,14 @@ connections:
   - STYLE-FONTS
 section: design-system
 order: 20
+verified_at: '2026-08-18T17:56:53.735Z'
+verified_sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+notes:
+  - kind: verified
+    text: >-
+      Matched the authored type tokens to DocsDocument.pzl: H1 650/1.05, H2 650/1.15, H3 640/1.25,
+      and the overline's default 400/normal.
+    sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
 ---
 
 Seven steps. Heading steps are **numbered to match the element they set** —

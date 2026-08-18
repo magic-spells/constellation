@@ -8,8 +8,8 @@ connections:
   - FILE-GIT
   - FILE-CODE
   - FILE-SYNC
-verified_sha: c813887e9d1d4021d5129c1534e33f12efbc533d
-verified_at: '2026-08-16T02:40:10.411Z'
+verified_sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+verified_at: '2026-08-18T17:56:53.097Z'
 ---
 
 `computeStaleCards` compares every claim card (status built/verified, or carrying a

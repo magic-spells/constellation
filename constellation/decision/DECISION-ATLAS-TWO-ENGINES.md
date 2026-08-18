@@ -1,12 +1,14 @@
 ---
 name: One scene, two painters
 kind: decision
-status: built
+status: verified
 section: decisions
 order: 30
 connections:
   - PAGE-VIEWER-ATLAS
   - FILE-ATLAS-SCENE
+verified_at: '2026-08-18T17:56:52.325Z'
+verified_sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
 ---
 
 The atlas ships **both** a canvas-2D isometric renderer and a lit three.js one,

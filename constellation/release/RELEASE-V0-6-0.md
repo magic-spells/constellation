@@ -1,9 +1,8 @@
 ---
 name: v0.6.0 — reading the plan
-status: planned
+status: built
 version: 0.6.0
 ---
-
 
 Theme: a plan you can **read**, not just author.
 
