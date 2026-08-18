@@ -63,9 +63,12 @@ export default class ConstellationTabs extends PuzzleView {
 }
 </script>
 
-<style scoped>
+<style>
 /* Floats over the canvas, top-left, clear of the view's own search box. The
-   canvas is the whole box in bleed mode, so every control here is an overlay. */
+   canvas is the whole box in bleed mode, so every control here is an overlay.
+
+   Plain, not scoped: .pzl <style> blocks are collected into one sheet, and
+   `scoped` on a COMPONENT applies nothing at all. */
 .cn-tabs {
 	position: absolute;
 	top: 0.75rem;

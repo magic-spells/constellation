@@ -22,12 +22,13 @@
       <ConstellationTabs active="atlas"/>
 
       <div class="at-lens">
-        <label class="at-lens-label" for="atlas-lens">Lens</label>
-        <select id="atlas-lens" @change={ onLensChange(event) }>
-          {#for option in lenses}
-            <option value={ option.id } selected={ option.id === lens }>{ option.label }</option>
-          {/for}
-        </select>
+        <span class="at-lens-label">Lens</span>
+        <Select
+          class="w-40"
+          options={ lensOptions }
+          value={ lens }
+          indicator="chevrons"
+          @change={ setLens }/>
         <span class="at-lens-hint">{ lensHint }</span>
       </div>
 
@@ -45,7 +46,20 @@
         </div>
       {/if}
 
-      {#if hoverCard}
+      {#if trace}
+        <AtlasTrace
+          flow={ trace.flow }
+          name={ trace.name }
+          index={ trace.index }
+          total={ trace.total }
+          stepHtml={ trace.stepHtml }
+          branches={ trace.branches }
+          stop={ trace.stop }
+          playing={ trace.playing }
+          @step={ traceStep }
+          @toggle={ traceToggle }
+          @close={ traceClose }/>
+      {:else if hoverCard}
         <div class="at-readout">
           <span class="card-handle card-handle--sm" style={ hoverStyle }>{ hoverCard.handle }</span>
           <span class="at-readout-name">{ hoverCard.name }</span>
@@ -61,6 +75,9 @@
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
 import ConstellationTabs from '../components/ConstellationTabs.pzl';
+import AtlasTrace from '../components/AtlasTrace.pzl';
+import Select from '../components/ui/Select.pzl';
+import { extractFlowSteps } from '../lib/markdown.js';
 import { planIndex } from '../lib/plan-index.js';
 import { hrefForHandle } from '../lib/types.js';
 import { onThemeChange } from '../lib/theme.js';
@@ -70,6 +87,7 @@ import { atlasPalette } from '../lib/atlas-palette.js';
 import {
   fitProjected,
   IsoRenderer,
+  project,
   projectedBounds,
 } from '../lib/atlas-iso.js';
 import {
@@ -100,9 +118,12 @@ import {
 /** One full traverse of a flow route, in ms. Slow enough to follow by eye. */
 const ROUTE_PERIOD = 4200;
 
+/** How long a played trace rests on each step before moving on. */
+const STEP_DWELL = 2600;
+
 export default class AtlasView extends PuzzleView {
   created() {
-    this.setData({ hovered: null, lens: 'status' });
+    this.setData({ hovered: null, lens: 'status', traceFlow: null, traceIndex: 0, tracePlaying: false });
 
     this.scene = null;
     this.renderer = new IsoRenderer();
@@ -146,13 +167,44 @@ export default class AtlasView extends PuzzleView {
       neighbors: index?.neighbors ?? new Map(),
       sync: plan?.sync ?? null,
       lens,
-      lenses: LENSES,
+      lensOptions: LENSES.map((l) => ({ value: l.id, label: l.label })),
       lensHint: LENSES.find((l) => l.id === lens)?.hint ?? '',
       inside,
       insideStyle: inside ? `--c: var(--t-${inside.split('-')[0]})` : '',
       hoverCard,
       hoverStyle: hoverCard ? `--c: var(--t-${hoverCard.type})` : '',
+      trace: this.traceModel(cards),
       canvasLabel: `Architecture atlas — ${cards.length} cards as a city`,
+    };
+  }
+
+  /**
+   * The trace panel's props, or null when no flow is being walked.
+   *
+   * Steps come from the FLOW card's body through the SAME `extractFlowSteps`
+   * the card page uses, so a step reads identically in both places. The scene's
+   * route supplies which building each step is at.
+   */
+  traceModel(cards) {
+    const state = this.getData?.() ?? {};
+    if (!state.traceFlow) return null;
+    const card = cards.find((c) => c.handle === state.traceFlow);
+    const route = this.scene?.routes.find((r) => r.id === state.traceFlow);
+    const steps = this.flowSteps(card);
+    if (!card || steps.length === 0) return null;
+
+    const index = Math.max(0, Math.min(state.traceIndex ?? 0, steps.length - 1));
+    return {
+      flow: card.handle,
+      name: card.name || card.handle,
+      index,
+      total: steps.length,
+      stepHtml: steps[index].html,
+      branches: steps[index].branches ?? [],
+      // A step may narrate something with no building (a decision, a wait), so
+      // the stop is genuinely optional rather than an index into the route.
+      stop: route?.stops?.[index] ?? null,
+      playing: Boolean(state.tracePlaying),
     };
   }
 
@@ -222,13 +274,96 @@ export default class AtlasView extends PuzzleView {
     onDblClick: (event) => this.onDblClick(event),
     onWheel: (event) => this.onWheel(event),
     onCanvasKey: (event) => this.onCanvasKey(event),
-    onLensChange: (event) => this.setLens(event.target.value),
+    // Bare reference: the Select piece hands (value, event) to whatever it is
+    // given, and a call form in the template would pass undefined.
+    setLens: (value) => this.setLens(value),
     zoomIn: () => this.zoomBy(1.25),
     zoomOut: () => this.zoomBy(0.8),
     fitAll: () => this.fitAll(),
     exportPng: () => this.exportPng(),
     goOutside: () => this.ctx.router.push('/constellation/atlas'),
+    traceStep: (delta) => this.stepTrace(delta),
+    traceToggle: () => this.toggleTrace(),
+    traceClose: () => this.endTrace(),
   };
+
+  // ── Flow trace ───────────────────────────────────────────────────────────
+
+  /**
+   * A flow's steps, memoised per card body.
+   *
+   * The source of truth for the trace is `traceFlow` / `traceIndex` in setData
+   * state — never the `trace` model, which is computed inside `data()` and is
+   * not readable back through `getData()`. Reading it there is what made the
+   * step buttons silently no-op.
+   */
+  flowSteps(card) {
+    if (!card) return [];
+    if (this.stepsCacheKey !== card.handle) {
+      this.stepsCacheKey = card.handle;
+      this.stepsCache = extractFlowSteps(card.body ?? '')?.steps ?? [];
+    }
+    return this.stepsCache;
+  }
+
+  /** The FLOW card being traced, read from the store rather than from data(). */
+  traceCard() {
+    const handle = this.getData().traceFlow;
+    if (!handle) return null;
+    return planIndex(this.ctx.store)?.byHandle.get(handle) ?? null;
+  }
+
+  traceTotal() {
+    return this.flowSteps(this.traceCard()).length;
+  }
+
+  startTrace(handle) {
+    this.setData({ traceFlow: handle, traceIndex: 0, tracePlaying: false, hovered: null });
+    this.goToStep(0);
+  }
+
+  stepTrace(delta) {
+    const total = this.traceTotal();
+    if (total === 0) return;
+    const current = this.getData().traceIndex ?? 0;
+    const next = Math.max(0, Math.min(current + delta, total - 1));
+    if (next === current) return;
+    this.setData({ traceIndex: next });
+    this.goToStep(next);
+  }
+
+  toggleTrace() {
+    const playing = !this.getData().tracePlaying;
+    this.setData({ tracePlaying: playing });
+    this.lastAdvance = clockNow();
+    this.requestDraw();
+  }
+
+  endTrace() {
+    this.setData({ traceFlow: null, traceIndex: 0, tracePlaying: false });
+    this.requestDraw();
+  }
+
+  /** Fly the camera to the building this step happens at, keeping the zoom. */
+  goToStep(index) {
+    const flow = this.getData().traceFlow;
+    const route = this.scene?.routes.find((r) => r.id === flow);
+    const stop = route?.stops?.[index];
+    const building = stop && this.scene.buildings.find((b) => b.handle === stop);
+    if (!building) {
+      this.requestDraw();
+      return;
+    }
+    const p = project(building.x, building.y, building.height * this.scene.cell * 0.5);
+    const target = {
+      tx: this.width / 2 - this.scale * p.x,
+      ty: this.height / 2 - this.scale * p.y,
+      scale: this.scale,
+    };
+    const view = this.vp.begin(this.view(), target, clockNow());
+    this.applyView(view);
+    if (this.vp.active) this.ticker.request();
+  }
 
   // ── Scene ────────────────────────────────────────────────────────────────
 
@@ -258,8 +393,7 @@ export default class AtlasView extends PuzzleView {
     // one district deep. The URL carries it, so Back walks out.
     let cards = data.cards;
     if (data.inside) {
-      const keep = new Set([data.inside, ...(data.neighbors.get(data.inside) ?? [])]);
-      cards = cards.filter((card) => keep.has(card.handle));
+      cards = cards.filter((card) => this.neighbourhood(data, data.inside).has(card.handle));
     }
 
     this.scene = buildScene({
@@ -279,6 +413,25 @@ export default class AtlasView extends PuzzleView {
     this.renderer.invalidate();
     this.fitted = false;
     this.requestDraw();
+  }
+
+  /**
+   * The cards to show when standing inside `handle`.
+   *
+   * One hop, normally. But most connections in a real plan run to FEATURE cards,
+   * which are districts rather than buildings — so a card whose only neighbours
+   * are features would leave you looking at a single building on an empty plate.
+   * When the first hop is that thin, take a second one.
+   */
+  neighbourhood(data, handle) {
+    const hop = (from) => data.neighbors.get(from) ?? [];
+    const keep = new Set([handle, ...hop(handle)]);
+    const buildings = [...keep].filter(
+      (h) => !['FEATURE', 'RELEASE', 'PLAN'].includes(h.split('-')[0]),
+    );
+    if (buildings.length >= 4) return keep;
+    for (const near of [...keep]) for (const far of hop(near)) keep.add(far);
+    return keep;
   }
 
   setLens(value) {
@@ -329,11 +482,25 @@ export default class AtlasView extends PuzzleView {
       this.scale = moved.scale;
       this.renderer.invalidate();
     }
+    this.advancePlayback(now);
     this.draw(now);
     this.pendingDraw = false;
     // Roads animate continuously while a plan has any, which is the one thing
     // in this view that legitimately keeps the loop alive.
     return this.vp.active || this.pendingDraw || (this.scene?.routes.length ?? 0) > 0;
+  }
+
+  /** Auto-advance a playing trace, one step per STEP_DWELL. */
+  advancePlayback(now) {
+    const data = this.getData();
+    if (!data.tracePlaying || !data.traceFlow) return;
+    if (now - (this.lastAdvance ?? 0) < STEP_DWELL) return;
+    this.lastAdvance = now;
+    if ((data.traceIndex ?? 0) >= this.traceTotal() - 1) {
+      this.setData({ tracePlaying: false });
+      return;
+    }
+    this.stepTrace(1);
   }
 
   draw(now = clockNow()) {
@@ -354,16 +521,31 @@ export default class AtlasView extends PuzzleView {
       ? new Set([data.hovered, ...(data.neighbors.get(data.hovered) ?? [])])
       : null;
 
+    // While tracing, the dot sits ON the current step rather than looping, so
+    // the marker and the caption always agree about where you are.
+    const flow = data.traceFlow ?? null;
+    const stepIndex = data.traceIndex ?? 0;
+    const total = flow ? this.traceTotal() : 0;
+    const progress = flow
+      ? total > 1
+        ? stepIndex / (total - 1)
+        : 0
+      : ((now - this.routeStart) % ROUTE_PERIOD) / ROUTE_PERIOD;
+    const stop = flow
+      ? this.scene.routes.find((r) => r.id === flow)?.stops?.[stepIndex]
+      : null;
+
     this.renderer.draw(ctx, this.scene, this.view(), {
       width: this.width,
       height: this.height,
       palette: this.palette,
       hovered: data.hovered,
-      selected: data.inside,
+      selected: stop ?? data.inside,
       hatch: this.palette.hatch,
       hatchColor: this.palette.hatchColor,
       highlightEdges: highlight,
-      routeProgress: ((now - this.routeStart) % ROUTE_PERIOD) / ROUTE_PERIOD,
+      activeRoute: flow,
+      routeProgress: progress,
     });
   }
 
@@ -494,7 +676,16 @@ export default class AtlasView extends PuzzleView {
     }
   }
 
+  /**
+   * Clicking a building goes inside it — except a FLOW, where the useful thing
+   * is to WALK it. A flow's inside is its route, so the trace is the drill-down.
+   */
   goInside(handle) {
+    const route = this.scene?.routes.find((r) => r.id === handle);
+    if (route) {
+      this.startTrace(handle);
+      return;
+    }
     if (this.getData().inside === handle) return;
     void this.ctx.router.push(`/constellation/atlas/${handle}`);
   }

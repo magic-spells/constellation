@@ -1,0 +1,225 @@
+<puzzle-view>
+  <div class="at-trace" role="region" aria-label="Flow trace">
+    <div class="at-trace-head">
+      <span class="card-handle card-handle--sm" style={ handleStyle }>{ flow }</span>
+      <span class="at-trace-name">{ name }</span>
+      <button type="button" class="at-trace-close" @click={ close } aria-label="Leave the trace">✕</button>
+    </div>
+
+    <div class="at-trace-step">
+      <span class="at-trace-num">{ stepLabel }</span>
+      <div island ref="step" class="at-trace-text"></div>
+    </div>
+
+    <div class="at-trace-controls">
+      <button type="button" @click={ prev } disabled={ atStart } aria-label="Previous step">←</button>
+      <button type="button" @click={ next } disabled={ atEnd } aria-label="Next step">→</button>
+      <button type="button" class="at-trace-play" @click={ toggle } aria-pressed={ playing ? 'true' : 'false' }>
+        { playing ? 'Pause' : 'Play' }
+      </button>
+      {#if stop}
+        <span class="at-trace-stop">at <span class="card-handle card-handle--sm card-handle--bare" style={ stopStyle }>{ stop }</span></span>
+      {/if}
+    </div>
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// AtlasTrace — the step-through panel for one FLOW, walked on the map.
+//
+// The strongest thing the atlas can do with data it already has: a FLOW card's
+// steps are an ordered numbered list in its body, so a flow IS a route and
+// stepping it is a guided tour. Nothing here is inferred from code.
+//
+// Presentational only. The view owns which flow, which step, and whether it is
+// playing; this renders that and reports intent back. Keeping the state in the
+// view is what lets the camera move with the step.
+//
+// Props
+//   flow     FLOW handle
+//   name     the flow's card name
+//   index    0-based current step
+//   total    number of steps
+//   stepHtml rendered markdown of the current step
+//   branches rendered markdown of the current step's nested edge cases
+//   stop     handle of the building the current step is at, if any
+//   playing  whether the trace is auto-advancing
+
+export default class AtlasTrace extends PuzzleView {
+	data(params, props) {
+		const index = Number(props.index ?? 0);
+		const total = Number(props.total ?? 0);
+		const stop = props.stop ?? null;
+		return {
+			flow: props.flow ?? '',
+			name: props.name ?? '',
+			stepHtml: props.stepHtml ?? '',
+			branches: props.branches ?? [],
+			stop,
+			playing: Boolean(props.playing),
+			stepLabel: total ? `${index + 1}/${total}` : '',
+			atStart: index <= 0,
+			atEnd: total === 0 || index >= total - 1,
+			handleStyle: props.flow ? `--c: var(--t-FLOW)` : '',
+			stopStyle: stop ? `--c: var(--t-${String(stop).split('-')[0]})` : '',
+		};
+	}
+
+	/**
+	 * The step body is HTML that already went through the sanitized markdown
+	 * pipeline (wikilinks included), so innerHTML is safe here — the same reason
+	 * FlowSteps is an island. Keyed so re-rendering the panel on every frame of a
+	 * camera move does not re-parse the same markup.
+	 */
+	_render() {
+		const host = this.refs.step;
+		if (!host) return;
+		const data = this.getData();
+		const branches = (data.branches ?? [])
+			.map((b) => `<div class="at-trace-branch">${b}</div>`)
+			.join('');
+		const key = `${data.stepHtml}${branches}`;
+		if (key === this._renderedKey) return;
+		this._renderedKey = key;
+		host.innerHTML = `${data.stepHtml}${branches}`;
+	}
+
+	mounted() {
+		this._render();
+	}
+
+	afterUpdate() {
+		this._render();
+	}
+
+	/** Callback props, the convention every piece here uses (see Tabs, Select). */
+	fire(name, ...args) {
+		const handler = this.props?.[name];
+		if (typeof handler === 'function') handler(...args);
+	}
+
+	events = {
+		prev: () => this.fire('step', -1),
+		next: () => this.fire('step', 1),
+		toggle: () => this.fire('toggle'),
+		close: () => this.fire('close'),
+	};
+}
+</script>
+
+<style>
+/* Plain, not scoped: .pzl <style> blocks are collected into one sheet, and
+   `scoped` on a COMPONENT silently applies nothing — the panel renders with its
+   content correct and no positioning at all. Views may use it; components here
+   do not. */
+.at-trace {
+	position: absolute;
+	bottom: 2.2rem;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 3;
+	width: min(44rem, calc(100% - 2rem));
+	border: 1px solid var(--color-border);
+	border-radius: 0.75rem;
+	background: color-mix(in oklab, var(--color-surface) 94%, transparent);
+	padding: 0.75rem 0.9rem;
+	backdrop-filter: blur(8px);
+}
+
+.at-trace-head {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: 0.5rem;
+}
+
+.at-trace-name {
+	font-weight: 600;
+	font-size: 0.9rem;
+	color: var(--color-ink);
+}
+
+.at-trace-close {
+	margin-left: auto;
+	border: 0;
+	background: none;
+	color: var(--color-muted);
+	cursor: pointer;
+	line-height: 1;
+}
+
+.at-trace-close:hover {
+	color: var(--color-ink);
+}
+
+.at-trace-step {
+	display: flex;
+	gap: 0.6rem;
+	margin: 0 0 0.5rem;
+	font-size: 0.88rem;
+	line-height: 1.5;
+	color: var(--color-ink);
+}
+
+.at-trace-num {
+	flex-shrink: 0;
+	color: var(--color-muted);
+	font-family: var(--font-mono);
+	font-size: 0.76rem;
+	padding-top: 0.15rem;
+}
+
+.at-trace-text :global(p) {
+	margin: 0;
+}
+
+.at-trace-text :global(.at-trace-branch) {
+	margin-top: 0.3rem;
+	color: var(--color-muted);
+	font-size: 0.8rem;
+}
+
+.at-trace-text :global(.at-trace-branch)::before {
+	content: '↳ ';
+	opacity: 0.7;
+}
+
+.at-trace-controls {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+.at-trace-controls button {
+	min-width: 1.9rem;
+	height: 1.7rem;
+	border: 1px solid var(--color-border);
+	border-radius: 0.4rem;
+	background: var(--color-surface);
+	color: var(--color-ink);
+	font-size: 0.8rem;
+	cursor: pointer;
+}
+
+.at-trace-controls button:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+
+.at-trace-controls button:not(:disabled):hover {
+	border-color: var(--color-brand);
+	color: var(--color-brand);
+}
+
+.at-trace-play {
+	padding: 0 0.6rem;
+}
+
+.at-trace-stop {
+	margin-left: auto;
+	color: var(--color-muted);
+	font-size: 0.78rem;
+}
+</style>

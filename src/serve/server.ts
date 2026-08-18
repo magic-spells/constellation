@@ -3,6 +3,7 @@ import { readFile, rm, stat } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { codeMetrics, type CodeMetric } from '../core/code.js';
 import { compileDocs, prepareDocBody } from '../core/docs.js';
 import { repoRemoteUrl, writeSyncPoint } from '../core/git.js';
 import { CONSTELLATION_VERSION } from '../core/version.js';
@@ -125,6 +126,24 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
 
   // The remote can't change under a running server; resolve it once, lazily.
   let repoUrl: string | null | undefined;
+
+  /**
+   * Bound-code sizes for the atlas. Unlike every other read here this one stats
+   * (and reads) the repo, and the viewer polls it — so it's cached. The plan
+   * watcher drops the cache the moment a card changes; the TTL covers the other
+   * half, code edits, which the watcher never sees because it only watches the
+   * plan folder.
+   */
+  const METRICS_TTL_MS = 5_000;
+  let metrics: { at: number; data: Record<string, CodeMetric> } | null = null;
+
+  async function handleGetAtlasMetrics(res: http.ServerResponse): Promise<void> {
+    if (!metrics || Date.now() - metrics.at > METRICS_TTL_MS) {
+      const lint = await lintPlan(planRoot);
+      metrics = { at: Date.now(), data: await codeMetrics(lint.index) };
+    }
+    json(res, 200, metrics.data);
+  }
 
   async function handleGetPlan(res: http.ServerResponse): Promise<void> {
     if (repoUrl === undefined) repoUrl = await repoRemoteUrl(planRoot).catch(() => null);
@@ -355,6 +374,9 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
       if (url.pathname === '/api/sync' && method === 'GET') {
         return json(res, 200, await computeSyncStatus(planRoot));
       }
+      if (url.pathname === '/api/atlas-metrics' && method === 'GET') {
+        return await handleGetAtlasMetrics(res);
+      }
       if (url.pathname === '/api/docs' && method === 'GET') {
         return await handleGetDocs(res);
       }
@@ -412,6 +434,7 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
   });
   try {
     watcher = watch(planRoot, { recursive: true }, () => {
+      metrics = null;
       if (debounce) clearTimeout(debounce);
       debounce = setTimeout(() => {
         for (const client of sseClients) client.write('data: change\n\n');
