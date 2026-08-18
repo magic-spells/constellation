@@ -7,9 +7,25 @@
         <p class="atlas-empty-hint">The atlas draws what the plan holds — write a card and a building appears.</p>
       </div>
     {:else}
+      <!-- Two canvases, not one: a canvas keeps its context type for life, so a
+           canvas that has served 2D can never give back WebGL. Only the active
+           one is visible; both carry the same input handlers. -->
       <canvas
         ref="canvas"
         class="atlas-canvas"
+        hidden={ engine !== 'iso' }
+        tabindex="0"
+        aria-label={ canvasLabel }
+        @pointerdown={ onPointerDown(event) }
+        @pointermove={ onPointerMove(event) }
+        @pointerup={ onPointerUp(event) }
+        @dblclick={ onDblClick(event) }
+        @wheel={ onWheel(event) }
+        @keydown={ onCanvasKey(event) }></canvas>
+      <canvas
+        ref="glcanvas"
+        class="atlas-canvas"
+        hidden={ engine !== 'lit' }
         tabindex="0"
         aria-label={ canvasLabel }
         @pointerdown={ onPointerDown(event) }
@@ -30,6 +46,11 @@
           indicator="chevrons"
           @change={ setLens }/>
         <span class="at-lens-hint">{ lensHint }</span>
+      </div>
+
+      <div class="at-engine" role="group" aria-label="Renderer">
+        <button type="button" class={ engine === 'iso' ? 'is-on' : '' } @click={ useIso }>Paper</button>
+        <button type="button" class={ engine === 'lit' ? 'is-on' : '' } @click={ useLit }>Lit 3D</button>
       </div>
 
       <div class="at-controls">
@@ -79,16 +100,19 @@ import AtlasTrace from '../components/AtlasTrace.pzl';
 import Select from '../components/ui/Select.pzl';
 import { extractFlowSteps } from '../lib/markdown.js';
 import { planIndex } from '../lib/plan-index.js';
+import { loadAtlasConfig, loadAtlasMetrics, saveAtlasConfig } from '../lib/api.js';
 import { hrefForHandle } from '../lib/types.js';
 import { onThemeChange } from '../lib/theme.js';
 import { buildScene } from '../lib/atlas-scene.js';
 import { LENSES, lensModel, normalizeLens } from '../lib/atlas-lenses.js';
 import { atlasPalette } from '../lib/atlas-palette.js';
+import { loadThree, threeReady, ThreeRenderer } from '../lib/atlas-three.js';
 import {
   fitProjected,
   IsoRenderer,
   project,
   projectedBounds,
+  unproject,
 } from '../lib/atlas-iso.js';
 import {
   now as clockNow,
@@ -123,7 +147,19 @@ const STEP_DWELL = 2600;
 
 export default class AtlasView extends PuzzleView {
   created() {
-    this.setData({ hovered: null, lens: 'status', traceFlow: null, traceIndex: 0, tracePlaying: false });
+    // `lensChoice` is the reader's explicit pick, null until they make one, so
+    // atlas.json's default wins first. It is deliberately NOT the `lens` key
+    // data() returns: data()'s output is merged back into the data store, so
+    // reading `lens` here would read the previously RESOLVED value and the
+    // config default could never apply. Same trap as `trace` (see stepTrace).
+    this.setData({
+      hovered: null,
+      lensChoice: null,
+      engineChoice: null,
+      traceFlow: null,
+      traceIndex: 0,
+      tracePlaying: false,
+    });
 
     this.scene = null;
     this.renderer = new IsoRenderer();
@@ -151,9 +187,12 @@ export default class AtlasView extends PuzzleView {
   data(params, props) {
     const store = this.ctx.store;
     const index = planIndex(store);
-    const plan = store.peekRecord?.('plan', 'plan');
+    // findOne, not peekRecord: this must re-run when the atlas config and
+    // metrics land, which they do asynchronously after mount.
+    const plan = store.findOne('plan', 'plan');
     const cards = index ? [...index.byHandle.values()] : [];
-    const lens = normalizeLens(this.getData?.().lens);
+    const config = plan?.atlasConfig ?? null;
+    const lens = normalizeLens(this.getData?.().lensChoice ?? config?.lens);
 
     const inside = String(this.route?.params?.handle ?? '').toUpperCase() || null;
     const hovered = this.getData?.().hovered ?? null;
@@ -166,7 +205,10 @@ export default class AtlasView extends PuzzleView {
       connections: index?.connections ?? [],
       neighbors: index?.neighbors ?? new Map(),
       sync: plan?.sync ?? null,
+      config,
+      metrics: plan?.atlasMetrics ?? null,
       lens,
+      engine: this.getData?.().engineChoice ?? (config?.engine === 'lit' ? 'lit' : 'iso'),
       lensOptions: LENSES.map((l) => ({ value: l.id, label: l.label })),
       lensHint: LENSES.find((l) => l.id === lens)?.hint ?? '',
       inside,
@@ -243,6 +285,12 @@ export default class AtlasView extends PuzzleView {
       this.requestDraw();
     });
 
+    // Atlas-only payloads, fetched here rather than in the app's boot load: the
+    // metrics route stats the repo, and most readers never open this view.
+    // Failures are non-fatal — the city just draws without pins or a size lens.
+    void loadAtlasConfig(this.ctx.store).catch(() => {});
+    void loadAtlasMetrics(this.ctx.store).catch(() => {});
+
     this.syncScene();
     this.requestDraw();
   }
@@ -261,6 +309,9 @@ export default class AtlasView extends PuzzleView {
     this.resizeObserver = null;
     if (this.unsubscribeTheme) this.unsubscribeTheme();
     this.unsubscribeTheme = null;
+    // WebGL contexts and GPU buffers are not garbage collected on their own.
+    this.three?.dispose?.();
+    this.three = null;
     this.scene = null;
     this.canvasCtx = null;
     this.canvasEl = null;
@@ -282,6 +333,8 @@ export default class AtlasView extends PuzzleView {
     fitAll: () => this.fitAll(),
     exportPng: () => this.exportPng(),
     goOutside: () => this.ctx.router.push('/constellation/atlas'),
+    useIso: () => this.setEngine('iso'),
+    useLit: () => this.setEngine('lit'),
     traceStep: (delta) => this.stepTrace(delta),
     traceToggle: () => this.toggleTrace(),
     traceClose: () => this.endTrace(),
@@ -373,7 +426,16 @@ export default class AtlasView extends PuzzleView {
    */
   syncScene() {
     const data = this.getData();
-    const key = `${data.generation}|${data.lens}|${data.inside ?? ''}`;
+    const config = data.config ?? {};
+    // The key is exactly what the LAYOUT depends on, so hovering, panning or
+    // stepping a trace never rebuilds the city.
+    const key = [
+      data.generation,
+      data.lens,
+      data.inside ?? '',
+      data.metrics ? 'm' : '',
+      JSON.stringify(config),
+    ].join('|');
     if (key === this.sceneKey) return;
     this.sceneKey = key;
 
@@ -387,7 +449,8 @@ export default class AtlasView extends PuzzleView {
       (data.sync?.stale?.stale ?? []).map((entry) => [entry.handle, entry]),
     );
 
-    const model = lensModel(data.lens, { degree, stale, now: Date.now() });
+    const metrics = new Map(Object.entries(data.metrics ?? {}));
+    const model = lensModel(data.lens, { degree, stale, metrics, now: Date.now() });
 
     // Going inside narrows the city to one card's neighbourhood — the same graph,
     // one district deep. The URL carries it, so Back walks out.
@@ -400,7 +463,12 @@ export default class AtlasView extends PuzzleView {
       cards,
       connections: data.connections,
       neighbors: data.neighbors,
-      height: model.height,
+      // An authored height override wins over the lens: the author asked for it.
+      height: (card) => config.height?.[card.handle] ?? model.height(card),
+      hide: new Set(config.hide ?? []),
+      pin: new Map(Object.entries(config.pin ?? {})),
+      shape: new Map(Object.entries(config.shape ?? {})),
+      districtOrder: config.districts ?? [],
     });
 
     // The lens speaks through the scene, so the renderer needs no lens concept.
@@ -434,10 +502,40 @@ export default class AtlasView extends PuzzleView {
     return keep;
   }
 
+  /**
+   * Switch renderer. The lit engine's ~750 KB is fetched on the first switch and
+   * never before, so a reader who stays on the paper map never pays for it.
+   * A failed load falls back rather than leaving a blank canvas.
+   */
+  async setEngine(engine) {
+    if (engine === this.getData().engine) return;
+
+    // Flip the state SYNCHRONOUSLY, inside the click's own tick — a setData that
+    // lands after an await is outside the event and does not re-render, which
+    // made the first version load three and then keep drawing the paper map.
+    this.setData({ engineChoice: engine });
+    this.three?.dispose?.();
+    this.three = null;
+
+    if (engine === 'lit' && !threeReady()) {
+      try {
+        await loadThree();
+      } catch {
+        // Fall back rather than leaving a blank canvas.
+        this.setData({ engineChoice: 'iso' });
+        return;
+      }
+      if (!this.isMounted) return;
+    }
+
+    this.resizeCanvas();
+    this.requestDraw();
+  }
+
   setLens(value) {
     const lens = normalizeLens(value);
     if (lens === this.getData().lens) return;
-    this.setData({ lens });
+    this.setData({ lensChoice: lens });
     this.syncScene();
   }
 
@@ -463,6 +561,9 @@ export default class AtlasView extends PuzzleView {
     canvas.style.width = `${this.width}px`;
     canvas.style.height = `${this.height}px`;
     this.canvasCtx = null;
+    // three owns its own canvas's backing store; asking it to resize is how the
+    // WebGL viewport and the camera frustum stay in step with the CSS box.
+    this.three?.resize(this.width, this.height, dpr);
     this.renderer.invalidate();
     if (!this.fitted) this.fitAll(true);
     this.requestDraw();
@@ -504,14 +605,7 @@ export default class AtlasView extends PuzzleView {
   }
 
   draw(now = clockNow()) {
-    const canvas = this.canvasEl;
-    if (!canvas || !this.scene) return;
-    this.canvasCtx ??= canvas.getContext('2d');
-    const ctx = this.canvasCtx;
-    if (!ctx) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (!this.scene) return;
 
     const types = [...new Set(this.scene.buildings.map((b) => b.type))];
     this.palette ??= atlasPalette(types);
@@ -535,7 +629,7 @@ export default class AtlasView extends PuzzleView {
       ? this.scene.routes.find((r) => r.id === flow)?.stops?.[stepIndex]
       : null;
 
-    this.renderer.draw(ctx, this.scene, this.view(), {
+    const opts = {
       width: this.width,
       height: this.height,
       palette: this.palette,
@@ -546,7 +640,38 @@ export default class AtlasView extends PuzzleView {
       highlightEdges: highlight,
       activeRoute: flow,
       routeProgress: progress,
-    });
+    };
+
+    if (data.engine === 'lit') {
+      this.drawLit(opts);
+      return;
+    }
+
+    const canvas = this.canvasEl;
+    if (!canvas) return;
+    this.canvasCtx ??= canvas.getContext('2d');
+    if (!this.canvasCtx) return;
+    const dpr = window.devicePixelRatio || 1;
+    this.canvasCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.renderer.draw(this.canvasCtx, this.scene, this.view(), opts);
+  }
+
+  drawLit(opts) {
+    if (!threeReady()) return;
+    const canvas = this.refs.glcanvas;
+    if (!canvas) return;
+    if (!this.three) {
+      this.three = new ThreeRenderer(canvas);
+      this.three.resize(this.width, this.height, window.devicePixelRatio || 1);
+      this.three.setScene(this.scene, this.palette);
+      this.threeSceneKey = this.sceneKey;
+    }
+    // The lit engine builds meshes, so re-feed it only when the city changed.
+    if (this.threeSceneKey !== this.sceneKey) {
+      this.threeSceneKey = this.sceneKey;
+      this.three.setScene(this.scene, this.palette);
+    }
+    this.three.draw(this.view(), opts);
   }
 
   view() {
@@ -585,7 +710,7 @@ export default class AtlasView extends PuzzleView {
 
   onWheel(event) {
     event.preventDefault();
-    const rect = this.canvasEl.getBoundingClientRect();
+    const rect = this.activeCanvas().getBoundingClientRect();
     this.applyView(
       zoomAt(
         this.view(),
@@ -598,20 +723,29 @@ export default class AtlasView extends PuzzleView {
 
   // ── Input ────────────────────────────────────────────────────────────────
 
+  /** The canvas the active engine is drawing into. */
+  activeCanvas() {
+    return this.getData().engine === 'lit' ? this.refs.glcanvas : this.canvasEl;
+  }
+
   pickAt(clientX, clientY) {
-    if (!this.scene || !this.canvasEl) return null;
-    const rect = this.canvasEl.getBoundingClientRect();
+    const canvas = this.activeCanvas();
+    if (!this.scene || !canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    if (this.getData().engine === 'lit') return this.three?.pick(x, y) ?? null;
     return this.renderer.pick(
       this.scene,
       this.view(),
       { width: this.width, height: this.height },
-      clientX - rect.left,
-      clientY - rect.top,
+      x,
+      y,
     );
   }
 
   onPointerDown(event) {
-    this.canvasEl.setPointerCapture(event.pointerId);
+    this.activeCanvas()?.setPointerCapture(event.pointerId);
     const hit = this.pickAt(event.clientX, event.clientY);
     this.drag = {
       handle: hit?.handle ?? null,
@@ -631,7 +765,8 @@ export default class AtlasView extends PuzzleView {
         this.setData({ hovered: handle });
         this.requestDraw();
       }
-      if (this.canvasEl) this.canvasEl.style.cursor = handle ? 'pointer' : 'grab';
+      const el = this.activeCanvas();
+      if (el) el.style.cursor = handle ? 'pointer' : 'grab';
       return;
     }
 
@@ -642,18 +777,84 @@ export default class AtlasView extends PuzzleView {
     if (Math.abs(event.clientX - this.drag.startX) > 4 || Math.abs(event.clientY - this.drag.startY) > 4) {
       this.drag.moved = true;
     }
-    // Pan always: dragging a building to a new cell is the atlas.json pin story,
-    // and until that lands a drag should never silently do nothing.
+
+    // Drag a building to move it; drag the ground to pan. Same split the graph
+    // view uses, and it is what makes an authored pin something you place by
+    // hand rather than type into a config file.
+    if (this.drag.handle && this.editable()) {
+      this.moveBuilding(this.drag.handle, event.clientX, event.clientY);
+      return;
+    }
     this.applyView({ tx: this.tx + dx, ty: this.ty + dy, scale: this.scale });
+  }
+
+  editable() {
+    return Boolean(this.ctx.store.findOne('plan', 'plan')?.editable);
+  }
+
+  /** World ground point under a client point. */
+  groundAt(clientX, clientY) {
+    const rect = this.activeCanvas().getBoundingClientRect();
+    return unproject(
+      (clientX - rect.left - this.tx) / this.scale,
+      (clientY - rect.top - this.ty) / this.scale,
+    );
+  }
+
+  /** Live feedback while dragging: move the building in the scene we already have. */
+  moveBuilding(handle, clientX, clientY) {
+    const building = this.scene?.buildings.find((b) => b.handle === handle);
+    if (!building) return;
+    const at = this.groundAt(clientX, clientY);
+    building.x = at.x;
+    building.y = at.y;
+    this.renderer.invalidate();
+    this.requestDraw();
   }
 
   onPointerUp(event) {
     const drag = this.drag;
     this.drag = null;
     if (!drag) return;
-    this.canvasEl?.releasePointerCapture?.(event.pointerId);
-    // A click that did not pan: go inside that building.
-    if (!drag.moved && drag.handle) this.goInside(drag.handle);
+    this.activeCanvas()?.releasePointerCapture?.(event.pointerId);
+
+    // A click that did not move: go inside that building.
+    if (!drag.moved) {
+      if (drag.handle) this.goInside(drag.handle);
+      return;
+    }
+    if (drag.handle && this.editable()) this.pinBuilding(drag.handle, event);
+  }
+
+  /**
+   * Persist where a building was dropped, as a cell in whichever district it
+   * landed on. Snapping to a cell rather than storing raw coordinates is what
+   * keeps `atlas.json` authored intent instead of a pile of floats — and it
+   * survives the district being repacked when the plan grows.
+   */
+  async pinBuilding(handle, event) {
+    const at = this.groundAt(event.clientX, event.clientY);
+    const district = this.scene?.districts.find(
+      (d) => at.x >= d.x && at.x <= d.x + d.w && at.y >= d.y && at.y <= d.y + d.h,
+    );
+    if (!district) {
+      // Dropped off the map — put it back rather than inventing a cell.
+      this.sceneKey = null;
+      this.syncScene();
+      return;
+    }
+    const col = Math.max(0, Math.floor((at.x - district.x - district.pad) / this.scene.cell));
+    const row = Math.max(0, Math.floor((at.y - district.y - district.pad) / this.scene.cell));
+
+    const config = this.getData().config ?? {};
+    const next = { ...config, pin: { ...(config.pin ?? {}), [handle]: [col, row] } };
+    try {
+      await saveAtlasConfig(this.ctx.store, next);
+    } catch {
+      // Read-only server or a write race: fall back to the computed layout.
+      this.sceneKey = null;
+      this.syncScene();
+    }
   }
 
   onDblClick(event) {
@@ -696,7 +897,7 @@ export default class AtlasView extends PuzzleView {
    * re-render.
    */
   exportPng() {
-    const canvas = this.canvasEl;
+    const canvas = this.activeCanvas();
     if (!canvas) return;
     canvas.toBlob((blob) => {
       if (!blob) return;
@@ -795,6 +996,41 @@ export default class AtlasView extends PuzzleView {
 .at-lens-hint {
   max-width: 22rem;
   color: var(--color-muted);
+}
+
+.at-engine {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+  display: flex;
+  gap: 0.15rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--color-surface) 90%, transparent);
+  padding: 0.15rem;
+  backdrop-filter: blur(6px);
+}
+
+.at-engine button {
+  border: 0;
+  border-radius: 0.35rem;
+  background: none;
+  padding: 0.2rem 0.55rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.at-engine button.is-on {
+  background: var(--color-brand);
+  color: var(--color-brand-ink);
+}
+
+/* The drill-down chip and the engine switch both want the top-right; the chip
+   only exists while you are inside, so it steps down out of the way. */
+.at-inside {
+  top: 3.1rem;
 }
 
 .at-controls {

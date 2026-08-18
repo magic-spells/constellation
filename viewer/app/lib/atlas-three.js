@@ -26,9 +26,17 @@
 // no lit equivalent and is not attempted: on this engine every scheme paints the
 // lit city.
 //
-// LAZY. three is ~1.3 MB of JS that a session which never opens the atlas should
-// not pay for, so nothing here imports it at the top level. `loadThree()` does,
-// once; the class refuses to construct before that has resolved.
+// LAZY, AND VENDORED. three is ~750 KB of JS that a session which never opens
+// the atlas should not pay for, so nothing here imports it at the top level.
+//
+// A bundled `import('three')` does NOT achieve that: puzzle build emits a single
+// app.js and does not split dynamic imports, so it inlined three and took the
+// bundle from 431 KB to 1.1 MB (136 → 328 KB gzip) for every reader. Instead
+// `scripts/copy-three.mjs` vendors three's ESM build into app/public/vendor/
+// three/ (copied verbatim into dist/) and this imports it on first use. The URL
+// lives in a variable so esbuild treats the import() as an opaque runtime
+// expression and leaves it to the browser — same trick, same reason, as
+// markdown.js does for mermaid.
 
 /** Set by `loadThree`. Module-scoped so the class can stay `new ThreeRenderer(canvas)`. */
 let THREE = null;
@@ -37,10 +45,15 @@ let loading = null;
 /**
  * Load three, once. A failed load is not cached, so a flaky network costs a
  * retry rather than a permanently dead tab.
+ *
+ * `url` is a parameter only so tests can pass the bare `three` specifier and
+ * mock it; production always takes the vendored default.
  */
-export async function loadThree() {
+export const THREE_URL = '/vendor/three/three.module.min.js';
+
+export async function loadThree(url = THREE_URL) {
 	if (THREE) return THREE;
-	loading ??= import('three').then(
+	loading ??= import(url).then(
 		(mod) => {
 			THREE = mod;
 			loading = null;
@@ -48,7 +61,7 @@ export async function loadThree() {
 		},
 		(err) => {
 			loading = null;
-			throw err;
+			throw new Error(`failed to load ${url}: ${err.message}`);
 		},
 	);
 	return loading;
@@ -360,6 +373,7 @@ const Y_PLATE = 0.006;
 const Y_CASING = 0.012;
 const Y_ROAD = 0.018;
 const Y_PLINTH = 0.02;
+const Y_EDGE = 0.024;
 /** District labels sit clear of the ground stack; they ignore depth anyway. */
 const Y_LABEL = 0.5;
 
@@ -377,6 +391,9 @@ const CASING_W = 0.16;
  * anyway, so shadows switch off rather than the atlas going slow.
  */
 const SHADOW_LIMIT = 900;
+
+/** Past this, pre-routed edges are more memory than the reveal is worth. */
+const EDGE_LIMIT = 4000;
 
 export class ThreeRenderer {
 	constructor(canvasEl) {
@@ -429,10 +446,11 @@ export class ThreeRenderer {
 
 		this.buildings = new Map(); // handle → { building, group, meshes, spec }
 		this.markers = []; // { route, mesh }
+		this.edges = new Map(); // handle → the Line objects touching it
 		this.owned = []; // geometries / materials / textures of the current scene
 		this.highlighted = new Map(); // handle → [{ mesh, material }]
-		this.hovered = null;
-		this.selected = null;
+		this.hovered = undefined;
+		this.selected = undefined;
 		this.raycaster = new THREE.Raycaster();
 		this.pointer = new THREE.Vector2();
 	}
@@ -462,6 +480,7 @@ export class ThreeRenderer {
 		this.placeLights(scene, span);
 		this.addGrid(scene, palette);
 		this.addDistricts(scene, palette);
+		this.addEdges(scene, palette);
 		this.addRoads(scene, palette);
 		this.addPlinths(scene, palette, specs);
 		this.addBuildings(scene, palette, specs);
@@ -603,6 +622,35 @@ export class ThreeRenderer {
 		return sprite;
 	}
 
+	/**
+	 * Structural connections, built once and left hidden. iso learned that painting
+	 * 150 of them at once is a hairball, so they appear only around what you are
+	 * pointing at — and pre-routing them means that reveal is a visibility flip
+	 * rather than geometry built inside a pointer event.
+	 */
+	addEdges(scene, palette) {
+		if (scene.edges.length === 0 || scene.edges.length > EDGE_LIMIT) return;
+		const material = new THREE.LineBasicMaterial({
+			color: new THREE.Color(palette.edge),
+			transparent: true,
+			opacity: 0.75,
+		});
+		this.own(material);
+
+		for (const edge of scene.edges) {
+			const points = edge.points.map((p) => new THREE.Vector3(p.x, Y_EDGE, p.y));
+			const geometry = new THREE.BufferGeometry().setFromPoints(points);
+			const line = new THREE.Line(geometry, material);
+			line.visible = false;
+			this.own(geometry);
+			this.root.add(line);
+			for (const handle of [edge.a, edge.b]) {
+				if (!this.edges.has(handle)) this.edges.set(handle, []);
+				this.edges.get(handle).push(line);
+			}
+		}
+	}
+
 	/** FLOW roads: a ribbon on the ground over a darker casing, as iso draws them. */
 	addRoads(scene, palette) {
 		const cell = scene.cell;
@@ -710,7 +758,7 @@ export class ThreeRenderer {
 			if (!materials.has(key)) {
 				const material = new THREE.MeshLambertMaterial({
 					color: new THREE.Color(color),
-					transparent: ghost,
+					transparent: Boolean(ghost),
 					opacity: ghost ? 0.28 : 1,
 					depthWrite: !ghost,
 				});
@@ -796,8 +844,12 @@ export class ThreeRenderer {
 
 			if (spec.bands) {
 				const primary = spec.parts[0];
+				// A shape whose body is shorter than the card's height (a JOB's works
+				// under its stack) must not grow bands in the air above itself.
+				const roof = primary.y + primary.h / 2;
 				const color = new THREE.Color(tone.floorLine);
 				for (const level of bandLevels(building, cell)) {
+					if (level > roof) continue;
 					ringSegments(bandPos, primary, building.x, building.y, level + lift);
 					for (let i = 0; i < ringVertexCount(primary); i++) {
 						bandCol.push(color.r, color.g, color.b);
@@ -881,6 +933,9 @@ export class ThreeRenderer {
 		camera.position.set(this.target.x + d, this.target.y + d, this.target.z + d);
 		camera.lookAt(this.target);
 		camera.updateProjectionMatrix();
+		// Eagerly, not at render time: `pick` casts through this camera and the view
+		// can move between a pointer event and the next frame.
+		camera.updateMatrixWorld();
 	}
 
 	/**
@@ -890,6 +945,14 @@ export class ThreeRenderer {
 	 */
 	updateHighlight(hovered, selected) {
 		if (hovered === this.hovered && selected === this.selected) return;
+		const shown = new Set();
+		for (const handle of [hovered, selected]) {
+			for (const line of (handle && this.edges.get(handle)) || []) shown.add(line);
+		}
+		for (const lines of this.edges.values()) {
+			for (const line of lines) line.visible = shown.has(line);
+		}
+
 		this.hovered = hovered;
 		this.selected = selected;
 
@@ -945,6 +1008,9 @@ export class ThreeRenderer {
 	pick(x, y) {
 		if (!this.scene || this.buildings.size === 0) return null;
 		if (x < 0 || y < 0 || x > this.width || y > this.height) return null;
+		// A pick can arrive before the first frame after a scene rebuild, so the
+		// world transforms are brought up to date here rather than trusted.
+		this.pickRoot.updateMatrixWorld();
 		this.pointer.set((x / this.width) * 2 - 1, -((y / this.height) * 2 - 1));
 		this.raycaster.setFromCamera(this.pointer, this.camera);
 		const hits = this.raycaster.intersectObjects(this.pickRoot.children, true);
@@ -967,6 +1033,9 @@ export class ThreeRenderer {
 	dispose() {
 		this.clearScene();
 		this.renderer.dispose();
+		// A canvas keeps its context type for life, so the GL context is handed back
+		// rather than left for the GC — the view may be mounting a fresh canvas.
+		this.renderer.forceContextLoss?.();
 		this.canvas = null;
 	}
 
@@ -983,8 +1052,10 @@ export class ThreeRenderer {
 			}
 		}
 		this.highlighted.clear();
-		this.hovered = null;
-		this.selected = null;
+		// undefined, not null: the next draw's `null` must count as a change so a
+		// rebuilt city re-lights whatever the pointer is still sitting on.
+		this.hovered = undefined;
+		this.selected = undefined;
 
 		this.root.remove(...this.root.children.filter((c) => c !== this.pickRoot));
 		this.pickRoot.clear();
@@ -992,6 +1063,7 @@ export class ThreeRenderer {
 		this.owned = [];
 		this.buildings.clear();
 		this.markers = [];
+		this.edges.clear();
 		this.scene = null;
 	}
 }
@@ -1003,13 +1075,18 @@ function ringVertexCount(part) {
 
 /**
  * One horizontal ring at `y`, as line-segment pairs, following the part's own
- * plan: a rectangle for a box, the facet polygon for anything turned.
+ * plan: a rectangle for a box, the facet polygon for anything turned. A hair
+ * proud of the surface (SKIN) so the band is a band and not a z-fight.
  */
+const SKIN = 1.004;
+
 function ringSegments(out, part, cx, cz, y) {
 	const push = (x0, z0, x1, z1) => out.push(cx + x0, y, cz + z0, cx + x1, y, cz + z1);
 
 	if (part.kind === 'cyl') {
-		const r = Math.max(part.rTop, part.rBottom);
+		// A taper's radius at this level, so a monument's bands stay on its faces.
+		const t = part.h > 0 ? Math.min(1, Math.max(0, y / part.h)) : 0;
+		const r = (part.rBottom + (part.rTop - part.rBottom) * t) * SKIN;
 		const rot = part.rotY ?? 0;
 		for (let i = 0; i < part.sides; i++) {
 			const a = rot + (i / part.sides) * Math.PI * 2;
@@ -1019,8 +1096,8 @@ function ringSegments(out, part, cx, cz, y) {
 		return;
 	}
 
-	const hw = part.w / 2;
-	const hd = part.d / 2;
+	const hw = (part.w / 2) * SKIN;
+	const hd = (part.d / 2) * SKIN;
 	push(-hw, -hd, hw, -hd);
 	push(hw, -hd, hw, hd);
 	push(hw, hd, -hw, hd);

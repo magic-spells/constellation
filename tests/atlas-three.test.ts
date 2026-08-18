@@ -1,20 +1,50 @@
+// @vitest-environment jsdom
+//
 // The three.js painter's testable half: the camera derivation, the shape
-// vocabulary, and the palette hand-off. Everything that needs a GL context is
-// deliberately out of reach here — what is worth asserting is that this painter
-// frames the SAME city as the canvas one, which is pure arithmetic.
-import { describe, expect, it } from 'vitest';
-import { pointAlong as isoPointAlong, project } from '../viewer/app/lib/atlas-iso.js';
+// vocabulary, and the palette hand-off — all pure, and the important one is that
+// this painter frames the SAME city as the canvas one.
+//
+// A GL context is the one thing a test runner has not got. Everything else about
+// the renderer is plain three, so the last block stubs ONLY WebGLRenderer and
+// exercises the mesh graph for real, up to and including picking a building by
+// firing a ray at the pixel iso would have drawn it on.
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+import {
+  fitProjected,
+  pointAlong as isoPointAlong,
+  project,
+  projectedBounds,
+} from '../viewer/app/lib/atlas-iso.js';
+import { buildScene } from '../viewer/app/lib/atlas-scene.js';
 import {
   bandLevels,
   baseTone,
   cameraFrame,
   geometrySpec,
+  loadThree,
   pointAlong,
   projectByCamera,
   threeReady,
+  ThreeRenderer,
   toThree,
   UNIT,
 } from '../viewer/app/lib/atlas-three.js';
+
+vi.mock('three', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  class StubWebGLRenderer {
+    calls = 0;
+    shadowMap = { enabled: false, type: 0 };
+    setClearColor() {}
+    setPixelRatio() {}
+    setSize() {}
+    render() {
+      this.calls += 1;
+    }
+    dispose() {}
+  }
+  return { ...actual, WebGLRenderer: StubWebGLRenderer };
+});
 
 const CELL = 80;
 
@@ -241,5 +271,137 @@ describe('route marker', () => {
 describe('lazy loading', () => {
   it('has not pulled three in just by importing the module', () => {
     expect(threeReady()).toBe(false);
+  });
+});
+
+describe('mesh graph, on a stubbed GL context', () => {
+  const cards = [
+    { handle: 'FEATURE-TICKETS', type: 'FEATURE', name: 'Ticketing', body: 'Sell tickets.' },
+    { handle: 'API-TICKETS', type: 'API', name: 'Tickets API', body: '## One\n## Two\n## Three' },
+    { handle: 'DB-TICKETS', type: 'DB', name: 'tickets', body: '' },
+    { handle: 'FILE-SERVER', type: 'FILE', name: 'server.ts', frontmatter: { path: 'src/server.ts' } },
+    { handle: 'EXTERNAL-STRIPE', type: 'EXTERNAL', name: 'Stripe', body: '' },
+    { handle: 'TEST-CHECKOUT', type: 'TEST', name: 'checkout', body: '' },
+    { handle: 'EVENT-PAID', type: 'EVENT', name: 'paid', body: '' },
+    { handle: 'AGENT-BOT', type: 'AGENT', name: 'bot', body: '' },
+    { handle: 'DOC-OPS', type: 'DOC', name: 'ops', body: '' },
+    {
+      handle: 'FLOW-CHECKOUT',
+      type: 'FLOW',
+      name: 'Checkout',
+      body: '1. [[API-TICKETS]]\n2. [[DB-TICKETS]]\n3. [[EVENT-PAID]]',
+    },
+  ].map((c) => ({ status: null, mtime: 0, frontmatter: {}, body: '', ...c }));
+
+  const neighbors = new Map([
+    ['FEATURE-TICKETS', new Set(['API-TICKETS', 'DB-TICKETS'])],
+    ['API-TICKETS', new Set(['FEATURE-TICKETS', 'FILE-SERVER'])],
+    ['DB-TICKETS', new Set(['FEATURE-TICKETS'])],
+    ['FILE-SERVER', new Set(['API-TICKETS'])],
+  ]);
+
+  /** Everything the renderer is allowed to know about colour. */
+  const palette = {
+    grid: '#333333',
+    edge: '#444444',
+    scaffold: '#e0635d',
+    routeDot: '#88aaff',
+    routeCasing: '#0b0b0f',
+    districtFont: '600 11px monospace',
+    summaryFont: '400 11px sans-serif',
+    building: () => ({
+      top: '#7799cc',
+      left: '#223344',
+      right: '#445566',
+      outline: '#cc785c',
+      floorLine: '#334455',
+    }),
+    district: () => ({ fill: '#181820', line: '#3a3a44' }),
+    districtLabel: () => '#eeeeee',
+    districtSummary: () => '#999999',
+    route: () => '#88aaff',
+  };
+
+  const size = { width: 900, height: 620 };
+
+  // jsdom has no 2D context, so the district-label sprites resolve to null. That
+  // is the branch the renderer already guards; stubbing it keeps the run quiet.
+  beforeAll(() => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  });
+
+  async function city() {
+    await loadThree('three'); // bare specifier so vi.mock above applies
+    const scene = buildScene({ cards, connections: [{ a: 'API-TICKETS', b: 'DB-TICKETS' }], neighbors });
+    const renderer = new ThreeRenderer(document.createElement('canvas'));
+    renderer.setScene(scene, palette);
+    renderer.resize(size.width, size.height, 2);
+    const view = fitProjected(projectedBounds(scene), size);
+    renderer.draw(view, { ...size, hovered: null, selected: null, routeProgress: 0.4 });
+    return { scene, renderer, view };
+  }
+
+  it('builds one pickable object per building and paints on demand', async () => {
+    const { scene, renderer } = await city();
+    expect(scene.buildings.length).toBeGreaterThan(5);
+    expect(renderer.buildings.size).toBe(scene.buildings.length);
+    expect(renderer.pickRoot.children).toHaveLength(scene.buildings.length);
+    expect(renderer.renderer.calls).toBe(1);
+    renderer.dispose();
+  });
+
+  it('picks the building iso would have drawn under that pixel', async () => {
+    const { scene, renderer, view } = await city();
+    for (const handle of ['DB-TICKETS', 'API-TICKETS', 'DOC-OPS']) {
+      const b = scene.buildings.find((x) => x.handle === handle)!;
+      // Halfway up the front face — inside every silhouette, on every engine.
+      const p = project(b.x, b.y, (b.height * scene.cell) / 2);
+      const hit = renderer.pick(view.tx + view.scale * p.x, view.ty + view.scale * p.y);
+      expect(hit?.handle, handle).toBe(handle);
+    }
+    expect(renderer.pick(-10, -10)).toBeNull();
+    renderer.dispose();
+  });
+
+  it('moves the route marker along the road as progress advances', async () => {
+    const { renderer, view } = await city();
+    expect(renderer.markers).toHaveLength(1);
+    const start = renderer.markers[0].mesh.position.clone();
+    renderer.draw(view, { ...size, routeProgress: 0.9 });
+    expect(renderer.markers[0].mesh.position.equals(start)).toBe(false);
+    renderer.dispose();
+  });
+
+  it('lights a hovered building and hands its shared material back after', async () => {
+    const { renderer, view } = await city();
+    const meshes = renderer.buildings.get('DB-TICKETS')!.meshes;
+    const shared = meshes[0].material;
+    renderer.draw(view, { ...size, hovered: 'DB-TICKETS' });
+    expect(meshes[0].material).not.toBe(shared);
+    expect(meshes[0].material.emissive.getHexString()).toBe('cc785c');
+    renderer.draw(view, { ...size, hovered: null });
+    expect(meshes[0].material).toBe(shared);
+    renderer.dispose();
+  });
+
+  it('reveals a hovered card’s connections and hides them again', async () => {
+    const { renderer, view } = await city();
+    const lines = renderer.edges.get('API-TICKETS')!;
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.every((l: { visible: boolean }) => !l.visible)).toBe(true);
+    renderer.draw(view, { ...size, hovered: 'API-TICKETS' });
+    expect(lines.every((l: { visible: boolean }) => l.visible)).toBe(true);
+    renderer.draw(view, { ...size, hovered: null });
+    expect(lines.every((l: { visible: boolean }) => !l.visible)).toBe(true);
+    renderer.dispose();
+  });
+
+  it('releases every GPU resource on dispose', async () => {
+    const { renderer } = await city();
+    expect(renderer.owned.length).toBeGreaterThan(10);
+    renderer.dispose();
+    expect(renderer.owned).toHaveLength(0);
+    expect(renderer.buildings.size).toBe(0);
+    expect(renderer.pickRoot.children).toHaveLength(0);
   });
 });

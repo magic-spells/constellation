@@ -3,6 +3,7 @@ import { readFile, rm, stat } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readAtlasConfig, writeAtlasConfig } from '../core/atlas-config.js';
 import { codeMetrics, type CodeMetric } from '../core/code.js';
 import { compileDocs, prepareDocBody } from '../core/docs.js';
 import { repoRemoteUrl, writeSyncPoint } from '../core/git.js';
@@ -377,6 +378,9 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
       if (url.pathname === '/api/atlas-metrics' && method === 'GET') {
         return await handleGetAtlasMetrics(res);
       }
+      if (url.pathname === '/api/atlas-config' && method === 'GET') {
+        return json(res, 200, await readAtlasConfig(planRoot));
+      }
       if (url.pathname === '/api/docs' && method === 'GET') {
         return await handleGetDocs(res);
       }
@@ -398,6 +402,7 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
       const isWrite =
         (cardMatch && (method === 'PATCH' || method === 'DELETE')) ||
         (url.pathname === '/api/cards' && method === 'POST') ||
+        (url.pathname === '/api/atlas-config' && method === 'PUT') ||
         (url.pathname === '/api/sync-point' && method === 'POST');
       if (isWrite) {
         if (!editable) {
@@ -405,6 +410,9 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
         }
         if (url.pathname === '/api/sync-point') {
           return await handleSetSyncPoint(await readJson(req), res);
+        }
+        if (url.pathname === '/api/atlas-config') {
+          return json(res, 200, await writeAtlasConfig(planRoot, await readJson(req)));
         }
         if (cardMatch && method === 'PATCH') {
           return await handlePatchCard(

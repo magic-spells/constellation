@@ -336,6 +336,7 @@ export function buildScene(input) {
 		hide = new Set(),
 		pin = new Map(),
 		shape = new Map(),
+		districtOrder = [],
 	} = input;
 
 	const visible = cards.filter((c) => !hide.has(c.handle));
@@ -343,11 +344,15 @@ export function buildScene(input) {
 
 	// ── Districts ────────────────────────────────────────────────────────────
 	const districts = assignDistricts(visible, neighbors);
-	// Biggest first so the eye lands on the substantial parts of the system;
-	// feature districts outrank type districts at equal size because a named
-	// feature is a stronger statement than "these share a prefix".
+	// Authored order first (atlas.json `districts`), then biggest, so the eye
+	// lands on the substantial parts of the system. Feature districts outrank
+	// type districts at equal size because a named feature is a stronger
+	// statement than "these share a prefix".
+	const authored = new Map(districtOrder.map((id, i) => [id, i]));
+	const rank = (d) => authored.get(d.id) ?? Number.MAX_SAFE_INTEGER;
 	districts.sort(
 		(a, b) =>
+			rank(a) - rank(b) ||
 			b.cards.length - a.cards.length ||
 			(a.kind === b.kind ? 0 : a.kind === 'feature' ? -1 : 1) ||
 			(a.id < b.id ? -1 : 1),
@@ -357,6 +362,9 @@ export function buildScene(input) {
 		const { cols, rows } = gridFor(district.cards.length);
 		district.cols = cols;
 		district.rows = rows;
+		// `pad` is published so a caller dropping a dragged building can convert
+		// a world point back to the cell it landed on without re-deriving it.
+		district.pad = DISTRICT_PAD;
 		district.w = cols * CELL + DISTRICT_PAD * 2;
 		district.h = rows * CELL + DISTRICT_PAD * 2;
 	}
