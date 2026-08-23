@@ -311,7 +311,13 @@ export async function diffPlan(
   planRoot: string,
   base?: string,
   head?: string,
+  options: { detail?: boolean } = {},
 ): Promise<PlanDiff> {
+  // detail: false skips the per-card content comparison (changed_keys /
+  // body_changed), which costs two `git show` spawns per modified card —
+  // callers that only need the change list (computeSyncStatus counts it)
+  // must not pay seconds for it on a plan with hundreds of drifted cards.
+  const detail = options.detail !== false;
   // realpath: git reports the canonical repo root, which may differ from the
   // caller's path through symlinks (e.g. /var vs /private/var on macOS).
   const realRoot = await realpath(planRoot);
@@ -358,7 +364,7 @@ export async function diffPlan(
     if (!handle) continue;
 
     const entry: PlanChange = { handle, file, change };
-    if (change === 'modified' || change === 'renamed') {
+    if (detail && (change === 'modified' || change === 'renamed')) {
       try {
         const oldText = await git(repoRoot, 'show', `${resolvedBase}:${oldPath}`);
         const newText = head

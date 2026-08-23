@@ -162,13 +162,21 @@ export async function resolveCodeForCard(
   index: PlanIndex,
   card: Card,
   mode: 'paths' | 'direct',
+  options: { repoRoot?: string | null } = {},
 ): Promise<CodeResolution> {
   const bound = boundPathsForCard(index, card);
+  // Resolving the repo root spawns a git subprocess; a caller looping over many
+  // cards (computeStaleCards, assemble) resolves once and passes it in — null
+  // meaning "known to be outside a git repo", undefined meaning "resolve here".
   let repoRoot: string | null = null;
-  try {
-    repoRoot = await repoRootFor(await realpath(planRoot));
-  } catch {
-    repoRoot = null;
+  if (options.repoRoot !== undefined) {
+    repoRoot = options.repoRoot;
+  } else {
+    try {
+      repoRoot = await repoRootFor(await realpath(planRoot));
+    } catch {
+      repoRoot = null;
+    }
   }
   // Canonical repo root for the symlink-escape check below.
   const realRepoRoot = repoRoot ? await realpath(repoRoot).catch(() => repoRoot) : null;
