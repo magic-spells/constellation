@@ -1,4 +1,4 @@
-import { readFile, rm, stat } from 'node:fs/promises';
+import { readFile, realpath, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -23,6 +23,7 @@ import {
   headSha,
   planDirty,
   planLog,
+  repoRootFor,
   resolveCommit,
   stampFormatReview,
   writeSyncPoint,
@@ -1264,6 +1265,16 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         }
       }
 
+      // Resolved once for the whole assembly — resolveCodeForCard's own
+      // fallback spawns a git subprocess per seed card.
+      let codeRepoRoot: string | null = null;
+      if (codeMode !== 'none') {
+        try {
+          codeRepoRoot = await repoRootFor(await realpath(root));
+        } catch {
+          codeRepoRoot = null;
+        }
+      }
       const units = [];
       for (const part of partitions) {
         const cards = [];
@@ -1277,7 +1288,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
                 }
               : { ...summary(card) };
           if (codeMode !== 'none') {
-            entry.code = await resolveCodeForCard(root, index, card, codeMode);
+            entry.code = await resolveCodeForCard(root, index, card, codeMode, {
+              repoRoot: codeRepoRoot,
+            });
           }
           cards.push(entry);
         }

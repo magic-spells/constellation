@@ -69,14 +69,18 @@ export async function computeStaleCards(
   const claims: Claim[] = [];
 
   // Card files join the same git pass as bound code, so both need repo-relative
-  // paths; outside a git repo every claim falls back to base/marker.
+  // paths; outside a git repo every claim falls back to base/marker. The repo
+  // root is resolved ONCE here and shared with every resolveCodeForCard call —
+  // its own fallback spawns a git subprocess per card.
   let planRel: string | null = null;
+  let repoRoot: string | null = null;
   try {
     const realRoot = await realpath(root);
-    const repoRoot = await repoRootFor(realRoot);
+    repoRoot = await repoRootFor(realRoot);
     planRel = path.relative(repoRoot, realRoot).split(path.sep).join('/');
   } catch {
     planRel = null;
+    repoRoot = null;
   }
   const repoPathOf = (card: Card): string | null => {
     if (planRel === null) return null;
@@ -93,7 +97,7 @@ export async function computeStaleCards(
       card.status === 'built' || card.status === 'verified' || Boolean(verifiedSha);
     if (!isClaim) continue;
     if (boundPathsForCard(index, card).length === 0) continue;
-    const resolved = await resolveCodeForCard(root, index, card, 'paths');
+    const resolved = await resolveCodeForCard(root, index, card, 'paths', { repoRoot });
     claims.push({
       card,
       cardPath: repoPathOf(card),
@@ -118,11 +122,10 @@ export async function computeStaleCards(
       ]),
     ];
     try {
-      lastCommit = await lastCommitByPath(root, union);
-      dirty = await dirtyFilesAmong(
-        root,
-        [...new Set(relative.flatMap((c) => c.paths))],
-      );
+      [lastCommit, dirty] = await Promise.all([
+        lastCommitByPath(root, union),
+        dirtyFilesAmong(root, [...new Set(relative.flatMap((c) => c.paths))]),
+      ]);
     } catch {
       // No usable history (fresh repo, no HEAD): every card falls back below.
       lastCommit = new Map();
@@ -138,18 +141,20 @@ export async function computeStaleCards(
   const baselines = new Set(
     claims.map(shaBaseline).filter((b): b is string => Boolean(b)),
   );
-  for (const baseline of baselines) {
-    const union = [
-      ...new Set(
-        claims.filter((c) => shaBaseline(c) === baseline).flatMap((c) => c.paths),
-      ),
-    ];
-    try {
-      changedBy.set(baseline, await changedFilesSince(root, baseline, union));
-    } catch {
-      changedBy.set(baseline, 'unreachable');
-    }
-  }
+  await Promise.all(
+    [...baselines].map(async (baseline) => {
+      const union = [
+        ...new Set(
+          claims.filter((c) => shaBaseline(c) === baseline).flatMap((c) => c.paths),
+        ),
+      ];
+      try {
+        changedBy.set(baseline, await changedFilesSince(root, baseline, union));
+      } catch {
+        changedBy.set(baseline, 'unreachable');
+      }
+    }),
+  );
 
   const stale: StaleCard[] = [];
   const noBaseline: StaleResult['no_baseline'] = [];

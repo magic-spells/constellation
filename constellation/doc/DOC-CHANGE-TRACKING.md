@@ -11,6 +11,18 @@ verified_at: '2026-08-16T02:39:51.183Z'
 verified_sha: c813887e9d1d4021d5129c1534e33f12efbc533d
 section: plan-and-code
 order: 10
+notes:
+  - kind: gotcha
+    text: >-
+      Per-card git subprocess spawns are the sync-status killer, not parsing. On a 354-card plan
+      (Puzzle) /api/sync took 6.1s: diffPlan spawned two `git show` per modified card just to report
+      a count (231 cards ≈ 3.9s), and computeStaleCards let resolveCodeForCard re-run `git rev-parse
+      --show-toplevel` per claim card (190 cards ≈ 1.4s); parsing all cards was 48ms. Fixed 2026-08:
+      diffPlan takes `{ detail: false }` (skips content comparison — computeSyncStatus uses it),
+      resolveCodeForCard takes `{ repoRoot }` so loops resolve the root once (computeStaleCards,
+      assemble), and computeSyncStatus/computeStaleCards run independent git calls under
+      Promise.all. Result ~0.5s. Rule for new code on these paths: never put a git spawn inside a
+      per-card loop — batch into one git call or resolve once and share.
 ---
 
 # Change tracking & sync
