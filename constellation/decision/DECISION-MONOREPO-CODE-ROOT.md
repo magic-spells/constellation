@@ -56,5 +56,5 @@ Boundary rules stay symmetric: walking up for a plan still stops at `.git` (neve
 
 - Monorepo plans report true staleness, versions, and drift; the false-missing / permanently-stale class disappears.
 - Every `repoRootFor` call site is sorted into codeRoot vs gitRoot deliberately; new code must pick one on purpose.
-- Multi-plan serve (one server, several plans per repo) builds on `codeRootFor` — see DECISION-MULTI-PLAN-SERVE once that lands.
-- Guidance (INSTRUCTIONS / SKILL.md / methodology.md) must teach the two-root model; the schemas' "relative to the repo root" wording becomes "relative to the code root".
+- Multi-plan serve landed on `codeRootFor` ([[DECISION-MULTI-PLAN-SERVE]]): `discoverPlans` keys each plan by its code root, and the style-asset move deferred above resolved as code-root first with a git-root fallback, containment enforced on whichever root served.
+- Done as required: all three guidance copies teach the two-root model ([[AGENT-GUIDANCE]]), and the schemas now say "relative to the code root".

@@ -25,7 +25,7 @@ order: 10
 
 The viewer landing page: a status board for the plan. Served by [[FILE-SERVE]].
 
-The shell around it (`viewer/app/layouts/AppShell.pzl`) owns the topbar every route shares: plan name, [[COMPONENT-SYNC-BADGE]], the ⌘K palette button, appearance controls, and — when [[FILE-SERVE]] reports a `repo_url` — a GitHub link out to the repo. No remote means no link rather than a dead icon.
+The shell around it (`viewer/app/layouts/AppShell.pzl`) owns the topbar every route shares: the plan's name (a switcher between plans when the server hosts more than one — [[DECISION-MULTI-PLAN-SERVE]]), [[COMPONENT-SYNC-BADGE]], the ⌘K palette button, appearance controls, and — when [[FILE-SERVE]] reports a `repo_url` — a GitHub link out to the repo. No remote means no link rather than a dead icon.
 
 Four blocks, in order: the **health strip**, the **panel grid**, the `PLAN-PROJECT` body (editable in place), and connected repos. The page widens to 96rem for a two-column panel grid (one column under 900px) while the prose stays capped at 70rem so its left edge lines up with the panels.
 

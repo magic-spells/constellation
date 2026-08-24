@@ -21,3 +21,5 @@ notes:
 ---
 
 Walks up from cwd to find `constellation/`, stopping at the first ancestor with `.git` and returning null rather than adopting a sibling repo's plan. Plan resolution never crosses a repo boundary.
+
+It also resolves plans **downward**, which is what multi-plan serve stands on: `discoverPlans` runs a bounded BFS from a scan root for every `constellation/plan.md`, and `identifyPlans` gives each one a stable route id. The downward walk mirrors the upward stop — a directory containing `.git` is a nested repo and is skipped — so discovery never crosses a repo boundary either. Discovery is deliberately one-shot: a plan created while the server is running needs a restart to appear.
