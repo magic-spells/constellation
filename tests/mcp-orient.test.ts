@@ -119,9 +119,11 @@ describe('orient', () => {
     expect(data.versions.warning).toContain('older');
   });
 
-  it('lists connected repos by name and path only', async () => {
+  it('lists connected repos with reachability', async () => {
     await call('add_connected_repo', { name: 'sibling', path: '../sibling' });
     const data = await call('orient');
-    expect(data.connected_repos).toEqual([{ name: 'sibling', path: '../sibling' }]);
+    expect(data.connected_repos).toEqual([
+      { name: 'sibling', path: '../sibling', reachable: expect.any(Boolean) },
+    ]);
   });
 });

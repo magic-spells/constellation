@@ -575,6 +575,11 @@ export async function recentCodeActivity(
     `-n${limit * 5}`,
     '--pretty=format:%x1e%H%x1f%aI%x1f%s',
     '--name-only',
+    // A pathspec turns on git's default history simplification, which drops
+    // commits reachable only through the pruned side of a TREESAME merge —
+    // real code commits, silently missing. Merges still list no files, so the
+    // `files.length === 0` skip below keeps them out of the report.
+    '--full-history',
     '--',
     codePrefix || '.',
   );
@@ -619,6 +624,9 @@ export async function countCodeCommitsSince(
     repoRoot,
     'rev-list',
     '--count',
+    // Same reason as recentCodeActivity: without it the pathspec prunes real
+    // commits off the non-TREESAME side of merges and under-counts the drift.
+    '--full-history',
     `${safeRev(sinceSha)}..HEAD`,
     '--',
     codePrefix || '.',

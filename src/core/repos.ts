@@ -11,7 +11,12 @@ import type { ConnectedRepo } from './types.js';
  * targeted by the `repo` selector without ever merging two plans.
  */
 
-/** The directory containing the plan folder — the code root in the normal layout. */
+/**
+ * The directory containing the plan folder. `connected_repos` paths resolve
+ * against THIS, always — never against PLAN-PROJECT's `code_root` override,
+ * which relocates where a plan's own code lives (that is `codeRootFor`'s job)
+ * and says nothing about where sibling repos sit.
+ */
 function repoRootOf(planRoot: string): string {
   return path.dirname(planRoot);
 }

@@ -24,7 +24,6 @@ import {
   planRootsFor,
   planDirty,
   planLog,
-  repoRootFor,
   resolveCommit,
   stampFormatReview,
   writeSyncPoint,
@@ -812,7 +811,8 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       `No constellation/ folder found by walking up from ${process.cwd()}. This MCP ` +
         'server uses its own working directory, so set "cwd" to the project if needed. ' +
         'In a monorepo, plans typically live at packages/<name>/constellation and are ' +
-        'addressed with repo=<path or name>. Call init_plan at the intended project root.',
+        'addressed with repo=<path or name>. Otherwise call init_plan (optionally with ' +
+        '{ path } pointing at the intended project root), or run `constellation init`.',
     );
 
   /**

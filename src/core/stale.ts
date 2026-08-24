@@ -93,7 +93,6 @@ export async function computeStaleCards(
     codePrefix ? `${codePrefix}/${codePath}` : codePath;
   const codePathFor = (gitPath: string): string | null => {
     if (!codePrefix) return gitPath;
-    if (gitPath === codePrefix) return '';
     const prefix = `${codePrefix}/`;
     return gitPath.startsWith(prefix) ? gitPath.slice(prefix.length) : null;
   };

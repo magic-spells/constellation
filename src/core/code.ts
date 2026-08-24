@@ -197,7 +197,7 @@ export async function resolveCodeForCard(
         ? abs === codeRoot || abs.startsWith(codeRoot + path.sep)
         : false;
     if (abs !== null && !inside) {
-      files.push({ ...b, exists: false, skipped: 'outside repo root' });
+      files.push({ ...b, exists: false, skipped: 'outside code root' });
       continue;
     }
 
@@ -222,7 +222,7 @@ export async function resolveCodeForCard(
     if (exists && abs) {
       try {
         if (escapes(await realpath(abs))) {
-          files.push({ ...b, exists: false, skipped: 'symlink escapes repo root' });
+          files.push({ ...b, exists: false, skipped: 'symlink escapes code root' });
           continue;
         }
       } catch {

@@ -10,6 +10,15 @@ connections:
   - FILE-SYNC
 verified_sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
 verified_at: '2026-08-18T17:56:53.097Z'
+notes:
+  - kind: state
+    text: >-
+      computeStaleCards translates at every git boundary: bound paths (code-root-relative) get the
+      code root's repo-relative prefix before lastCommitByPath / changedFilesSince /
+      dirtyFilesAmong, and results are stripped back, so all staleness output stays
+      code-root-relative. Directory bindings round-trip through the same translation (underDirs).
+      prefix '' is a true identity — single-package repos are byte-for-byte unchanged. See
+      DECISION-MONOREPO-CODE-ROOT.
 ---
 
 `computeStaleCards` compares every claim card (status built/verified, or carrying a

@@ -84,6 +84,38 @@ code_refs:
 Path resolution regression fixture.
 `,
   );
+  // A DIRECTORY binding: drift over it is the union of its contents changing,
+  // which stale resolves by prefix — under a git prefix, through a round trip.
+  await writeFile(
+    path.join(alphaPlan, 'doc', 'DOC-MONOREPO-DIR.md'),
+    `---
+name: Monorepo directory binding
+kind: guide
+status: built
+code_refs:
+  - src/styles
+---
+
+Directory-binding regression fixture.
+`,
+  );
+  // Inside the git repo, outside the code root — resolution must refuse it.
+  await writeFile(
+    path.join(alphaPlan, 'doc', 'DOC-MONOREPO-ESCAPE.md'),
+    `---
+name: Monorepo escape guard
+kind: guide
+code_refs:
+  - ../beta/beta-secret.ts
+---
+
+Containment regression fixture.
+`,
+  );
+  await writeFile(
+    path.join(betaRoot, 'beta-secret.ts'),
+    'export const secret = "beta"; // NOT ALPHA CODE\n',
+  );
   await writeFile(
     path.join(monoRepo, 'constellation', 'plan.md'),
     `---
@@ -247,6 +279,48 @@ describe('plan-scoped code roots in a monorepo', () => {
     expect(orient.connected_repos).toEqual([
       { name: 'alpha', path: 'packages/alpha', reachable: true },
     ]);
+  });
+
+  it('resolves a directory binding and reports files under it code-root-relative', async () => {
+    const dirCard = await call(monoClient!, 'get_card', {
+      repo: 'packages/alpha',
+      handle: 'DOC-MONOREPO-DIR',
+      code: 'paths',
+    });
+    expect(dirCard.code.files).toEqual([
+      expect.objectContaining({ path: 'src/styles', exists: true, dir: true }),
+    ]);
+    expect(dirCard.code.missing).toEqual([]);
+
+    await writeFile(
+      path.join(alphaRoot, 'src', 'styles', 'tokens.css'),
+      ':root { --alpha: 2; }\n',
+    );
+    git(monoRepo, 'add', 'packages/alpha/src/styles/tokens.css');
+    git(monoRepo, 'commit', '-q', '-m', 'alpha tokens');
+
+    const report = await call(monoClient!, 'stale_report', { repo: 'packages/alpha' });
+    const stale = report.stale.find(
+      (card: { handle: string }) => card.handle === 'DOC-MONOREPO-DIR',
+    );
+    expect(stale).toBeDefined();
+    expect(stale.changed_files).toContain('src/styles/tokens.css');
+    expect(stale.changed_files).not.toContain('packages/alpha/src/styles/tokens.css');
+  });
+
+  it('refuses a code_ref that leaves the code root but stays in the git repo', async () => {
+    const res = await call(monoClient!, 'get_card', {
+      repo: 'packages/alpha',
+      handle: 'DOC-MONOREPO-ESCAPE',
+      code: 'direct',
+    });
+    const file = res.code.files.find(
+      (f: { path: string }) => f.path === '../beta/beta-secret.ts',
+    );
+    expect(file).toBeDefined();
+    expect(file.exists).toBe(false);
+    expect(file.content).toBeUndefined();
+    expect(file.skipped).toBe('outside code root');
   });
 });
 

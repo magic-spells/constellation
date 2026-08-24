@@ -27,6 +27,13 @@ notes:
       Verified the current HTTP surface, including compiled docs, atlas metrics/config, STYLE
       assets, readonly write guards, and the five-second metrics cache with plan-watch invalidation.
     sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+  - kind: state
+    text: >-
+      GET /api/plan gained one additive key: code_prefix — the plan's code root relative to the git
+      root ('' in a single-package repo), memoized like repoUrl (one git spawn per server, not per
+      poll). Nothing consumes it yet; the viewer's source deep-links start using it with the
+      multi-plan serve work. Style-asset resolution deliberately unchanged this round (moves to the
+      code root with DECISION-MULTI-PLAN-SERVE).
 ---
 
 Serves `viewer/dist`, a read API, and a PATCH/POST/DELETE write API (with `if_mtime` stale-write guard), watching files for live reload. Shares the byte-preserving writer with the MCP path. `DELETE /api/card/PLAN-PROJECT` is refused (400 `INVALID_HANDLE`) — same guard as MCP `delete_card`.

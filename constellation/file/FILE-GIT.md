@@ -19,6 +19,13 @@ notes:
       rev-parse echoes that flag as output. Now routes through resolveCommit (--verify). The card
       documents the trap; tests/sync.test.ts covers the branch, which previously had none.
     sha: 623af52933900eb27ccb1d3061a33b40a4da16ee
+  - kind: state
+    text: >-
+      recentCodeActivity and countCodeCommitsSince are pathspec-scoped to the plan's code root (were
+      '.' / no pathspec) and both pass --full-history: a bare pathspec enables git's TREESAME merge
+      simplification, which silently pruned real code commits reachable only via the un-followed
+      parent (proven on this repo: 4 real commits dropped, e.g. the viewer sidebar chain via PR
+      #11's merge shape). planRootsFor added to compute { codeRoot, gitRoot, prefix } per plan.
 ---
 
 `diffPlan` (per-card delta), `planLog`, sync-marker read/write, `headSha`, `changedFilesSince`, `lastCommitByPath`, `dirtyFilesAmong`, `countCodeCommitsSince`, `recentPlanActivity`, `recentCodeActivity`, `latestTag`, `repoRemoteUrl`. Every caller-supplied revision is guarded by `safeRev` + `--end-of-options` so a dash-leading value can't be parsed as a git option.
