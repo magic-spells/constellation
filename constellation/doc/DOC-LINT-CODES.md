@@ -1,13 +1,15 @@
 ---
 name: Lint codes
 kind: reference
-status: built
+status: verified
 connections:
   - FILE-INDEXER
   - FILE-VALIDATE
   - FILE-LINT
 section: format
 order: 30
+verified_at: '2026-08-24T20:08:43.123Z'
+verified_sha: 2757d7de40f8f234c01bd7369c6fbfa85f23bcbb
 ---
 
 # Lint codes

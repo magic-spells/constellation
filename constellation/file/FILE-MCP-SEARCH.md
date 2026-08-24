@@ -1,14 +1,14 @@
 ---
 name: mcp/search.ts
-status: built
+status: verified
 path: src/mcp/search.ts
 language: typescript
 summary: Scored full-text search
 connections:
   - FILE-MCP-SERVER
   - DOC-MCP-SERVER
-verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
-verified_at: '2026-08-16T00:47:22.586Z'
+verified_sha: 2757d7de40f8f234c01bd7369c6fbfa85f23bcbb
+verified_at: '2026-08-24T20:08:33.147Z'
 notes:
   - kind: gotcha
     text: >-
