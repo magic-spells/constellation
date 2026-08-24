@@ -306,6 +306,18 @@ stays self-contained and lints on its own.
 - For "how does the other repo actually work" — real code, not its plan — spawn a sub-agent
   scoped to that repo's path; if its plan had the gap, have it fill the gap.
 
+### Monorepos
+
+- **A plan can live below the git root** — in a monorepo each package keeps its own plan at
+  `packages/<name>/constellation`. `path:`/`code_refs`, staleness, versions, commit scoping
+  and code attach all resolve against that plan's **code root**: the folder holding its
+  `constellation/` dir, or an optional `code_root` on `PLAN-PROJECT`.
+- **A monorepo root gets a signpost, not a plan** — at most a thin `plan.md` whose
+  `connected_repos` names the package plans, so `repo: "puzzle"` routes to
+  `packages/puzzle`; architecture cards live in the package plans.
+- **`serve` at a monorepo root hosts every plan** behind a plan-switcher dropdown, and
+  `--plan <id>` sets the default; `serve <path>` still serves one. Discovery is startup-only.
+
 ## Working without MCP
 
 If no Constellation MCP server is connected, you are the write path: edit the files

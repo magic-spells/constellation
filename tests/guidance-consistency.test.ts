@@ -266,6 +266,7 @@ const TOOL_NAMES = new Set(
 // snake_case words in the guidance that are fields, params, or response keys — not tools.
 const NOT_TOOLS = new Set([
   'code_refs',
+  'code_root',
   'verified_sha',
   'verified_at',
   'connected_repos',

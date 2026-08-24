@@ -98,41 +98,40 @@ set_verified, rename_card, delete_card. Each lints and returns the issues for th
 written when issues come back (lint state, not failure). When a write tool errors (STALE, NOT_FOUND, a reserved-key
 rejection, a timeout), re-read the card and retry, or report the failure — never fall through to editing the file.
 
-Prefer cheap writes: append_note appends one typed note (decision | gotcha | state | deviation | verified);
-edit_section replaces one ## section. Both are byte-preserving. update_card is coarser: patch.fields deep-merges
-(arrays replace, null deletes), but patch.connections and body REPLACE wholesale — send a complete body, or use
-edit_section, and never bulk-rewrite plan.md. Batch scaffolds with create_cards + add_connections (intra-batch refs
-resolve), sweeps with set_verified handles: [...] — each lints ONCE. rename_card rewrites every reference
-plan-wide — never delete-and-recreate to rename; for bulk changes loop the singular tools (CLI: constellation
-rename), never search-and-replace the plan folder. delete_card does NOT rewrite references: it returns referenced_by
-and leaves E005s to clean up; remove_connection strips only the connections: list — an edge also declared by a
-handle-shaped frontmatter field needs edit_section. Call describe_type before authoring an unfamiliar type, and
-author in the types the plan already uses.
+Prefer cheap writes: append_note appends one typed note (decision | gotcha | state | deviation | verified); edit_section
+replaces one ## section. Both are byte-preserving. update_card is coarser: patch.fields deep-merges (arrays replace, null
+deletes), but patch.connections and body REPLACE wholesale — send a complete body, or use edit_section, and never
+bulk-rewrite plan.md. Batch scaffolds with create_cards + add_connections (intra-batch refs resolve), sweeps with
+set_verified handles: [...] — each lints ONCE. rename_card rewrites every reference plan-wide — never delete-and-recreate
+to rename; for bulk changes loop the singular tools (CLI: constellation rename), never search-and-replace the plan folder.
+delete_card does NOT rewrite references: it returns referenced_by and leaves E005s to clean up; remove_connection strips
+only the connections: list — an edge also declared by a handle-shaped frontmatter field needs edit_section. Call
+describe_type before authoring an unfamiliar type, and author in the types the plan already uses.
 
 Call orient at session start: a small read-only briefing on the plan's shape, drift and newest notes. Retrieve lean:
-summaries by default, full content only for cards you name. traverse and assemble walk the connection graph, so a
-load-bearing relationship belongs in connections:, not just a [[link]]. assemble returns an INDEX by default (file-disjoint
-units, seeds, bound paths, no bodies); ask hydration: "full" only when you need bodies. Hydration never truncates silently:
-repeats (hydrated_elsewhere), supernodes (DIAGRAM / PLAN-PROJECT as neighbors) and over-budget cards degrade to
-summaries — everything held back is named in hydration_budget, refetchable by handle. search / list_cards /
-list_notes page: read total/more/next, don't raise limit. get_card returns the newest notes (notes_limit,
-notes_truncated) and, with code:, the code a card is bound to. Grep on cards is allowed, but search is usually the
-better first call — ranked handles not raw lines, one call not grep → map paths → get_card, and it covers notes,
-path/code_refs and connected repos; search is AND, relaxing to ANY word (relaxed: true) when nothing matches all.
+summaries by default, full content only for cards you name. traverse and assemble walk the connection graph; assemble
+returns an INDEX by default (file-disjoint units, seeds, bound paths, no bodies); ask hydration: "full" only when you need
+bodies. Hydration never truncates silently: repeats (hydrated_elsewhere), supernodes (DIAGRAM / PLAN-PROJECT as neighbors)
+and over-budget cards degrade to summaries — everything held back is named in hydration_budget, refetchable by handle.
+search / list_cards / list_notes page: read total/more/next, don't raise limit. get_card returns the newest notes
+(notes_limit, notes_truncated) and, with code:, the code a card is bound to. Grep on cards is allowed, but search is
+usually the better first call — ranked handles not raw lines, one call not grep → map paths → get_card, and it covers
+notes, path/code_refs and connected repos; search is AND, relaxing to ANY word (relaxed: true) when nothing matches all.
 
 Plan-first applies to BEHAVIOR changes only — a new FEATURE, an API contract, a STATE change: read the neighborhood,
-express the end state in cards (unbuilt work is status: planned), show that card diff as the proposal, then bring
-the code up to match, bumping status planned → building → built → verified. Non-behavioral work (refactors, CSS,
-deps) goes straight to code — then fix the cards it broke. "Sync the plan" means bringing code and cards into
-agreement, not stamping a marker and not rewriting cards to match whatever the code does. Drift follows git: a card
-is stale when its bound code has commits newer than the card's. Commit the card together with the code; stale_report
-on a dirty tree flags work in progress — expected, not drift to fix. set_verified is the explicit override, stamping
-verified_sha / verified_at as the baseline; never stamp dirty flags into cards — "what changed" is diff_plan /
-plan_log / git.
+express the end state in cards (unbuilt work is status: planned), show that card diff as the proposal, then bring the code
+up to match, bumping status planned → building → built → verified. Non-behavioral work (refactors, CSS, deps) goes
+straight to code — then fix the cards it broke. "Sync the plan" means bringing code and cards into agreement, not stamping
+a marker and not rewriting cards to match whatever the code does. Drift follows git: a card is stale when its bound code
+has commits newer than the card's. Commit the card together with the code; stale_report on a dirty tree flags work in
+progress — expected, not drift to fix. set_verified is the explicit override, stamping verified_sha / verified_at as the
+baseline; never stamp dirty flags into cards — "what changed" is diff_plan / plan_log / git.
 
-Multi-repo: PLAN-PROJECT.connected_repos lists sibling repos (add_connected_repo / remove_connected_repo); pass
-repo: to any tool to read or write THAT repo's plan. Cards never connect across repos. start_viewer serves the
-plan as an editable site — post the returned URL back to the user.`;
+Multi-repo: PLAN-PROJECT.connected_repos lists sibling repos (add_connected_repo / remove_connected_repo); pass repo: to
+any tool to read or write THAT plan. Cards never connect across plans. In a monorepo each package keeps its own plan
+(packages/<name>/constellation); path: / code_refs are relative to the CODE ROOT, the folder holding that constellation/.
+Never init a full plan at a monorepo root — it holds at most a signpost plan.md whose connected_repos names the package
+plans, so repo: routes by name. start_viewer serves the plan as an editable site — post the returned URL back to the user.`;
 
 /* ── the one-time format-upgrade review ─────────────────────────────────────
  * 0.5.0 changed what makes an edge: a [[link]] or a mermaid node ID stopped

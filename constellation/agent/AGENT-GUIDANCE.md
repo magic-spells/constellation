@@ -20,6 +20,13 @@ notes:
       Verified the three canonical guidance copies and their consistency test; atlas.md remains a
       topical reference, not a fourth canonical copy.
     sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+  - kind: state
+    text: >-
+      All three copies now carry the monorepo model (per DECISION-MONOREPO-CODE-ROOT /
+      DECISION-MULTI-PLAN-SERVE): packages keep their own plans, paths are code-root-relative, a
+      monorepo root holds at most a signpost plan.md, serve hosts every plan behind a dropdown.
+      NOT_TOOLS in the consistency test gained 'code_root'. Budget alert: INSTRUCTIONS is at 54/55
+      lines and SKILL.md at exactly 340/340 — the next SKILL.md addition must trim something first.
 ---
 
 # Agent guidance

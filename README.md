@@ -97,8 +97,9 @@ npm run build            # tsc → dist/
   (bound-code drift since a card was verified), `check_integrity`.
 - **Connected repos (multi-repo)**: a plan can declare sibling repos
   (`add_connected_repo` / `list_connected_repos` / `remove_connected_repo`); every
-  tool takes an optional `repo` selector to read or write a sibling's plan. Omit it
-  and single-repo behavior is unchanged.
+  tool takes an optional `repo` selector to read or write a sibling's plan — or a
+  package's plan in a monorepo (see [Monorepos](#monorepos)). Omit it and
+  single-repo behavior is unchanged.
 - **Visual viewer**: `start_viewer` / `stop_viewer` open and close the local web
   viewer from inside an agent session, returning a clickable URL.
 
@@ -171,6 +172,38 @@ Hand-edit the client's config (Claude Desktop, a project `.mcp.json`, etc.):
 Set `cwd` to your repo root (or any folder inside it). The server finds the plan by
 walking up from its working directory; without `cwd` it inherits the client's, which
 may not be your project — in which case tools return `NO_PLAN_FOUND`.
+
+## Monorepos
+
+A plan doesn't have to live at the git root. In a monorepo each package keeps
+its own plan, and the root holds at most a thin **signpost** that routes to them:
+
+```
+packages/puzzle/constellation/plan.md         ← the framework's plan
+packages/puzzle-pieces/constellation/plan.md  ← the registry's plan
+constellation/plan.md                         ← signpost: connected_repos, no cards
+```
+
+A card's `path:` and `code_refs` are relative to its plan's **code root** — the
+folder containing that `constellation/` dir, or the `code_root` field on the
+plan's frontmatter. Staleness, the version check, commit scoping and code
+attachment all follow the code root, so each package measures drift against its
+own history.
+
+The signpost is `plan.md` and nothing else: its `connected_repos` names the
+package plans (`puzzle` → `packages/puzzle`), so `repo=puzzle` addresses that
+plan from any MCP tool. Never `init_plan` a full plan at a monorepo root —
+architecture cards belong to the package plans, and cards never connect across
+plans.
+
+`constellation serve` at a monorepo root hosts **every** plan in the repo from
+one server, with a plan-switcher dropdown in the viewer; `--plan <id>` picks
+which one opens by default, and `constellation serve <path>` still serves exactly
+one. Discovery runs at startup and never crosses into a nested `.git`, so a
+brand-new plan needs a restart.
+
+Single-repo behavior is unchanged: the code root *is* the repo root, there's no
+dropdown, and every path and URL stays what it was.
 
 ## Viewer
 
