@@ -11,9 +11,32 @@ import type { ConnectedRepo } from './types.js';
  * targeted by the `repo` selector without ever merging two plans.
  */
 
-/** The directory containing the plan folder — the repo root in the normal layout. */
+/**
+ * The directory containing the plan folder. `connected_repos` paths resolve
+ * against THIS, always — never against PLAN-PROJECT's `code_root` override,
+ * which relocates where a plan's own code lives (that is `codeRootFor`'s job)
+ * and says nothing about where sibling repos sit.
+ */
 function repoRootOf(planRoot: string): string {
   return path.dirname(planRoot);
+}
+
+/**
+ * The folder whose code this plan describes. PLAN-PROJECT may override the
+ * default (the directory containing constellation/) with a relative or absolute
+ * `code_root` path.
+ */
+export async function codeRootFor(planRoot: string): Promise<string> {
+  const defaultRoot = path.dirname(planRoot);
+  try {
+    const raw = await readFile(path.join(planRoot, 'plan.md'), 'utf8');
+    const configured = parseFile(raw).frontmatter.code_root;
+    return typeof configured === 'string'
+      ? path.resolve(defaultRoot, configured)
+      : defaultRoot;
+  } catch {
+    return defaultRoot;
+  }
 }
 
 /**

@@ -5,6 +5,10 @@
   "description": "Plan document. constellation/plan.md is PLAN-PROJECT; scoped plans (PLAN-FRONTEND) live in plan/. Keep plans short — decisions belong in DECISION cards, status on the cards themselves.",
   "type": "object",
   "properties": {
+    "code_root": {
+      "type": "string",
+      "description": "Folder whose code this plan describes, relative to the directory containing constellation/. Omit when the plan sits directly under its code root."
+    },
     "scope": {
       "type": "string",
       "description": "Area this plan covers, e.g. frontend. Omit for the project plan."

@@ -12,6 +12,14 @@ notes:
       Verified code attachment plus atlas codeMetrics: contained bound paths, bounded directory
       walks (1,500 files / depth 12), and no synthetic zero for unbound cards.
     sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+  - kind: state
+    text: >-
+      Bound-path resolution, the containment + symlink guards, and codeMetrics now resolve against
+      the CODE ROOT (codeRootFor) instead of the git root; skip reasons read 'outside code root' /
+      'symlink escapes code root'. The repo_root result key keeps its name for API compatibility but
+      carries the code root. Batch callers thread { codeRoot } once per plan (perf batching
+      preserved). codeRootFor does not throw outside a git repo, so resolution/metrics now work in a
+      git-less plan (deliberate improvement). See DECISION-MONOREPO-CODE-ROOT.
 ---
 
 Resolves a card's bound files — connected FILE `path:` + own `code_refs` — and attaches their contents under per-file (64 KB) and total (256 KB) caps, skipping binaries / lockfiles / generated and rejecting paths (incl. symlinks) that escape the repo root. A file over the per-file cap attaches its head with `truncated: true` rather than being skipped. Shared by `get_card` code mode, stale_report, and assemble.

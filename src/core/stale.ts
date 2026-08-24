@@ -5,11 +5,12 @@ import {
   changedFilesSince,
   dirtyFilesAmong,
   lastCommitByPath,
+  planRootsFor,
   readSyncPoint,
-  repoRootFor,
   type PathCommit,
 } from './git.js';
 import { boundPathsForCard, boundPathsOverlap, resolveCodeForCard } from './code.js';
+import { codeRootFor } from './repos.js';
 
 export interface StaleCard {
   handle: string;
@@ -68,20 +69,33 @@ export async function computeStaleCards(
   }
   const claims: Claim[] = [];
 
-  // Card files join the same git pass as bound code, so both need repo-relative
-  // paths; outside a git repo every claim falls back to base/marker. The repo
-  // root is resolved ONCE here and shared with every resolveCodeForCard call —
-  // its own fallback spawns a git subprocess per card.
+  // Card files join the same git pass as bound code. Card paths are already
+  // git-root-relative; bound paths are code-root-relative and gain codePrefix
+  // only at git boundaries. Resolve the code root ONCE for every card below.
   let planRel: string | null = null;
-  let repoRoot: string | null = null;
+  let codeRoot: string | null = null;
+  let codePrefix = '';
   try {
     const realRoot = await realpath(root);
-    repoRoot = await repoRootFor(realRoot);
-    planRel = path.relative(repoRoot, realRoot).split(path.sep).join('/');
+    const roots = await planRootsFor(realRoot);
+    codeRoot = roots.codeRoot;
+    codePrefix = roots.prefix;
+    planRel = path.relative(roots.gitRoot, realRoot).split(path.sep).join('/');
   } catch {
     planRel = null;
-    repoRoot = null;
+    try {
+      codeRoot = await codeRootFor(await realpath(root));
+    } catch {
+      codeRoot = null;
+    }
   }
+  const gitPathFor = (codePath: string): string =>
+    codePrefix ? `${codePrefix}/${codePath}` : codePath;
+  const codePathFor = (gitPath: string): string | null => {
+    if (!codePrefix) return gitPath;
+    const prefix = `${codePrefix}/`;
+    return gitPath.startsWith(prefix) ? gitPath.slice(prefix.length) : null;
+  };
   const repoPathOf = (card: Card): string | null => {
     if (planRel === null) return null;
     const rel = card.relPath.split(path.sep).join('/');
@@ -97,7 +111,7 @@ export async function computeStaleCards(
       card.status === 'built' || card.status === 'verified' || Boolean(verifiedSha);
     if (!isClaim) continue;
     if (boundPathsForCard(index, card).length === 0) continue;
-    const resolved = await resolveCodeForCard(root, index, card, 'paths', { repoRoot });
+    const resolved = await resolveCodeForCard(root, index, card, 'paths', { codeRoot });
     claims.push({
       card,
       cardPath: repoPathOf(card),
@@ -117,14 +131,16 @@ export async function computeStaleCards(
   if (relative.length > 0) {
     const union = [
       ...new Set([
-        ...relative.flatMap((c) => c.paths),
+        ...relative.flatMap((c) => c.paths.map(gitPathFor)),
         ...relative.map((c) => c.cardPath!),
       ]),
     ];
     try {
       [lastCommit, dirty] = await Promise.all([
         lastCommitByPath(root, union),
-        dirtyFilesAmong(root, [...new Set(relative.flatMap((c) => c.paths))]),
+        dirtyFilesAmong(root, [
+          ...new Set(relative.flatMap((c) => c.paths.map(gitPathFor))),
+        ]),
       ]);
     } catch {
       // No usable history (fresh repo, no HEAD): every card falls back below.
@@ -145,11 +161,21 @@ export async function computeStaleCards(
     [...baselines].map(async (baseline) => {
       const union = [
         ...new Set(
-          claims.filter((c) => shaBaseline(c) === baseline).flatMap((c) => c.paths),
+          claims
+            .filter((c) => shaBaseline(c) === baseline)
+            .flatMap((c) => c.paths.map(gitPathFor)),
         ),
       ];
       try {
-        changedBy.set(baseline, await changedFilesSince(root, baseline, union));
+        const changed = await changedFilesSince(root, baseline, union);
+        changedBy.set(
+          baseline,
+          new Set(
+            [...changed]
+              .map(codePathFor)
+              .filter((p): p is string => p !== null),
+          ),
+        );
       } catch {
         changedBy.set(baseline, 'unreachable');
       }
@@ -174,17 +200,20 @@ export async function computeStaleCards(
       baseline = cardCommit.sha;
       baseline_source = 'card-commit';
       const newer = (p: string) => {
-        const c = lastCommit.get(p);
+        const c = lastCommit.get(gitPathFor(p));
         return c !== undefined && c.order < cardCommit.order;
       };
       const underDirs = dirs.length > 0
-        ? [...lastCommit.keys()].filter(
-            (p) => !paths.includes(p) && dirs.some((d) => boundPathsOverlap(d, p) && p !== d),
-          )
+        ? [...lastCommit.keys()]
+            .map(codePathFor)
+            .filter((p): p is string => p !== null)
+            .filter(
+              (p) => !paths.includes(p) && dirs.some((d) => boundPathsOverlap(d, p) && p !== d),
+            )
         : [];
       changedFiles = [
-        ...paths.filter((p) => newer(p) || dirty.has(p)),
-        ...underDirs.filter((p) => newer(p) || dirty.has(p)),
+        ...paths.filter((p) => newer(p) || dirty.has(gitPathFor(p))),
+        ...underDirs.filter((p) => newer(p) || dirty.has(gitPathFor(p))),
       ];
     } else {
       const sha = shaBaseline(claim);

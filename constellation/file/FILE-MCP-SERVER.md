@@ -12,6 +12,14 @@ connections:
   - FILE-STALE
 verified_at: '2026-08-18T17:56:52.970Z'
 verified_sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+notes:
+  - kind: state
+    text: >-
+      Code-root round: set_verified's dirty-bound-file warning translates paths through the
+      code-root prefix so it actually fires in a monorepo (verified_sha stays repo-wide HEAD);
+      orient's connected_repos rows now include reachable (via listConnectedRepos); NO_PLAN_FOUND
+      mentions that plans can live at packages/<name>/constellation (repo=<path or name>) while
+      keeping the init_plan {path} and constellation init hints. See DECISION-MONOREPO-CODE-ROOT.
 ---
 
 `constellation mcp` (stdio). Registers every tool, embeds the agent-facing `INSTRUCTIONS` string (one of the three guidance copies), and resolves the target plan — the home plan or, when `repo` is passed, a connected sibling. The server handshake version is the package version (same source as the CLI), not a hardcoded leftover.

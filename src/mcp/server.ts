@@ -21,9 +21,9 @@ import {
   diffPlan,
   formatReviewVersion,
   headSha,
+  planRootsFor,
   planDirty,
   planLog,
-  repoRootFor,
   resolveCommit,
   stampFormatReview,
   writeSyncPoint,
@@ -48,6 +48,7 @@ import { renameCard, RenameCardError } from '../core/rename.js';
 import type { CardNote } from '../core/writer.js';
 import {
   connectedRepoToFm,
+  codeRootFor,
   connectedReposFromFrontmatter,
   listConnectedRepos,
   readConnectedRepos,
@@ -627,9 +628,13 @@ async function orientReport(root: string): Promise<Record<string, unknown>> {
     stale = null;
   }
 
-  let repos: Array<{ name: string; path: string }> = [];
+  let repos: Array<{ name: string; path: string; reachable: boolean }> = [];
   try {
-    repos = (await readConnectedRepos(root)).map((r) => ({ name: r.name, path: r.path }));
+    repos = (await listConnectedRepos(root)).map((r) => ({
+      name: r.name,
+      path: r.path,
+      reachable: r.reachable,
+    }));
   } catch {
     repos = [];
   }
@@ -804,9 +809,10 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     fail(
       'NO_PLAN_FOUND',
       `No constellation/ folder found by walking up from ${process.cwd()}. This MCP ` +
-        `server uses its own working directory — if that isn't your repo, set "cwd" to ` +
-        'the repo root in your MCP client config. Otherwise call init_plan (optionally ' +
-        'with { path } pointing at the repo root), or run `constellation init`.',
+        'server uses its own working directory, so set "cwd" to the project if needed. ' +
+        'In a monorepo, plans typically live at packages/<name>/constellation and are ' +
+        'addressed with repo=<path or name>. Otherwise call init_plan (optionally with ' +
+        '{ path } pointing at the intended project root), or run `constellation init`.',
     );
 
   /**
@@ -1265,14 +1271,14 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         }
       }
 
-      // Resolved once for the whole assembly — resolveCodeForCard's own
-      // fallback spawns a git subprocess per seed card.
-      let codeRepoRoot: string | null = null;
+      // Resolved once for the whole assembly — resolveCodeForCard otherwise
+      // re-reads PLAN-PROJECT for every seed card.
+      let codeRoot: string | null = null;
       if (codeMode !== 'none') {
         try {
-          codeRepoRoot = await repoRootFor(await realpath(root));
+          codeRoot = await codeRootFor(await realpath(root));
         } catch {
-          codeRepoRoot = null;
+          codeRoot = null;
         }
       }
       const units = [];
@@ -1289,7 +1295,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
               : { ...summary(card) };
           if (codeMode !== 'none') {
             entry.code = await resolveCodeForCard(root, index, card, codeMode, {
-              repoRoot: codeRepoRoot,
+              codeRoot,
             });
           }
           cards.push(entry);
@@ -1856,10 +1862,14 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       if (resolvedSha) {
         try {
           const bound = boundPathsForCard(index, card).map((b) => b.path);
-          const dirty = await changedFilesSince(root, 'HEAD', bound);
-          const dirtyBound = [...dirty].filter((c) =>
-            bound.some((p) => boundPathsOverlap(p, c)),
-          );
+          const { prefix } = await planRootsFor(root);
+          const gitBound = bound.map((p) => (prefix ? `${prefix}/${p}` : p));
+          const dirty = await changedFilesSince(root, 'HEAD', gitBound);
+          const dirtyBound = [...dirty]
+            .map((p) => (prefix && p.startsWith(`${prefix}/`) ? p.slice(prefix.length + 1) : p))
+            .filter((c) =>
+              bound.some((p) => boundPathsOverlap(p, c)),
+            );
           if (dirtyBound.length > 0) {
             warnings.push(
               `Bound file(s) have uncommitted changes the baseline does not include: ${dirtyBound.join(', ')}. Commit first, then set_verified.`,

@@ -8,11 +8,11 @@ import {
   readSyncPoint,
   recentCodeActivity,
   recentPlanActivity,
-  repoRootFor,
   type SyncActivity,
   type SyncPoint,
 } from './git.js';
 import { lintPlan, type LintResult } from './lint.js';
+import { codeRootFor } from './repos.js';
 import { computeStaleCards, type StaleResult } from './stale.js';
 
 export type SyncState =
@@ -37,7 +37,7 @@ export interface SyncStatus {
   code_activity: SyncActivity[];
   /** Newest git tag, or null with no tags / outside a git repo. */
   latest_tag: string | null;
-  /** `version` from the repo root's package.json; null when absent. */
+  /** `version` from the code root's package.json; null when absent. */
   package_version: string | null;
   /** Live code-drift verdict over verified cards. null outside a git repo. */
   stale: StaleResult | null;
@@ -46,14 +46,14 @@ export interface SyncStatus {
 const STATUS_KEYS = ['planned', 'building', 'built', 'verified'] as const;
 
 /**
- * The `version` from the repo root's package.json — the plan's own release line.
+ * The `version` from the code root's package.json — the plan's own release line.
  * Read live (never stored); null for a non-node repo, an unreadable/invalid
- * package.json, or a plan outside a git repo.
+ * package.json, or an unreadable plan root.
  */
 export async function packageVersion(planRoot: string): Promise<string | null> {
   try {
-    const repoRoot = await repoRootFor(await realpath(planRoot));
-    const raw = await readFile(path.join(repoRoot, 'package.json'), 'utf8');
+    const codeRoot = await codeRootFor(await realpath(planRoot));
+    const raw = await readFile(path.join(codeRoot, 'package.json'), 'utf8');
     const version: unknown = JSON.parse(raw)?.version;
     return typeof version === 'string' ? version : null;
   } catch {
