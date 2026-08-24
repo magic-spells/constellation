@@ -78,9 +78,11 @@ times over:
   answering for an unreleased tree"). It replaces the five-tool opening ritual, so it stays
   counts-and-handles: never card bodies.
 - **Read** — `get_card` (+ `code: none|paths|direct`, notes filters), `list_cards`,
-  `list_notes` (cross-card notes query by kind/handles), `search` (AND across terms over
-  bodies, notes **and** the binding frontmatter — `summary`, `path`, `code_refs`),
-  `traverse`, `assemble`, `describe_type` (the type reference, plan-independent).
+  `list_notes` (cross-card notes query by kind/handles), `search` (over bodies, notes **and**
+  the binding frontmatter — `summary`, `path`, `code_refs`; AND is the first pass, and when
+  no card carries every term the same terms retry as OR, flagged `relaxed: true` with the
+  terms no card carries in `unmatched_terms`), `traverse`, `assemble`, `describe_type` (the
+  type reference, plan-independent).
   `get_card` / `assemble` hydrate each card with its **newest 5 notes** and
   `notes_truncated: N` (`notes_limit` overrides, `0` = all) — response shaping only: the
   card file keeps every note and `list_notes` stays uncapped.
@@ -100,7 +102,9 @@ times over:
   `depth` moves the *walk* (`reached_handles`, `neighbors`, `suggested_order`), never what
   gets serialized: `hydration: "full"` spells out each seed plus its **direct** connections.
 - **Write** — `create_card`, `create_cards` (batched, lints once), `update_card` (+ `if_mtime`
-  stale-write guard), `append_note`, `edit_section`, `set_verified`, `rename_card` (rename a
+  stale-write guard), `append_note`, `edit_section`, `set_verified` (also batched: `handles:`
+  sweeps many cards on one sha resolution, one dirty check and one lint, unknown handles
+  landing in a per-item `failed`), `rename_card` (rename a
   handle and rewrite every reference plan-wide, whole-token; the file moves with the prefix —
   shared engine with the CLI `constellation rename`, [[FILE-RENAME]]),
   `delete_card`, `add_connection`, `add_connections`, `remove_connection`. Every write reloads

@@ -33,7 +33,7 @@ Structural codes come from [[FILE-INDEXER]]; schema codes (W002/W003) from [[FIL
 |---|---|
 | W001 | Card is not in the folder matching its type |
 | W002 | Frontmatter violates the type's JSON Schema |
-| W003 | Unknown frontmatter field (not a reserved/cross-type key from card.json, not in the type schema) |
+| W003 | Unknown frontmatter field (not a reserved/cross-type key from card.json, not in the type schema) — the message names the type's valid fields and suggests a near-miss |
 | W004 | Body `[[link]]` or mermaid reference resolves to no card |
 
 The E005/W004 split is deliberate: **structured references are contracts** (a frontmatter

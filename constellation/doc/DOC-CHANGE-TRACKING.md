@@ -54,7 +54,8 @@ instructions ([[DOC-MCP-SERVER]]) until `set_sync_point format_review: true` rec
 orthogonal to history. Verify only against real code.
 
 **Verification provenance vs. change tracking** — the one recorded per-card baseline is
-`verified_sha` / `verified_at`: `set_verified` stamps the sha a card was checked at. That's the
+`verified_sha` / `verified_at`: `set_verified` stamps the sha a card was checked at, and a
+re-verification sweep is one `handles:` call, not one per card. That's the
 basis of a *claim*, not a change flag — and the drift *verdict* ("has the bound code moved
 since?") is recomputed live by `stale_report` / `check_sync` ([[FILE-CODE]]), never stored.
 This reconciles the "no per-card stamping" rule rather than breaking it. See [[DOC-MCP-UPGRADES]].

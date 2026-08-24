@@ -32,8 +32,14 @@ notes:
   - kind: verified
     text: 'Full npm test run passed at this sha: 54 files, 645 tests.'
     sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+  - kind: gotcha
+    text: >-
+      The pzl vitest plugin resolved a compiler path that stopped existing when the puzzle repo went
+      monorepo, so 12 viewer test files failed to LOAD and the suite still reported green — 162
+      tests silently not running. A `.pzl` import failure is quiet; check the file/test counts
+      against the last verified note before trusting a green run.
 ---
 
 The vitest suite (600+ tests): core unit tests, MCP integration via an in-memory client, and git-backed drift/security tests. The golden plan `examples/constellation/` doubles as a fixture and must lint clean (0 errors). Exercises [[FILE-LINT]], [[FILE-INDEXER]], [[FILE-MCP-SERVER]].
 
-`tests/viewer/` covers the Puzzle viewer: plain-JS lib tests plus a `.pzl` component lane — `tests/viewer/pzl-vitest-plugin.js` runs the local Puzzle checkout's `pzlc` compiler through Go for each imported `.pzl`. The lane therefore requires both Go and that checkout (`PUZZLE_REPO` overrides its location); without the compiler the plugin is inert and `.pzl` imports fail loudly.
+`tests/viewer/` covers the Puzzle viewer: plain-JS lib tests plus a `.pzl` component lane — `tests/viewer/pzl-vitest-plugin.js` runs the local Puzzle checkout's `pzlc` compiler through Go for each imported `.pzl`. The lane therefore requires both Go and that checkout (`PUZZLE_REPO` overrides its location); without the compiler the plugin is inert and `.pzl` imports fail at load time — not as red tests.
