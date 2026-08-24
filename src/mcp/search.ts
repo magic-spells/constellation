@@ -6,6 +6,16 @@ export interface SearchHit {
   excerpt: string;
 }
 
+export interface SearchResult {
+  hits: SearchHit[];
+  /** What the query actually matched on, after stopwords and quoting. */
+  needles: string[];
+  /** True when the AND pass found nothing and these hits come from the OR retry. */
+  relaxed: boolean;
+  /** Needles no card carries at all — the words worth dropping. */
+  unmatched: string[];
+}
+
 /**
  * Dropped before the AND pass — otherwise a natural-language query would require
  * every card to contain "the" and "does".
@@ -64,11 +74,83 @@ export function searchCards(
 ): SearchHit[] {
   const needles = queryNeedles(q);
   if (needles.length === 0) return [];
+  return andHits(scorePlan(index, needles, types).candidates, needles);
+}
+
+/**
+ * `searchCards` plus the dead-end fallback: when no card carries EVERY needle,
+ * the same needles run again as OR, so an over-specified query lands on the
+ * neighborhood instead of a bare zero (and agents stop learning to
+ * under-specify). A relaxed result names the needles no card carries at all and
+ * ranks by how many needles a card matched before falling back to the AND score.
+ * Nothing changes when the AND pass matched at least one card.
+ */
+export function searchPlan(
+  index: PlanIndex,
+  q: string,
+  types?: TypeName[],
+): SearchResult {
+  const needles = queryNeedles(q);
+  if (needles.length === 0) return { hits: [], needles, relaxed: false, unmatched: [] };
+  const { candidates, present } = scorePlan(index, needles, types);
+  // Plan-wide, filters ignored: a term is worth dropping only when NOTHING in
+  // the plan carries it. Scoped to the filtered candidates it would tell an
+  // agent to drop the very word that names what it is looking for, just because
+  // the card carrying it is of another type.
+  const unmatched = needles.filter((_, i) => !present[i]);
+  const strict = andHits(candidates, needles);
+  if (strict.length > 0 || needles.length < 2) {
+    return { hits: strict, needles, relaxed: false, unmatched };
+  }
+  const hits = [...candidates]
+    .sort(
+      (a, b) =>
+        b.matchedCount - a.matchedCount ||
+        b.score - a.score ||
+        a.card.handle.localeCompare(b.card.handle),
+    )
+    .map((c) => toHit(c, needles));
+  return { hits, needles, relaxed: true, unmatched };
+}
+
+/** A candidate card: its score plus which needles it matched. */
+interface ScoredCard {
+  card: Card;
+  score: number;
+  /** The card's searchable prose, kept so an excerpt can be cut from it later. */
+  text: string;
+  /** Per-needle, in query order. */
+  matched: boolean[];
+  matchedCount: number;
+}
+
+interface ScoredPlan {
+  /** Cards that survived the filters and matched at least one needle, unsorted. */
+  candidates: ScoredCard[];
+  /** Per-needle: does ANY card in the plan carry it, filters ignored? */
+  present: boolean[];
+}
+
+/**
+ * Score the plan once: the filtered candidate set, plus which needles exist
+ * anywhere in the plan. Needle presence is recorded BEFORE a filter discards a
+ * card, so `unmatched` stays a statement about the plan while hit selection
+ * stays filtered.
+ */
+function scorePlan(
+  index: PlanIndex,
+  needles: string[],
+  types?: TypeName[],
+): ScoredPlan {
   const typeFilter = types && types.length > 0 ? new Set(types) : null;
 
-  const hits: SearchHit[] = [];
+  const candidates: ScoredCard[] = [];
+  const present: boolean[] = needles.map(() => false);
   for (const card of index.cards.values()) {
-    if (typeFilter && !typeFilter.has(card.type)) continue;
+    const included = !typeFilter || typeFilter.has(card.type);
+    // A filtered-out card is still scored while some needle is unaccounted for;
+    // once every needle is known present it has nothing left to tell us.
+    if (!included && present.every(Boolean)) continue;
 
     const handle = card.handle.toLowerCase();
     const name = (card.name ?? '').toLowerCase();
@@ -78,7 +160,8 @@ export function searchCards(
       .toLowerCase();
 
     let score = 0;
-    let matchedAll = true;
+    let matchedCount = 0;
+    const matched: boolean[] = [];
     for (const needle of needles) {
       let hit = false;
       if (handle === needle) {
@@ -107,19 +190,35 @@ export function searchCards(
       const occurrences = countOccurrences(searchable, needle);
       score += Math.min(occurrences, 5);
       if (occurrences > 0) hit = true;
-      if (!hit) {
-        matchedAll = false;
-        break;
-      }
+      matched.push(hit);
+      if (hit) matchedCount += 1;
     }
-    if (!matchedAll || score === 0) continue;
+    for (let i = 0; i < needles.length; i += 1) {
+      if (matched[i]) present[i] = true;
+    }
+    if (!included) continue;
+    if (matchedCount === 0 || score === 0) continue;
 
-    hits.push({ card, score, excerpt: makeExcerpt(text, needles) });
+    candidates.push({ card, score, text, matched, matchedCount });
   }
+  return { candidates, present };
+}
 
-  return hits.sort(
-    (a, b) => b.score - a.score || a.card.handle.localeCompare(b.card.handle),
-  );
+/** The AND pass: cards that matched every needle, in the canonical ranked order. */
+function andHits(candidates: ScoredCard[], needles: string[]): SearchHit[] {
+  return candidates
+    .filter((c) => c.matchedCount === needles.length)
+    .sort((a, b) => b.score - a.score || a.card.handle.localeCompare(b.card.handle))
+    .map((c) => toHit(c, needles));
+}
+
+/** Cut the excerpt here, not while scoring — only returned hits pay for it. */
+function toHit(scored: ScoredCard, needles: string[]): SearchHit {
+  return {
+    card: scored.card,
+    score: scored.score,
+    excerpt: makeExcerpt(scored.text, needles),
+  };
 }
 
 /**
