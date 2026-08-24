@@ -108,7 +108,8 @@ times over:
   handle and rewrite every reference plan-wide, whole-token; the file moves with the prefix —
   shared engine with the CLI `constellation rename`, [[FILE-RENAME]]),
   `delete_card`, `add_connection`, `add_connections`, `remove_connection`. Every write reloads
-  + lints and returns the issues for the file it touched; **a card is created even when issues
+  + lints and returns the issues for the file it touched (`create_card(validate: false)`
+  is the one opt-out — no lint, no issues); **a card is created even when issues
   come back** (issues are lint state, not failure). Writes are serialized per file behind an
   in-process lock and land atomically (temp + rename); the cheap writes apply their change to
   the file's *current* content, so concurrent small updates compose instead of clobbering.
@@ -116,7 +117,7 @@ times over:
   format-upgrade review), `stale_report`, `check_sync`, `check_integrity`
   (see [[DOC-CHANGE-TRACKING]]).
 - **Viewer** — `start_viewer` / `stop_viewer` ([[PAGE-VIEWER-HOME]]).
-- **Connected repos** — `list` / `add` / `remove_connected_repo`; every tool takes a `repo`
+- **Connected repos** — `list` / `add` / `remove_connected_repo`; every plan-targeting tool takes a `repo`
   selector (see [[DOC-CONNECTED-REPOS]]).
 
 ## Code binding, drift & assembly

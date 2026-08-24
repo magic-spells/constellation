@@ -19,7 +19,7 @@ notes:
       a count (231 cards ≈ 3.9s), and computeStaleCards let resolveCodeForCard re-run `git rev-parse
       --show-toplevel` per claim card (190 cards ≈ 1.4s); parsing all cards was 48ms. Fixed 2026-08:
       diffPlan takes `{ detail: false }` (skips content comparison — computeSyncStatus uses it),
-      resolveCodeForCard takes `{ repoRoot }` so loops resolve the root once (computeStaleCards,
+      resolveCodeForCard takes `{ codeRoot }` so loops resolve the root once (computeStaleCards,
       assemble), and computeSyncStatus/computeStaleCards run independent git calls under
       Promise.all. Result ~0.5s. Rule for new code on these paths: never put a git spawn inside a
       per-card loop — batch into one git call or resolve once and share.
