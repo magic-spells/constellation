@@ -1,7 +1,7 @@
 ---
 name: Lint pipeline
 kind: pipeline
-status: built
+status: verified
 connections:
   - FILE-INDEXER
   - FILE-VALIDATE
@@ -9,6 +9,8 @@ connections:
   - DOC-LINT-CODES
 section: plan-and-code
 order: 40
+verified_at: '2026-08-24T21:11:33.167Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 ---
 
 How a plan folder becomes validated graph state.

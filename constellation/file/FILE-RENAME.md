@@ -9,8 +9,8 @@ connections:
   - FILE-INDEXER
   - FILE-MCP-SERVER
   - FILE-CLI
-verified_sha: b68341fab1d50f297248b83eccc2f936ad6b9234
-verified_at: '2026-08-16T19:03:21.352Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:12:50.832Z'
 ---
 
 Moves the card file to the new handle's path (folder follows the prefix) with its bytes

@@ -27,8 +27,8 @@ notes:
       release.
     sha: 2790152d9503b921ee03c26f14a5f9e31b0b70f1
 branch: feat/doc-sections
-verified_at: '2026-08-18T04:42:00.963Z'
-verified_sha: 2790152d9503b921ee03c26f14a5f9e31b0b70f1
+verified_at: '2026-08-24T21:11:25.448Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 ---
 
 DOC cards are a flat pile: one folder, alphabetical, no order and no grouping.

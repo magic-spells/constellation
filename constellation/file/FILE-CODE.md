@@ -4,8 +4,8 @@ status: verified
 path: src/core/code.ts
 language: typescript
 summary: Code binding + attach (same-repo, contained, capped)
-verified_sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
-verified_at: '2026-08-18T17:56:52.833Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:10:22.631Z'
 notes:
   - kind: verified
     text: >-

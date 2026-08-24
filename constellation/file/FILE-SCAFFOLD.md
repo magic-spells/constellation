@@ -8,8 +8,8 @@ connections:
   - FILE-CLI
   - FILE-GIT
   - FILE-MCP-SERVER
-verified_at: '2026-08-16T19:03:34.428Z'
-verified_sha: b68341fab1d50f297248b83eccc2f936ad6b9234
+verified_at: '2026-08-24T21:12:51.545Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 ---
 
 Creates `constellation/` + a starter `plan.md` (PLAN-PROJECT). Used by both CLI `init` and MCP `init_plan` so the two can't drift.

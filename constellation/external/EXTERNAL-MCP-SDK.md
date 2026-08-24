@@ -1,11 +1,11 @@
 ---
 name: '@modelcontextprotocol/sdk'
 kind: library
-status: built
+status: verified
 connections:
   - FILE-MCP-SERVER
-verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
-verified_at: '2026-08-16T00:47:22.586Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:13:27.881Z'
 ---
 
 The MCP protocol — stdio transport, tool/prompt registration — used by [[FILE-MCP-SERVER]].

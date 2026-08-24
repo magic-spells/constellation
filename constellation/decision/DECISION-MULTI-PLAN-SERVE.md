@@ -1,6 +1,6 @@
 ---
 name: One server, every plan in the repo, a dropdown to switch
-status: built
+status: verified
 connections:
   - FILE-SERVE
   - FILE-CLI
@@ -21,6 +21,8 @@ notes:
       click-through: boots into #/p/root/ with the topbar PlanSwitcher, dropdown lists both plans
       with counts + check, switching reloads into #/p/examples/ with the whole app re-anchored, and
       a cold deep link #/p/examples/api/API-TICKETS opens that card in that plan.
+verified_at: '2026-08-24T21:13:27.099Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 ---
 
 # One server, every plan in the repo, a dropdown to switch

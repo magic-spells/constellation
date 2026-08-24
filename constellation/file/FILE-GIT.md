@@ -4,8 +4,8 @@ status: verified
 path: src/core/git.ts
 language: typescript
 summary: Git plumbing for change tracking + drift
-verified_at: '2026-08-16T02:38:59.880Z'
-verified_sha: 623af52933900eb27ccb1d3061a33b40a4da16ee
+verified_at: '2026-08-24T21:10:24.041Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 notes:
   - kind: verified
     text: >-

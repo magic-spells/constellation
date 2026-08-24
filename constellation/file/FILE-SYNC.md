@@ -4,8 +4,8 @@ status: verified
 path: src/core/sync.ts
 language: typescript
 summary: 'computeSyncStatus: a live freshness verdict'
-verified_sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
-verified_at: '2026-08-18T17:56:53.165Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:10:59.936Z'
 notes:
   - kind: state
     text: >-

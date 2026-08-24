@@ -6,8 +6,8 @@ language: typescript
 summary: Find the plan folder, bounded by the repo root
 connections:
   - FILE-MCP-SERVER
-verified_sha: b68341fab1d50f297248b83eccc2f936ad6b9234
-verified_at: '2026-08-16T19:03:26.942Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:10:24.754Z'
 notes:
   - kind: state
     text: >-

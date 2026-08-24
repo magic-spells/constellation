@@ -12,8 +12,8 @@ connections:
   - FILE-LINT
   - FILE-MCP-SERVER
   - FILE-SERVE
-verified_sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
-verified_at: '2026-08-18T17:56:52.900Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:12:50.118Z'
 ---
 
 Reads every card, dedupes handles, resolves references, builds the undirected connection set, and collects structural issues (E001–E006, W001, W004). The single source of the derived graph — recomputed on every load, never stored.

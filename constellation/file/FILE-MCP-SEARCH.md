@@ -7,8 +7,8 @@ summary: Scored full-text search
 connections:
   - FILE-MCP-SERVER
   - DOC-MCP-SERVER
-verified_sha: 2757d7de40f8f234c01bd7369c6fbfa85f23bcbb
-verified_at: '2026-08-24T20:08:33.147Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:13:22.370Z'
 notes:
   - kind: gotcha
     text: >-
