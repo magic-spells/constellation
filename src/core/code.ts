@@ -1,6 +1,6 @@
 import { open, readdir, readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { repoRootFor } from './git.js';
+import { codeRootFor } from './repos.js';
 import type { Card, PlanIndex } from './types.js';
 
 /**
@@ -9,12 +9,13 @@ import type { Card, PlanIndex } from './types.js';
  * (optional precision binding, `path` or `path:symbol`). Both resolve here.
  *
  * Cards never connect across repos (a Constellation invariant), so bound code is
- * always in the card's OWN repo — resolved against the git repo root. To read a
- * sibling repo's code, target that repo's plan with the `repo` selector.
+ * always in the card's OWN code root — the folder containing constellation/, or
+ * PLAN-PROJECT's `code_root`. To read a sibling repo's code, target that repo's
+ * plan with the `repo` selector.
  */
 
 export interface BoundPath {
-  /** Repo-relative path. */
+  /** Code-root-relative path. */
   path: string;
   via: 'file-card' | 'code_ref';
   /** FILE card handle, when bound via a connected FILE card. */
@@ -24,7 +25,7 @@ export interface BoundPath {
 }
 
 /**
- * Repo-relative bound paths as written in cards (`tests/`, `src\\lib`) so
+ * Code-root-relative bound paths as written in cards (`tests/`, `src\\lib`) so
  * prefix matching and equality agree. Trailing slashes drop; `\\` becomes `/`.
  */
 export function normalizeBoundPath(p: string): string {
@@ -99,7 +100,7 @@ export interface CodeFile extends BoundPath {
 }
 
 export interface CodeResolution {
-  /** Git repo root the paths resolve against, or null when not in a git repo. */
+  /** Code root the paths resolve against. Kept as repo_root for API compatibility. */
   repo_root: string | null;
   files: CodeFile[];
   total_bytes: number;
@@ -162,26 +163,25 @@ export async function resolveCodeForCard(
   index: PlanIndex,
   card: Card,
   mode: 'paths' | 'direct',
-  options: { repoRoot?: string | null } = {},
+  options: { codeRoot?: string | null } = {},
 ): Promise<CodeResolution> {
   const bound = boundPathsForCard(index, card);
-  // Resolving the repo root spawns a git subprocess; a caller looping over many
-  // cards (computeStaleCards, assemble) resolves once and passes it in — null
-  // meaning "known to be outside a git repo", undefined meaning "resolve here".
-  let repoRoot: string | null = null;
-  if (options.repoRoot !== undefined) {
-    repoRoot = options.repoRoot;
+  // Reading PLAN-PROJECT for the code root is shared by batch callers
+  // (computeStaleCards, assemble), which resolve once and pass it in.
+  let codeRoot: string | null = null;
+  if (options.codeRoot !== undefined) {
+    codeRoot = options.codeRoot;
   } else {
     try {
-      repoRoot = await repoRootFor(await realpath(planRoot));
+      codeRoot = await codeRootFor(await realpath(planRoot));
     } catch {
-      repoRoot = null;
+      codeRoot = null;
     }
   }
-  // Canonical repo root for the symlink-escape check below.
-  const realRepoRoot = repoRoot ? await realpath(repoRoot).catch(() => repoRoot) : null;
+  // Canonical code root for the symlink-escape check below.
+  const realCodeRoot = codeRoot ? await realpath(codeRoot).catch(() => codeRoot) : null;
   const escapes = (real: string) =>
-    realRepoRoot !== null && real !== realRepoRoot && !real.startsWith(realRepoRoot + path.sep);
+    realCodeRoot !== null && real !== realCodeRoot && !real.startsWith(realCodeRoot + path.sep);
 
   const files: CodeFile[] = [];
   const missing: string[] = [];
@@ -189,12 +189,12 @@ export async function resolveCodeForCard(
   let budgetExhausted = false;
 
   for (const b of bound) {
-    const abs = repoRoot ? path.resolve(repoRoot, b.path) : null;
-    // Containment: a bound path with `..` must not escape the repo root and read
+    const abs = codeRoot ? path.resolve(codeRoot, b.path) : null;
+    // Containment: a bound path with `..` must not escape the code root and read
     // arbitrary files. Reject anything resolving outside, in every mode.
     const inside =
-      abs !== null && repoRoot !== null
-        ? abs === repoRoot || abs.startsWith(repoRoot + path.sep)
+      abs !== null && codeRoot !== null
+        ? abs === codeRoot || abs.startsWith(codeRoot + path.sep)
         : false;
     if (abs !== null && !inside) {
       files.push({ ...b, exists: false, skipped: 'outside repo root' });
@@ -216,7 +216,7 @@ export async function resolveCodeForCard(
         exists = false;
       }
     }
-    // Symlink containment: a file inside the repo may itself be a symlink pointing
+    // Symlink containment: a file inside the code root may itself be a symlink pointing
     // OUT of it; lexical containment can't catch that. Resolve the real path and
     // refuse anything that leaves the tree (in both modes — the path is reported either way).
     if (exists && abs) {
@@ -272,7 +272,7 @@ export async function resolveCodeForCard(
     files.push(file);
   }
 
-  return { repo_root: repoRoot, files, total_bytes: total, budget_exhausted: budgetExhausted, missing };
+  return { repo_root: codeRoot, files, total_bytes: total, budget_exhausted: budgetExhausted, missing };
 }
 
 /** Size of one card's bound code. */
@@ -346,12 +346,15 @@ async function walkDir(
  * zeros, which is itself the signal.
  */
 export async function codeMetrics(index: PlanIndex): Promise<Record<string, CodeMetric>> {
-  let repoRoot: string | null = null;
+  let codeRoot: string;
   try {
-    repoRoot = await repoRootFor(await realpath(index.root));
+    codeRoot = await codeRootFor(await realpath(index.root));
   } catch {
     return {};
   }
+  const realCodeRoot = await realpath(codeRoot).catch(() => codeRoot);
+  const escapes = (real: string) =>
+    real !== realCodeRoot && !real.startsWith(realCodeRoot + path.sep);
 
   const out: Record<string, CodeMetric> = {};
   for (const card of index.cards.values()) {
@@ -360,12 +363,14 @@ export async function codeMetrics(index: PlanIndex): Promise<Record<string, Code
     const m: CodeMetric = { files: 0, bytes: 0, lines: 0 };
     const budget = { left: METRIC_MAX_FILES };
     for (const b of bound) {
-      const abs = path.resolve(repoRoot, b.path);
+      const abs = path.resolve(codeRoot, b.path);
       // Same containment rule as resolveCodeForCard: a `..` path must not report
-      // on files outside the repo, sizes included.
-      if (abs !== repoRoot && !abs.startsWith(repoRoot + path.sep)) continue;
+      // on files outside the code root, sizes included.
+      if (abs !== codeRoot && !abs.startsWith(codeRoot + path.sep)) continue;
       const s = await stat(abs).catch(() => null);
       if (!s) continue;
+      const real = await realpath(abs).catch(() => null);
+      if (!real || escapes(real)) continue;
       if (s.isDirectory()) await walkDir(abs, b.path, m, 0, budget);
       else if (s.isFile()) {
         budget.left -= 1;

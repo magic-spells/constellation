@@ -7,7 +7,7 @@
   "properties": {
     "path": {
       "type": "string",
-      "description": "Path relative to the repo root, e.g. src/api/tickets.ts"
+      "description": "Path relative to the code root (the folder containing constellation/, or PLAN-PROJECT's code_root), e.g. src/api/tickets.ts"
     },
     "language": {
       "type": "string",

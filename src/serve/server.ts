@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { readAtlasConfig, writeAtlasConfig } from '../core/atlas-config.js';
 import { codeMetrics, type CodeMetric } from '../core/code.js';
 import { compileDocs, prepareDocBody } from '../core/docs.js';
-import { repoRemoteUrl, writeSyncPoint } from '../core/git.js';
+import { planRootsFor, repoRemoteUrl, writeSyncPoint } from '../core/git.js';
 import { CONSTELLATION_VERSION } from '../core/version.js';
 import { isHandleShaped, typeForHandle } from '../core/handles.js';
 import { lintPlan } from '../core/lint.js';
@@ -148,6 +148,7 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
 
   async function handleGetPlan(res: http.ServerResponse): Promise<void> {
     if (repoUrl === undefined) repoUrl = await repoRemoteUrl(planRoot).catch(() => null);
+    const codePrefix = await planRootsFor(planRoot).then((roots) => roots.prefix).catch(() => '');
     const lint = await lintPlan(planRoot);
     const cards = await Promise.all(
       [...lint.index.cards.values()]
@@ -157,6 +158,7 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     json(res, 200, {
       editable,
       repo_url: repoUrl,
+      code_prefix: codePrefix,
       cards,
       connections: lint.index.connections,
       errors: lint.errors,

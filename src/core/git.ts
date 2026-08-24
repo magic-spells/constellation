@@ -4,6 +4,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { isHandleShaped, typeForHandle } from './handles.js';
 import { parseFile } from './parse.js';
+import { codeRootFor } from './repos.js';
 
 const exec = promisify(execFile);
 
@@ -31,6 +32,24 @@ function safeRev(rev: string): string {
 
 export async function repoRootFor(planRoot: string): Promise<string> {
   return (await git(planRoot, 'rev-parse', '--show-toplevel')).trim();
+}
+
+export interface PlanRoots {
+  /** Folder whose code the plan describes. */
+  codeRoot: string;
+  /** Git repository containing the plan and code root. */
+  gitRoot: string;
+  /** Code root's git-repo-relative path, or '' when both roots coincide. */
+  prefix: string;
+}
+
+/** Resolve the code/git roots and the path prefix that translates between them. */
+export async function planRootsFor(planRoot: string): Promise<PlanRoots> {
+  const realPlanRoot = await realpath(planRoot);
+  const codeRoot = await codeRootFor(realPlanRoot);
+  const gitRoot = await repoRootFor(realPlanRoot);
+  const prefix = path.relative(gitRoot, codeRoot).split(path.sep).join('/');
+  return { codeRoot, gitRoot, prefix };
 }
 
 /**
@@ -546,7 +565,7 @@ export async function recentCodeActivity(
   limit = 6,
 ): Promise<SyncActivity[]> {
   const realRoot = await realpath(planRoot);
-  const repoRoot = await repoRootFor(realRoot);
+  const { gitRoot: repoRoot, prefix: codePrefix } = await planRootsFor(realRoot);
   const planRel = path.relative(repoRoot, realRoot) || '.';
   if (planRel === '.') return [];
   const prefix = `${planRel.split(path.sep).join('/')}/`;
@@ -556,6 +575,8 @@ export async function recentCodeActivity(
     `-n${limit * 5}`,
     '--pretty=format:%x1e%H%x1f%aI%x1f%s',
     '--name-only',
+    '--',
+    codePrefix || '.',
   );
   const activity: SyncActivity[] = [];
   for (const record of out.split('\x1e')) {
@@ -592,7 +613,7 @@ export async function countCodeCommitsSince(
   sinceSha: string,
 ): Promise<number> {
   const realRoot = await realpath(planRoot);
-  const repoRoot = await repoRootFor(realRoot);
+  const { gitRoot: repoRoot, prefix: codePrefix } = await planRootsFor(realRoot);
   const planRel = path.relative(repoRoot, realRoot) || '.';
   const out = await git(
     repoRoot,
@@ -600,7 +621,7 @@ export async function countCodeCommitsSince(
     '--count',
     `${safeRev(sinceSha)}..HEAD`,
     '--',
-    '.',
+    codePrefix || '.',
     `:(exclude)${planRel}`,
   );
   return Number.parseInt(out.trim(), 10) || 0;
