@@ -32,9 +32,16 @@ import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+// The puzzle repo went monorepo and its compiler moved under packages/puzzle;
+// try that first, then the pre-monorepo layout, so either checkout compiles.
+const PUZZLE_CANDIDATES = [
+	path.resolve(import.meta.dirname, '../../../puzzle/packages/puzzle'),
+	path.resolve(import.meta.dirname, '../../../puzzle'),
+];
 const PUZZLE_REPO =
 	process.env.PUZZLE_REPO ||
-	path.resolve(import.meta.dirname, '../../../puzzle');
+	PUZZLE_CANDIDATES.find((dir) => existsSync(path.join(dir, 'compiler/cmd/pzlc'))) ||
+	PUZZLE_CANDIDATES[1];
 
 const SUFFIX = '.pzl.js';
 
