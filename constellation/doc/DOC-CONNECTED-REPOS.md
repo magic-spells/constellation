@@ -24,7 +24,14 @@ connected_repos:
 ```
 
 Paths are local topology and are **never linted** — reachability is computed at call time.
+They resolve against the directory holding `constellation/`, never against PLAN-PROJECT's
+`code_root`: that field relocates where *this* plan's code lives and says nothing about where
+siblings sit ([[DECISION-MONOREPO-CODE-ROOT]]).
 [[FILE-REPOS]] resolves the `repo` selector; every MCP read/write tool accepts it to target a
 sibling. **Plan resolution still never crosses a repo boundary** on its own ([[FILE-RESOLVE]])
 — a sibling is reached only when explicitly named. Management tools: `list_connected_repos`,
 `add_connected_repo` (`reciprocate` writes the reverse link too), `remove_connected_repo`.
+
+The same mechanism also routes *inside* one repo: a monorepo root carries a signpost `plan.md`
+whose `connected_repos` names the package plans, so `repo:` reaches a package without a full
+plan ever existing at the root. "Sibling repo" is the common case, not the limit.

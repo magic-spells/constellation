@@ -1,7 +1,7 @@
 ---
 name: Agent guidance (three copies)
 kind: policy
-status: built
+status: verified
 code_refs:
   - skill/SKILL.md
   - skill/methodology.md
@@ -10,10 +10,23 @@ connections:
   - FILE-MCP-SERVER
   - DOC-MCP-UPGRADES
   - FLOW-SYNC-PLAN
-verified_sha: d5c77f0d44725ae7ab3236c191caef3c3332016c
-verified_at: '2026-08-16T00:47:22.586Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:13:29.267Z'
 section: agents
 order: 30
+notes:
+  - kind: verified
+    text: >-
+      Verified the three canonical guidance copies and their consistency test; atlas.md remains a
+      topical reference, not a fourth canonical copy.
+    sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+  - kind: state
+    text: >-
+      All three copies now carry the monorepo model (per DECISION-MONOREPO-CODE-ROOT /
+      DECISION-MULTI-PLAN-SERVE): packages keep their own plans, paths are code-root-relative, a
+      monorepo root holds at most a signpost plan.md, serve hosts every plan behind a dropdown.
+      NOT_TOOLS in the consistency test gained 'code_root'. Budget alert: INSTRUCTIONS is at 54/55
+      lines and SKILL.md at exactly 340/340 — the next SKILL.md addition must trim something first.
 ---
 
 # Agent guidance
@@ -30,6 +43,8 @@ the server appends the one-time format-upgrade paragraph to it at boot when the 
 mechanics, deferring type schemas to `describe_type` rather than restating them.
 `methodology.md` is the **long pass** — building or auditing a whole plan from a codebase — and
 also backs the MCP `bootstrap_plan` / `audit_plan` prompts.
+`skill/atlas.md` is a topical authoring reference, like `skill/types/*.md`, not a fourth
+canonical copy; it joins the real-tool-name check but not the three-copy phrase contract.
 
 Core stance: treat the plan as **durable, cross-session memory** (read the neighborhood before
 changing code; update cards as part of "done"); **all card writes go through the tools**, never

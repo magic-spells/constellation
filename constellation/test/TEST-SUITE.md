@@ -8,8 +8,8 @@ connections:
   - FILE-LINT
   - FILE-INDEXER
   - FILE-MCP-SERVER
-verified_sha: b68341fab1d50f297248b83eccc2f936ad6b9234
-verified_at: '2026-08-16T19:03:08.426Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:13:29.741Z'
 notes:
   - kind: verified
     text: >-
@@ -29,8 +29,17 @@ notes:
       applySkillPickerKey — the picker's terminal plumbing needs a pty, so the escape codes and
       wrap-around are covered as a pure reducer instead.
     sha: b68341fab1d50f297248b83eccc2f936ad6b9234
+  - kind: verified
+    text: 'Full npm test run passed at this sha: 54 files, 645 tests.'
+    sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+  - kind: gotcha
+    text: >-
+      The pzl vitest plugin resolved a compiler path that stopped existing when the puzzle repo went
+      monorepo, so 12 viewer test files failed to LOAD and the suite still reported green — 162
+      tests silently not running. A `.pzl` import failure is quiet; check the file/test counts
+      against the last verified note before trusting a green run.
 ---
 
-The vitest suite (460+ tests): core unit tests, MCP integration via an in-memory client, and git-backed drift/security tests. The golden plan `examples/constellation/` doubles as a fixture and must lint clean (0 errors). Exercises [[FILE-LINT]], [[FILE-INDEXER]], [[FILE-MCP-SERVER]].
+The vitest suite (600+ tests): core unit tests, MCP integration via an in-memory client, and git-backed drift/security tests. The golden plan `examples/constellation/` doubles as a fixture and must lint clean (0 errors). Exercises [[FILE-LINT]], [[FILE-INDEXER]], [[FILE-MCP-SERVER]].
 
-`tests/viewer/` covers the Puzzle viewer: plain-JS lib tests plus a `.pzl` component lane — `tests/viewer/pzl-vitest-plugin.js` compiles `.pzl` imports on demand with the `pzlc` binary from a local Puzzle checkout, and goes inert (skipping those tests) when that checkout is absent.
+`tests/viewer/` covers the Puzzle viewer: plain-JS lib tests plus a `.pzl` component lane — `tests/viewer/pzl-vitest-plugin.js` runs the local Puzzle checkout's `pzlc` compiler through Go for each imported `.pzl`. The lane therefore requires both Go and that checkout (`PUZZLE_REPO` overrides its location); without the compiler the plugin is inert and `.pzl` imports fail at load time — not as red tests.

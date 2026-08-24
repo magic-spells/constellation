@@ -8,8 +8,8 @@ connections:
   - PAGE-VIEWER-HOME
   - COMPONENT-ICON
   - FILE-SERVE
-verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
-verified_at: '2026-08-16T02:32:51.381Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:11:21.573Z'
 ---
 
 # Overview dashboard rework

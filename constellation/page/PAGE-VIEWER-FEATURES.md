@@ -6,8 +6,8 @@ code_refs:
   - viewer/app/views/FeaturesPanel.pzl
 connections:
   - FILE-SERVE
-verified_sha: ee8384873bdb280e2f7c9b6cf6790bb217af19f7
-verified_at: '2026-08-16T18:35:29.083Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:11:32.683Z'
 notes:
   - kind: verified
     text: >-

@@ -4,8 +4,8 @@ status: verified
 path: src/core/git.ts
 language: typescript
 summary: Git plumbing for change tracking + drift
-verified_at: '2026-08-16T02:38:59.880Z'
-verified_sha: 623af52933900eb27ccb1d3061a33b40a4da16ee
+verified_at: '2026-08-24T21:10:24.041Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 notes:
   - kind: verified
     text: >-
@@ -19,11 +19,18 @@ notes:
       rev-parse echoes that flag as output. Now routes through resolveCommit (--verify). The card
       documents the trap; tests/sync.test.ts covers the branch, which previously had none.
     sha: 623af52933900eb27ccb1d3061a33b40a4da16ee
+  - kind: state
+    text: >-
+      recentCodeActivity and countCodeCommitsSince are pathspec-scoped to the plan's code root (were
+      '.' / no pathspec) and both pass --full-history: a bare pathspec enables git's TREESAME merge
+      simplification, which silently pruned real code commits reachable only via the un-followed
+      parent (proven on this repo: 4 real commits dropped, e.g. the viewer sidebar chain via PR
+      #11's merge shape). planRootsFor added to compute { codeRoot, gitRoot, prefix } per plan.
 ---
 
-`diffPlan` (per-card delta), `planLog`, sync-marker read/write, `headSha`, `changedFilesSince`, `lastCommitByPath`, `dirtyFilesAmong`, `countCodeCommitsSince`, `recentPlanActivity`, `recentCodeActivity`, `latestTag`, `repoRemoteUrl`. Every caller-supplied revision is guarded by `safeRev` + `--end-of-options` so a dash-leading value can't be parsed as a git option.
+`diffPlan` (per-card delta), `planLog`, sync-marker read/write, `headSha`, `changedFilesSince`, `lastCommitByPath`, `dirtyFilesAmong`, `countCodeCommitsSince`, `recentPlanActivity`, `recentCodeActivity`, `latestTag`, `planRootsFor`, `repoRemoteUrl`. `safeRev` rejects a dash-leading revision at every entry point, so no caller string is parsed as a git option. `--end-of-options` backs it at most sites but not all: `countCodeCommitsSince`'s `rev-list --count` omits it, and `diffPlan`'s `git show` pair passes revisions raw — safe only because an earlier `safeRev` in the same function throws first. Ordering, not a guard.
 
-`repoRemoteUrl` reads `origin` and normalises it to a browsable https URL — ssh forms (`git@host:owner/repo`) rewritten, trailing `.git` stripped — returning null when there is no remote, no repo, or the result is not http(s). It is the only function here that answers a question about *where the code lives* rather than how it changed; [[FILE-SERVE]] hands it to the viewer as `repo_url`.
+Two exports answer *where the code lives* rather than how it changed — the only ones outside this module's change-tracking remit. `planRootsFor` resolves a plan's `{ codeRoot, gitRoot, prefix }`, and that `prefix` is what every caller uses to translate code-root-relative bound paths into the repo-relative paths git speaks (see [[FILE-STALE]]); it is also what scopes `recentCodeActivity` / `countCodeCommitsSince` to one package in a monorepo. `repoRemoteUrl` reads `origin` and normalises it to a browsable https URL — ssh forms (`git@host:owner/repo`) rewritten, trailing `.git` stripped — returning null when there is no remote, no repo, or the result is not http(s); [[FILE-SERVE]] hands it to the viewer as `repo_url`.
 
 `lastCommitByPath` is the card-relative drift primitive ([[FILE-STALE]]): one `git log --name-only` over a set of paths, returning each path's newest commit **and its position in that single newest-first walk**. Comparing positions makes "this file is newer than that one" a fact about one ordered walk rather than a comparison of two timestamps, and equal position means the same commit. A path absent from the result has no history at all — the caller's cue to fall back. `dirtyFilesAmong` is the companion `git diff --name-only HEAD` pass: uncommitted work no commit order can account for.
 

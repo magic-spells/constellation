@@ -4,8 +4,8 @@ kind: cli
 status: verified
 connections:
   - FILE-GIT
-verified_sha: c813887e9d1d4021d5129c1534e33f12efbc533d
-verified_at: '2026-08-16T02:39:56.854Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:11:02.182Z'
 ---
 
-The change-tracking backbone; [[FILE-GIT]] shells out to it for diff / log / rev-list (revisions guarded by safeRev + --end-of-options).
+The change-tracking backbone; [[FILE-GIT]] shells out to it for diff / log / rev-list (revisions guarded by safeRev, with --end-of-options at most call sites).

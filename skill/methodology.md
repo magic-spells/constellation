@@ -101,6 +101,15 @@ files and trace the data paths; never judge a system from filenames or folder st
 - If this repo is one of several that change together, declare its siblings with
   `add_connected_repo` — repo-level links, not cross-repo card connections. See *Connected
   repos* in `SKILL.md` for the multi-repo workflow.
+- **If this is a monorepo** (npm workspaces, a `packages/` or `apps/` layout), plan per
+  package: run `init_plan` inside each package, so every plan sits beside the code it
+  describes and its cards' `path:` / `code_refs` stay relative to that **code root** — the
+  folder containing its `constellation/` dir. The monorepo root gets at most a thin
+  signpost `plan.md`, never a full plan: architecture cards belong to the package plans,
+  and the signpost carries only the `add_connected_repo` entries naming them, so a `repo:`
+  selector addresses each package plan by name (`puzzle` → `packages/puzzle`). Cards still
+  never connect across plans, and `constellation serve` at the root hosts every plan
+  behind a plan-switcher dropdown.
 
 ## Step 1 — Macro pass (zoom out)
 
@@ -254,7 +263,8 @@ the smallest set of changes that most improves the plan — not the most cards.
   — expected, not drift to fix. Change history is git (`diff_plan`, `plan_log`) — never stamp
   dirty flags or changelogs into cards. The one allowed baseline is verification provenance:
   mark a card `verified` with `set_verified` (it records `verified_sha`, the sha you checked
-  against), so `stale_report` / `check_sync` can later flag the card if its bound code moved.
+  against, and takes `handles: [...]` to sweep many cards in one lint pass), so `stale_report`
+  / `check_sync` can later flag the card if its bound code moved.
   The staleness verdict stays live — recomputed from git, never stored. (`set_sync_point`
   still exists as a plan-wide marker and is the fallback baseline for cards git has never
   seen change; it is not a step in the loop.)

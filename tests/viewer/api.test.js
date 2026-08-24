@@ -1,5 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, loadPlan, patchCard } from '../../viewer/app/lib/api.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+	ApiError,
+	createCard,
+	deleteCard,
+	fetchPlans,
+	loadPlan,
+	loadPlans,
+	patchCard,
+	setActivePlan,
+	setSyncPoint,
+} from '../../viewer/app/lib/api.js';
 
 const cards = [
 	{
@@ -57,6 +67,12 @@ function storeFake(overrides = {}) {
 beforeEach(() => {
 	vi.restoreAllMocks();
 	vi.stubGlobal('fetch', vi.fn());
+});
+
+// The API prefix is module state, so a test that scopes the client to a plan
+// has to hand it back — otherwise the next test inherits '/api/p/alpha'.
+afterEach(() => {
+	setActivePlan(null);
 });
 
 describe('viewer API client', () => {
@@ -137,5 +153,127 @@ describe('viewer API client', () => {
 			status: 409,
 		});
 		expect(fetch).toHaveBeenCalledTimes(1);
+	});
+});
+
+// Multi-plan serving. `setActivePlan` moves every request under
+// `/api/p/<id>/…`; passing `null` puts them back on the unprefixed routes,
+// which is both the single-plan client and what an older server still answers.
+describe('viewer API client, plan-scoped', () => {
+	const roster = {
+		multi: true,
+		default: 'root',
+		scan_root: '/code',
+		plans: [
+			{ id: 'root', aliases: [], name: 'Root', code_path: '/code', cards: 12, default: true },
+			{ id: 'alpha', aliases: ['a'], name: 'Alpha', code_path: '/code/alpha', cards: 7 },
+		],
+	};
+
+	it('fetchPlans hits the UNPREFIXED /api/plans — the roster is global', async () => {
+		fetch.mockResolvedValue(response(roster));
+		setActivePlan('alpha');
+
+		await expect(fetchPlans()).resolves.toEqual(roster);
+		expect(fetch).toHaveBeenCalledWith('/api/plans');
+	});
+
+	it('loadPlans puts the roster and the ACTIVE plan on the plan singleton', () => {
+		setActivePlan('alpha');
+		const store = storeFake();
+
+		loadPlans(store, roster);
+
+		expect(store.upsert).toHaveBeenCalledWith('plan', {
+			id: 'plan',
+			activePlan: 'alpha',
+			plans: roster.plans,
+			multi: true,
+		});
+	});
+
+	it('loadPlans falls back to the roster default when nothing is scoped', () => {
+		const store = storeFake();
+
+		loadPlans(store, roster);
+
+		expect(store.upsert).toHaveBeenCalledWith(
+			'plan',
+			expect.objectContaining({ activePlan: 'root' }),
+		);
+	});
+
+	it('loadPlan reads the active plan prefix', async () => {
+		fetch.mockResolvedValue(response(planPayload()));
+		setActivePlan('alpha');
+
+		await loadPlan(storeFake());
+
+		expect(fetch).toHaveBeenCalledWith('/api/p/alpha/plan');
+	});
+
+	it('patchCard writes and re-reads under the active plan prefix', async () => {
+		fetch
+			.mockResolvedValueOnce(response({ card: cards[0], issues: [] }))
+			.mockResolvedValueOnce(response(planPayload()));
+		setActivePlan('alpha');
+
+		await patchCard(storeFake(), 'API-ALPHA', { name: 'Renamed' }, 1234);
+
+		expect(fetch).toHaveBeenNthCalledWith(
+			1,
+			'/api/p/alpha/card/API-ALPHA',
+			expect.objectContaining({ method: 'PATCH' }),
+		);
+		expect(fetch).toHaveBeenNthCalledWith(2, '/api/p/alpha/plan');
+	});
+
+	it('createCard posts under the active plan prefix', async () => {
+		fetch
+			.mockResolvedValueOnce(response({ card: cards[0] }))
+			.mockResolvedValueOnce(response(planPayload()));
+		setActivePlan('alpha');
+
+		await createCard(storeFake(), { type: 'API', name: 'New' });
+
+		expect(fetch).toHaveBeenNthCalledWith(
+			1,
+			'/api/p/alpha/cards',
+			expect.objectContaining({ method: 'POST' }),
+		);
+	});
+
+	it('deleteCard deletes under the active plan prefix', async () => {
+		fetch
+			.mockResolvedValueOnce(response({ deleted: true }))
+			.mockResolvedValueOnce(response(planPayload()));
+		setActivePlan('alpha');
+
+		await deleteCard(storeFake(), 'API-ALPHA');
+
+		expect(fetch).toHaveBeenNthCalledWith(1, '/api/p/alpha/card/API-ALPHA', {
+			method: 'DELETE',
+		});
+	});
+
+	it('setSyncPoint stamps under the active plan prefix', async () => {
+		fetch.mockResolvedValue(response({ sync: { clean: true } }));
+		setActivePlan('alpha');
+
+		await setSyncPoint(storeFake());
+
+		expect(fetch).toHaveBeenCalledWith('/api/p/alpha/sync-point', { method: 'POST' });
+	});
+
+	it('setActivePlan(null) restores the unprefixed single-plan routes', async () => {
+		fetch.mockResolvedValue(response(planPayload()));
+		setActivePlan('alpha');
+		setActivePlan(null);
+
+		await loadPlan(storeFake());
+		await setSyncPoint(storeFake());
+
+		expect(fetch).toHaveBeenNthCalledWith(1, '/api/plan');
+		expect(fetch).toHaveBeenNthCalledWith(2, '/api/sync-point', { method: 'POST' });
 	});
 });

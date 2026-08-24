@@ -4,8 +4,14 @@ status: verified
 path: src/core/sync.ts
 language: typescript
 summary: 'computeSyncStatus: a live freshness verdict'
-verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
-verified_at: '2026-08-16T02:33:18.002Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:10:59.936Z'
+notes:
+  - kind: state
+    text: >-
+      packageVersion reads the CODE ROOT's package.json (was the git root's) — in a monorepo each
+      package plan now reports its own version instead of the root shell's. Marker/base logic
+      untouched; sync.ts:55 remains the only package.json read in src/.
 ---
 
 Composes git + lint + status rollup into one glanceable state — `in-sync` / `drifted` / `dirty` / `never-synced` / `no-git`, plus a `marker_error` (forcing `drifted`) when the marker sha is unreachable. Per-card reverse drift from [[FILE-STALE]] is part of the verdict: a non-empty stale list is `drifted`, not `in-sync` (uncommitted edits to bound code, or a vanished bound file). Uncommitted plan edits still report `dirty` first. Computed live on every call, never stored.

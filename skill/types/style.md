@@ -15,7 +15,8 @@ do/don'ts, pairing guidance.
 Fields: `category` — one of `font`, `color`, `type-scale`, `spacing`, `radius`,
 `shadow`, `other`. `tokens` — list of `{name, value, description?}` plus
 category extras: fonts take `role` ("Heading Font"), `weights` ("Black (900)"),
-`src` (repo-relative woff2/ttf so specimens render in the real font);
+`src` (a woff2/ttf path relative to the code root — the folder containing the
+plan's `constellation/` dir — so specimens render in the real font);
 type-scale takes `line_height`, `weight`, `sample`.
 
 **Default names.** A type scale is `heading-1`, `heading-2`, `heading-3`,

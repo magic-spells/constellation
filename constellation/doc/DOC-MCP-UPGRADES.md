@@ -1,11 +1,20 @@
 ---
 name: MCP upgrades & memory model
 kind: decision
-status: built
+status: verified
 connections:
   - FILE-CODE
 section: agents
 order: 20
+verified_at: '2026-08-24T21:12:53.179Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+notes:
+  - kind: verified
+    text: >-
+      Code-attach containment re-truthed: the boundary is the plan's code root (constellation/'s
+      folder, or PLAN-PROJECT's code_root), so a monorepo package plan binds only its own subtree —
+      narrower than "same repo".
+    sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 ---
 
 # MCP upgrades & memory model (decisions)
@@ -48,8 +57,10 @@ call. `assemble` fuses both into a fan-out-ready work package.
   Drift is detected at file granularity; the symbol is an informational hint.
 - **No-per-card-stamping, reconciled** — `verified_sha` is verification *provenance*, not a
   change flag; the drift verdict stays live and unstored ([[DOC-CHANGE-TRACKING]], [[FILE-SYNC]]).
-- **Code attach is same-repo** — cards never bind across repos; reach a sibling's code via the
-  `repo` selector ([[DOC-CONNECTED-REPOS]]).
+- **Code attach is contained to the plan's code root** — the folder holding `constellation/`, or
+  PLAN-PROJECT's `code_root`, so a monorepo package plan binds only its own subtree and never a
+  sibling package's ([[FILE-CODE]]). Cards never bind across repos either; reach a sibling repo's
+  code via the `repo` selector ([[DOC-CONNECTED-REPOS]]).
 - **Decided AGAINST a dedicated `DECISION` card type** — *superseded by
   [[DECISION-NATIVE-DECISION-TYPE]]*: real projects accumulated dozens of DOC decision cards,
   and cross-cutting decisions have no single card to co-locate a note on. Card-local choices

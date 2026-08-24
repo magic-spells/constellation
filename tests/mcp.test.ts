@@ -37,6 +37,12 @@ afterAll(async () => {
 });
 
 describe('bootstrap', () => {
+  it('declares repo on the start_viewer input schema', async () => {
+    const { tools } = await client.listTools();
+    const startViewer = tools.find((tool) => tool.name === 'start_viewer');
+    expect(startViewer?.inputSchema.properties).toHaveProperty('repo');
+  });
+
   it('init_plan scaffolds constellation/ + plan.md and refuses to overwrite', async () => {
     const fresh = await mkdtemp(path.join(tmpdir(), 'constellation-init-'));
     const { data } = await call('init_plan', { path: fresh });

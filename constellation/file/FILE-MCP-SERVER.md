@@ -10,8 +10,23 @@ connections:
   - FILE-WRITER
   - FILE-SYNC
   - FILE-STALE
-verified_at: '2026-08-16T19:03:39.977Z'
-verified_sha: b68341fab1d50f297248b83eccc2f936ad6b9234
+verified_at: '2026-08-24T21:13:21.665Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+notes:
+  - kind: state
+    text: >-
+      Code-root round: set_verified's dirty-bound-file warning translates paths through the
+      code-root prefix so it actually fires in a monorepo (verified_sha stays repo-wide HEAD);
+      orient's connected_repos rows now include reachable (via listConnectedRepos); NO_PLAN_FOUND
+      mentions that plans can live at packages/<name>/constellation (repo=<path or name>) while
+      keeping the init_plan {path} and constellation init hints. See DECISION-MONOREPO-CODE-ROOT.
+  - kind: state
+    text: >-
+      start_viewer: repo added to its inputSchema (withPlan already plumbed it); boots multi-plan
+      like the CLI (discovery from the target's git root) and returns plan_url (deep link #/p/<id>/
+      when multi) beside the back-compat url. Singleton: if a viewer is already running and the
+      wanted plan is served, returns its deep link; if not served, reports requested_plan_not_served
+      + stop_viewer hint — never auto-restarts (would yank an open tab).
 ---
 
 `constellation mcp` (stdio). Registers every tool, embeds the agent-facing `INSTRUCTIONS` string (one of the three guidance copies), and resolves the target plan — the home plan or, when `repo` is passed, a connected sibling. The server handshake version is the package version (same source as the CLI), not a hardcoded leftover.
@@ -24,4 +39,4 @@ Card text has the same discipline, in one place: a per-response `Hydrator` ledge
 
 The handshake `instructions` are computed per boot, not fixed: `createServer` resolves the plan first and `bootInstructions` appends the one-time upgrade-review paragraph when that plan carries no `format_review` stamp ([[FILE-GIT]]). The exported `INSTRUCTIONS` constant is unchanged by this — it stays the static 55-line budget the guidance test pins ([[AGENT-GUIDANCE]]) — and no plan, or any error resolving one, falls back to it. `orient` repeats the same condition as `upgrade_review_pending` + a one-line hint, because a host that truncates the handshake would otherwise swallow the notice.
 
-`delete_card` refuses `PLAN-PROJECT` (`plan.md` is the plan root). `set_verified`'s dirty-tree warning uses the same directory-overlap rule as [[FILE-STALE]] — a bound folder lights up when a file under it is uncommitted. `assemble` units treat a folder binding as overlapping every path inside it, so fan-out cannot hand the same files to two agents.
+`delete_card` refuses `PLAN-PROJECT` (`plan.md` is the plan root). `set_verified` takes `handles:` for a sweep — one sha resolution, one dirty check over the union of bound paths, one lint — with unknown handles and write failures reported per item in `failed` instead of failing the batch; the single-`handle` response shape is unchanged. Its dirty-tree warning uses the same directory-overlap rule as [[FILE-STALE]] — a bound folder lights up when a file under it is uncommitted. `assemble` units treat a folder binding as overlapping every path inside it, so fan-out cannot hand the same files to two agents.

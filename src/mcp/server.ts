@@ -1,4 +1,4 @@
-import { readFile, rm, stat } from 'node:fs/promises';
+import { readFile, realpath, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -12,15 +12,22 @@ import {
 } from '../core/handles.js';
 import { loadPlan, neighborsOf } from '../core/indexer.js';
 import { lintPlan } from '../core/lint.js';
-import { resolvePlanDir } from '../core/resolve.js';
+import {
+  discoverPlans,
+  findRepoRoot,
+  identifyPlans,
+  includeDiscoveredPlan,
+  resolvePlanDir,
+} from '../core/resolve.js';
 import type { Card, Issue, PlanIndex, TypeName } from '../core/types.js';
 import { TYPE_NAMES } from '../core/types.js';
-import type { RunningServer } from '../serve/server.js';
+import type { RunningServer, ServedPlan } from '../serve/server.js';
 import {
   changedFilesSince,
   diffPlan,
   formatReviewVersion,
   headSha,
+  planRootsFor,
   planDirty,
   planLog,
   resolveCommit,
@@ -31,7 +38,7 @@ import { CONSTELLATION_VERSION } from '../core/version.js';
 import { computeSyncStatus, packageVersion } from '../core/sync.js';
 import { boundPathsForCard, boundPathsOverlap, resolveCodeForCard } from '../core/code.js';
 import { computeStaleCards } from '../core/stale.js';
-import { queryNeedles, searchCards } from './search.js';
+import { searchPlan } from './search.js';
 import {
   applyCardPatch,
   bodyHeadingTexts,
@@ -47,6 +54,7 @@ import { renameCard, RenameCardError } from '../core/rename.js';
 import type { CardNote } from '../core/writer.js';
 import {
   connectedRepoToFm,
+  codeRootFor,
   connectedReposFromFrontmatter,
   listConnectedRepos,
   readConnectedRepos,
@@ -58,6 +66,17 @@ import type { ConnectedRepo } from '../core/types.js';
 
 const PACKAGE_VERSION = CONSTELLATION_VERSION;
 export { PACKAGE_VERSION as MCP_SERVER_VERSION };
+
+interface ViewerSingleton {
+  server: RunningServer;
+  url: string;
+  plans: ServedPlan[];
+  multi: boolean;
+}
+
+// One web viewer per MCP process. Never auto-restart it: that would invalidate
+// a URL the user may already have open in a browser tab.
+let viewer: ViewerSingleton | null = null;
 
 export const INSTRUCTIONS = `# Constellation MCP
 
@@ -79,41 +98,40 @@ set_verified, rename_card, delete_card. Each lints and returns the issues for th
 written when issues come back (lint state, not failure). When a write tool errors (STALE, NOT_FOUND, a reserved-key
 rejection, a timeout), re-read the card and retry, or report the failure — never fall through to editing the file.
 
-Prefer cheap writes: append_note appends one typed note (decision | gotcha | state | deviation | verified);
-edit_section replaces one ## section. Both are byte-preserving. update_card is coarser: patch.fields deep-merges
-(arrays replace, null deletes), but patch.connections and body REPLACE wholesale — send a complete body, or
-use edit_section, and never bulk-rewrite plan.md. Batch scaffolds with create_cards + add_connections (one lint
-pass; intra-batch refs resolve). rename_card rewrites every reference plan-wide — never delete-and-recreate to
-rename; for bulk changes loop the singular tools (CLI: constellation rename), never search-and-replace the plan
-folder. delete_card does NOT rewrite references: it returns referenced_by and leaves E005s to clean up;
-remove_connection strips only the connections: list — an edge also declared by a handle-shaped frontmatter field
-needs edit_section. Call describe_type before authoring an unfamiliar type, and author in the types the plan
-already uses.
+Prefer cheap writes: append_note appends one typed note (decision | gotcha | state | deviation | verified); edit_section
+replaces one ## section. Both are byte-preserving. update_card is coarser: patch.fields deep-merges (arrays replace, null
+deletes), but patch.connections and body REPLACE wholesale — send a complete body, or use edit_section, and never
+bulk-rewrite plan.md. Batch scaffolds with create_cards + add_connections (intra-batch refs resolve), sweeps with
+set_verified handles: [...] — each lints ONCE. rename_card rewrites every reference plan-wide — never delete-and-recreate
+to rename; for bulk changes loop the singular tools (CLI: constellation rename), never search-and-replace the plan folder.
+delete_card does NOT rewrite references: it returns referenced_by and leaves E005s to clean up; remove_connection strips
+only the connections: list — an edge also declared by a handle-shaped frontmatter field needs edit_section. Call
+describe_type before authoring an unfamiliar type, and author in the types the plan already uses.
 
-Call orient once at session start: one small read-only briefing on the plan's shape, drift and newest notes.
-Retrieve lean: summaries by default, full content only for cards you name. traverse and assemble walk the connection
-graph, so a load-bearing relationship belongs in connections:, not only in a [[link]]. assemble
-returns an INDEX by default (units, seeds, bound paths, no bodies); ask hydration: "full" only when you need
-bodies. Hydration never truncates silently: repeats (hydrated_elsewhere), supernodes (DIAGRAM / PLAN-PROJECT as
-neighbors) and over-budget cards degrade to summaries — everything held back is named in hydration_budget and
-refetchable by handle. search / list_cards / list_notes page: read total/more/next and page instead of raising
-limit. get_card returns the newest notes (notes_limit, notes_truncated) and, with code:, the code a card is
-bound to. Grep on card files is allowed, but search is usually the better first call — ranked handles not raw lines,
-one call not grep → map paths → get_card, and it covers notes, path/code_refs, and connected repos.
+Call orient at session start: a small read-only briefing on the plan's shape, drift and newest notes. Retrieve lean:
+summaries by default, full content only for cards you name. traverse and assemble walk the connection graph; assemble
+returns an INDEX by default (file-disjoint units, seeds, bound paths, no bodies); ask hydration: "full" only when you need
+bodies. Hydration never truncates silently: repeats (hydrated_elsewhere), supernodes (DIAGRAM / PLAN-PROJECT as neighbors)
+and over-budget cards degrade to summaries — everything held back is named in hydration_budget, refetchable by handle.
+search / list_cards / list_notes page: read total/more/next, don't raise limit. get_card returns the newest notes
+(notes_limit, notes_truncated) and, with code:, the code a card is bound to. Grep on cards is allowed, but search is
+usually the better first call — ranked handles not raw lines, one call not grep → map paths → get_card, and it covers
+notes, path/code_refs and connected repos; search is AND, relaxing to ANY word (relaxed: true) when nothing matches all.
 
 Plan-first applies to BEHAVIOR changes only — a new FEATURE, an API contract, a STATE change: read the neighborhood,
-express the end state in cards (unbuilt work is status: planned), show that card diff as the proposal, then bring
-the code up to match, bumping status planned → building → built → verified. Non-behavioral work (refactors, CSS,
-deps) goes straight to code — then fix the cards it broke. "Sync the plan" means bringing code and cards into
-agreement, not stamping a marker and not rewriting cards to match whatever the code does. Drift follows git: a card
-is stale when its bound code has commits newer than the card's. Commit the card together with the code; stale_report
-on a dirty tree flags work in progress — expected, not drift to fix. set_verified is the explicit override, stamping
-verified_sha / verified_at as the baseline; never stamp dirty flags into cards — "what changed" is diff_plan /
-plan_log / git.
+express the end state in cards (unbuilt work is status: planned), show that card diff as the proposal, then bring the code
+up to match, bumping status planned → building → built → verified. Non-behavioral work (refactors, CSS, deps) goes
+straight to code — then fix the cards it broke. "Sync the plan" means bringing code and cards into agreement, not stamping
+a marker and not rewriting cards to match whatever the code does. Drift follows git: a card is stale when its bound code
+has commits newer than the card's. Commit the card together with the code; stale_report on a dirty tree flags work in
+progress — expected, not drift to fix. set_verified is the explicit override, stamping verified_sha / verified_at as the
+baseline; never stamp dirty flags into cards — "what changed" is diff_plan / plan_log / git.
 
-Multi-repo: PLAN-PROJECT.connected_repos lists sibling repos (add_connected_repo / remove_connected_repo); pass
-repo: to any tool to read or write THAT repo's plan. Cards never connect across repos. start_viewer serves the
-plan as an editable site — post the returned URL back to the user.`;
+Multi-repo: PLAN-PROJECT.connected_repos lists sibling repos (add_connected_repo / remove_connected_repo); pass repo: to
+any tool to read or write THAT plan. Cards never connect across plans. In a monorepo each package keeps its own plan
+(packages/<name>/constellation); path: / code_refs are relative to the CODE ROOT, the folder holding that constellation/.
+Never init a full plan at a monorepo root — it holds at most a signpost plan.md whose connected_repos names the package
+plans, so repo: routes by name. start_viewer serves the plan as an editable site — post the returned URL back to the user.`;
 
 /* ── the one-time format-upgrade review ─────────────────────────────────────
  * 0.5.0 changed what makes an edge: a [[link]] or a mermaid node ID stopped
@@ -244,6 +262,16 @@ function fail(code: string, message: string): ToolResult {
     content: [{ type: 'text', text: JSON.stringify({ error: { code, message } }) }],
     isError: true,
   };
+}
+
+/**
+ * A per-item `failed[].error` for a write that threw. Batch rows are read by
+ * code first (`NOT_FOUND`, `CARD_EXISTS`, `INVALID_CONNECTION: …`), so a raw
+ * fs message — temp path and all — cannot be the whole value; it rides behind
+ * the code, where it is still there to diagnose.
+ */
+function writeFailed(err: unknown): string {
+  return `WRITE_FAILED: ${err instanceof Error ? err.message : String(err)}`;
 }
 
 async function openUrl(url: string): Promise<void> {
@@ -626,9 +654,13 @@ async function orientReport(root: string): Promise<Record<string, unknown>> {
     stale = null;
   }
 
-  let repos: Array<{ name: string; path: string }> = [];
+  let repos: Array<{ name: string; path: string; reachable: boolean }> = [];
   try {
-    repos = (await readConnectedRepos(root)).map((r) => ({ name: r.name, path: r.path }));
+    repos = (await listConnectedRepos(root)).map((r) => ({
+      name: r.name,
+      path: r.path,
+      reachable: r.reachable,
+    }));
   } catch {
     repos = [];
   }
@@ -796,16 +828,14 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     return options.planRoot ?? resolvePlanDir();
   }
 
-  // A single web viewer owned by this server process; null until start_viewer runs.
-  let viewer: { server: RunningServer; planRoot: string; url: string } | null = null;
-
   const noPlanFound = () =>
     fail(
       'NO_PLAN_FOUND',
       `No constellation/ folder found by walking up from ${process.cwd()}. This MCP ` +
-        `server uses its own working directory — if that isn't your repo, set "cwd" to ` +
-        'the repo root in your MCP client config. Otherwise call init_plan (optionally ' +
-        'with { path } pointing at the repo root), or run `constellation init`.',
+        'server uses its own working directory, so set "cwd" to the project if needed. ' +
+        'In a monorepo, plans typically live at packages/<name>/constellation and are ' +
+        'addressed with repo=<path or name>. Otherwise call init_plan (optionally with ' +
+        '{ path } pointing at the intended project root), or run `constellation init`.',
     );
 
   /**
@@ -1003,7 +1033,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     {
       annotations: { readOnlyHint: true },
       description:
-        'Scored full-text search over handles, names, kinds/types, bodies, appended notes, and the frontmatter that describes or binds a card (summary, path, code_refs) — so a source path like "src/core/stale.ts" finds the card bound to it. Matching is AND: every significant word in the query must appear on the card (common words are ignored); wrap a phrase in double quotes to match it whole. Results are paged in ranked order: total_hits is the full count, and the response reports offset/limit/returned plus more:true and the exact offset to pass for the next page (default page 20). Set connected: "full" to hydrate each match with the complete content of its connected cards — fuzzy query to working context in one call; hydration is shared across matches, so a card shared by two matches is spelled out once and then referenced by handle (hydrated_elsewhere: true), under the caps reported in hydration_budget.',
+        'Scored full-text search over handles, names, kinds/types, bodies, appended notes, and the frontmatter that describes or binds a card (summary, path, code_refs) — so a source path like "src/core/stale.ts" finds the card bound to it. Matching is AND: every significant word in the query must appear on the card (common words are ignored); wrap a phrase in double quotes to match it whole. If no card matches every word, the same words retry as OR — ranked by how many each card matched, flagged relaxed: true with unmatched_terms (words no card in the plan carries) — so an over-specified query lands on the neighborhood, not a bare zero. Results are paged in ranked order: total_hits is the full count, and the response reports offset/limit/returned plus more:true and the exact offset to pass for the next page (default page 20). Set connected: "full" to hydrate each match with the complete content of its connected cards — fuzzy query to working context in one call; hydration is shared across matches, so a card shared by two matches is spelled out once and then referenced by handle (hydrated_elsewhere: true), under the caps reported in hydration_budget.',
       inputSchema: {
         q: z.string(),
         types: z.array(typeSchema).optional(),
@@ -1017,9 +1047,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     },
     withPlan(async (root, { q, types, limit, offset, connected }) => {
       const index = await loadPlan(root);
-      const needles = queryNeedles(q);
       // Rank once, page into the ranked order — offset never reshuffles a result.
-      const ranked = searchCards(index, q, types);
+      // AND that matched nothing comes back relaxed to OR rather than empty.
+      const { hits: ranked, needles, relaxed, unmatched } = searchPlan(index, q, types);
       const size = limit ?? 20;
       const from = offset ?? 0;
       const hits = ranked.slice(from, from + size);
@@ -1040,10 +1070,18 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       };
       const hydration = hydrator.report();
       if (hydration) result.hydration_budget = hydration;
-      // Matching is AND, so a long natural-language query can match nothing.
-      // Say so rather than letting it read as "the plan has nothing on this".
-      if (ranked.length === 0 && needles.length > 1) {
-        result.note = `No card matched all of: ${needles.join(', ')}. Search is AND — retry with fewer words, or quote a phrase to match it verbatim.`;
+      // Matching is AND, so a long natural-language query can match nothing. Say
+      // what happened rather than letting a zero read as "the plan has nothing on
+      // this" — the relaxed page IS the answer to "what did you actually mean?".
+      if (relaxed) {
+        result.relaxed = true;
+        if (unmatched.length > 0) result.unmatched_terms = unmatched;
+        result.note =
+          ranked.length > 0
+            ? `No card matched all of: ${needles.join(', ')} — relaxed to ANY word, ranked by how many each card matched.${unmatched.length > 0 ? ` No card mentions: ${unmatched.join(', ')} — drop those words.` : ''}`
+            : `No card matched any of: ${needles.join(', ')}. Nothing in the plan uses these words — try a broader term.`;
+      } else if (ranked.length === 0 && needles.length > 0) {
+        result.note = `No card matched: ${needles.join(', ')}. Try a broader term, or drop the quotes to match words separately.`;
       }
       return ok(result);
     }),
@@ -1264,6 +1302,16 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         }
       }
 
+      // Resolved once for the whole assembly — resolveCodeForCard otherwise
+      // re-reads PLAN-PROJECT for every seed card.
+      let codeRoot: string | null = null;
+      if (codeMode !== 'none') {
+        try {
+          codeRoot = await codeRootFor(await realpath(root));
+        } catch {
+          codeRoot = null;
+        }
+      }
       const units = [];
       for (const part of partitions) {
         const cards = [];
@@ -1277,7 +1325,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
                 }
               : { ...summary(card) };
           if (codeMode !== 'none') {
-            entry.code = await resolveCodeForCard(root, index, card, codeMode);
+            entry.code = await resolveCodeForCard(root, index, card, codeMode, {
+              codeRoot,
+            });
           }
           cards.push(entry);
         }
@@ -1499,7 +1549,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           existing.add(handle);
           created.push(handle);
         } catch (err) {
-          failed.push({ handle, error: err instanceof Error ? err.message : String(err) });
+          failed.push({ handle, error: writeFailed(err) });
         }
       }
 
@@ -1799,9 +1849,17 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'set_verified',
     {
       description:
-        'Mark a card verified against the real code: stamp verified_sha (the git sha you checked it at, default HEAD) + verified_at, set status to verified, and optionally append a verified note. The verified_sha is the BASELINE for code-side drift (stale_report / check_sync): later, if the card\'s bound code changed since this sha, the claim is flagged for re-verification. This is durability, not distrust — verify only against code you actually checked.',
+        'Mark one card (handle) or many (handles) verified against the real code: stamp verified_sha (the git sha you checked it at, default HEAD) + verified_at, set status to verified, and optionally append a verified note. The verified_sha is the BASELINE for code-side drift (stale_report / check_sync): later, if the card\'s bound code changed since this sha, the claim is flagged for re-verification. This is durability, not distrust — verify only against code you actually checked. A re-verification sweep belongs in ONE handles call — one sha resolution, one dirty check, one lint — returning { verified, failed, cards, issues }; unknown handles land in failed rather than failing the batch.',
       inputSchema: {
-        handle: z.string(),
+        handle: z.string().optional().describe('one card; exactly one of handle / handles'),
+        handles: z
+          .array(z.string())
+          .min(1)
+          .max(500)
+          .optional()
+          .describe(
+            'verify many cards in one call (one sha resolve, one lint pass); exactly one of handle / handles',
+          ),
         sha: z
           .string()
           .optional()
@@ -1813,10 +1871,36 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         repo: repoSchema,
       },
     },
-    withPlan(async (root, { handle, sha, note }) => {
+    withPlan(async (root, { handle, handles, sha, note }) => {
+      if ((handle === undefined) === (handles === undefined)) {
+        return fail(
+          'INVALID_INPUT',
+          'Pass exactly one of handle (one card) or handles (a batch).',
+        );
+      }
+      const batch = handles !== undefined;
       const index = await loadPlan(root);
-      const card = index.cards.get(handle.toUpperCase());
-      if (!card) return fail('NOT_FOUND', `No card with handle ${handle}`);
+      // Unknown handles are reported per item (create_cards' convention), never
+      // a failed batch — one typo must not cost a 50-card sweep.
+      const targets: Card[] = [];
+      const failed: Array<{ handle: string; error: string }> = [];
+      const seen = new Set<string>();
+      for (const requested of handles ?? [handle!]) {
+        const key = requested.toUpperCase();
+        // Dedupe BEFORE the lookup, so a repeated typo reports once — the same
+        // way a repeated real handle is verified once.
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const found = index.cards.get(key);
+        if (!found) {
+          failed.push({ handle: requested, error: 'NOT_FOUND' });
+          continue;
+        }
+        targets.push(found);
+      }
+      if (!batch && targets.length === 0) {
+        return fail('NOT_FOUND', `No card with handle ${handle}`);
+      }
       const warnings: string[] = [];
       let resolvedSha = sha;
       if (resolvedSha) {
@@ -1840,45 +1924,94 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       }
       // A verified_sha is a claim about COMMITTED code. Uncommitted edits to the
       // bound files are not covered by it — mirror set_sync_point's dirty warning.
-      if (resolvedSha) {
+      // One git call over the UNION of every target's bound paths, attributed back.
+      const dirtyByCard = new Map<string, string[]>();
+      if (resolvedSha && targets.length > 0) {
         try {
-          const bound = boundPathsForCard(index, card).map((b) => b.path);
-          const dirty = await changedFilesSince(root, 'HEAD', bound);
-          const dirtyBound = [...dirty].filter((c) =>
-            bound.some((p) => boundPathsOverlap(p, c)),
+          const boundByCard = new Map(
+            targets.map((c) => [c.handle, boundPathsForCard(index, c).map((b) => b.path)]),
           );
-          if (dirtyBound.length > 0) {
-            warnings.push(
-              `Bound file(s) have uncommitted changes the baseline does not include: ${dirtyBound.join(', ')}. Commit first, then set_verified.`,
+          const allBound = [...new Set([...boundByCard.values()].flat())];
+          if (allBound.length > 0) {
+            const { prefix } = await planRootsFor(root);
+            const gitBound = allBound.map((p) => (prefix ? `${prefix}/${p}` : p));
+            const dirty = await changedFilesSince(root, 'HEAD', gitBound);
+            const changed = [...dirty].map((p) =>
+              prefix && p.startsWith(`${prefix}/`) ? p.slice(prefix.length + 1) : p,
             );
+            for (const [h, bound] of boundByCard) {
+              const dirtyBound = changed.filter((c) =>
+                bound.some((p) => boundPathsOverlap(p, c)),
+              );
+              if (dirtyBound.length > 0) dirtyByCard.set(h, dirtyBound);
+            }
           }
         } catch {
           // Best-effort: no git repo or nothing bound — nothing to warn about.
         }
       }
+      if (dirtyByCard.size > 0) {
+        const detail = batch
+          ? [...dirtyByCard].map(([h, files]) => `${h}: ${files.join(', ')}`).join('; ')
+          : [...dirtyByCard.values()][0].join(', ');
+        warnings.push(
+          `Bound file(s) have uncommitted changes the baseline does not include: ${detail}. Commit first, then set_verified.`,
+        );
+      }
       const verifiedAt = new Date().toISOString();
       const fields: Record<string, unknown> = { verified_at: verifiedAt };
       if (resolvedSha) fields.verified_sha = resolvedSha;
-      await mutateCardFile(card.filePath, (current) => {
-        let frontmatter = applyCardPatch(current.frontmatter, {
-          status: 'verified',
-          fields,
-        });
-        if (note) {
-          const n: CardNote = { kind: 'verified', text: note };
-          if (resolvedSha) n.sha = resolvedSha;
-          frontmatter = withAppendedNote(frontmatter, n);
+      const verified = new Set<string>();
+      const touched = new Set<string>();
+      for (const card of targets) {
+        try {
+          await mutateCardFile(card.filePath, (current) => {
+            let frontmatter = applyCardPatch(current.frontmatter, {
+              status: 'verified',
+              fields,
+            });
+            if (note) {
+              const n: CardNote = { kind: 'verified', text: note };
+              if (resolvedSha) n.sha = resolvedSha;
+              frontmatter = withAppendedNote(frontmatter, n);
+            }
+            return { frontmatter };
+          });
+          verified.add(card.handle);
+          touched.add(card.relPath);
+        } catch (err) {
+          // One bad file must not abandon the rest of a sweep; a single-handle
+          // call keeps today's behaviour and surfaces the failure as an error.
+          if (!batch) throw err;
+          // Coded like every other failed row (NOT_FOUND, CARD_EXISTS): the
+          // caller branches on the code, the raw message stays for diagnosis.
+          failed.push({ handle: card.handle, error: writeFailed(err) });
         }
-        return { frontmatter };
-      });
+      }
+      // ONE lint for the whole call — the whole point of the batch.
       const lint = await lintPlan(root);
-      const updated = lint.index.cards.get(card.handle);
+      const warning = warnings.length > 0 ? warnings.join(' ') : undefined;
+      if (!batch) {
+        const card = targets[0];
+        const updated = lint.index.cards.get(card.handle);
+        return ok({
+          card: updated ? full(updated) : null,
+          verified_sha: resolvedSha ?? null,
+          verified_at: verifiedAt,
+          warning,
+          issues: issuesForFile(lint.issues, card.relPath),
+        });
+      }
       return ok({
-        card: updated ? full(updated) : null,
+        verified: verified.size,
+        failed,
+        cards: [...lint.index.cards.values()]
+          .filter((c) => verified.has(c.handle))
+          .map(summary),
         verified_sha: resolvedSha ?? null,
         verified_at: verifiedAt,
-        warning: warnings.length > 0 ? warnings.join(' ') : undefined,
-        issues: issuesForFile(lint.issues, card.relPath),
+        warning,
+        issues: lint.issues.filter((i) => touched.has(i.file)),
       });
     }),
   );
@@ -2402,7 +2535,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'start_viewer',
     {
       description:
-        'Start a local web server that renders this plan as a browsable, editable site, and return its URL (e.g. http://localhost:4747/). Idempotent: if the viewer is already running, returns the existing URL. The server runs until stop_viewer or until this MCP process exits. ALWAYS reply to the user with the returned url as a clickable link and state the port it bound to.',
+        'Start a local web server that renders this plan as a browsable, editable site. Idempotent: if the viewer is already running and serves this plan, returns its existing deep link. The server runs until stop_viewer or until this MCP process exits. ALWAYS reply to the user with the returned plan_url as a clickable link and state the port it bound to.',
       inputSchema: {
         port: z
           .number()
@@ -2419,13 +2552,44 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .boolean()
           .optional()
           .describe('open the URL in the local default browser (default false)'),
+        repo: repoSchema,
       },
     },
     withPlan(async (root, { port, readonly, open }) => {
       if (viewer) {
-        return ok({ already_running: true, url: viewer.url, plan_root: viewer.planRoot });
+        const served = viewer.plans.find(
+          (plan) => path.resolve(plan.root) === path.resolve(root),
+        );
+        if (served) {
+          const planUrl = viewer.multi
+            ? `${viewer.url}#/p/${served.id}/`
+            : viewer.url;
+          return ok({
+            already_running: true,
+            url: viewer.url,
+            plan_url: planUrl,
+            plan_id: served.id,
+            plan_root: served.root,
+          });
+        }
+        return ok({
+          already_running: true,
+          url: viewer.url,
+          requested_plan_not_served: true,
+          serving: viewer.plans.map((plan) => plan.relPath),
+          hint: 'Call stop_viewer, then start_viewer again to serve this plan.',
+        });
       }
       const { startServer } = await import('../serve/server.js');
+      const scanRoot = (await findRepoRoot(root)) ?? path.dirname(root);
+      let plans = await discoverPlans(scanRoot);
+      plans = await includeDiscoveredPlan(plans, scanRoot, root);
+      const requestedPlan = identifyPlans(plans).find(
+        (plan) => path.resolve(plan.root) === path.resolve(root),
+      );
+      if (!requestedPlan) {
+        return fail('VIEWER_FAILED', `Could not identify requested plan at ${root}`);
+      }
       const requested = port ?? 4747;
       // With the default port, walk forward until one is free so concurrent viewers
       // (each project runs its own MCP process) land on distinct, predictable URLs.
@@ -2435,7 +2599,13 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       let lastErr: unknown = null;
       for (let p = requested; p < requested + span; p++) {
         try {
-          running = await startServer({ planRoot: root, port: p, readonly: readonly ?? false });
+          running = await startServer({
+            plans,
+            scanRoot,
+            defaultPlan: requestedPlan.id,
+            port: p,
+            readonly: readonly ?? false,
+          });
           break;
         } catch (err) {
           lastErr = err;
@@ -2452,11 +2622,36 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         );
       }
       const url = `http://localhost:${running.port}/`;
-      viewer = { server: running, planRoot: root, url };
-      if (open) {
-        await openUrl(url);
+      const served = running.plans.find(
+        (plan) => path.resolve(plan.root) === path.resolve(root),
+      );
+      if (!served) {
+        await running.close();
+        return fail('VIEWER_FAILED', `Started viewer did not include requested plan at ${root}`);
       }
-      return ok({ url, port: running.port, plan_root: root, editable: !(readonly ?? false) });
+      const planUrl = running.multi ? `${url}#/p/${served.id}/` : url;
+      viewer = {
+        server: running,
+        url,
+        plans: running.plans,
+        multi: running.multi,
+      };
+      if (open) {
+        await openUrl(planUrl);
+      }
+      return ok({
+        url,
+        plan_url: planUrl,
+        plan_id: served.id,
+        plans: running.plans.map((plan) => ({
+          id: plan.id,
+          name: plan.name,
+          path: plan.relPath,
+        })),
+        port: running.port,
+        plan_root: root,
+        editable: !(readonly ?? false),
+      });
     }),
   );
 

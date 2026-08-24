@@ -7,10 +7,22 @@ connections:
   - FILE-SYNC
   - FILE-STALE
   - DOC-MCP-UPGRADES
-verified_at: '2026-08-16T02:39:51.183Z'
-verified_sha: c813887e9d1d4021d5129c1534e33f12efbc533d
+verified_at: '2026-08-24T20:08:46.889Z'
+verified_sha: 2757d7de40f8f234c01bd7369c6fbfa85f23bcbb
 section: plan-and-code
 order: 10
+notes:
+  - kind: gotcha
+    text: >-
+      Per-card git subprocess spawns are the sync-status killer, not parsing. On a 354-card plan
+      (Puzzle) /api/sync took 6.1s: diffPlan spawned two `git show` per modified card just to report
+      a count (231 cards ≈ 3.9s), and computeStaleCards let resolveCodeForCard re-run `git rev-parse
+      --show-toplevel` per claim card (190 cards ≈ 1.4s); parsing all cards was 48ms. Fixed 2026-08:
+      diffPlan takes `{ detail: false }` (skips content comparison — computeSyncStatus uses it),
+      resolveCodeForCard takes `{ codeRoot }` so loops resolve the root once (computeStaleCards,
+      assemble), and computeSyncStatus/computeStaleCards run independent git calls under
+      Promise.all. Result ~0.5s. Rule for new code on these paths: never put a git spawn inside a
+      per-card loop — batch into one git call or resolve once and share.
 ---
 
 # Change tracking & sync
@@ -42,7 +54,8 @@ instructions ([[DOC-MCP-SERVER]]) until `set_sync_point format_review: true` rec
 orthogonal to history. Verify only against real code.
 
 **Verification provenance vs. change tracking** — the one recorded per-card baseline is
-`verified_sha` / `verified_at`: `set_verified` stamps the sha a card was checked at. That's the
+`verified_sha` / `verified_at`: `set_verified` stamps the sha a card was checked at, and a
+re-verification sweep is one `handles:` call, not one per card. That's the
 basis of a *claim*, not a change flag — and the drift *verdict* ("has the bound code moved
 since?") is recomputed live by `stale_report` / `check_sync` ([[FILE-CODE]]), never stored.
 This reconciles the "no per-card stamping" rule rather than breaking it. See [[DOC-MCP-UPGRADES]].

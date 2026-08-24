@@ -1,13 +1,15 @@
 ---
 name: Lint codes
 kind: reference
-status: built
+status: verified
 connections:
   - FILE-INDEXER
   - FILE-VALIDATE
   - FILE-LINT
 section: format
 order: 30
+verified_at: '2026-08-24T20:08:43.123Z'
+verified_sha: 2757d7de40f8f234c01bd7369c6fbfa85f23bcbb
 ---
 
 # Lint codes
@@ -33,7 +35,7 @@ Structural codes come from [[FILE-INDEXER]]; schema codes (W002/W003) from [[FIL
 |---|---|
 | W001 | Card is not in the folder matching its type |
 | W002 | Frontmatter violates the type's JSON Schema |
-| W003 | Unknown frontmatter field (not a reserved/cross-type key from card.json, not in the type schema) |
+| W003 | Unknown frontmatter field (not a reserved/cross-type key from card.json, not in the type schema) — the message names the type's valid fields and suggests a near-miss |
 | W004 | Body `[[link]]` or mermaid reference resolves to no card |
 
 The E005/W004 split is deliberate: **structured references are contracts** (a frontmatter

@@ -12,8 +12,8 @@ connections:
   - FILE-SERVE
   - COMPONENT-STATUS-SELECT
   - PAGE-VIEWER-FEATURES
-verified_sha: dbaa7fc23fb5a41ce5672978f990c3080c3e5f3a
-verified_at: '2026-08-16T18:25:57.039Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:11:28.291Z'
 notes:
   - kind: verified
     text: >-
@@ -27,6 +27,11 @@ notes:
       Board is one of two Tasks tabs, not a destination. Checked against routes.js, BoardPage.pzl
       and TasksHeader.pzl.
     sha: dbaa7fc23fb5a41ce5672978f990c3080c3e5f3a
+  - kind: verified
+    text: >-
+      Verified the 20-card Verified cap, verified_at ordering with fallbacks, total badge, overflow
+      link, preview route, and read-only drag state.
+    sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
 section: viewer
 order: 20
 ---
@@ -37,13 +42,17 @@ the `status:` enum — *Planned*, *Building*, *Built*, *Verified*. Served by
 present, because the board is a fixed view of the plan's work rather than a row
 that only exists when some type has cards.
 
-A card's column **is** its status — nothing about the board is stored. Columns
-sort by file mtime, freshest edit first, and each card stays terse: name, handle,
-and one clamped line of intent lifted from the first real paragraph of its body
-(cards carry no summary field, so that is the closest honest thing to one).
-Clicking a card opens its preview dialog (below) rather than leaving the board;
-the card page that dialog links on to is where [[COMPONENT-STATUS-SELECT]] is
-the thing that actually moves it.
+A card's column **is** its status — nothing about the board is stored. Planned,
+Building, and Built sort by file mtime, freshest edit first. Verified is the
+archive-like column that never drains, so it sorts by `verified_at` (mtime and
+handle break ties), shows the 20 most recently verified cards, keeps the full
+count in its badge, and links any overflow to the complete List view.
+
+Each card stays terse: name, handle, and one clamped line of intent lifted from
+the first real paragraph of its body (cards carry no summary field, so that is
+the closest honest thing to one). Clicking a card opens its preview dialog
+(below) rather than leaving the board; the card page that dialog links on to is
+where [[COMPONENT-STATUS-SELECT]] is the thing that actually moves it.
 
 A card with **no** status sits in Planned — that is what an unstated status means
 for work — but says so in a quiet dashed pill, so an unset field never

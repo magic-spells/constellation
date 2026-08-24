@@ -7,8 +7,8 @@ branch: feat/overview-dashboard
 connections:
   - PAGE-VIEWER-HOME
   - FILE-SERVE
-verified_sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
-verified_at: '2026-08-16T02:32:56.352Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-08-24T21:11:26.169Z'
 ---
 
 # Overview mission-control dashboard

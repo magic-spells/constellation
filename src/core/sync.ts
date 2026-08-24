@@ -8,11 +8,11 @@ import {
   readSyncPoint,
   recentCodeActivity,
   recentPlanActivity,
-  repoRootFor,
   type SyncActivity,
   type SyncPoint,
 } from './git.js';
 import { lintPlan, type LintResult } from './lint.js';
+import { codeRootFor } from './repos.js';
 import { computeStaleCards, type StaleResult } from './stale.js';
 
 export type SyncState =
@@ -37,7 +37,7 @@ export interface SyncStatus {
   code_activity: SyncActivity[];
   /** Newest git tag, or null with no tags / outside a git repo. */
   latest_tag: string | null;
-  /** `version` from the repo root's package.json; null when absent. */
+  /** `version` from the code root's package.json; null when absent. */
   package_version: string | null;
   /** Live code-drift verdict over verified cards. null outside a git repo. */
   stale: StaleResult | null;
@@ -46,14 +46,14 @@ export interface SyncStatus {
 const STATUS_KEYS = ['planned', 'building', 'built', 'verified'] as const;
 
 /**
- * The `version` from the repo root's package.json — the plan's own release line.
+ * The `version` from the code root's package.json — the plan's own release line.
  * Read live (never stored); null for a non-node repo, an unreadable/invalid
- * package.json, or a plan outside a git repo.
+ * package.json, or an unreadable plan root.
  */
 export async function packageVersion(planRoot: string): Promise<string | null> {
   try {
-    const repoRoot = await repoRootFor(await realpath(planRoot));
-    const raw = await readFile(path.join(repoRoot, 'package.json'), 'utf8');
+    const codeRoot = await codeRootFor(await realpath(planRoot));
+    const raw = await readFile(path.join(codeRoot, 'package.json'), 'utf8');
     const version: unknown = JSON.parse(raw)?.version;
     return typeof version === 'string' ? version : null;
   } catch {
@@ -110,26 +110,53 @@ export async function computeSyncStatus(
   let stale: StaleResult | null = null;
   try {
     marker = await readSyncPoint(planRoot);
-    plan_dirty = await planDirty(planRoot);
-    activity = await recentPlanActivity(planRoot, options.activityLimit ?? 6);
-    code_activity = await recentCodeActivity(planRoot, options.activityLimit ?? 6);
-    latest_tag = await latestTag(planRoot);
-    pkg_version = await packageVersion(planRoot);
-    stale = options.stale ?? (await computeStaleCards(planRoot, lint.index));
-    if (marker) {
-      try {
-        const diff = await diffPlan(planRoot, marker.synced_sha, 'HEAD');
-        plan_changes_since_marker = diff.changes.length;
-      } catch (err) {
-        marker_error = markerError(marker.synced_sha, err);
-      }
-      try {
-        code_commits_since_marker = await countCodeCommitsSince(
-          planRoot,
-          marker.synced_sha,
-        );
-      } catch (err) {
-        marker_error ??= markerError(marker.synced_sha, err);
+    // Every call below is an independent git question, so they run concurrently
+    // — sequential awaits made this payload the sum of a dozen subprocess
+    // round-trips. The two marker-scoped calls capture their own errors (an
+    // unreachable marker sha is a *drifted* verdict, not a failed status), with
+    // per-call results so the diff error still wins over the count error. A
+    // no-git rejection from any unguarded call falls through to the catch below,
+    // exactly as the sequential form did. detail: false on the diff because only
+    // the change COUNT is reported — per-card content comparison costs two `git
+    // show` spawns per drifted card.
+    type Counted = { count: number } | { err: unknown };
+    const counted = (p: Promise<number>): Promise<Counted> =>
+      p.then(
+        (count) => ({ count }),
+        (err: unknown) => ({ err }),
+      );
+    const [dirtyRes, act, codeAct, tag, pkg, staleRes, diffRes, commitsRes] =
+      await Promise.all([
+        planDirty(planRoot),
+        recentPlanActivity(planRoot, options.activityLimit ?? 6),
+        recentCodeActivity(planRoot, options.activityLimit ?? 6),
+        latestTag(planRoot),
+        packageVersion(planRoot),
+        options.stale ?? computeStaleCards(planRoot, lint.index),
+        marker
+          ? counted(
+              diffPlan(planRoot, marker.synced_sha, 'HEAD', { detail: false }).then(
+                (d) => d.changes.length,
+              ),
+            )
+          : null,
+        marker ? counted(countCodeCommitsSince(planRoot, marker.synced_sha)) : null,
+      ]);
+    plan_dirty = dirtyRes;
+    activity = act;
+    code_activity = codeAct;
+    latest_tag = tag;
+    pkg_version = pkg;
+    stale = staleRes;
+    if (marker && diffRes) {
+      if ('err' in diffRes) marker_error = markerError(marker.synced_sha, diffRes.err);
+      else plan_changes_since_marker = diffRes.count;
+    }
+    if (marker && commitsRes) {
+      if ('err' in commitsRes) {
+        marker_error ??= markerError(marker.synced_sha, commitsRes.err);
+      } else {
+        code_commits_since_marker = commitsRes.count;
       }
     }
   } catch {

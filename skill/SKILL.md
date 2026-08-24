@@ -83,8 +83,9 @@ connected at all (below).
   writes, not an `update_card` that rewrites a body or a connections list.
 - **Never bulk-rewrite `plan.md`.** It's the biggest card in most plans and the one every
   session reads. Use `edit_section` on the one section that changed.
-- **Batch scaffolds.** `create_cards` + `add_connections` lint once and resolve intra-batch
-  references, so migrations don't emit transient "does not resolve" errors.
+- **Batch scaffolds and sweeps.** `create_cards` + `add_connections` lint once and resolve
+  intra-batch references, so migrations don't emit transient "does not resolve" errors;
+  `set_verified` takes `handles: [...]` for a re-verification sweep — one sha, one lint pass.
 - **Renames are plan-wide.** `rename_card` moves the file and rewrites every reference
   (connections, frontmatter values, `[[links]]`, mermaid node IDs) as whole tokens — and
   never delete-and-recreate to rename, or hand-rename the file. For bulk changes loop the
@@ -113,7 +114,9 @@ Grep on card files is allowed — but `search` is usually the better first call:
 - ranked handles instead of raw matching lines;
 - one call instead of grep → map paths → `get_card`;
 - it covers notes, `path`/`code_refs`, and connected repos, which grep on this repo's cards
-  misses.
+  misses;
+- it never dead-ends: multi-word queries are AND, but when no card has every word the same
+  words retry as ANY word, returning `relaxed: true` plus the words no card carries.
 
 Retrieval defaults are lean, and every default is a token decision:
 
@@ -302,6 +305,18 @@ stays self-contained and lints on its own.
   the wrong plan.
 - For "how does the other repo actually work" — real code, not its plan — spawn a sub-agent
   scoped to that repo's path; if its plan had the gap, have it fill the gap.
+
+### Monorepos
+
+- **A plan can live below the git root** — in a monorepo each package keeps its own plan at
+  `packages/<name>/constellation`. `path:`/`code_refs`, staleness, versions, commit scoping
+  and code attach all resolve against that plan's **code root**: the folder holding its
+  `constellation/` dir, or an optional `code_root` on `PLAN-PROJECT`.
+- **A monorepo root gets a signpost, not a plan** — at most a thin `plan.md` whose
+  `connected_repos` names the package plans, so `repo: "puzzle"` routes to
+  `packages/puzzle`; architecture cards live in the package plans.
+- **`serve` at a monorepo root hosts every plan** behind a plan-switcher dropdown, and
+  `--plan <id>` sets the default; `serve <path>` still serves one. Discovery is startup-only.
 
 ## Working without MCP
 

@@ -20,7 +20,17 @@
 
   <div class="shell-body flex min-w-0 flex-1 flex-col">
     <header class="shell-topbar flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface px-4">
-      <h1 class="min-w-0 truncate text-sm font-semibold text-ink">{ projectName }</h1>
+      <!--
+        One slot, two readings. Serving a single plan, the topbar names it and
+        that is the whole story; serving several, the name becomes the control
+        that picks between them — same position, same weight, now clickable.
+        (An {#if} is fine here: only the default <Slot/> is once-per-template.)
+      -->
+      {#if multiPlan}
+        <PlanSwitcher plans={ plans } active={ activePlan }/>
+      {:else}
+        <h1 class="min-w-0 truncate text-sm font-semibold text-ink">{ projectName }</h1>
+      {/if}
       <SyncBadge/>
 
       <div class="ml-auto flex shrink-0 items-center gap-3">
@@ -83,6 +93,7 @@ import Toaster from '../components/ui/Toaster.pzl';
 import CardList from '../components/CardList.pzl';
 import CommandPalette from '../components/CommandPalette.pzl';
 import CreateCardDialog from '../components/CreateCardDialog.pzl';
+import PlanSwitcher from '../components/PlanSwitcher.pzl';
 import SyncBadge from '../components/SyncBadge.pzl';
 import ThemeControls from '../components/ThemeControls.pzl';
 import { planIndex } from '../lib/plan-index.js';
@@ -220,6 +231,7 @@ export default class AppShell extends PuzzleView {
 		const project = index.projectCard;
 		const region = this._region();
 		const split = region.mode === 'split';
+		const plan = this.ctx.store.findOne('plan', 'plan');
 
 		return {
 			navItems,
@@ -230,7 +242,15 @@ export default class AppShell extends PuzzleView {
 			createOpen: this.getData().createOpen === true,
 			createType: this.getData().createType || '',
 			projectName: project?.frontmatter?.name || project?.name || 'Constellation',
-			repoUrl: this.ctx.store.findOne('plan', 'plan')?.repoUrl || '',
+			repoUrl: plan?.repoUrl || '',
+
+			// Multi-plan serving (lib/plans.js). All three are fixed for the life
+			// of the page — the roster lands once at boot and switching plans is a
+			// reload — so this is a straight read, not something that changes under
+			// the shell while it is mounted.
+			multiPlan: plan?.multi === true,
+			plans: plan?.plans ?? [],
+			activePlan: plan?.activePlan || '',
 
 			split,
 			activeFolder: region.folder,

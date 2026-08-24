@@ -1,7 +1,7 @@
 ---
 name: Constellation — the node graph
 kind: page
-status: built
+status: verified
 route: /constellation/graph
 section: viewer
 order: 40
@@ -9,6 +9,8 @@ connections:
   - FILE-SERVE
   - FEATURE-PUZZLE-VIEWER
   - PAGE-VIEWER-ATLAS
+verified_at: '2026-08-24T21:11:31.259Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 ---
 
 The force-clustered node view: **what connects to what**. One of two readings of

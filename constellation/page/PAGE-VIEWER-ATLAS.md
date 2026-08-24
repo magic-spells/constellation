@@ -1,7 +1,7 @@
 ---
 name: Atlas — the plan as a city
 kind: page
-status: built
+status: verified
 route: /constellation/atlas
 section: viewer
 order: 41
@@ -12,6 +12,8 @@ connections:
   - DECISION-ATLAS-TWO-ENGINES
   - DECISION-ATLAS-CONFIG-FILE
   - PAGE-VIEWER-CONSTELLATION
+verified_at: '2026-08-24T21:11:26.874Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 ---
 
 The isometric city: **what shape is this system, and where does data go**. The

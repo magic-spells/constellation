@@ -1,6 +1,6 @@
 {
   "name": "@magic-spells/constellation",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Files-first architecture planning for AI-assisted development. Your project plan as markdown cards in the repo — typed, connected, queryable, and diffable with git.",
   "type": "module",
   "license": "GPL-3.0-or-later",
@@ -53,6 +53,7 @@
     "demo": "tsx scripts/demo.ts",
     "dev:viewer": "npm run copy:vendor && cd viewer && puzzle dev",
     "serve:examples": "tsx src/cli/index.ts serve examples --no-open",
+    "serve:multi": "tsx src/cli/index.ts serve --no-open",
     "copy:vendor": "node scripts/copy-mermaid.mjs && node scripts/copy-three.mjs"
   },
   "dependencies": {

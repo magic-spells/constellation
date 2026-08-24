@@ -1,17 +1,20 @@
 ---
 name: Code-side drift detection
 kind: sync
-status: built
+status: verified
 connections:
   - FILE-CODE
   - FILE-SYNC
   - FILE-STALE
 section: plan-and-code
 order: 30
+verified_at: '2026-08-24T20:08:41.105Z'
+verified_sha: 2757d7de40f8f234c01bd7369c6fbfa85f23bcbb
 ---
 
 Makes a `built`/`verified` claim re-verifiable instead of taken on faith (reverse drift).
 
 1. `set_verified` stamps `verified_sha` = the git sha a card was checked at — [[FILE-CODE]].
+   A sweep is ONE call with `handles:`, never one call per card.
 2. Later, the card's bound code (a connected FILE `path:` or its own `code_refs`) changes.
 3. `stale_report` / `check_sync` diff the bound files against `verified_sha` and flag the card — [[FILE-SYNC]]. The verdict is computed live, never stored. See [[DOC-MCP-UPGRADES]].

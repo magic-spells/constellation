@@ -95,7 +95,7 @@ describe('code attach path containment', () => {
     const file = res.data.code.files.find((f: { path: string }) => f.path === 'leak.txt');
     expect(file).toBeDefined();
     expect(file.content).toBeUndefined();
-    expect(file.skipped).toBe('symlink escapes repo root');
+    expect(file.skipped).toBe('symlink escapes code root');
   });
 
   it('refuses a path that escapes the repo root via ..', async () => {
@@ -103,7 +103,7 @@ describe('code attach path containment', () => {
     const file = res.data.code.files.find((f: { path: string }) => f.path === '../escape.txt');
     expect(file).toBeDefined();
     expect(file.content).toBeUndefined();
-    expect(file.skipped).toBe('outside repo root');
+    expect(file.skipped).toBe('outside code root');
   });
 });
 

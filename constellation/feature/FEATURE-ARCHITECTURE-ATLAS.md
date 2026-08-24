@@ -28,8 +28,8 @@ notes:
       Driven in a browser at 0.6.0: both engines, all five lenses, flow trace, drill-down, hover
       readout, and the atlas.json config path. 645 tests green.
     sha: 2790152d9503b921ee03c26f14a5f9e31b0b70f1
-verified_at: '2026-08-18T04:41:53.146Z'
-verified_sha: 2790152d9503b921ee03c26f14a5f9e31b0b70f1
+verified_at: '2026-08-24T21:11:20.573Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 ---
 
 The constellation canvas at `#/constellation` answers *what connects to what*.

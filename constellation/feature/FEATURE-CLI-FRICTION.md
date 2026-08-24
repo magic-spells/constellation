@@ -7,8 +7,8 @@ branch: fix/serve-port-and-upgrade
 connections:
   - FILE-CLI
   - FILE-SERVE
-verified_at: '2026-08-16T19:03:48.176Z'
-verified_sha: b68341fab1d50f297248b83eccc2f936ad6b9234
+verified_at: '2026-08-24T21:11:21.273Z'
+verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 notes:
   - kind: verified
     text: >-
