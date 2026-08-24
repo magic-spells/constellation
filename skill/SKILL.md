@@ -83,8 +83,9 @@ connected at all (below).
   writes, not an `update_card` that rewrites a body or a connections list.
 - **Never bulk-rewrite `plan.md`.** It's the biggest card in most plans and the one every
   session reads. Use `edit_section` on the one section that changed.
-- **Batch scaffolds.** `create_cards` + `add_connections` lint once and resolve intra-batch
-  references, so migrations don't emit transient "does not resolve" errors.
+- **Batch scaffolds and sweeps.** `create_cards` + `add_connections` lint once and resolve
+  intra-batch references, so migrations don't emit transient "does not resolve" errors;
+  `set_verified` takes `handles: [...]` for a re-verification sweep — one sha, one lint pass.
 - **Renames are plan-wide.** `rename_card` moves the file and rewrites every reference
   (connections, frontmatter values, `[[links]]`, mermaid node IDs) as whole tokens — and
   never delete-and-recreate to rename, or hand-rename the file. For bulk changes loop the
@@ -113,7 +114,9 @@ Grep on card files is allowed — but `search` is usually the better first call:
 - ranked handles instead of raw matching lines;
 - one call instead of grep → map paths → `get_card`;
 - it covers notes, `path`/`code_refs`, and connected repos, which grep on this repo's cards
-  misses.
+  misses;
+- it never dead-ends: multi-word queries are AND, but when no card has every word the same
+  words retry as ANY word, returning `relaxed: true` plus the words no card carries.
 
 Retrieval defaults are lean, and every default is a token decision:
 

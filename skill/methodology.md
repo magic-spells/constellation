@@ -254,7 +254,8 @@ the smallest set of changes that most improves the plan — not the most cards.
   — expected, not drift to fix. Change history is git (`diff_plan`, `plan_log`) — never stamp
   dirty flags or changelogs into cards. The one allowed baseline is verification provenance:
   mark a card `verified` with `set_verified` (it records `verified_sha`, the sha you checked
-  against), so `stale_report` / `check_sync` can later flag the card if its bound code moved.
+  against, and takes `handles: [...]` to sweep many cards in one lint pass), so `stale_report`
+  / `check_sync` can later flag the card if its bound code moved.
   The staleness verdict stays live — recomputed from git, never stored. (`set_sync_point`
   still exists as a plan-wide marker and is the fallback baseline for cards git has never
   seen change; it is not a step in the loop.)
