@@ -20,6 +20,13 @@ notes:
       orient's connected_repos rows now include reachable (via listConnectedRepos); NO_PLAN_FOUND
       mentions that plans can live at packages/<name>/constellation (repo=<path or name>) while
       keeping the init_plan {path} and constellation init hints. See DECISION-MONOREPO-CODE-ROOT.
+  - kind: state
+    text: >-
+      start_viewer: repo added to its inputSchema (withPlan already plumbed it); boots multi-plan
+      like the CLI (discovery from the target's git root) and returns plan_url (deep link #/p/<id>/
+      when multi) beside the back-compat url. Singleton: if a viewer is already running and the
+      wanted plan is served, returns its deep link; if not served, reports requested_plan_not_served
+      + stop_viewer hint — never auto-restarts (would yank an open tab).
 ---
 
 `constellation mcp` (stdio). Registers every tool, embeds the agent-facing `INSTRUCTIONS` string (one of the three guidance copies), and resolves the target plan — the home plan or, when `repo` is passed, a connected sibling. The server handshake version is the package version (same source as the CLI), not a hardcoded leftover.

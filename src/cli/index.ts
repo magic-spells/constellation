@@ -7,7 +7,17 @@ import { Command } from 'commander';
 import pc from 'picocolors';
 import { lintPlan } from '../core/lint.js';
 import { listConnectedRepos } from '../core/repos.js';
-import { exists, resolvePlanDir } from '../core/resolve.js';
+import {
+  countPlanCards,
+  discoverPlans,
+  exists,
+  findPlanUp,
+  findRepoRoot,
+  identifyPlans,
+  includeDiscoveredPlan,
+  resolvePlanDir,
+  type DiscoveredPlan,
+} from '../core/resolve.js';
 import type { Issue } from '../core/types.js';
 import { notifyUpdate } from './update-check.js';
 
@@ -239,17 +249,64 @@ program
   .command('serve')
   .argument('[path]', 'plan folder or a directory containing constellation/')
   .option('-p, --port <port>', 'port to listen on', '4747')
+  .option('--plan <id>', 'set the default plan without filtering the served set')
   .option('--no-open', 'do not open the browser')
   .option('--readonly', 'disable editing from the browser')
   .description('Serve a website rendering the plan, editable in place')
   .action(async (
     target: string | null | undefined,
-    opts: { port: string; open: boolean; readonly?: boolean },
+    opts: { port: string; plan?: string; open: boolean; readonly?: boolean },
   ) => {
-    const root = await resolvePlanDir(target ?? undefined);
-    if (!root) {
-      console.error(pc.red('No constellation/ folder found.'));
-      process.exit(2);
+    const explicit = target !== null && target !== undefined;
+    let root: string;
+    let scanRoot: string | undefined;
+    let discovered: DiscoveredPlan[] | undefined;
+    let defaultPlan: string | undefined;
+
+    if (explicit) {
+      const resolved = await resolvePlanDir(target);
+      if (!resolved) {
+        console.error(pc.red('No constellation/ folder found.'));
+        process.exit(2);
+      }
+      root = resolved;
+      if (opts.plan && opts.plan !== 'root') {
+        console.error(pc.red(`Unknown plan "${opts.plan}". Known plans: root`));
+        process.exit(2);
+      }
+    } else {
+      const cwd = process.cwd();
+      const upwardPlan = await findPlanUp(cwd);
+      scanRoot = (await findRepoRoot(cwd)) ?? cwd;
+      discovered = await discoverPlans(scanRoot);
+      if (upwardPlan) {
+        discovered = await includeDiscoveredPlan(discovered, scanRoot, upwardPlan);
+      }
+      if (discovered.length === 0) {
+        console.error(pc.red('No constellation/ folder found.'));
+        process.exit(2);
+      }
+
+      const identified = identifyPlans(discovered);
+      const automaticDefault =
+        identified.find((plan) => path.resolve(plan.root) === path.resolve(upwardPlan ?? '')) ??
+        identified.find((plan) => plan.id === 'root') ??
+        identified[0];
+      const selected = opts.plan
+        ? identified.find(
+            (plan) => plan.id === opts.plan || plan.aliases.includes(opts.plan as string),
+          )
+        : automaticDefault;
+      if (!selected) {
+        console.error(
+          pc.red(
+            `Unknown plan "${opts.plan}". Known plans: ${identified.map((plan) => plan.id).join(', ')}`,
+          ),
+        );
+        process.exit(2);
+      }
+      defaultPlan = selected.id;
+      root = selected.root;
     }
     const { startServer } = await import('../serve/server.js');
     const started = Date.now();
@@ -268,11 +325,19 @@ program
 
     while (running === undefined) {
       try {
-        running = await startServer({
-          planRoot: root,
-          port,
-          readonly: opts.readonly ?? false,
-        });
+        running = explicit
+          ? await startServer({
+              planRoot: root,
+              port,
+              readonly: opts.readonly ?? false,
+            })
+          : await startServer({
+              plans: discovered as DiscoveredPlan[],
+              scanRoot: scanRoot as string,
+              defaultPlan,
+              port,
+              readonly: opts.readonly ?? false,
+            });
       } catch (err) {
         const code = (err as NodeJS.ErrnoException)?.code;
         // EACCES shows up the same way for a privileged port (<1024) that is
@@ -297,17 +362,22 @@ program
     }
     const elapsed = Date.now() - started;
 
-    // Card count is banner garnish — never let a broken card block serving.
     let planLabel = root;
-    try {
-      const { loadPlan } = await import('../core/indexer.js');
-      const plan = await loadPlan(root);
-      planLabel += pc.dim(`  (${plan.cards.size} cards)`);
-    } catch {
-      /* banner shows the path alone */
+    if (!running.multi) {
+      // Card count is banner garnish — never let a broken card block serving.
+      try {
+        const { loadPlan } = await import('../core/indexer.js');
+        const plan = await loadPlan(root);
+        planLabel += pc.dim(`  (${plan.cards.size} cards)`);
+      } catch {
+        /* banner shows the path alone */
+      }
     }
 
-    const url = `http://localhost:${running.port}/`;
+    const baseUrl = `http://localhost:${running.port}/`;
+    const url = running.multi
+      ? `${baseUrl}#/p/${running.defaultPlan}/`
+      : baseUrl;
     const line = (label: string, value: string) =>
       console.log(`  ${pc.green('➜')}  ${pc.bold(label.padEnd(8))}${value}`);
     console.log();
@@ -325,7 +395,26 @@ program
         ),
       );
     }
-    line('Plan:', planLabel);
+    if (running.multi) {
+      line('Plans:', '');
+      console.log(
+        `      ${pc.dim('  ')}${pc.bold('id'.padEnd(18))}${pc.bold('name'.padEnd(30))}${pc.bold('cards')}`,
+      );
+      for (const plan of running.plans) {
+        let cards = 0;
+        try {
+          cards = await countPlanCards(plan.root);
+        } catch {
+          /* a watcher or concurrent edit can make banner garnish unavailable */
+        }
+        const mark = plan.id === running.defaultPlan ? '•' : ' ';
+        console.log(
+          `      ${mark} ${plan.id.padEnd(18)}${plan.name.padEnd(30)}${cards}`,
+        );
+      }
+    } else {
+      line('Plan:', planLabel);
+    }
     if (opts.readonly) line('Mode:', pc.dim('read-only (browser edits disabled)'));
 
     // "press q to quit": raw-mode stdin so a single keypress ends the server,

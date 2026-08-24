@@ -53,6 +53,7 @@
     "demo": "tsx scripts/demo.ts",
     "dev:viewer": "npm run copy:vendor && cd viewer && puzzle dev",
     "serve:examples": "tsx src/cli/index.ts serve examples --no-open",
+    "serve:multi": "tsx src/cli/index.ts serve --no-open",
     "copy:vendor": "node scripts/copy-mermaid.mjs && node scripts/copy-three.mjs"
   },
   "dependencies": {

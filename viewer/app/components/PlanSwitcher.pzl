@@ -1,0 +1,180 @@
+<puzzle-view>
+  <div class="plan-switcher relative min-w-0">
+    <button
+      type="button"
+      class="flex min-w-0 max-w-56 cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-surface-sunken outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      data-plan-trigger
+      aria-haspopup="listbox"
+      aria-expanded={ open ? 'true' : 'false' }
+      aria-label="Switch plan"
+      @click={ toggle }
+      @keydown={ onKey(event) }>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate text-sm font-semibold text-ink">{ activeName }</span>
+        {#if activePath}
+          <span class="block truncate text-[11px] leading-tight text-muted">{ activePath }</span>
+        {/if}
+      </span>
+      <svg
+        class="size-3.5 shrink-0 text-muted transition-[rotate] {#if open}rotate-180{/if}"
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        aria-hidden="true">
+        <path d="M6 8l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+
+    {#if open}
+      <ul
+        class="absolute left-0 top-full z-50 mt-1 max-h-96 w-80 max-w-[80vw] overflow-y-auto rounded-lg border border-border bg-surface py-1 shadow-lg"
+        role="listbox"
+        aria-label="Plans"
+        @keydown={ onKey(event) }>
+        {#for p in rows}
+          <li
+            key={ p.id }
+            role="option"
+            aria-selected={ p.ariaSelected }
+            class={ p.rowClass }
+            @click={ pick(p.id) }>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm">{ p.name }</span>
+              {#if p.codePath}
+                <span class="block truncate text-[11px] leading-tight text-muted">{ p.codePath }</span>
+              {/if}
+            </span>
+            <span class="shrink-0 text-[11px] tabular-nums text-muted">{ p.cards }</span>
+            {#if p.active}
+              <svg
+                class="size-4 shrink-0 text-brand"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true">
+                <path d="M5 10l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            {:else}
+              <span class="size-4 shrink-0" aria-hidden="true"></span>
+            {/if}
+          </li>
+        {/for}
+      </ul>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+
+// PlanSwitcher — the topbar control for a server serving MORE THAN ONE plan.
+// It takes the place of the plan's name (AppShell renders one or the other,
+// never both), so the topbar reads the same either way: this project, and — on
+// a multi-plan server — which project among several.
+//
+// Props: `plans` (the roster from GET /api/plans, root plan first) and
+// `active` (the id this page is scoped to). The root/signpost plan is listed
+// like any other: it is a plan with cards, and hiding it would make the plan
+// the switcher usually OPENS on the one plan you cannot get back to.
+//
+// Every plan row shows the same three things the roster carries: its name, its
+// code path dimmed underneath (two projects can share a name; their paths
+// cannot), and its card count. The active row carries a check.
+//
+// NO ADDRESSING LOGIC LIVES HERE. `.pzl` files only compile under a Go
+// toolchain, so they are the worst place to put anything worth a unit test —
+// the URL shapes are all in lib/plans.js.
+
+const ROW_BASE = 'flex cursor-pointer items-center gap-2 px-3 py-1.5 select-none hover:bg-surface-sunken';
+
+export default class PlanSwitcher extends PuzzleView {
+	created() {
+		this.setData({ open: false });
+	}
+
+	// Outside-pointerdown close, attached only while the popover is open (the
+	// Select piece's model — see components/ui/Select.pzl).
+	mounted() {
+		this._onDocPointerDown = (e) => {
+			if (!this.getData().open) return;
+			if (this.element?.contains(e.target)) return;
+			this._setOpen(false);
+		};
+	}
+
+	destroyed() {
+		document.removeEventListener('pointerdown', this._onDocPointerDown);
+	}
+
+	data(params, props) {
+		const plans = Array.isArray(props.plans) ? props.plans : [];
+		const active = props.active || '';
+		const current = plans.find((p) => p.id === active) ?? plans[0] ?? null;
+
+		return {
+			open: this.getData().open === true,
+			activeName: current?.name || current?.id || 'Plan',
+			activePath: current?.code_path || '',
+			rows: plans.map((p) => {
+				const isActive = p.id === active;
+				return {
+					id: p.id,
+					name: p.name || p.id,
+					codePath: p.code_path || '',
+					cards: p.cards ?? 0,
+					active: isActive,
+					ariaSelected: isActive ? 'true' : 'false',
+					rowClass: `${ROW_BASE} ${isActive ? 'font-medium text-brand' : 'text-body'}`,
+				};
+			}),
+		};
+	}
+
+	_setOpen(open) {
+		if (this.getData().open === open) return;
+		this.setData('open', open);
+		this.refresh();
+		if (open) document.addEventListener('pointerdown', this._onDocPointerDown);
+		else document.removeEventListener('pointerdown', this._onDocPointerDown);
+	}
+
+	events = {
+		toggle: () => this._setOpen(!this.getData().open),
+
+		onKey: (event) => {
+			if (event.key !== 'Escape') return;
+			event.preventDefault();
+			this._setOpen(false);
+			this.element?.querySelector('[data-plan-trigger]')?.focus();
+		},
+
+		// Switching plans is a full page LOAD, not a navigation.
+		//
+		// The router's base is fixed when the Router is constructed and never
+		// re-read, so the only way to re-scope the app is to build it again — and
+		// a same-document hash change does not reload anything. Hence: rewrite the
+		// hash, then reload explicitly.
+		//
+		// That is honest rather than lazy. Switching plans replaces every card in
+		// the store, the SSE stream, the docs tree and the sync state — i.e. all of
+		// it — so tearing the page down is the same work done in a form the browser
+		// can do faster than we can. Against a local server it costs tens of
+		// milliseconds, and the alternative is a second construction path that
+		// exists only to avoid a reload.
+		//
+		// `replace`, not `assign`: the hash we are leaving and the one we are
+		// going to are the same page in the same project switcher, so the old plan
+		// should not stack up in history behind the new one.
+		pick: (id) => {
+			if (id === (this.props.active || '')) {
+				this._setOpen(false);
+				return;
+			}
+			location.replace(`${location.pathname}${location.search}#/p/${id}/`);
+			location.reload();
+		},
+	};
+}
+</script>
