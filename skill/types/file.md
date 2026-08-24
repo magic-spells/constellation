@@ -6,7 +6,7 @@ route tables, core modules) — not for every file in the repo.
 
 | Field | Type | Notes |
 |---|---|---|
-| `path` | string | **required** — relative to repo root |
+| `path` | string | **required** — relative to the code root (the folder containing the plan's `constellation/` dir) |
 | `language` | string | `typescript`, `python`, … |
 | `summary` | string | one line |
 
