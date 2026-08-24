@@ -14,6 +14,7 @@
  * other exists.
  */
 
+import { activePlanId, routerBaseFor } from './plans.js';
 import { hrefForHandle, typeForHandle } from './types.js';
 
 const listeners = new Set();
@@ -113,9 +114,16 @@ export function diagramsDrawn(root) {
  * Hand-encoded rather than routed through `router.url()`: the caller is opening
  * a NEW window, so it needs a string it can hand to `window.open`, not a
  * navigation.
+ *
+ * Being hand-encoded also makes it the ONE href in the app that the router's
+ * plan base does not reach — every other one goes through `| link` or
+ * `router.push`. So it prefixes the base itself, read from the module constant
+ * lib/plans.js pins at boot; that is `''` on a single-plan server, which is
+ * what keeps this string unchanged there.
  */
 export function printHref(solo = '') {
-	return solo ? `#/print/${solo}` : '#/print';
+	const base = routerBaseFor(activePlanId());
+	return solo ? `#${base}/print/${solo}` : `#${base}/print`;
 }
 
 /** Cover line: what this document is OF, so a printed copy dates itself. */

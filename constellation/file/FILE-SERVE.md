@@ -34,6 +34,15 @@ notes:
       poll). Nothing consumes it yet; the viewer's source deep-links start using it with the
       multi-plan serve work. Style-asset resolution deliberately unchanged this round (moves to the
       code root with DECISION-MULTI-PLAN-SERVE).
+  - kind: state
+    text: >-
+      Multi-plan serving landed per DECISION-MULTI-PLAN-SERVE: ServeOptions is a union ({planRoot}
+      single-plan arm normalized internally — existing callers/tests unchanged — or {plans,
+      defaultPlan, scanRoot}); per-plan PlanState map keyed by id + aliases doubles as the write
+      allowlist; prefixed routes /api/p/<id>/* + /api/plans roster; unprefixed routes = default
+      plan; per-plan watchers and SSE channels (wire format unchanged, /events aliases the default);
+      JSON 404 for unmatched /api/*; style assets resolve code-root-first with git-root fallback;
+      close() tears down every plan's watcher/debounce/SSE.
 ---
 
 Serves `viewer/dist`, a read API, and a PATCH/POST/DELETE write API (with `if_mtime` stale-write guard), watching files for live reload. Shares the byte-preserving writer with the MCP path. `DELETE /api/card/PLAN-PROJECT` is refused (400 `INVALID_HANDLE`) — same guard as MCP `delete_card`.

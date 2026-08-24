@@ -12,10 +12,16 @@ import {
 } from '../core/handles.js';
 import { loadPlan, neighborsOf } from '../core/indexer.js';
 import { lintPlan } from '../core/lint.js';
-import { resolvePlanDir } from '../core/resolve.js';
+import {
+  discoverPlans,
+  findRepoRoot,
+  identifyPlans,
+  includeDiscoveredPlan,
+  resolvePlanDir,
+} from '../core/resolve.js';
 import type { Card, Issue, PlanIndex, TypeName } from '../core/types.js';
 import { TYPE_NAMES } from '../core/types.js';
-import type { RunningServer } from '../serve/server.js';
+import type { RunningServer, ServedPlan } from '../serve/server.js';
 import {
   changedFilesSince,
   diffPlan,
@@ -60,6 +66,17 @@ import type { ConnectedRepo } from '../core/types.js';
 
 const PACKAGE_VERSION = CONSTELLATION_VERSION;
 export { PACKAGE_VERSION as MCP_SERVER_VERSION };
+
+interface ViewerSingleton {
+  server: RunningServer;
+  url: string;
+  plans: ServedPlan[];
+  multi: boolean;
+}
+
+// One web viewer per MCP process. Never auto-restart it: that would invalidate
+// a URL the user may already have open in a browser tab.
+let viewer: ViewerSingleton | null = null;
 
 export const INSTRUCTIONS = `# Constellation MCP
 
@@ -801,9 +818,6 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   async function planRoot(): Promise<string | null> {
     return options.planRoot ?? resolvePlanDir();
   }
-
-  // A single web viewer owned by this server process; null until start_viewer runs.
-  let viewer: { server: RunningServer; planRoot: string; url: string } | null = null;
 
   const noPlanFound = () =>
     fail(
@@ -2425,7 +2439,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'start_viewer',
     {
       description:
-        'Start a local web server that renders this plan as a browsable, editable site, and return its URL (e.g. http://localhost:4747/). Idempotent: if the viewer is already running, returns the existing URL. The server runs until stop_viewer or until this MCP process exits. ALWAYS reply to the user with the returned url as a clickable link and state the port it bound to.',
+        'Start a local web server that renders this plan as a browsable, editable site. Idempotent: if the viewer is already running and serves this plan, returns its existing deep link. The server runs until stop_viewer or until this MCP process exits. ALWAYS reply to the user with the returned plan_url as a clickable link and state the port it bound to.',
       inputSchema: {
         port: z
           .number()
@@ -2442,13 +2456,44 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .boolean()
           .optional()
           .describe('open the URL in the local default browser (default false)'),
+        repo: repoSchema,
       },
     },
     withPlan(async (root, { port, readonly, open }) => {
       if (viewer) {
-        return ok({ already_running: true, url: viewer.url, plan_root: viewer.planRoot });
+        const served = viewer.plans.find(
+          (plan) => path.resolve(plan.root) === path.resolve(root),
+        );
+        if (served) {
+          const planUrl = viewer.multi
+            ? `${viewer.url}#/p/${served.id}/`
+            : viewer.url;
+          return ok({
+            already_running: true,
+            url: viewer.url,
+            plan_url: planUrl,
+            plan_id: served.id,
+            plan_root: served.root,
+          });
+        }
+        return ok({
+          already_running: true,
+          url: viewer.url,
+          requested_plan_not_served: true,
+          serving: viewer.plans.map((plan) => plan.relPath),
+          hint: 'Call stop_viewer, then start_viewer again to serve this plan.',
+        });
       }
       const { startServer } = await import('../serve/server.js');
+      const scanRoot = (await findRepoRoot(root)) ?? path.dirname(root);
+      let plans = await discoverPlans(scanRoot);
+      plans = await includeDiscoveredPlan(plans, scanRoot, root);
+      const requestedPlan = identifyPlans(plans).find(
+        (plan) => path.resolve(plan.root) === path.resolve(root),
+      );
+      if (!requestedPlan) {
+        return fail('VIEWER_FAILED', `Could not identify requested plan at ${root}`);
+      }
       const requested = port ?? 4747;
       // With the default port, walk forward until one is free so concurrent viewers
       // (each project runs its own MCP process) land on distinct, predictable URLs.
@@ -2458,7 +2503,13 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       let lastErr: unknown = null;
       for (let p = requested; p < requested + span; p++) {
         try {
-          running = await startServer({ planRoot: root, port: p, readonly: readonly ?? false });
+          running = await startServer({
+            plans,
+            scanRoot,
+            defaultPlan: requestedPlan.id,
+            port: p,
+            readonly: readonly ?? false,
+          });
           break;
         } catch (err) {
           lastErr = err;
@@ -2475,11 +2526,36 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         );
       }
       const url = `http://localhost:${running.port}/`;
-      viewer = { server: running, planRoot: root, url };
-      if (open) {
-        await openUrl(url);
+      const served = running.plans.find(
+        (plan) => path.resolve(plan.root) === path.resolve(root),
+      );
+      if (!served) {
+        await running.close();
+        return fail('VIEWER_FAILED', `Started viewer did not include requested plan at ${root}`);
       }
-      return ok({ url, port: running.port, plan_root: root, editable: !(readonly ?? false) });
+      const planUrl = running.multi ? `${url}#/p/${served.id}/` : url;
+      viewer = {
+        server: running,
+        url,
+        plans: running.plans,
+        multi: running.multi,
+      };
+      if (open) {
+        await openUrl(planUrl);
+      }
+      return ok({
+        url,
+        plan_url: planUrl,
+        plan_id: served.id,
+        plans: running.plans.map((plan) => ({
+          id: plan.id,
+          name: plan.name,
+          path: plan.relPath,
+        })),
+        port: running.port,
+        plan_root: root,
+        editable: !(readonly ?? false),
+      });
     }),
   );
 

@@ -1,3 +1,37 @@
+import { activePlanId, apiBaseFor, eventsUrlFor, setActivePlanId } from './plans.js';
+
+// Where this page's API lives. Two module constants rather than a prefix
+// threaded through every call site: the plan is fixed for the life of the page
+// (app.js decides it before the app is constructed, because the router base is
+// fixed at construction), so the paths below read exactly as they did in the
+// single-plan client with one interpolation at the front.
+//
+// The DEFAULTS ARE the single-plan URLs, so a viewer served by an older API —
+// or one that simply never calls `setActivePlan` — behaves as it always did.
+let API = '/api';
+let EVENTS = '/events';
+
+/**
+ * Scope every subsequent request to a plan. `null` restores the unprefixed
+ * routes, which a multi-plan server still serves as "the default plan". Called
+ * once during boot, before anything fetches.
+ */
+export function setActivePlan(id) {
+	setActivePlanId(id);
+	const active = activePlanId();
+	API = apiBaseFor(active);
+	EVENTS = eventsUrlFor(active);
+}
+
+/**
+ * The plan-scoped URL for an API suffix — for the callers that BUILD a URL
+ * rather than fetch one (StyleTokens' `@font-face` src), which are the only
+ * ones that need `API` from outside this module.
+ */
+export function apiUrl(suffix = '') {
+	return `${API}${suffix}`;
+}
+
 export class ApiError extends Error {
 	constructor(code, message, status) {
 		super(message);
@@ -28,8 +62,44 @@ async function request(url, init) {
 	return body;
 }
 
+/**
+ * The roster of plans this server is serving.
+ *
+ * UNPREFIXED ON PURPOSE — `/api/plans` is GLOBAL, not per-plan: it is the
+ * question "what is here", asked before we know which plan we are. It is also
+ * the ONE request that happens before `setActivePlan`, so it must not read
+ * `API` (which is still the default at that point anyway).
+ *
+ * A single-plan server returns `{ multi: false, plans: [one] }`; an older one
+ * 404s, and the caller treats the rejection as "single plan" (see app.js).
+ */
+export function fetchPlans() {
+	return request('/api/plans');
+}
+
+/**
+ * Put the roster on the plan singleton so the topbar switcher can render it.
+ *
+ * `activePlan` is the plan we are ACTUALLY scoped to, not the roster's default:
+ * a deep link into a non-default plan resolves before this runs (app.js calls
+ * `setActivePlan` first), and the switcher's check mark has to sit on the plan
+ * whose cards are on screen. It falls back to the roster default for the
+ * base-less single-plan case, where nothing is scoped and the switcher is
+ * hidden anyway.
+ */
+export function loadPlans(store, payload) {
+	const plans = Array.isArray(payload?.plans) ? payload.plans : [];
+	store.upsert('plan', {
+		id: 'plan',
+		activePlan: activePlanId() ?? payload?.default ?? '',
+		plans,
+		multi: payload?.multi === true,
+	});
+	return plans;
+}
+
 export async function loadPlan(store) {
-	const payload = await request('/api/plan');
+	const payload = await request(`${API}/plan`);
 	const handles = new Set();
 
 	for (const card of payload.cards) {
@@ -56,7 +126,7 @@ export async function loadPlan(store) {
 }
 
 export async function loadSync(store) {
-	const sync = await request('/api/sync');
+	const sync = await request(`${API}/sync`);
 	store.upsert('plan', { id: 'plan', sync });
 	return sync;
 }
@@ -67,7 +137,7 @@ export async function loadSync(store) {
  * from the same store subscription and the SSE reload below refreshes both.
  */
 export async function loadDocs(store) {
-	const docs = await request('/api/docs');
+	const docs = await request(`${API}/docs`);
 	store.upsert('plan', { id: 'plan', docs });
 	return docs;
 }
@@ -79,19 +149,19 @@ export async function loadDocs(store) {
  * every reader who never visits it.
  */
 export async function loadAtlasConfig(store) {
-	const atlasConfig = await request('/api/atlas-config');
+	const atlasConfig = await request(`${API}/atlas-config`);
 	store.upsert('plan', { id: 'plan', atlasConfig });
 	return atlasConfig;
 }
 
 export async function loadAtlasMetrics(store) {
-	const atlasMetrics = await request('/api/atlas-metrics');
+	const atlasMetrics = await request(`${API}/atlas-metrics`);
 	store.upsert('plan', { id: 'plan', atlasMetrics });
 	return atlasMetrics;
 }
 
 export async function saveAtlasConfig(store, config) {
-	const atlasConfig = await request('/api/atlas-config', {
+	const atlasConfig = await request(`${API}/atlas-config`, {
 		method: 'PUT',
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify(config),
@@ -101,7 +171,7 @@ export async function saveAtlasConfig(store, config) {
 }
 
 export function startLive(store) {
-	const events = new EventSource('/events');
+	const events = new EventSource(EVENTS);
 	let reloadTimer = null;
 
 	events.onmessage = (event) => {
@@ -132,7 +202,7 @@ async function write(store, url, init) {
 }
 
 export function patchCard(store, handle, patch, ifMtime) {
-	return write(store, `/api/card/${encodeURIComponent(handle)}`, {
+	return write(store, `${API}/card/${encodeURIComponent(handle)}`, {
 		method: 'PATCH',
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify({ ...patch, if_mtime: ifMtime }),
@@ -140,7 +210,7 @@ export function patchCard(store, handle, patch, ifMtime) {
 }
 
 export function createCard(store, payload) {
-	return write(store, '/api/cards', {
+	return write(store, `${API}/cards`, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify(payload),
@@ -155,13 +225,13 @@ export function createCard(store, payload) {
  * No `loadPlan` — this writes .sync.json, not a card.
  */
 export async function setSyncPoint(store) {
-	const body = await request('/api/sync-point', { method: 'POST' });
+	const body = await request(`${API}/sync-point`, { method: 'POST' });
 	store.upsert('plan', { id: 'plan', sync: body.sync });
 	return body;
 }
 
 export function deleteCard(store, handle) {
-	return write(store, `/api/card/${encodeURIComponent(handle)}`, {
+	return write(store, `${API}/card/${encodeURIComponent(handle)}`, {
 		method: 'DELETE',
 	});
 }

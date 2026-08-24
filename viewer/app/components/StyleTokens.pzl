@@ -89,6 +89,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { apiUrl } from '../lib/api.js';
 
 // StyleTokens — renders a STYLE card's `tokens:` frontmatter as the thing it
 // describes: colors become swatches, fonts become specimens in the real face,
@@ -228,8 +229,11 @@ export default class StyleTokens extends PuzzleView {
 				? list
 						.filter((t) => t.src)
 						.map(
+							// Through apiUrl(), not a literal: on a multi-plan server the
+							// font file lives under this plan's prefix, and the unprefixed
+							// route would hand back the DEFAULT plan's asset (or a 404).
 							(t) =>
-								`@font-face { font-family: "cst-${t.name}"; src: url("/api/style-asset?path=${encodeURIComponent(t.src)}"); }`,
+								`@font-face { font-family: "cst-${t.name}"; src: url("${apiUrl('/style-asset?path=' + encodeURIComponent(t.src))}"); }`,
 						)
 						.join('\n')
 				: '';

@@ -10,6 +10,13 @@ import { planRootsFor, repoRemoteUrl, writeSyncPoint } from '../core/git.js';
 import { CONSTELLATION_VERSION } from '../core/version.js';
 import { isHandleShaped, typeForHandle } from '../core/handles.js';
 import { lintPlan } from '../core/lint.js';
+import { parseFile } from '../core/parse.js';
+import { codeRootFor } from '../core/repos.js';
+import {
+  countPlanCards,
+  identifyPlans,
+  type DiscoveredPlan,
+} from '../core/resolve.js';
 import { computeSyncStatus } from '../core/sync.js';
 import type { Card, Issue } from '../core/types.js';
 import {
@@ -79,22 +86,56 @@ function issuesForFile(issues: Issue[], relPath: string): Issue[] {
   return issues.filter((i) => i.file === relPath);
 }
 
-export interface ServeOptions {
-  planRoot: string;
+export type ServeOptions = {
   port: number;
   readonly?: boolean;
+} & (
+  | {
+      planRoot: string;
+      plans?: never;
+      defaultPlan?: never;
+      scanRoot?: never;
+    }
+  | {
+      plans: DiscoveredPlan[];
+      defaultPlan?: string;
+      scanRoot: string;
+      planRoot?: never;
+    }
+);
+
+export interface ServedPlan {
+  id: string;
+  aliases: string[];
+  root: string;
+  codeRoot: string;
+  relPath: string;
+  name: string;
 }
 
 export interface RunningServer {
   server: http.Server;
   port: number;
+  plans: ServedPlan[];
+  defaultPlan: string;
+  multi: boolean;
   close: () => Promise<void>;
 }
 
+interface PlanState extends ServedPlan {
+  repoUrl: string | null | undefined;
+  codePrefix: string | undefined;
+  metrics: { at: number; data: Record<string, CodeMetric> } | null;
+  cardCount: number | null;
+  sse: Set<http.ServerResponse>;
+  watcher: ReturnType<typeof watch> | null;
+  debounce: NodeJS.Timeout | null;
+}
+
+const METRICS_TTL_MS = 5_000;
+
 export async function startServer(options: ServeOptions): Promise<RunningServer> {
-  const { planRoot } = options;
   const editable = !options.readonly;
-  const sseClients = new Set<http.ServerResponse>();
 
   // Fail loud if the viewer bundle is absent — otherwise the caller would print a
   // green "ready" line, open a browser, and land on a blank page served a 404.
@@ -103,13 +144,26 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
   } catch {
     throw new Error(
       `Viewer assets not found at ${VIEWER_DIST}. Reinstall @magic-spells/constellation, ` +
-        'or run `npm run build:viewer` if developing from source.',
+      'or run `npm run build:viewer` if developing from source.',
     );
   }
 
-  // Watch the plan folder; tell connected browsers to refetch on any change.
-  let debounce: NodeJS.Timeout | null = null;
-  let watcher: ReturnType<typeof watch> | null = null;
+  const normalized = await normalizePlans(options);
+  const plans = normalized.plans;
+  const defaultPlan = normalized.defaultPlan;
+  const multi = plans.length > 1;
+  const scanRoot = normalized.scanRoot;
+
+  // SECURITY INVARIANT: a request's plan id is a Map lookup built at startup —
+  // never joined onto a filesystem path, never resolved. The same map is the
+  // allowlist for every write route.
+  const planById = new Map<string, PlanState>();
+  for (const plan of plans) {
+    planById.set(plan.id, plan);
+    for (const alias of plan.aliases) planById.set(alias, plan);
+  }
+  const defaultState = planById.get(defaultPlan);
+  if (!defaultState) throw new Error(`Unknown default plan "${defaultPlan}"`);
 
   function json(res: http.ServerResponse, status: number, data: unknown): void {
     res.writeHead(status, { 'content-type': MIME['.json'] });
@@ -125,38 +179,47 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     json(res, status, { error: { code, message } });
   }
 
-  // The remote can't change under a running server; resolve it once, lazily.
-  let repoUrl: string | null | undefined;
-  // Neither can the plan's position inside its git repo — and resolving it
-  // costs a `git rev-parse` plus a plan.md read, on every /api/plan poll.
-  let codePrefix: string | undefined;
-
-  /**
-   * Bound-code sizes for the atlas. Unlike every other read here this one stats
-   * (and reads) the repo, and the viewer polls it — so it's cached. The plan
-   * watcher drops the cache the moment a card changes; the TTL covers the other
-   * half, code edits, which the watcher never sees because it only watches the
-   * plan folder.
-   */
-  const METRICS_TTL_MS = 5_000;
-  let metrics: { at: number; data: Record<string, CodeMetric> } | null = null;
-
-  async function handleGetAtlasMetrics(res: http.ServerResponse): Promise<void> {
-    if (!metrics || Date.now() - metrics.at > METRICS_TTL_MS) {
-      const lint = await lintPlan(planRoot);
-      metrics = { at: Date.now(), data: await codeMetrics(lint.index) };
-    }
-    json(res, 200, metrics.data);
+  async function handleGetPlans(res: http.ServerResponse): Promise<void> {
+    const roster = await Promise.all(
+      plans.map(async (plan) => ({
+        id: plan.id,
+        aliases: plan.aliases,
+        name: plan.name,
+        code_path: plan.relPath,
+        plan_path: toPosix(path.relative(scanRoot, plan.root)),
+        cards: await cardCountFor(plan),
+        default: plan.id === defaultPlan,
+      })),
+    );
+    json(res, 200, {
+      multi,
+      default: defaultPlan,
+      scan_root: scanRoot,
+      plans: roster,
+    });
   }
 
-  async function handleGetPlan(res: http.ServerResponse): Promise<void> {
-    if (repoUrl === undefined) repoUrl = await repoRemoteUrl(planRoot).catch(() => null);
-    if (codePrefix === undefined) {
-      codePrefix = await planRootsFor(planRoot)
+  async function handleGetAtlasMetrics(
+    plan: PlanState,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    if (!plan.metrics || Date.now() - plan.metrics.at > METRICS_TTL_MS) {
+      const lint = await lintPlan(plan.root);
+      plan.metrics = { at: Date.now(), data: await codeMetrics(lint.index) };
+    }
+    json(res, 200, plan.metrics.data);
+  }
+
+  async function handleGetPlan(plan: PlanState, res: http.ServerResponse): Promise<void> {
+    if (plan.repoUrl === undefined) {
+      plan.repoUrl = await repoRemoteUrl(plan.root).catch(() => null);
+    }
+    if (plan.codePrefix === undefined) {
+      plan.codePrefix = await planRootsFor(plan.root)
         .then((roots) => roots.prefix)
         .catch(() => '');
     }
-    const lint = await lintPlan(planRoot);
+    const lint = await lintPlan(plan.root);
     const cards = await Promise.all(
       [...lint.index.cards.values()]
         .sort((a, b) => a.handle.localeCompare(b.handle))
@@ -164,8 +227,8 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     );
     json(res, 200, {
       editable,
-      repo_url: repoUrl,
-      code_prefix: codePrefix,
+      repo_url: plan.repoUrl,
+      code_prefix: plan.codePrefix,
       cards,
       connections: lint.index.connections,
       errors: lint.errors,
@@ -180,8 +243,8 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
    * one implementation. Link resolution stays with the renderer — it is the only
    * consumer that knows what an in-page anchor looks like.
    */
-  async function handleGetDocs(res: http.ServerResponse): Promise<void> {
-    const lint = await lintPlan(planRoot);
+  async function handleGetDocs(plan: PlanState, res: http.ServerResponse): Promise<void> {
+    const lint = await lintPlan(plan.root);
     const project = lint.index.cards.get('PLAN-PROJECT');
     json(res, 200, {
       title: project?.name ?? 'Documentation',
@@ -195,9 +258,13 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     });
   }
 
-  // Read-only: hands the viewer real font bytes so STYLE specimens can @font-face
-  // the project's own fonts. Confined to the repo root (the plan folder's parent).
-  async function handleStyleAsset(url: URL, res: http.ServerResponse): Promise<void> {
+  // Read-only: hands the viewer real font bytes so STYLE specimens can @font-face.
+  // Resolve against the plan's code root first, then the scan/git root for shared assets.
+  async function handleStyleAsset(
+    plan: PlanState,
+    url: URL,
+    res: http.ServerResponse,
+  ): Promise<void> {
     const rel = url.searchParams.get('path') ?? '';
     const ext = path.extname(rel).toLowerCase();
     if (!rel || !FONT_EXT.has(ext)) {
@@ -208,26 +275,45 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
         'path must be a repo-relative font file (woff2/woff/ttf/otf)',
       );
     }
-    const repoRoot = path.dirname(path.resolve(planRoot));
-    const abs = path.resolve(repoRoot, rel);
-    if (abs !== repoRoot && !abs.startsWith(repoRoot + path.sep)) {
+    const codeAsset = containedPath(plan.codeRoot, rel);
+    if (!codeAsset) {
       return failure(res, 403, 'FORBIDDEN', 'path escapes the repository');
     }
     try {
-      const content = await readFile(abs);
+      const content = await readFile(codeAsset);
       res.writeHead(200, { 'content-type': MIME[ext], 'cache-control': 'no-cache' });
       res.end(content);
-    } catch {
-      failure(res, 404, 'NOT_FOUND', `No file at ${rel}`);
+      return;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        return failure(res, 404, 'NOT_FOUND', `No file at ${rel}`);
+      }
     }
+
+    if (path.resolve(plan.codeRoot) !== scanRoot) {
+      const sharedAsset = containedPath(scanRoot, rel);
+      if (!sharedAsset) {
+        return failure(res, 403, 'FORBIDDEN', 'path escapes the repository');
+      }
+      try {
+        const content = await readFile(sharedAsset);
+        res.writeHead(200, { 'content-type': MIME[ext], 'cache-control': 'no-cache' });
+        res.end(content);
+        return;
+      } catch {
+        // Fall through to the stable not-found response below.
+      }
+    }
+    failure(res, 404, 'NOT_FOUND', `No file at ${rel}`);
   }
 
   async function handlePatchCard(
+    plan: PlanState,
     handle: string,
     body: Record<string, unknown>,
     res: http.ServerResponse,
   ): Promise<void> {
-    const lint = await lintPlan(planRoot);
+    const lint = await lintPlan(plan.root);
     const card = lint.index.cards.get(handle.toUpperCase());
     if (!card) return failure(res, 404, 'NOT_FOUND', `No card ${handle}`);
 
@@ -262,7 +348,7 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
       body: typeof patch.body === 'string' ? patch.body : undefined,
     }));
 
-    const after = await lintPlan(planRoot);
+    const after = await lintPlan(plan.root);
     const updated = after.index.cards.get(card.handle);
     json(res, 200, {
       card: updated ? await cardPayload(updated) : null,
@@ -271,6 +357,7 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
   }
 
   async function handleCreateCard(
+    plan: PlanState,
     body: Record<string, unknown>,
     res: http.ServerResponse,
   ): Promise<void> {
@@ -278,7 +365,7 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     if (!isHandleShaped(handle) || !typeForHandle(handle)) {
       return failure(res, 400, 'INVALID_HANDLE', `${body.handle} is not a valid handle`);
     }
-    const lint = await lintPlan(planRoot);
+    const lint = await lintPlan(plan.root);
     if (lint.index.cards.has(handle)) {
       return failure(res, 409, 'CARD_EXISTS', `${handle} already exists`);
     }
@@ -305,12 +392,12 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     }
 
     const relPath = await createCardFile(
-      planRoot,
+      plan.root,
       handle,
       fm,
       typeof body.body === 'string' ? body.body : '',
     );
-    const after = await lintPlan(planRoot);
+    const after = await lintPlan(plan.root);
     const created = after.index.cards.get(handle);
     json(res, 201, {
       card: created ? await cardPayload(created) : null,
@@ -319,10 +406,11 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
   }
 
   async function handleDeleteCard(
+    plan: PlanState,
     handle: string,
     res: http.ServerResponse,
   ): Promise<void> {
-    const lint = await lintPlan(planRoot);
+    const lint = await lintPlan(plan.root);
     const card = lint.index.cards.get(handle.toUpperCase());
     if (!card) return failure(res, 404, 'NOT_FOUND', `No card ${handle}`);
     if (card.handle === 'PLAN-PROJECT') {
@@ -350,13 +438,14 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
    * review at the same time — the same field `set_sync_point` stamps.
    */
   async function handleSetSyncPoint(
+    plan: PlanState,
     body: Record<string, unknown>,
     res: http.ServerResponse,
   ): Promise<void> {
     let marker;
     try {
       marker = await writeSyncPoint(
-        planRoot,
+        plan.root,
         undefined,
         body.format_review === true ? { formatReview: CONSTELLATION_VERSION } : {},
       );
@@ -369,74 +458,110 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
         `Cannot set a sync point: ${err instanceof Error ? err.message : 'no git HEAD'}`,
       );
     }
-    json(res, 200, { marker, sync: await computeSyncStatus(planRoot) });
+    json(res, 200, { marker, sync: await computeSyncStatus(plan.root) });
+  }
+
+  function handleEvents(
+    plan: PlanState,
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): void {
+    res.writeHead(200, {
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-cache',
+      connection: 'keep-alive',
+    });
+    res.write('data: connected\n\n');
+    plan.sse.add(res);
+    req.on('close', () => plan.sse.delete(res));
   }
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     const method = req.method ?? 'GET';
-    const cardMatch = /^\/api\/card\/([^/]+)$/.exec(url.pathname);
 
     try {
-      if (url.pathname === '/api/plan' && method === 'GET') {
-        return await handleGetPlan(res);
+      // Exact-match the roster first. The prefix regex below requires /api/p/
+      // and therefore cannot match /api/plans.
+      if (url.pathname === '/api/plans') {
+        if (method === 'GET') return await handleGetPlans(res);
+        return failure(res, 404, 'NOT_FOUND', 'API route not found');
       }
-      if (url.pathname === '/api/sync' && method === 'GET') {
-        return json(res, 200, await computeSyncStatus(planRoot));
+
+      let plan = defaultState;
+      let route = url.pathname;
+      const prefixMatch = /^\/api\/p\/([^/]+)(\/.*)?$/.exec(url.pathname);
+      if (prefixMatch) {
+        const selected = planById.get(prefixMatch[1]);
+        if (!selected) {
+          return failure(
+            res,
+            404,
+            'UNKNOWN_PLAN',
+            `Unknown plan "${prefixMatch[1]}". Known plans: ${plans.map((p) => p.id).join(', ')}`,
+          );
+        }
+        plan = selected;
+        const suffix = prefixMatch[2] ?? '';
+        route = suffix === '/events' ? '/events' : `/api${suffix}`;
       }
-      if (url.pathname === '/api/atlas-metrics' && method === 'GET') {
-        return await handleGetAtlasMetrics(res);
+
+      const cardMatch = /^\/api\/card\/([^/]+)$/.exec(route);
+      if (route === '/api/plan' && method === 'GET') {
+        return await handleGetPlan(plan, res);
       }
-      if (url.pathname === '/api/atlas-config' && method === 'GET') {
-        return json(res, 200, await readAtlasConfig(planRoot));
+      if (route === '/api/sync' && method === 'GET') {
+        return json(res, 200, await computeSyncStatus(plan.root));
       }
-      if (url.pathname === '/api/docs' && method === 'GET') {
-        return await handleGetDocs(res);
+      if (route === '/api/atlas-metrics' && method === 'GET') {
+        return await handleGetAtlasMetrics(plan, res);
       }
-      if (url.pathname === '/api/style-asset' && method === 'GET') {
-        return await handleStyleAsset(url, res);
+      if (route === '/api/atlas-config' && method === 'GET') {
+        return json(res, 200, await readAtlasConfig(plan.root));
       }
-      if (url.pathname === '/events' && method === 'GET') {
-        res.writeHead(200, {
-          'content-type': 'text/event-stream',
-          'cache-control': 'no-cache',
-          connection: 'keep-alive',
-        });
-        res.write('data: connected\n\n');
-        sseClients.add(res);
-        req.on('close', () => sseClients.delete(res));
-        return;
+      if (route === '/api/docs' && method === 'GET') {
+        return await handleGetDocs(plan, res);
+      }
+      if (route === '/api/style-asset' && method === 'GET') {
+        return await handleStyleAsset(plan, url, res);
+      }
+      if (route === '/events' && method === 'GET') {
+        return handleEvents(plan, req, res);
       }
 
       const isWrite =
         (cardMatch && (method === 'PATCH' || method === 'DELETE')) ||
-        (url.pathname === '/api/cards' && method === 'POST') ||
-        (url.pathname === '/api/atlas-config' && method === 'PUT') ||
-        (url.pathname === '/api/sync-point' && method === 'POST');
+        (route === '/api/cards' && method === 'POST') ||
+        (route === '/api/atlas-config' && method === 'PUT') ||
+        (route === '/api/sync-point' && method === 'POST');
       if (isWrite) {
         if (!editable) {
           return failure(res, 405, 'READONLY', 'Server is running with --readonly');
         }
-        if (url.pathname === '/api/sync-point') {
-          return await handleSetSyncPoint(await readJson(req), res);
+        if (route === '/api/sync-point') {
+          return await handleSetSyncPoint(plan, await readJson(req), res);
         }
-        if (url.pathname === '/api/atlas-config') {
-          return json(res, 200, await writeAtlasConfig(planRoot, await readJson(req)));
+        if (route === '/api/atlas-config') {
+          return json(res, 200, await writeAtlasConfig(plan.root, await readJson(req)));
         }
         if (cardMatch && method === 'PATCH') {
           return await handlePatchCard(
+            plan,
             decodeURIComponent(cardMatch[1]),
             await readJson(req),
             res,
           );
         }
         if (cardMatch && method === 'DELETE') {
-          return await handleDeleteCard(decodeURIComponent(cardMatch[1]), res);
+          return await handleDeleteCard(plan, decodeURIComponent(cardMatch[1]), res);
         }
-        return await handleCreateCard(await readJson(req), res);
+        return await handleCreateCard(plan, await readJson(req), res);
       }
 
-      await serveStatic(url.pathname, res);
+      if (url.pathname.startsWith('/api/')) {
+        return failure(res, 404, 'NOT_FOUND', 'API route not found');
+      }
+      await serveStatic(route, res);
     } catch (err) {
       if (err instanceof RequestBodyError) {
         return failure(res, err.status, err.code, err.message);
@@ -450,17 +575,22 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     server.listen(options.port, '127.0.0.1', () => resolve());
   });
   try {
-    watcher = watch(planRoot, { recursive: true }, () => {
-      metrics = null;
-      if (debounce) clearTimeout(debounce);
-      debounce = setTimeout(() => {
-        for (const client of sseClients) client.write('data: change\n\n');
-      }, 150);
-    });
-    watcher.on('error', (err) => {
-      console.error(`constellation serve: file watcher error: ${err.message}`);
-    });
+    for (const plan of plans) {
+      plan.watcher = watch(plan.root, { recursive: true }, () => {
+        plan.metrics = null;
+        plan.cardCount = null;
+        if (plan.debounce) clearTimeout(plan.debounce);
+        plan.debounce = setTimeout(() => {
+          plan.debounce = null;
+          for (const client of plan.sse) client.write('data: change\n\n');
+        }, 150);
+      });
+      plan.watcher.on('error', (err) => {
+        console.error(`constellation serve: file watcher error: ${err.message}`);
+      });
+    }
   } catch (err) {
+    for (const plan of plans) plan.watcher?.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     throw err;
   }
@@ -470,13 +600,115 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
   return {
     server,
     port,
+    plans: plans.map(publicPlan),
+    defaultPlan,
+    multi,
     close: async () => {
-      if (debounce) clearTimeout(debounce);
-      watcher?.close();
-      for (const client of sseClients) client.end();
+      for (const plan of plans) {
+        if (plan.debounce) clearTimeout(plan.debounce);
+        plan.debounce = null;
+        plan.watcher?.close();
+        plan.watcher = null;
+        for (const client of plan.sse) client.end();
+        plan.sse.clear();
+      }
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
   };
+}
+
+async function normalizePlans(options: ServeOptions): Promise<{
+  plans: PlanState[];
+  defaultPlan: string;
+  scanRoot: string;
+}> {
+  const singlePlanRoot = options.planRoot;
+  const scanRoot = path.resolve(
+    singlePlanRoot === undefined ? options.scanRoot : path.dirname(singlePlanRoot),
+  );
+  const discovered: DiscoveredPlan[] =
+    singlePlanRoot !== undefined
+      ? [
+          {
+            root: path.resolve(singlePlanRoot),
+            codeRoot: await codeRootFor(singlePlanRoot),
+            relPath: '',
+          },
+        ]
+      : options.plans;
+  const identified =
+    singlePlanRoot !== undefined
+      ? [{ ...discovered[0], id: 'root', aliases: [] }]
+      : identifyPlans(discovered);
+  if (identified.length === 0) throw new Error('Cannot serve an empty plan set');
+
+  const plans = await Promise.all(
+    identified.map(async (plan): Promise<PlanState> => ({
+      ...plan,
+      root: path.resolve(plan.root),
+      codeRoot: path.resolve(plan.codeRoot),
+      name: await planName(plan.root, path.basename(plan.codeRoot)),
+      repoUrl: undefined,
+      codePrefix: undefined,
+      metrics: null,
+      cardCount: await countPlanCards(plan.root),
+      sse: new Set(),
+      watcher: null,
+      debounce: null,
+    })),
+  );
+  const requestedDefault = singlePlanRoot === undefined ? options.defaultPlan : 'root';
+  let defaultState: PlanState;
+  if (requestedDefault) {
+    const selected = plans.find(
+      (plan) => plan.id === requestedDefault || plan.aliases.includes(requestedDefault),
+    );
+    if (!selected) {
+      throw new Error(
+        `Unknown default plan "${requestedDefault}". Known plans: ${plans.map((p) => p.id).join(', ')}`,
+      );
+    }
+    defaultState = selected;
+  } else {
+    defaultState = plans.find((plan) => plan.id === 'root') ?? plans[0];
+  }
+  return { plans, defaultPlan: defaultState.id, scanRoot };
+}
+
+async function planName(planRoot: string, fallback: string): Promise<string> {
+  try {
+    const raw = await readFile(path.join(planRoot, 'plan.md'), 'utf8');
+    const name = parseFile(raw).frontmatter.name;
+    return typeof name === 'string' && name ? name : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+async function cardCountFor(plan: PlanState): Promise<number> {
+  if (plan.cardCount === null) plan.cardCount = await countPlanCards(plan.root);
+  return plan.cardCount;
+}
+
+function containedPath(root: string, rel: string): string | null {
+  const resolvedRoot = path.resolve(root);
+  const abs = path.resolve(resolvedRoot, rel);
+  return abs === resolvedRoot || abs.startsWith(resolvedRoot + path.sep) ? abs : null;
+}
+
+function publicPlan(plan: PlanState): ServedPlan {
+  return {
+    id: plan.id,
+    aliases: plan.aliases,
+    root: plan.root,
+    codeRoot: plan.codeRoot,
+    relPath: plan.relPath,
+    name: plan.name,
+  };
+}
+
+function toPosix(value: string): string {
+  return value.split(path.sep).join('/');
 }
 
 async function readJson(req: http.IncomingMessage): Promise<Record<string, unknown>> {

@@ -17,6 +17,15 @@ notes:
       only, 20 tries, banner note), the add-skills multi-select with cancel-vs-empty and the
       --skill-root bypass, and upgrade's --prefer-online.
     sha: b68341fab1d50f297248b83eccc2f936ad6b9234
+  - kind: state
+    text: >-
+      serve: bare invocation discovers all plans down from the git root (findRepoRoot ?? cwd) and
+      boots multi-plan — a plan-less monorepo root now serves its package plans instead of exit 2;
+      the plan cwd sits inside becomes the default. --plan <id> sets the default (never filters).
+      Explicit [path] stays single-plan (the escape hatch). Multi banner: deep-linked Local URL
+      (#/p/<id>/) + plan table with • on the default, counts from the shared .md count; single-plan
+      banner byte-identical to before. New script serve:multi (dev target: this repo's own root +
+      examples).
 ---
 
 Commands: `init`, `lint`, `rename`, `mcp`, `serve`, `repos`, `add skills`, `version`/`v`, `upgrade`. `lint` exits 1 on errors, 0 otherwise (warnings never fail), 2 when no plan is found. `rename OLD NEW` is the human-facing wrapper over [[FILE-RENAME]] — it prints the rewritten references and a lint-error count.
