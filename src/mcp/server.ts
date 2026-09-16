@@ -63,6 +63,16 @@ import {
   upsertConnectedRepo,
 } from '../core/repos.js';
 import type { ConnectedRepo } from '../core/types.js';
+import {
+  appendLog,
+  dropItems,
+  initWorking,
+  readLog,
+  readWorking,
+  setItems,
+  WorkingError,
+  type WorkingSetItem,
+} from '../core/working.js';
 
 const PACKAGE_VERSION = CONSTELLATION_VERSION;
 export { PACKAGE_VERSION as MCP_SERVER_VERSION };
@@ -126,6 +136,19 @@ a marker and not rewriting cards to match whatever the code does. Drift follows 
 has commits newer than the card's. Commit the card together with the code; stale_report on a dirty tree flags work in
 progress — expected, not drift to fix. set_verified is the explicit override, stamping verified_sha / verified_at as the
 baseline; never stamp dirty flags into cards — "what changed" is diff_plan / plan_log / git.
+
+Working memory (.constellation/ beside the plan — a session scratchpad, never a card: not indexed, linted, diffed or
+shown in the viewer) holds what we are DOING: read orient.working or working_list at session start and again right after
+every compaction, before acting on any summary — the summary is authoritative for the conversation, the set for state;
+where they disagree verify with git worktree list / git log -1. working_set the moment state changes, in the same turn:
+work dispatched or merged, a plan step finished, a decision made, a rule the user stated, a question only they can
+answer. working_drop with a reason is how you check something off — there is no status field — and the reason goes to
+the log, which is the history. Sub-agents only working_log; working_init creates the folder. Ids are per type and lines
+are headlines (aim under 100 chars, ceiling 160): G goal, keep while undelivered and wanted · C constraint, the user's
+words verbatim, keep until they change it · P plan, one line, ✓ done → next, keep while steps are open · F focus,
+singular and replaced, keep while it is this turn's step · T task — worktree, branch, head, holder — keep while undone ·
+Q question only the user can answer, keep while blocking · I idea, keep while a live option · D decision, keep while it
+steers live work. Promote a lasting decision to a DECISION card, then drop it here.
 
 Multi-repo: PLAN-PROJECT.connected_repos lists sibling repos (add_connected_repo / remove_connected_repo); pass repo: to
 any tool to read or write THAT plan. Cards never connect across plans. In a monorepo each package keeps its own plan
@@ -687,6 +710,17 @@ async function orientReport(root: string): Promise<Record<string, unknown>> {
     pending = false;
   }
 
+  // Working memory rides along when it exists: MCP-only clients (Codex, Cursor)
+  // have no SessionStart hook, so orient is their one chance to be handed the
+  // set before they act. Absent folder = absent key — orient stays non-hydrating.
+  let working: { header: unknown; items: unknown[] } | null = null;
+  try {
+    const set = await readWorking(root);
+    if (set.exists) working = { header: set.header, items: set.items };
+  } catch {
+    working = null;
+  }
+
   return {
     plan_root: index.root,
     project: {
@@ -698,6 +732,7 @@ async function orientReport(root: string): Promise<Record<string, unknown>> {
     stale,
     recent_notes: recentNotes,
     connected_repos: repos,
+    ...(working ? { working } : {}),
     versions,
     ...(pending
       ? {
@@ -906,18 +941,42 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .string()
           .optional()
           .describe('project name for plan.md (default: a title-cased folder name)'),
+        working: z
+          .boolean()
+          .optional()
+          .describe(
+            'also create .constellation/ working memory beside the plan (default true; no hook — working_init { hook: true } adds that)',
+          ),
       },
     },
-    async ({ path: target, name }: { path?: string; name?: string }) => {
+    async ({
+      path: target,
+      name,
+      working,
+    }: {
+      path?: string;
+      name?: string;
+      working?: boolean;
+    }) => {
       try {
         const { initPlan } = await import('../core/scaffold.js');
         const { root: created, name: projectName } = await initPlan(
           target ?? process.cwd(),
           { name },
         );
+        let workingResult: unknown = null;
+        if (working !== false) {
+          try {
+            workingResult = await initWorking(created);
+          } catch {
+            // A plan is still a plan without a scratchpad; never fail init over it.
+            workingResult = null;
+          }
+        }
         return ok({
           created,
           name: projectName,
+          ...(workingResult ? { working: workingResult } : {}),
           next: `Plan created with project name "${projectName}" (the viewer title). Confirm the name with the user — change it anytime via update_card on PLAN-PROJECT (patch.name). Then add cards with create_card.`,
         });
       } catch (err) {
@@ -2652,6 +2711,161 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         plan_root: root,
         editable: !(readonly ?? false),
       });
+    }),
+  );
+
+  /* ── working memory ───────────────────────────────────────────────────────
+   * The session scratchpad beside the plan: not cards, not indexed, not linted,
+   * never in diff_plan or the viewer. Every write returns the resulting header
+   * so the caller sees the new counters without a second call.
+   */
+
+  /** Map a WorkingError onto the tool error contract; anything else rethrows. */
+  function workingFail(err: unknown): ToolResult {
+    if (err instanceof WorkingError) return fail(err.code, err.message);
+    throw err;
+  }
+
+  const workingTypeSchema = z
+    .enum(['G', 'C', 'P', 'F', 'T', 'Q', 'I', 'D'])
+    .describe('G goal · C constraint · P plan · F focus · T task · Q question · I idea · D decision');
+
+  server.registerTool(
+    'working_list',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'Read the working set — the session scratchpad in .constellation/working.md (what is in flight, what is next, what waits on the user). Call it first thing in a session and again right after every compaction, before acting on the summary: the summary is authoritative for the conversation, this is authoritative for state. Returns exists:false when the folder was never created (working_init makes it). log: "today" adds today\'s log lines; a number adds the last N lines across the newest days — read it after compaction to see what happened since the header\'s updated time.',
+      inputSchema: {
+        repo: repoSchema,
+        log: z
+          .union([z.literal('today'), z.number().int().min(1).max(500)])
+          .optional()
+          .describe('"today" for today\'s log lines, or a number for the last N lines'),
+      },
+    },
+    withPlan(async (root, { log }: { log?: 'today' | number }) => {
+      const set = await readWorking(root);
+      const payload: Record<string, unknown> = {
+        exists: set.exists,
+        path: set.path,
+        header: set.header,
+        items: set.items,
+      };
+      if (!set.exists) {
+        payload.hint =
+          'No working memory here yet. Call working_init to create .constellation/ (and pass hook: true to have every session start by printing it).';
+        return ok(payload);
+      }
+      if (log !== undefined) payload.log = await readLog(root, log);
+      return ok(payload);
+    }),
+  );
+
+  server.registerTool(
+    'working_set',
+    {
+      description:
+        'Create or update working memory items — one call, one or many items. Without id: type is required and the next id for that type is allocated (T12, G3 …). With id: replaces that item\'s importance and text; type is fixed at creation (TYPE_IMMUTABLE), so changing it is a drop plus a create. Write the moment state changes, in the same turn: work dispatched (a T line with worktree, branch, head, holder, next step), a plan step finished, a decision made, a rule the user stated (quote it verbatim), a question only the user can answer. FOCUS is singular — a new F drops the old one and logs the supersede. Keep each line a headline, not a sentence: aim under 100 characters, hard ceiling 160 (over that comes back in warnings). Newlines are rejected.',
+      inputSchema: {
+        repo: repoSchema,
+        items: z
+          .array(
+            z.object({
+              id: z
+                .string()
+                .optional()
+                .describe('existing item to replace, e.g. T12; omit to create'),
+              type: workingTypeSchema.optional().describe('required when creating'),
+              importance: z
+                .number()
+                .int()
+                .min(1)
+                .max(5)
+                .optional()
+                .describe('1–5, default 3 — what gets cut first if the set grows'),
+              text: z.string().optional().describe('one line of markdown; [[HANDLE]] links allowed'),
+            }),
+          )
+          .min(1)
+          .describe('batch them — several changes at once is one call'),
+      },
+    },
+    withPlan(async (root, { items }: { items: WorkingSetItem[] }) => {
+      try {
+        const result = await setItems(root, items);
+        return ok(result);
+      } catch (err) {
+        return workingFail(err);
+      }
+    }),
+  );
+
+  server.registerTool(
+    'working_drop',
+    {
+      description:
+        'Remove working memory items — this is how you check something off; there is no status field. Drop a task when it merges, a question when it is answered, a goal when it is delivered, in the same turn the work lands. Pass reason to append one line to today\'s log, which is the history the set deliberately does not keep. Batch the ids.',
+      inputSchema: {
+        repo: repoSchema,
+        ids: z.array(z.string()).min(1).describe('ids to drop, e.g. ["T12", "T13"]'),
+        reason: z
+          .string()
+          .optional()
+          .describe('why — logged as "- HH:MM drop T12, T13 — <reason>"'),
+      },
+    },
+    withPlan(async (root, { ids, reason }: { ids: string[]; reason?: string }) => {
+      try {
+        return ok(await dropItems(root, ids, reason));
+      } catch (err) {
+        return workingFail(err);
+      }
+    }),
+  );
+
+  server.registerTool(
+    'working_log',
+    {
+      description:
+        'Append one line to today\'s working memory log (.constellation/log/YYYY-MM-DD.md). This is the sub-agent write: agents log when they finish, dispatch, or hit something the orchestrator must know, and never call working_set / working_drop. Works from a linked worktree — the log resolves to the main checkout.',
+      inputSchema: {
+        repo: repoSchema,
+        text: z.string().min(1).describe('one line; newlines are flattened'),
+      },
+    },
+    withPlan(async (root, { text }: { text: string }) => {
+      try {
+        return ok(await appendLog(root, text));
+      } catch (err) {
+        return workingFail(err);
+      }
+    }),
+  );
+
+  server.registerTool(
+    'working_init',
+    {
+      description:
+        'Create working memory for this plan: .constellation/ beside constellation/, with CLAUDE.md (the rules, committed), an empty working.md, a log/ folder, and the two .gitignore lines that keep the scratchpad local. Idempotent. hook: true also merges a SessionStart hook into .claude/settings.json so every session — including every compaction — starts by printing the set; that edits the user\'s settings, so ask first. Nothing here is a card: it is never indexed, linted, diffed or shown in the viewer.',
+      inputSchema: {
+        repo: repoSchema,
+        hook: z
+          .boolean()
+          .optional()
+          .describe('also install the SessionStart hook (default false — ask the user first)'),
+      },
+    },
+    withPlan(async (root, { hook }: { hook?: boolean }) => {
+      try {
+        const result = await initWorking(root, { hook });
+        return ok({
+          ...result,
+          next: 'Read .constellation/CLAUDE.md for the format, then working_set the goal and constraints already known in this session.',
+        });
+      } catch (err) {
+        return workingFail(err);
+      }
     }),
   );
 

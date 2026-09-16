@@ -15,6 +15,7 @@
     "dist",
     "schemas",
     "skill",
+    "skill-working",
     "constellation",
     "examples",
     "viewer/dist"

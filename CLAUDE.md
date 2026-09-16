@@ -37,8 +37,9 @@ npm run build:viewer     # copy:vendor (mermaid + three) then puzzle build → v
 npm run serve:examples   # serve the golden plan in the viewer (no auto-open)
 ```
 
-CLI surface (`src/cli/index.ts`): `init`, `lint`, `rename`, `mcp`, `serve`, `repos`, `add skills`, `version`/`v`, `upgrade`.
-`add skills` copies the packaged `skill/` into `~/.claude` / `~/.codex` / `~/.cursor` / `~/.agents` skills dirs with a
+CLI surface (`src/cli/index.ts`): `init`, `lint`, `rename`, `mcp`, `serve`, `repos`, `working` (+ `working install-hook`), `add skills`, `version`/`v`, `upgrade`.
+`working` prints `.constellation/working.md` — the session scratchpad beside the plan (`src/core/working.ts`), never a card and never indexed, linted, diffed or served. It exits **0** silently when there is no folder, because a SessionStart hook runs it in every repo.
+`add skills` copies both packaged skill folders — `skill/` (the authoring skill) and `skill-working/` (the user-invocable `/working` command) — into `~/.claude` / `~/.codex` / `~/.cursor` / `~/.agents` skills dirs with a
 `.constellation-skill-version` stamp (`src/cli/skills.ts`); `upgrade` offers to refresh those installs afterward.
 `lint` exits **1** on errors, **0** otherwise (warnings never fail); **2** when no plan is found.
 `rename OLD NEW` moves a card file and rewrites every reference plan-wide — same engine as the
@@ -84,8 +85,8 @@ The pipeline is one direction: **files → index → (lint | serve | MCP)**.
 - **Four frontmatter keys are reserved:** `name`, `kind`, `status`, `connections`. Type-specific `fields` may not use them; writer/MCP reject reserved keys in `fields`. **`schemas/card.json` is also the home for cross-type metadata** — valid on every type, not reserved. Two kinds live there and they behave differently: **tool-managed provenance** (`code_refs`, `verified_sha`, `verified_at`, `notes`) is written by the tools and never hand-authored, while **authored placement** (`section`, `order`) is set by whoever writes the card to put it in the compiled document (`PAGE-VIEWER-DOCS`). Say which kind a new key is in its schema description. `validate.ts` derives the W003 base allow-list from card.json's properties (not a hardcoded list), so a field added there is blessed on all 21 types and AJV validates its shape (W002). Add cross-type metadata to card.json, not to each type schema.
 - **`plan.md` at the plan root is the one special file** — its handle is `PLAN-PROJECT`, and it's the only card not named after its handle / not in a type folder.
 - **Two non-card files may sit in a plan folder, and only two:** `.sync.json` (provenance — a sha somebody stamped) and `atlas.json` (authored atlas placement). Both hold input, never anything derivable from the cards, so "nothing derived is stored" still holds. Adding a third needs a DECISION card arguing the same way `DECISION-ATLAS-CONFIG-FILE` does.
-- **Agent guidance lives in three unshared copies — update all three.** The MCP server embeds its own `INSTRUCTIONS` string (`src/mcp/server.ts`) and never reads the skill; the skill is itself two files loaded only by the agent harness — `skill/SKILL.md` and `skill/methodology.md`. None of the three imports another. Any change to *how an agent should use the plan* — workflows, commands, terminology, the plan↔code sync loop, the tool surface — must land in **all three**, and stay consistent with the spec cards in `constellation/`. `tests/guidance-consistency.test.ts` enforces this, and caps `INSTRUCTIONS` at 55 lines and `SKILL.md` at 340.
-  **`skill/atlas.md` is NOT a fourth copy.** It is a topical reference like `skill/types/*.md` — authoring guidance for one feature, pointed at from SKILL.md, and it joins only the names-only-real-tools check. Keep it that way: new topical files are cheap, a fourth canonical copy is not.
+- **Agent guidance lives in three unshared copies — update all three.** The MCP server embeds its own `INSTRUCTIONS` string (`src/mcp/server.ts`) and never reads the skill; the skill is itself two files loaded only by the agent harness — `skill/SKILL.md` and `skill/methodology.md`. None of the three imports another. Any change to *how an agent should use the plan* — workflows, commands, terminology, the plan↔code sync loop, the tool surface — must land in **all three**, and stay consistent with the spec cards in `constellation/`. `tests/guidance-consistency.test.ts` enforces this, and caps `INSTRUCTIONS` at 68 lines and `SKILL.md` at 400 (55 / 340 before working memory added a paragraph and a section to each).
+  **`skill/atlas.md` and `skill/working-memory.md` are NOT further copies.** They are topical references like `skill/types/*.md` — authoring guidance for one feature, pointed at from SKILL.md, and they join only the names-only-real-tools check (as does `skill-working/SKILL.md`, the user-invocable `/working` command). Keep it that way: new topical files are cheap, a fourth canonical copy is not.
 
 ### Lint codes (keep in sync with `constellation/doc/DOC-LINT-CODES.md`)
 
@@ -125,7 +126,7 @@ DIAGRAM AGENT PLAN FEATURE RELEASE STYLE` (defined in `src/core/types.ts`; folde
 ## Conventions / gotchas
 
 - **ESM, Node ≥ 22.** `package.json` is `"type": "module"`; imports use explicit `.js` extensions even from `.ts` sources (NodeNext). Keep them.
-- **`strict` TypeScript**, `tsc` → `dist/`. The published package ships `dist`, `schemas`, `skill`, `constellation`, `examples`, `viewer/dist` (see `files` in `package.json`).
+- **`strict` TypeScript**, `tsc` → `dist/`. The published package ships `dist`, `schemas`, `skill`, `skill-working`, `constellation`, `examples`, `viewer/dist` (see `files` in `package.json`).
 - **The golden plan is load-bearing.** `examples/constellation/` is both the showcase and the test fixture — after changing core/schema behavior, run `npm run lint:examples` and `npm test`; the example plan must lint with zero errors.
 - **Ajv ships CJS** — `validate.ts` uses `createRequire` to load `ajv/dist/2020.js`; don't "modernize" that import.
 - **The viewer's write path and the MCP write path share `src/core/writer.ts`.** Fix patch/serialization bugs there once, not in two places.

@@ -7,6 +7,7 @@ import {
   classifySkillTargets,
   detectSkillTargets,
   installSkills,
+  SKILL_PAYLOADS,
   SKILL_VERSION_FILE,
   skillDestination,
   type SkillTarget,
@@ -45,12 +46,22 @@ describe('classifySkillTargets', () => {
     const fresh = target('.claude');
 
     const current = target('.codex');
-    await mkdir(skillDestination(current), { recursive: true });
-    await writeFile(path.join(skillDestination(current), SKILL_VERSION_FILE), '1.0.0\n');
+    for (const payload of SKILL_PAYLOADS) {
+      await mkdir(skillDestination(current, payload), { recursive: true });
+      await writeFile(
+        path.join(skillDestination(current, payload), SKILL_VERSION_FILE),
+        '1.0.0\n',
+      );
+    }
 
     const stale = target('.cursor');
-    await mkdir(skillDestination(stale), { recursive: true });
-    await writeFile(path.join(skillDestination(stale), SKILL_VERSION_FILE), '0.9.0\n');
+    for (const payload of SKILL_PAYLOADS) {
+      await mkdir(skillDestination(stale, payload), { recursive: true });
+      await writeFile(
+        path.join(skillDestination(stale, payload), SKILL_VERSION_FILE),
+        '0.9.0\n',
+      );
+    }
 
     const linked = target('.linked');
     await mkdir(path.dirname(skillDestination(linked)), { recursive: true });
@@ -61,6 +72,16 @@ describe('classifySkillTargets', () => {
     expect(plan.current).toEqual([current]);
     expect(plan.stale).toEqual([stale]);
     expect(plan.linked).toEqual([skillDestination(linked)]);
+  });
+
+  it('treats a target missing one of the skills as stale, even at this version', async () => {
+    const t = target('.claude');
+    const dest = skillDestination(t, SKILL_PAYLOADS[0]);
+    await mkdir(dest, { recursive: true });
+    await writeFile(path.join(dest, SKILL_VERSION_FILE), '1.0.0\n');
+    const plan = await classifySkillTargets([t], '1.0.0');
+    expect(plan.stale).toEqual([t]);
+    expect(plan.current).toEqual([]);
   });
 
   it('treats an unstamped existing install as stale', async () => {
@@ -93,6 +114,28 @@ describe('installSkills', () => {
     const stamp = await readFile(path.join(dest, SKILL_VERSION_FILE), 'utf8');
     expect(stamp.trim()).toBe('1.2.3');
     await expect(readFile(path.join(dest, 'leftover.md'), 'utf8')).rejects.toThrow();
+  });
+});
+
+describe('installSkills — both payloads', () => {
+  it('installs the authoring skill and the /working command side by side', async () => {
+    const t = target('.claude');
+    await installSkills([t], '1.2.3');
+
+    const skills = path.join(t.root, 'skills');
+    expect(SKILL_PAYLOADS.map((p) => p.id)).toEqual(['constellation', 'working']);
+
+    const command = await readFile(path.join(skills, 'working', 'SKILL.md'), 'utf8');
+    expect(command).toContain('name: working');
+    // A user-invocable command: the model must not reach for it on its own.
+    expect(command).toContain('disable-model-invocation: true');
+    expect(
+      (await readFile(path.join(skills, 'working', SKILL_VERSION_FILE), 'utf8')).trim(),
+    ).toBe('1.2.3');
+    // The authoring skill is untouched by the second install.
+    await expect(
+      readFile(path.join(skills, 'constellation', 'SKILL.md'), 'utf8'),
+    ).resolves.toContain('constellation');
   });
 });
 

@@ -43,7 +43,8 @@ constellation rename A-X A-Y  # rename a card + rewrite every reference to it
 constellation mcp           # run the MCP server (stdio) for AI agents
 constellation serve         # open the local viewer (editable; --readonly to disable)
 constellation repos         # list sibling repos declared in connected_repos
-constellation add skills    # install the authoring skill into ~/.claude, ~/.codex, ~/.cursor, ~/.agents
+constellation working       # print the working memory set (what the SessionStart hook runs)
+constellation add skills    # install the skills (authoring + /working) into ~/.claude, ~/.codex, …
 constellation version       # print the CLI version (`v` also works)
 constellation upgrade       # npm install -g @magic-spells/constellation@latest
 ```
@@ -56,11 +57,13 @@ unknown fields, dangling prose links) don't block.
 
 | Path | What |
 |---|---|
+| `.constellation/` | Working memory — the session scratchpad (gitignored except its `CLAUDE.md`); never part of the plan |
 | `constellation/` | Constellation's own plan — the format spec, MCP design, and architecture as connected cards (formerly `docs/`); also a flagship real-world plan |
 | `schemas/` | JSON Schemas: `card.json` (reserved keys) + one per type |
 | `skill/` | AI authoring skill: `SKILL.md` + per-type references with golden examples |
+| `skill-working/` | The user-invocable `/working` command skill, installed beside the authoring one |
 | `src/core/` | Parser, reference extraction, indexer, schema validation, lint |
-| `src/cli/` | The `constellation` binary (`init`, `lint`, `rename`, `mcp`, `serve`, `repos`, `add skills`, `version`, `upgrade`) |
+| `src/cli/` | The `constellation` binary (`init`, `lint`, `rename`, `mcp`, `serve`, `repos`, `working`, `add skills`, `version`, `upgrade`) |
 | `src/mcp/` | MCP server: hydrated retrieval, validated writes, git tools |
 | `viewer/` | The Puzzle single-page viewer — themes, card pages, neighborhood diagrams |
 | `examples/constellation/` | Golden sample plan — one card of every type, lints clean, doubles as the test fixture |
@@ -172,6 +175,55 @@ Hand-edit the client's config (Claude Desktop, a project `.mcp.json`, etc.):
 Set `cwd` to your repo root (or any folder inside it). The server finds the plan by
 walking up from its working directory; without `cwd` it inherits the client's, which
 may not be your project — in which case tools return `NO_PLAN_FOUND`.
+
+## Working memory
+
+Cards are durable architecture; a session also needs short-term memory. `.constellation/`
+sits **beside** the plan (dotted, gitignored, never a card — nothing in it is indexed,
+linted, diffed or shown in the viewer) and holds one line per live item: what is in flight,
+in which worktree, held by which agent, what waits on the user, what was decided. Agents
+read it at session start and right after every compaction — that is the point: a compaction
+summary is written by a model with no tool access, so the state that must not depend on it
+lives on disk instead. `working_list` / `working_set` / `working_drop` / `working_log` /
+`working_init` are the MCP tools; `orient` embeds the set when the folder exists.
+
+```
+Updated 2026-09-17 06:56 · branch `release/1.0.0` @ 62da1b5 · next G3 C11 P4 F2 T15 Q8 I9 D12
+
+## GOAL
+- G1 [5] Finish Phase 6 so the platform can replace Clerk → [[FEATURE-PHASE-6-COMMERCE]]
+## CONSTRAINT
+- C3 [5] "Fable tokens use a lot of my limits" — Fable agents only for narrow passes
+## FOCUS
+- F1 [5] Waiting on the Codex webhook re-review
+## TASK
+- T12 [4] Stripe webhook — wt stripe-webhook, 148846a, opus a2c1 → merge
+```
+
+Types, in file order: **G**OAL, **C**ONSTRAINT, **P**LAN, **F**OCUS, **T**ASK, **Q**UESTION,
+**I**DEA, **D**ECISION. Ids are allocated per type and never reused; `[1-5]` is importance
+(what gets cut first). There is no status field — an item is in the file or it is dropped,
+and `working_drop` with a reason appends the reason to `.constellation/log/YYYY-MM-DD.md`,
+which is the history. `.constellation/CLAUDE.md` carries the rules and is the one file in
+the folder that is committed.
+
+In a session, `/working` prints the set (and applies one instruction, e.g. `/working
+drop T12`); `! npx constellation working` prints it with no model turn at all.
+
+`constellation working` prints the set (silent, exit 0, when there is no folder), so it is
+safe as a SessionStart hook — `constellation working install-hook`, or `working_init { hook:
+true }`, writes this into the repo's `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "startup|resume|compact|clear",
+        "hooks": [ { "type": "command", "command": "npx --no-install constellation working 2>/dev/null || true" } ] }
+    ]
+  }
+}
+```
 
 ## Monorepos
 

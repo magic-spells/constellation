@@ -192,7 +192,7 @@ function tmpPathFor(filePath: string): string {
 }
 
 /** Write via temp file + rename so a crash can never leave a half-written card. */
-async function writeAtomic(filePath: string, data: string): Promise<void> {
+export async function writeAtomic(filePath: string, data: string): Promise<void> {
   const tmp = tmpPathFor(filePath);
   await writeFile(tmp, data, 'utf8');
   try {

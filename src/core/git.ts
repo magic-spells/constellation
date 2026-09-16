@@ -202,6 +202,17 @@ export async function headSha(planRoot: string): Promise<string> {
   return (await git(repoRoot, 'rev-parse', 'HEAD')).trim();
 }
 
+/**
+ * The branch checked out in the repo the plan lives in, or `HEAD` when the
+ * checkout is detached (that is what git itself answers, and it reads correctly
+ * in a header line: there is no branch).
+ */
+export async function currentBranch(planRoot: string): Promise<string> {
+  const realRoot = await realpath(planRoot);
+  const repoRoot = await repoRootFor(realRoot);
+  return (await git(repoRoot, 'rev-parse', '--abbrev-ref', 'HEAD')).trim();
+}
+
 /** Resolve a revision to a full commit sha, verifying it actually exists. */
 export async function resolveCommit(planRoot: string, rev: string): Promise<string> {
   const realRoot = await realpath(planRoot);
