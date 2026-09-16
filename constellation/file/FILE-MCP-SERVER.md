@@ -27,6 +27,14 @@ notes:
       when multi) beside the back-compat url. Singleton: if a viewer is already running and the
       wanted plan is served, returns its deep link; if not served, reports requested_plan_not_served
       + stop_viewer hint — never auto-restarts (would yank an open tab).
+  - kind: state
+    text: >-
+      1.0 review pass: UNREACHABLE_REPO vs UNKNOWN_REPO for declared-but-missing connected repos;
+      add_connection no-ops self-loops; plan_log NOT_FOUND on unknown handles; hydration budget
+      charges the notes tail not the full diary; delete_card.referenced_by is leftover structured
+      refs (structuredReferrers) not graph neighbors; if_mtime checked inside mutateCardFile's lock;
+      reciprocate target-write failures return reciprocated.ok:false instead of INTERNAL after the
+      home write; INSTRUCTIONS leftover-edge cleanup is a field patch not edit_section.
 ---
 
 `constellation mcp` (stdio). Registers every tool, embeds the agent-facing `INSTRUCTIONS` string (one of the three guidance copies), and resolves the target plan — the home plan or, when `repo` is passed, a connected sibling. The server handshake version is the package version (same source as the CLI), not a hardcoded leftover.

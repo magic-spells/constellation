@@ -32,6 +32,12 @@ notes:
       NO_WORKING_FOLDER / NOT_FOUND / TYPE_IMMUTABLE / BAD_ID / BAD_TEXT / BAD_TYPE, and nothing in
       .constellation/ ever reaches the index, lint, diff_plan or the viewer. See
       FEATURE-WORKING-MEMORY and DECISION-WORKING-MEMORY-FOLDER.
+  - kind: state
+    text: >-
+      2026-09-16 review pass before 1.0.1: UNREACHABLE_REPO; add_connection self-loop no-op;
+      plan_log NOT_FOUND; hydration charges tailed notes; delete_card.referenced_by is structured
+      referrers; if_mtime inside the write lock; reciprocate target failure is
+      reciprocated.ok:false; add_connections returns issues not errors.
 connections:
   - FILE-MCP-SERVER
   - AGENT-GUIDANCE

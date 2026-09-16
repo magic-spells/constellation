@@ -109,6 +109,23 @@ describe('connected repos over MCP', () => {
     });
   });
 
+  it('repo selector on a declared-but-missing path is UNREACHABLE_REPO', async () => {
+    const { data, isError } = await call('get_card', {
+      handle: 'PLAN-PROJECT',
+      repo: 'ghost',
+    });
+    expect(isError).toBe(true);
+    expect(data.error.code).toBe('UNREACHABLE_REPO');
+    expect(data.error.message).toContain('../nope');
+
+    const unknown = await call('get_card', {
+      handle: 'PLAN-PROJECT',
+      repo: 'no-such-repo',
+    });
+    expect(unknown.isError).toBe(true);
+    expect(unknown.data.error.code).toBe('UNKNOWN_REPO');
+  });
+
   it('reciprocate writes the reverse link into the target repo', async () => {
     const { data } = await call('add_connected_repo', {
       name: 'pyramid-server',

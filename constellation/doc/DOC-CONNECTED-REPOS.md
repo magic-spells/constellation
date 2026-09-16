@@ -7,6 +7,12 @@ connections:
   - FILE-RESOLVE
 section: format
 order: 50
+notes:
+  - kind: state
+    text: >-
+      repo: on a connected_repos name whose path has no plan is UNREACHABLE_REPO (lists the declared
+      path, points at list_connected_repos reachable:false). UNKNOWN_REPO is only for names that
+      were never declared.
 ---
 
 # Connected repos (multi-repo)

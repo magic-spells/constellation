@@ -250,7 +250,9 @@ export async function changedFilesSince(
     '--',
     ...paths,
   );
-  return new Set(out.split('\n').map((l) => l.trim()).filter(Boolean));
+  const changed = new Set(out.split('\n').map((l) => l.trim()).filter(Boolean));
+  for (const file of await untrackedFilesAmong(repoRoot, paths)) changed.add(file);
+  return changed;
 }
 
 export interface PathCommit {
@@ -305,9 +307,33 @@ export async function lastCommitByPath(
 }
 
 /**
- * Of the given repo-relative paths, the subset with uncommitted (staged or
- * unstaged) changes against HEAD — one git call. Untracked files are not
- * reported, matching `changedFilesSince`, which git's diff also never lists.
+ * Untracked (and not gitignored) paths under `paths`. `git diff` never lists
+ * these; bound-code drift has to ask separately, same as `diffPlan` does for
+ * brand-new cards.
+ */
+async function untrackedFilesAmong(
+  repoRoot: string,
+  paths: string[],
+): Promise<string[]> {
+  if (paths.length === 0) return [];
+  try {
+    const out = await git(
+      repoRoot,
+      'ls-files',
+      '--others',
+      '--exclude-standard',
+      '--',
+      ...paths,
+    );
+    return out.split('\n').map((l) => l.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Of the given repo-relative paths, the subset with uncommitted changes against
+ * HEAD — staged, unstaged, or untracked. Matches `changedFilesSince`.
  */
 export async function dirtyFilesAmong(
   planRoot: string,
@@ -317,7 +343,9 @@ export async function dirtyFilesAmong(
   const realRoot = await realpath(planRoot);
   const repoRoot = await repoRootFor(realRoot);
   const out = await git(repoRoot, 'diff', '--name-only', 'HEAD', '--', ...paths);
-  return new Set(out.split('\n').map((l) => l.trim()).filter(Boolean));
+  const dirty = new Set(out.split('\n').map((l) => l.trim()).filter(Boolean));
+  for (const file of await untrackedFilesAmong(repoRoot, paths)) dirty.add(file);
+  return dirty;
 }
 
 export type ChangeKind = 'added' | 'modified' | 'removed' | 'renamed';

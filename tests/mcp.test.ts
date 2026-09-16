@@ -41,6 +41,8 @@ describe('bootstrap', () => {
     const { tools } = await client.listTools();
     const startViewer = tools.find((tool) => tool.name === 'start_viewer');
     expect(startViewer?.inputSchema.properties).toHaveProperty('repo');
+    const addConnections = tools.find((tool) => tool.name === 'add_connections');
+    expect(addConnections?.description).toContain('{ added, failed, issues }');
   });
 
   it('init_plan scaffolds constellation/ + plan.md and refuses to overwrite', async () => {
@@ -251,10 +253,24 @@ describe('writes', () => {
     expect(data.remaining_sources.join(' ')).toContain('frontmatter field');
   });
 
-  it('delete_card reports who referenced the deleted card', async () => {
-    const { data } = await call('delete_card', { handle: 'TEST-CREATE-TICKET' });
-    expect(data.deleted).toBe('TEST-CREATE-TICKET');
-    expect(data.referenced_by).toContain('API-TICKETS');
+  it('delete_card referenced_by is leftover structured refs, not graph neighbors', async () => {
+    // One-sided edge declared only on the deleted card: neighbors are not referrers.
+    const onesided = await call('delete_card', { handle: 'TEST-CREATE-TICKET' });
+    expect(onesided.data.deleted).toBe('TEST-CREATE-TICKET');
+    expect(onesided.data.referenced_by).not.toContain('API-TICKETS');
+    expect(onesided.data.referenced_by).not.toContain('FLOW-CREATE-TICKET');
+
+    await call('create_card', {
+      handle: 'DOC-REF-TARGET',
+      body: 'About to be deleted.',
+    });
+    await call('create_card', {
+      handle: 'DOC-REF-SOURCE',
+      connections: ['DOC-REF-TARGET'],
+      body: 'Points at the target.',
+    });
+    const { data } = await call('delete_card', { handle: 'DOC-REF-TARGET' });
+    expect(data.referenced_by).toEqual(['DOC-REF-SOURCE']);
   });
 
   it('delete_card refuses PLAN-PROJECT', async () => {

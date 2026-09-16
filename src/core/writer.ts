@@ -1,4 +1,4 @@
-import { link, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as yaml from 'js-yaml';
 import { TYPE_FOLDERS, typeForHandle } from './handles.js';
@@ -367,22 +367,47 @@ export async function updateCardFile(
   await withFileLock(filePath, () => applyCardFileUpdate(filePath, update));
 }
 
+/** Thrown when `if_mtime` is set and the file changed under the caller. */
+export class StaleWriteError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StaleWriteError';
+  }
+}
+
 /**
  * Locked read→transform→write. The transform receives the file's CURRENT
  * frontmatter + body (read inside the lock), so concurrent cheap writes —
  * two append_notes, an edit_section racing an add_connection — compose instead
  * of the later one clobbering the earlier. Return null to write nothing.
+ *
+ * `if_mtime` is the optimistic-lock guard: compared to the file's mtime *inside*
+ * the lock, so two callers that both sampled the same T cannot both write.
  */
 export async function mutateCardFile(
   filePath: string,
   transform: (
     current: ParsedFile,
   ) => CardFileUpdate | null | Promise<CardFileUpdate | null>,
+  opts: { if_mtime?: number; staleMessage?: string } = {},
 ): Promise<void> {
   await withFileLock(filePath, async () => {
+    if (typeof opts.if_mtime === 'number' && opts.if_mtime !== 0) {
+      const currentMtime = Math.round((await stat(filePath)).mtimeMs);
+      if (currentMtime !== opts.if_mtime) {
+        throw new StaleWriteError(opts.staleMessage ?? 'changed on disk');
+      }
+    }
     const current = parseFile(await readFile(filePath, 'utf8'));
     const update = await transform(current);
     if (update) await applyCardFileUpdate(filePath, update);
+  });
+}
+
+/** Locked `rm` — a concurrent mutateCardFile cannot resurrect the file. */
+export async function deleteCardFile(filePath: string): Promise<void> {
+  await withFileLock(filePath, async () => {
+    await rm(filePath);
   });
 }
 

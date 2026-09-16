@@ -243,6 +243,29 @@ describe('card-relative drift', () => {
   });
 });
 
+describe('untracked bound files', () => {
+  it('set_verified warns and stale_report flags an untracked bound file', async () => {
+    const fresh = path.join(repo, 'src', 'api', 'brand-new.ts');
+    await writeFile(fresh, 'export const n = 1;\n', 'utf8');
+    await call('create_card', {
+      handle: 'DOC-UNTRACKED-BIND',
+      name: 'Untracked bind',
+      status: 'built',
+      fields: { code_refs: ['src/api/brand-new.ts'] },
+      body: 'Bound to a file git has never seen.',
+    });
+    const verified = await call('set_verified', { handle: 'DOC-UNTRACKED-BIND' });
+    expect(verified.warning).toMatch(/brand-new\.ts/);
+
+    const report = await call('stale_report');
+    const stale = report.stale.find(
+      (s: { handle: string }) => s.handle === 'DOC-UNTRACKED-BIND',
+    );
+    expect(stale).toBeDefined();
+    expect(stale.changed_files).toContain('src/api/brand-new.ts');
+  });
+});
+
 // A card may bind a whole FOLDER (`code_refs: [tests]`) when the unit it
 // describes is the folder. That has to behave like a binding, not like a
 // missing file: `tests` is not a file, so an existence check written as

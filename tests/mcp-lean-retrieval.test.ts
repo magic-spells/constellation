@@ -201,6 +201,35 @@ describe('hydration text budget', () => {
       if (conn.degraded_to_summary) expect(conn.body).toBeUndefined();
     }
   });
+
+  it('charges the notes tail, not the full diary, against the per-card cap', async () => {
+    const notes = Array.from({ length: 80 }, (_, i) => ({
+      kind: 'state',
+      text: `note ${i} ${'n'.repeat(400)}`,
+    }));
+    await call('create_card', {
+      handle: 'DOC-DIARY-HUB',
+      body: 'Hub.',
+    });
+    await call('create_card', {
+      handle: 'DOC-DIARY',
+      connections: ['DOC-DIARY-HUB'],
+      fields: { notes },
+      body: 'Short body.\n',
+    });
+    const { data } = await call('get_card', {
+      handle: 'DOC-DIARY-HUB',
+      connected: 'full',
+    });
+    const diary = byHandle(data.connected_cards)['DOC-DIARY'] as View & {
+      frontmatter?: { notes?: unknown[] };
+      notes_truncated?: number;
+    };
+    expect(diary.degraded_to_summary).toBeUndefined();
+    expect(diary.body).toContain('Short body');
+    expect(diary.frontmatter?.notes).toHaveLength(5);
+    expect(diary.notes_truncated).toBe(75);
+  });
 });
 
 describe('assemble is an index by default', () => {
