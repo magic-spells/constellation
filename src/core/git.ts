@@ -229,9 +229,17 @@ export async function resolveCommit(planRoot: string, rev: string): Promise<stri
 }
 
 /**
- * Of the given repo-relative paths, the subset that changed between `sinceSha`
- * and the working tree — one git call. A path absent from the result is
- * unchanged since that sha (file existence is checked separately, on disk).
+ * CHANGED-SINCE-A-SHA: of the given repo-relative paths, the subset that
+ * changed between `sinceSha` and the working tree — one git call. A path
+ * absent from the result is unchanged since that sha (file existence is
+ * checked separately, on disk).
+ *
+ * Untracked files are deliberately NOT unioned in here, unlike
+ * `dirtyFilesAmong`: this is `git diff` against a sha, and an untracked file
+ * bears no relation to that sha. Counting them would make any card whose
+ * `code_refs` names a DIRECTORY go permanently stale the moment a stray
+ * non-ignored file appears under it, with no way for `set_verified` to clear
+ * it.
  */
 export async function changedFilesSince(
   planRoot: string,
@@ -305,9 +313,35 @@ export async function lastCommitByPath(
 }
 
 /**
- * Of the given repo-relative paths, the subset with uncommitted (staged or
- * unstaged) changes against HEAD — one git call. Untracked files are not
- * reported, matching `changedFilesSince`, which git's diff also never lists.
+ * Untracked (and not gitignored) paths under `paths`. `git diff` never lists
+ * these; bound-code drift has to ask separately, same as `diffPlan` does for
+ * brand-new cards.
+ */
+async function untrackedFilesAmong(
+  repoRoot: string,
+  paths: string[],
+): Promise<string[]> {
+  if (paths.length === 0) return [];
+  try {
+    const out = await git(
+      repoRoot,
+      'ls-files',
+      '--others',
+      '--exclude-standard',
+      '--',
+      ...paths,
+    );
+    return out.split('\n').map((l) => l.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * UNCOMMITTED RIGHT NOW: of the given repo-relative paths, the subset with
+ * uncommitted changes against HEAD — staged, unstaged, or untracked. A
+ * never-added bound file genuinely is uncommitted, so untracked counts here;
+ * `changedFilesSince` answers a different question and excludes them.
  */
 export async function dirtyFilesAmong(
   planRoot: string,
@@ -317,7 +351,9 @@ export async function dirtyFilesAmong(
   const realRoot = await realpath(planRoot);
   const repoRoot = await repoRootFor(realRoot);
   const out = await git(repoRoot, 'diff', '--name-only', 'HEAD', '--', ...paths);
-  return new Set(out.split('\n').map((l) => l.trim()).filter(Boolean));
+  const dirty = new Set(out.split('\n').map((l) => l.trim()).filter(Boolean));
+  for (const file of await untrackedFilesAmong(repoRoot, paths)) dirty.add(file);
+  return dirty;
 }
 
 export type ChangeKind = 'added' | 'modified' | 'removed' | 'renamed';

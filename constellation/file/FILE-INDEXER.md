@@ -14,6 +14,11 @@ connections:
   - FILE-SERVE
 verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 verified_at: '2026-08-24T21:12:50.118Z'
+notes:
+  - kind: state
+    text: >-
+      structuredReferrers(index, handle) lists cards whose connections: or handle-shaped frontmatter
+      still names that handle — leftover E005s after delete. Not the undirected neighbor set.
 ---
 
 Reads every card, dedupes handles, resolves references, builds the undirected connection set, and collects structural issues (E001–E006, W001, W004). The single source of the derived graph — recomputed on every load, never stored.

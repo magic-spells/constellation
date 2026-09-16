@@ -68,6 +68,27 @@ export function neighborsOf(index: PlanIndex, handle: string): Set<string> {
   return index.connectedHandles.get(handle) ?? new Set();
 }
 
+/**
+ * Cards that still *name* `handle` in frontmatter — the `connections:` list or a
+ * handle-shaped field. These are the leftover structured refs after a delete
+ * (E005s). Neighbors of a one-sided edge declared only on the deleted card are
+ * not included: they never pointed at it. Body `[[links]]` / mermaid IDs are
+ * hyperlinks (W004), not this list.
+ */
+export function structuredReferrers(index: PlanIndex, handle: string): string[] {
+  const out: string[] = [];
+  for (const card of index.cards.values()) {
+    if (card.handle === handle) continue;
+    if (
+      card.refs.connections.includes(handle) ||
+      card.refs.frontmatter.includes(handle)
+    ) {
+      out.push(card.handle);
+    }
+  }
+  return out.sort();
+}
+
 function readCard(
   relPath: string,
   filePath: string,

@@ -101,6 +101,12 @@ describe('git tools', () => {
     const log = await call('plan_log', { handle: 'DB-TICKETS' });
     expect(log.commits.length).toBe(2);
     expect(log.commits[0].subject).toContain('verify tickets table');
+    expect(log.in_plan).toBe(true);
+  });
+
+  it('plan_log on an unknown handle is NOT_FOUND, not an empty history', async () => {
+    const miss = await call('plan_log', { handle: 'API-TIKCETS' });
+    expect(miss.error.code).toBe('NOT_FOUND');
   });
 
   it('diff_plan with an explicit base sees the whole history', async () => {
