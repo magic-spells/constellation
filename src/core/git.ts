@@ -229,9 +229,17 @@ export async function resolveCommit(planRoot: string, rev: string): Promise<stri
 }
 
 /**
- * Of the given repo-relative paths, the subset that changed between `sinceSha`
- * and the working tree — one git call. A path absent from the result is
- * unchanged since that sha (file existence is checked separately, on disk).
+ * CHANGED-SINCE-A-SHA: of the given repo-relative paths, the subset that
+ * changed between `sinceSha` and the working tree — one git call. A path
+ * absent from the result is unchanged since that sha (file existence is
+ * checked separately, on disk).
+ *
+ * Untracked files are deliberately NOT unioned in here, unlike
+ * `dirtyFilesAmong`: this is `git diff` against a sha, and an untracked file
+ * bears no relation to that sha. Counting them would make any card whose
+ * `code_refs` names a DIRECTORY go permanently stale the moment a stray
+ * non-ignored file appears under it, with no way for `set_verified` to clear
+ * it.
  */
 export async function changedFilesSince(
   planRoot: string,
@@ -250,9 +258,7 @@ export async function changedFilesSince(
     '--',
     ...paths,
   );
-  const changed = new Set(out.split('\n').map((l) => l.trim()).filter(Boolean));
-  for (const file of await untrackedFilesAmong(repoRoot, paths)) changed.add(file);
-  return changed;
+  return new Set(out.split('\n').map((l) => l.trim()).filter(Boolean));
 }
 
 export interface PathCommit {
@@ -332,8 +338,10 @@ async function untrackedFilesAmong(
 }
 
 /**
- * Of the given repo-relative paths, the subset with uncommitted changes against
- * HEAD — staged, unstaged, or untracked. Matches `changedFilesSince`.
+ * UNCOMMITTED RIGHT NOW: of the given repo-relative paths, the subset with
+ * uncommitted changes against HEAD — staged, unstaged, or untracked. A
+ * never-added bound file genuinely is uncommitted, so untracked counts here;
+ * `changedFilesSince` answers a different question and excludes them.
  */
 export async function dirtyFilesAmong(
   planRoot: string,

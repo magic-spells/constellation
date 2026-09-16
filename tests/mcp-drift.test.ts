@@ -244,7 +244,10 @@ describe('card-relative drift', () => {
 });
 
 describe('untracked bound files', () => {
-  it('set_verified warns and stale_report flags an untracked bound file', async () => {
+  // A never-added bound file IS uncommitted, so set_verified warns. It is NOT
+  // "changed since the verified sha" — git diff against a sha cannot see it —
+  // so stale_report must stay quiet, or the card could never be cleared.
+  it('set_verified warns about an untracked bound file, stale_report does not flag it', async () => {
     const fresh = path.join(repo, 'src', 'api', 'brand-new.ts');
     await writeFile(fresh, 'export const n = 1;\n', 'utf8');
     await call('create_card', {
@@ -258,11 +261,9 @@ describe('untracked bound files', () => {
     expect(verified.warning).toMatch(/brand-new\.ts/);
 
     const report = await call('stale_report');
-    const stale = report.stale.find(
-      (s: { handle: string }) => s.handle === 'DOC-UNTRACKED-BIND',
+    expect(report.stale.map((s: { handle: string }) => s.handle)).not.toContain(
+      'DOC-UNTRACKED-BIND',
     );
-    expect(stale).toBeDefined();
-    expect(stale.changed_files).toContain('src/api/brand-new.ts');
   });
 });
 
@@ -347,6 +348,20 @@ describe('a card bound to a directory', () => {
     expect(entry).toMatchObject({ exists: true, dir: true });
     expect(res.code.missing).not.toContain('src/lib');
     expect(res.code.missing).not.toContain('src/lib/');
+  });
+
+  // Untracked files are "uncommitted right now" (dirtyFilesAmong), but they are
+  // NOT "changed since a sha" — a git diff against a sha cannot see them. If
+  // they counted as drift, a folder binding would go permanently stale on the
+  // first stray file and set_verified could never clear it.
+  it('an untracked file under the folder is not drift against the baseline', async () => {
+    git('add', '-A');
+    git('commit', '-q', '-m', 'settle src/lib');
+    await call('set_verified', { handle: 'DOC-LIB' });
+
+    await writeFile(path.join(repo, 'src', 'lib', 'untracked.ts'), 'export const u = 1;\n', 'utf8');
+    const report = await call('stale_report');
+    expect(report.stale.map((s: { handle: string }) => s.handle)).not.toContain('DOC-LIB');
   });
 
   it('assemble keeps a directory binding and a file inside it in one unit', async () => {

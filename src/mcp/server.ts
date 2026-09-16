@@ -23,7 +23,7 @@ import type { Card, Issue, PlanIndex, TypeName } from '../core/types.js';
 import { TYPE_NAMES } from '../core/types.js';
 import type { RunningServer, ServedPlan } from '../serve/server.js';
 import {
-  changedFilesSince,
+  dirtyFilesAmong,
   diffPlan,
   formatReviewVersion,
   headSha,
@@ -386,8 +386,8 @@ export const HYDRATION_TOTAL_MAX = 96 * 1024;
  * Charging the full diary then slicing it off the payload would degrade
  * neighbors whose *returned* view still fits the cap.
  */
-function hydratedBytes(card: Card, notesLimit: number): number {
-  const view = withNotesTail(full(card), card, notesLimit);
+function hydratedBytes(card: Card, notesLimit: number, kind?: string): number {
+  const view = withNotesTail(full(card), card, notesLimit, kind);
   const fm = (view.frontmatter ?? {}) as Record<string, unknown>;
   const body = typeof view.body === 'string' ? view.body : card.body;
   let fmBytes = 0;
@@ -423,6 +423,8 @@ class Hydrator {
   private readonly degradedSet = new Set<string>();
   private used = 0;
   private exhausted = false;
+  /** hydratedBytes memo — the same card view is weighed twice per neighbor. */
+  private readonly byteCache = new Map<string, number>();
 
   constructor(private readonly notesLimit: number = DEFAULT_NOTES_TAIL) {}
 
@@ -433,7 +435,7 @@ class Hydrator {
       return { ...summary(card), hydrated_elsewhere: true };
     }
     this.emitted.add(card.handle);
-    this.used += hydratedBytes(card, this.notesLimit);
+    this.used += this.bytesFor(card, notesKind);
     return withNotesTail(full(card), card, this.notesLimit, notesKind);
   }
 
@@ -451,13 +453,24 @@ class Hydrator {
       return { ...summary(card), degraded_to_summary: reason };
     }
     this.emitted.add(card.handle);
-    this.used += hydratedBytes(card, this.notesLimit);
+    this.used += this.bytesFor(card);
     return withNotesTail(full(card), card, this.notesLimit);
+  }
+
+  /** Weight of the view this card would send, computed once per card+kind. */
+  private bytesFor(card: Card, kind?: string): number {
+    const key = `${card.handle}\u0000${kind ?? ''}`;
+    let bytes = this.byteCache.get(key);
+    if (bytes === undefined) {
+      bytes = hydratedBytes(card, this.notesLimit, kind);
+      this.byteCache.set(key, bytes);
+    }
+    return bytes;
   }
 
   private degradeReason(card: Card): string | null {
     if (isSupernode(card)) return 'supernode';
-    const bytes = hydratedBytes(card, this.notesLimit);
+    const bytes = this.bytesFor(card);
     if (bytes > HYDRATION_PER_CARD_MAX) return 'over per-card cap';
     if (this.used + bytes > HYDRATION_TOTAL_MAX) {
       this.exhausted = true;
@@ -2022,7 +2035,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           if (allBound.length > 0) {
             const { prefix } = await planRootsFor(root);
             const gitBound = allBound.map((p) => (prefix ? `${prefix}/${p}` : p));
-            const dirty = await changedFilesSince(root, 'HEAD', gitBound);
+            // Dirty = uncommitted right now (untracked included), which is
+            // dirtyFilesAmong's question, not changedFilesSince's.
+            const dirty = await dirtyFilesAmong(root, gitBound);
             const changed = [...dirty].map((p) =>
               prefix && p.startsWith(`${prefix}/`) ? p.slice(prefix.length + 1) : p,
             );
