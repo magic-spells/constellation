@@ -289,6 +289,9 @@ const METRIC_MAX_FILES = 1500;
 const METRIC_MAX_DEPTH = 12;
 const WALK_SKIP_DIRS = new Set([
   'node_modules', 'dist', 'build', 'out', 'coverage', '.next', '.git', 'vendor',
+  // Working memory is a session scratchpad, never code a card is bound to — a
+  // FILE card on `path: .` must not count it.
+  '.constellation',
 ]);
 
 /** Add one file to a card's totals. Anything unreadable simply doesn't count. */

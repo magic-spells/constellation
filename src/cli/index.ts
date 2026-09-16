@@ -99,7 +99,7 @@ const add = program
 add
   .command('skills')
   .description(
-    'Install (or refresh) the Constellation authoring skill into ~/.claude, ~/.codex, ~/.cursor, ~/.agents',
+    'Install (or refresh) the Constellation skills — the authoring skill and the /working command — into ~/.claude, ~/.codex, ~/.cursor, ~/.agents',
   )
   .option('--overwrite', 'replace existing installs without asking, symlinks included')
   .option(
@@ -235,6 +235,57 @@ program
       }
       throw err;
     }
+  });
+
+// `working` is what the SessionStart hook runs, so it must be silent and exit 0
+// wherever there is nothing to print — a repo with no plan, or a plan with no
+// working folder. A hook that errors on every unrelated repo gets uninstalled.
+const working = program
+  .command('working')
+  .argument(
+    '[path]',
+    'plan folder, or a directory containing constellation/ (default: walk up from cwd)',
+  )
+  .description('Print the working memory set (.constellation/working.md)')
+  .action(async (target: string | null | undefined) => {
+    const root = await resolvePlanDir(target ?? undefined);
+    if (!root) return;
+    const { readWorkingRaw, workingPreamble } = await import('../core/working.js');
+    const found = await readWorkingRaw(root).catch(() => null);
+    if (!found) return;
+    console.log(workingPreamble(found.path));
+    console.log();
+    console.log(found.text.trimEnd());
+  });
+
+working
+  .command('install-hook')
+  .argument(
+    '[path]',
+    'plan folder, or a directory containing constellation/ (default: walk up from cwd)',
+  )
+  .description('Create .constellation/ and add the SessionStart hook to .claude/settings.json')
+  .action(async (target: string | null | undefined) => {
+    const root = await resolvePlanDir(target ?? undefined);
+    if (!root) {
+      console.error(
+        pc.red('No constellation/ folder found.') +
+          ' Run `constellation init` to create one.',
+      );
+      process.exit(2);
+    }
+    const { initWorking } = await import('../core/working.js');
+    const result = await initWorking(root, { hook: true });
+    console.log(`${pc.green('✓')} Working memory at ${result.dir}`);
+    for (const file of result.created) {
+      console.log(pc.dim(`  created ${path.relative(process.cwd(), file)}`));
+    }
+    console.log(pc.dim(`  .gitignore: ${result.gitignore}`));
+    console.log(
+      result.hook === 'skipped'
+        ? pc.yellow('  hook: skipped — .claude/settings.json is not readable JSON; add the hook by hand')
+        : pc.dim(`  SessionStart hook: ${result.hook}`),
+    );
   });
 
 program
