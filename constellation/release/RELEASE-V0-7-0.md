@@ -1,6 +1,6 @@
 ---
 name: v0.7.0 — plans that know where they live
-status: building
+status: built
 version: 0.7.0
 connections:
   - DECISION-MONOREPO-CODE-ROOT
@@ -8,7 +8,6 @@ connections:
   - DOC-MCP-SERVER
   - DOC-CHANGE-TRACKING
 ---
-
 
 Theme: a plan stops assuming it **is** the repo.
 

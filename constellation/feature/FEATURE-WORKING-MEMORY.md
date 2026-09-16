@@ -24,6 +24,7 @@ notes:
       as up to date, and a symlink at either destination skips the whole target rather than
       half-installing it. package.json files: gained "skill-working". For a print with no model
       turn at all the user runs `! npx constellation working`.
+release: RELEASE-V1-0-0
 ---
 
 # Working memory (`.constellation/`)
