@@ -1,6 +1,6 @@
 ---
 name: constellation
-description: Author and edit Constellation plan cards — markdown files in a constellation/ folder that model a project's architecture as a typed, connected graph. Use when creating, updating, or querying cards (API endpoints, data types, DB tables, flows, pages, etc.), when compacting a card whose note stream has grown stale or repetitive, in any repo with a constellation/ directory, or when setting up a plan in a repo that has none yet.
+description: Author and edit Constellation plan cards — markdown files in a constellation/ folder that model a project's architecture as a typed, connected graph. Use when creating, updating, or querying cards (API endpoints, data types, DB tables, flows, pages, etc.), when compacting a card whose note stream has grown stale or repetitive, in any repo with a constellation/ directory, when setting up a plan in a repo that has none yet, or when keeping session working memory (goals, plans, tasks in flight, constraints, decisions) in .constellation/ across context compaction.
 ---
 
 # Constellation cards
@@ -23,6 +23,10 @@ reference; this file is the deeper reference behind them.
 - [`atlas.md`](./atlas.md) — authoring so the plan reads well as a city: districts come
   from FEATURE connections, roads from FLOW steps, floors from bound code. Read it when
   an atlas looks empty or flat.
+- [`working-memory.md`](./working-memory.md) — the short-term scratchpad in
+  `.constellation/` (goals, plans, tasks in flight, constraints, questions, decisions)
+  that survives context compaction. Read it before orchestrating multi-agent work or any
+  stretch long enough to compact.
 - No MCP server connected? See *Working without MCP* at the end.
 
 ## Why it exists: durable cross-session memory
@@ -108,6 +112,8 @@ what the project is, the type and status histogram, what's drifting, the newest 
 across all cards, connected repos, and a server-vs-workspace version check. It never
 hydrates, so it costs a fraction of the `list_cards` + `check_sync` + `list_notes` opening
 ritual it replaces. Follow it with `search` or `get_card` on whatever it points you at.
+When the repo has a `.constellation/` folder, `orient` also returns `working` — the
+session's scratchpad (see *Working memory* below); read it before acting on anything.
 
 Grep on card files is allowed — but `search` is usually the better first call:
 
@@ -142,6 +148,45 @@ Retrieval defaults are lean, and every default is a token decision:
   what was held back). `list_notes` reads the whole stream across cards by kind — every
   gotcha or decision in one call. `get_card code: "paths" | "direct"` returns the code a
   card is bound to (connected FILE `path:` plus its own `code_refs`).
+
+## Working memory
+
+Cards say what the system **is**. Working memory says what we are **doing about it this
+week**. It is a gitignored `.constellation/working.md` beside the plan, one line per item,
+eight types with per-type IDs, edited by the `working_*` tools and echoed back into
+context after every compaction by a SessionStart hook. Full rules, the type definitions and
+the keep tests are in [`working-memory.md`](./working-memory.md); the short version:
+
+- **Infer it; nobody dictates it.** The user talks about the work; you hear the goal, the
+  rule, the choice, the open question in what they say and record it in the same turn,
+  without announcing it or asking. Nobody tells you to drop an item either: when the work
+  lands, the keep test fails and you drop it. Keep the bookkeeping out of your replies.
+- **Read it first.** At session start and right after every compaction, before acting on
+  any summary. Run each item's keep test and `working_drop` what fails. Where the summary
+  and the set disagree about what is in flight, verify with git before acting.
+- **Write when state changes, in the same turn:** a goal met or plan step done, work
+  dispatched into a worktree or merged, a decision made, a user rule stated (quote it
+  verbatim), a step blocked on the user. Not for an agent that only researched or verified.
+  Batch changes in one `working_set { items }`.
+- **Done means deleted.** There is no done state: the turn a goal is delivered, a task
+  merged, a question answered or an idea decided, `working_drop` it with a one-line reason.
+  Never keep a finished line, never rewrite it as "done". An empty set at the end of a
+  stretch is the goal.
+- **`/working`** prints the set in the chat (`! npx constellation working` does it
+  with no model turn).
+- **One question per type.** GOAL: what outcome is wanted? PLAN: in what order, one line,
+  `✓` done `→` next. FOCUS: which step now (one line, replaced). TASK: what in-flight work
+  must not be lost — worktree, branch, sha, holder, next step. CONSTRAINT: what rule did
+  the user state? DECISION: what was chosen, so it is not reopened. QUESTION: what only the
+  user can answer or do. IDEA: what alternative to keep for later. Keep an item only while
+  its keep test passes; drop it the turn it stops.
+- **Short lines.** Under 100 characters, ceiling 160; identifiers and arrows, not prose;
+  link a card instead of restating it. The set is re-read on every compaction, so every
+  character is paid for repeatedly.
+- **Sub-agents only `working_log`.** The orchestrator owns `working_set` and
+  `working_drop`. Put an agent's TASK line and the relevant CONSTRAINT lines in its brief.
+- **Not cards.** Session state never goes in a card; card facts never go in the set. A
+  DECISION that outlives the stretch becomes a DECISION card, then is dropped here.
 
 ## Frontmatter
 
@@ -326,6 +371,8 @@ changes), consult `types/<type>.md` in this skill folder in place of `describe_t
 run `npx constellation lint` after every batch. Use `constellation rename OLD NEW` for
 renames — never move a card file by hand. This is the only case where editing card files is
 correct; a failed write tool is not (see above). Reconnect the server when you can.
+Working memory follows the same rule: without the server, edit `.constellation/working.md`
+by hand in the format its `CLAUDE.md` describes, allocating IDs from the header counters.
 
 **Contributing to Constellation itself is also different.** The MCP-writes rule governs
 plans consumed as project memory. If you are working *on the Constellation source repo*,

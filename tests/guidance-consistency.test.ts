@@ -40,9 +40,11 @@ describe('INSTRUCTIONS', () => {
   });
 
   // The always-on string is the token bill on every session. This budget is the only thing
-  // stopping it from creeping back to the ~240 lines it used to be.
+  // stopping it from creeping back to the ~240 lines it used to be. It was 55 until working
+  // memory joined it: an agent with the working_* tools but not the rules writes a to-do list,
+  // and the rules are what make it memory — so the paragraph earns its twelve lines.
   it('stays within the always-on budget', () => {
-    expect(INSTRUCTIONS.split('\n').length).toBeLessThanOrEqual(55);
+    expect(INSTRUCTIONS.split('\n').length).toBeLessThanOrEqual(68);
   });
 
   it('has no unresolved template interpolation', () => {
@@ -50,8 +52,10 @@ describe('INSTRUCTIONS', () => {
   });
 });
 
+// 340 until working memory added a section to the skill; the full type definitions live in
+// skill/working-memory.md, which is a topical reference like atlas.md, not a fourth copy.
 it('the skill stays a pointer, not a second novel', () => {
-  expect(skill.split('\n').length).toBeLessThanOrEqual(340);
+  expect(skill.split('\n').length).toBeLessThanOrEqual(400);
 });
 
 // ---------------------------------------------------------------------------
@@ -295,10 +299,16 @@ it('harvested the tool registry', () => {
   expect(TOOL_NAMES.size).toBeGreaterThan(20);
 });
 
-// atlas.md is a TOPICAL reference, like types/*.md — not a fourth copy of the canonical
-// guidance, so it is deliberately absent from `copies` and from the phrase checks above.
-// It still names tools in prose, so it joins this one check and no other.
-const namesTools = [...copies, { name: 'atlas.md', text: norm(read('skill/atlas.md')) }];
+// atlas.md and working-memory.md are TOPICAL references, like types/*.md — not further
+// copies of the canonical guidance, so they are deliberately absent from `copies` and from
+// the phrase checks above. They still name tools in prose, so they join this one check and
+// no other; skill-working/SKILL.md is the user-invocable command and names tools too.
+const namesTools = [
+  ...copies,
+  { name: 'atlas.md', text: norm(read('skill/atlas.md')) },
+  { name: 'working-memory.md', text: norm(read('skill/working-memory.md')) },
+  { name: 'skill-working/SKILL.md', text: norm(read('skill-working/SKILL.md')) },
+];
 
 describe.each(namesTools)('$name', ({ text }) => {
   it('names only tools that exist', () => {

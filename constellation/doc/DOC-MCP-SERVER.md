@@ -15,10 +15,23 @@ notes:
     text: >-
       2026-07-28: compaction policy loosened from "recommend only, never auto-compact" to
       OPPORTUNISTIC — agents compact as part of any card update (or an obviously-safe fix spotted
-      while exploring), and the pass now covers body bloat too (history narration, removed
-      behavior, restated code), not just note streams. Recommend-only is reserved for big jobs or
-      anything touching the keep-list. Updated in server INSTRUCTIONS + SKILL.md Compaction
-      section (now "keeping cards lean", with a body-trim step).
+      while exploring), and the pass now covers body bloat too (history narration, removed behavior,
+      restated code), not just note streams. Recommend-only is reserved for big jobs or anything
+      touching the keep-list. Updated in server INSTRUCTIONS + SKILL.md Compaction section (now
+      "keeping cards lean", with a body-trim step).
+  - kind: state
+    text: >-
+      2026-09-16: five working-memory tools joined the server, none of them card tools —
+      working_list (the set, plus log: "today" | N), working_set (batch items[], create without id /
+      replace with id, type immutable, FOCUS supersedes), working_drop (batch ids[] + reason, which
+      is how you check something off — there is no status field), working_log (the sub-agent write,
+      one line to log/YYYY-MM-DD.md) and working_init (folder, CLAUDE.md, .gitignore lines, opt-in
+      SessionStart hook). Every write returns the new header. orient embeds {header, items} under
+      `working` only when the folder exists, so it stays non-hydrating; init_plan gained working?:
+      boolean (default true, never the hook). Logic is src/core/working.ts, errors are
+      NO_WORKING_FOLDER / NOT_FOUND / TYPE_IMMUTABLE / BAD_ID / BAD_TEXT / BAD_TYPE, and nothing in
+      .constellation/ ever reaches the index, lint, diff_plan or the viewer. See
+      FEATURE-WORKING-MEMORY and DECISION-WORKING-MEMORY-FOLDER.
 connections:
   - FILE-MCP-SERVER
   - AGENT-GUIDANCE
@@ -39,7 +52,7 @@ writes, and git-powered change tracking over a plan folder. It is a thin layer o
 realistic sizes), so it is always correct while files are edited in parallel — no watcher, no
 cache invalidation. Bootstrap is folder discovery, bounded by the repo root ([[FILE-RESOLVE]]);
 a repo with no plan returns `NO_PLAN_FOUND`. The agent-facing INSTRUCTIONS string is embedded
-in the server — one of three guidance copies, capped at 55 lines because every session pays
+in the server — one of three guidance copies, capped at 68 lines because every session pays
 for it, and held in step with the other two by `tests/guidance-consistency.test.ts`. See
 [[AGENT-GUIDANCE]]. That constant is static; the handshake string is not. On boot the server
 resolves the plan and, when it carries no `format_review` stamp ([[DOC-CHANGE-TRACKING]]),
@@ -76,7 +89,9 @@ times over:
   plan, connected repos, and the running server version against the workspace
   `package.json` (`version_mismatch` + a one-line warning catches "a published server is
   answering for an unreleased tree"). It replaces the five-tool opening ritual, so it stays
-  counts-and-handles: never card bodies.
+  counts-and-handles: never card bodies. When a `.constellation/` folder exists beside the
+  plan it also carries `working` — the working-memory set, `{header, items}` and nothing
+  more ([[FEATURE-WORKING-MEMORY]]).
 - **Read** — `get_card` (+ `code: none|paths|direct`, notes filters), `list_cards`,
   `list_notes` (cross-card notes query by kind/handles), `search` (over bodies, notes **and**
   the binding frontmatter — `summary`, `path`, `code_refs`; AND is the first pass, and when
@@ -113,6 +128,9 @@ times over:
   come back** (issues are lint state, not failure). Writes are serialized per file behind an
   in-process lock and land atomically (temp + rename); the cheap writes apply their change to
   the file's *current* content, so concurrent small updates compose instead of clobbering.
+- **Working memory** — `working_list`, `working_set`, `working_drop`, `working_log`,
+  `working_init`: the session scratchpad in `.constellation/`, never cards and never part of
+  the index, lint, `diff_plan` or the viewer. See [[FEATURE-WORKING-MEMORY]].
 - **Git** — `diff_plan`, `plan_log`, `set_sync_point` (+ `format_review: true`, the one-time
   format-upgrade review), `stale_report`, `check_sync`, `check_integrity`
   (see [[DOC-CHANGE-TRACKING]]).

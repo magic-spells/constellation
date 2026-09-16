@@ -11,6 +11,26 @@ import pc from 'picocolors';
 const PKG_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 export const SKILL_SRC_DIR = path.join(PKG_ROOT, 'skill');
 
+/**
+ * Every skill folder the package ships, installed together under one version.
+ *
+ * `constellation` is the authoring skill the model loads on its own judgment;
+ * `working` is a user-invocable slash command (`disable-model-invocation`),
+ * which is why it is a second folder rather than a section of the first — a
+ * skill is either the model's to reach for or the user's to type, not both.
+ */
+export interface SkillPayload {
+  /** Folder name at the destination, and what the user types for a command skill. */
+  id: string;
+  /** Source folder inside the package. */
+  src: string;
+}
+
+export const SKILL_PAYLOADS: SkillPayload[] = [
+  { id: 'constellation', src: SKILL_SRC_DIR },
+  { id: 'working', src: path.join(PKG_ROOT, 'skill-working') },
+];
+
 // Records which CLI version wrote an installed skill. The payload ships with the
 // package, so "which CLI wrote it" IS the skill's version — without the stamp we
 // can only ask whether the directory exists, never whether it is current. A
@@ -31,8 +51,9 @@ export const SUPPORTED_SKILL_TARGETS = [
   { name: 'Agents (shared)', config: '.agents' },
 ] as const;
 
-export function skillDestination(target: SkillTarget): string {
-  return path.join(target.root, 'skills', 'constellation');
+/** Where one payload lands, e.g. ~/.claude/skills/constellation. */
+export function skillDestination(target: SkillTarget, payload = SKILL_PAYLOADS[0]): string {
+  return path.join(target.root, 'skills', payload.id);
 }
 
 async function pathState(p: string): Promise<'missing' | 'symlink' | 'present'> {
@@ -61,43 +82,65 @@ export interface SkillPlan {
   linked: string[];
 }
 
-/** Classify each target by what's already at its destination. */
+/** The version stamp an installed payload carries, or null when it has none. */
+async function installedVersion(dest: string): Promise<string | null> {
+  try {
+    return (await readFile(path.join(dest, SKILL_VERSION_FILE), 'utf8')).trim();
+  } catch {
+    // No stamp: a hand-copied or pre-stamp install — the caller treats it as stale.
+    return null;
+  }
+}
+
+/**
+ * Classify each target by what's already at its destinations. A target counts as
+ * `current` only when EVERY payload is present at this version — otherwise an
+ * upgrade that adds a skill folder would read as up to date and never install it.
+ */
 export async function classifySkillTargets(
   targets: SkillTarget[],
   version: string,
 ): Promise<SkillPlan> {
   const plan: SkillPlan = { fresh: [], current: [], stale: [], linked: [] };
   for (const target of targets) {
-    const dest = skillDestination(target);
-    const state = await pathState(dest);
-    if (state === 'symlink') {
-      plan.linked.push(dest);
+    const states = await Promise.all(
+      SKILL_PAYLOADS.map(async (payload) => {
+        const dest = skillDestination(target, payload);
+        return { dest, state: await pathState(dest) };
+      }),
+    );
+    // A symlinked destination is somebody's own arrangement; never clobber it,
+    // and never half-install a target whose other folder we would have to skip.
+    const linked = states.filter((s) => s.state === 'symlink');
+    if (linked.length > 0) {
+      plan.linked.push(...linked.map((s) => s.dest));
       continue;
     }
-    if (state === 'missing') {
+    if (states.every((s) => s.state === 'missing')) {
       plan.fresh.push(target);
       continue;
     }
-    let installed: string | null = null;
-    try {
-      installed = (await readFile(path.join(dest, SKILL_VERSION_FILE), 'utf8')).trim();
-    } catch {
-      // No stamp: a hand-copied or pre-stamp install — treat as stale.
-    }
-    (installed === version ? plan.current : plan.stale).push(target);
+    const versions = await Promise.all(
+      states.map(async (s) => (s.state === 'missing' ? null : await installedVersion(s.dest))),
+    );
+    (versions.every((v) => v === version) ? plan.current : plan.stale).push(target);
   }
   return plan;
 }
 
-/** Copy the packaged skill into each destination and stamp the version. */
+/** Copy every packaged skill into each destination and stamp the version. */
 export async function installSkills(targets: SkillTarget[], version: string): Promise<void> {
   for (const target of targets) {
-    const dest = skillDestination(target);
-    await mkdir(path.dirname(dest), { recursive: true });
-    await rm(dest, { recursive: true, force: true });
-    await cp(SKILL_SRC_DIR, dest, { recursive: true });
-    await writeFile(path.join(dest, SKILL_VERSION_FILE), `${version}\n`);
-    console.log(`${pc.green('✓')} Installed skill ${version} → ${dest} (${target.name})`);
+    for (const payload of SKILL_PAYLOADS) {
+      const dest = skillDestination(target, payload);
+      await mkdir(path.dirname(dest), { recursive: true });
+      await rm(dest, { recursive: true, force: true });
+      await cp(payload.src, dest, { recursive: true });
+      await writeFile(path.join(dest, SKILL_VERSION_FILE), `${version}\n`);
+      console.log(
+        `${pc.green('✓')} Installed ${payload.id} skill ${version} → ${dest} (${target.name})`,
+      );
+    }
   }
 }
 
@@ -280,13 +323,13 @@ export async function addSkills(
   }
   for (const target of plan.current) {
     console.log(
-      `${pc.green('✓')} ${skillDestination(target)} already has skill ${version} — up to date.`,
+      `${pc.green('✓')} ${path.join(target.root, 'skills')} already has skills ${version} — up to date.`,
     );
   }
 
   const install = [...plan.fresh];
   if (plan.stale.length > 0) {
-    const paths = plan.stale.map(skillDestination);
+    const paths = plan.stale.map((t) => path.join(t.root, 'skills'));
     if (!process.stdin.isTTY) {
       console.error(
         pc.red('Refusing to overwrite existing skill installation(s) (use --overwrite):') +
@@ -321,7 +364,12 @@ export async function offerSkillUpdateAfterUpgrade(): Promise<void> {
   if (targets.length === 0) return;
   const installed = (
     await Promise.all(
-      targets.map(async (t) => ((await pathState(skillDestination(t))) === 'present' ? t : null)),
+      targets.map(async (t) => {
+        const states = await Promise.all(
+          SKILL_PAYLOADS.map((payload) => pathState(skillDestination(t, payload))),
+        );
+        return states.some((state) => state === 'present') ? t : null;
+      }),
     )
   ).filter((t): t is SkillTarget => t !== null);
   if (installed.length === 0) return;

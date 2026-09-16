@@ -27,6 +27,14 @@ notes:
       monorepo root holds at most a signpost plan.md, serve hosts every plan behind a dropdown.
       NOT_TOOLS in the consistency test gained 'code_root'. Budget alert: INSTRUCTIONS is at 54/55
       lines and SKILL.md at exactly 340/340 — the next SKILL.md addition must trim something first.
+  - kind: state
+    text: >-
+      2026-09-16: the always-on budgets moved for working memory — INSTRUCTIONS 55 → 68 lines,
+      SKILL.md 340 → 400 (tests/guidance-consistency.test.ts). The INSTRUCTIONS paragraph carries
+      the read/write rhythm plus the eight types in one line each, because an agent with the
+      working_* tools but not the rules writes a to-do list instead of memory.
+      skill/working-memory.md is a topical reference like atlas.md, NOT a fourth canonical copy; the
+      body of DOC-MCP-SERVER still says "capped at 55 lines". See FEATURE-WORKING-MEMORY.
 ---
 
 # Agent guidance
@@ -36,15 +44,16 @@ that must stay consistent**: the MCP `INSTRUCTIONS` string ([[FILE-MCP-SERVER]])
 (`skill/SKILL.md` + `skill/methodology.md`). None imports another, so any change to how an
 agent should use the plan must land in all three.
 
-Each copy has one job. `INSTRUCTIONS` is **always on**, so it is capped at 55 lines — the rules
+Each copy has one job. `INSTRUCTIONS` is **always on**, so it is capped at 68 lines — the rules
 an agent needs without asking. The constant is fixed; the handshake string it produces is not —
 the server appends the one-time format-upgrade paragraph to it at boot when the plan carries no
 `format_review` stamp ([[DOC-CHANGE-TRACKING]]), which is why the cap applies to the constant. `SKILL.md` is the **pointer**: the same rules with their
 mechanics, deferring type schemas to `describe_type` rather than restating them.
 `methodology.md` is the **long pass** — building or auditing a whole plan from a codebase — and
 also backs the MCP `bootstrap_plan` / `audit_plan` prompts.
-`skill/atlas.md` is a topical authoring reference, like `skill/types/*.md`, not a fourth
-canonical copy; it joins the real-tool-name check but not the three-copy phrase contract.
+`skill/atlas.md` and `skill/working-memory.md` are topical authoring references, like
+`skill/types/*.md`, not further canonical copies; they join the real-tool-name check but not
+the three-copy phrase contract.
 
 Core stance: treat the plan as **durable, cross-session memory** (read the neighborhood before
 changing code; update cards as part of "done"); **all card writes go through the tools**, never
@@ -53,7 +62,9 @@ viewer and every future agent; be **plan-first for behavior changes only** — a
 API contract, a STATE change ([[FLOW-SYNC-PLAN]]) — while refactors and CSS go straight to code;
 act as an **orchestrator** for large work (partition into file-disjoint neighborhoods, one card
 per agent, then verify). The bar a card is held to is that **a later agent can change the area
-without rediscovering the why, the gotchas, and the contracts**.
+without rediscovering the why, the gotchas, and the contracts**. Session state — what is in
+flight, who holds which worktree, what waits on the user — is NOT a card: it belongs in working
+memory ([[FEATURE-WORKING-MEMORY]]), which the same three copies teach.
 
 Consistency is enforced, not remembered: `tests/guidance-consistency.test.ts` asserts the
 canonical sentences appear verbatim in every copy that carries them, that retired claims appear
