@@ -2291,11 +2291,21 @@ export function buildServer(options: ServerOptions = {}): McpServer {
             remainingSources.push(`frontmatter field on ${now.handle}`);
         }
       }
+      // A missing handle the surviving card never named is a typo, not a
+      // dangling reference — don't let the no-op read as success.
+      if (missing && removedFrom.length === 0 && remainingSources.length === 0) {
+        return fail('NOT_FOUND', `No card or dangling reference: ${missing}`);
+      }
       const touched = new Set(
         removedFrom
           .map((h) => after.cards.get(h)?.relPath)
           .filter((p): p is string => Boolean(p)),
       );
+      // Surface an E005 a non-connections field still leaves on the survivor.
+      for (const [card] of pairs) {
+        const rel = missing ? after.cards.get(card.handle)?.relPath : undefined;
+        if (rel) touched.add(rel);
+      }
       return ok({
         removed_from: removedFrom,
         still_connected: stillConnected,

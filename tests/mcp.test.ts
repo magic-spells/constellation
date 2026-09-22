@@ -289,6 +289,43 @@ describe('writes', () => {
     expect(dangling).not.toContain('DOC-DANGLE-C');
   });
 
+  it('remove_connection reports a deleted handle still named by another frontmatter field', async () => {
+    await call('create_card', { handle: 'DOC-DANGLE-T', body: 'Deleted soon.' });
+    await call('create_card', {
+      handle: 'EVENT-DANGLE-E',
+      connections: ['DOC-DANGLE-T'],
+      fields: { emitter: 'DOC-DANGLE-T' },
+      body: 'Survives.',
+    });
+    await call('delete_card', { handle: 'DOC-DANGLE-T' });
+
+    const { data, isError } = await call('remove_connection', {
+      a: 'EVENT-DANGLE-E',
+      b: 'DOC-DANGLE-T',
+    });
+    expect(isError).toBe(false);
+    expect(data.removed_from).toEqual(['EVENT-DANGLE-E']);
+    expect(data.remaining_sources).toEqual(['frontmatter field on EVENT-DANGLE-E']);
+    expect(
+      data.issues.some(
+        (i: { code: string; message: string }) =>
+          i.code === 'E005' && i.message.includes('DOC-DANGLE-T'),
+      ),
+    ).toBe(true);
+  });
+
+  it('remove_connection rejects a missing side that is not handle-shaped', async () => {
+    const res = await call('remove_connection', { a: 'API-TICKETS', b: 'nope' });
+    expect(res.isError).toBe(true);
+    expect(res.data.error.code).toBe('INVALID_HANDLE');
+  });
+
+  it('remove_connection is NOT_FOUND for a mistyped missing handle next to a real card', async () => {
+    const res = await call('remove_connection', { a: 'API-TICKETS', b: 'DOC-TYPO-HANDLE' });
+    expect(res.isError).toBe(true);
+    expect(res.data.error.code).toBe('NOT_FOUND');
+  });
+
   it('remove_connection is NOT_FOUND only when neither card exists', async () => {
     const res = await call('remove_connection', { a: 'DOC-NOPE-1', b: 'DOC-NOPE-2' });
     expect(res.isError).toBe(true);
