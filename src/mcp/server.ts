@@ -2232,22 +2232,31 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'remove_connection',
     {
       description:
-        'Remove a connection by deleting it from either card’s connections list. Reports if the cards remain connected through a handle-shaped value in another frontmatter field, which must be edited manually. Body [[links]] and mermaid node IDs are hyperlinks, not connections, so they never keep two cards connected.',
+        'Remove a connection by deleting it from either card’s connections list. Also cleans up after delete_card: when one handle no longer has a card, it is stripped from the surviving card’s connections list. Reports if the cards remain connected (or, for a deleted card, still referenced) through a handle-shaped value in another frontmatter field, which needs a field patch. Body [[links]] and mermaid node IDs are hyperlinks, not connections, so they never keep two cards connected.',
       inputSchema: { a: z.string(), b: z.string(), repo: repoSchema },
     },
     withPlan(async (root, args) => {
       const index = await loadPlan(root);
-      const cardA = index.cards.get(args.a.toUpperCase());
-      const cardB = index.cards.get(args.b.toUpperCase());
-      if (!cardA || !cardB) {
-        return fail('NOT_FOUND', `No card: ${!cardA ? args.a : args.b}`);
+      const handleA = args.a.toUpperCase();
+      const handleB = args.b.toUpperCase();
+      const cardA = index.cards.get(handleA);
+      const cardB = index.cards.get(handleB);
+      if (!cardA && !cardB) {
+        return fail('NOT_FOUND', `No card: ${args.a} or ${args.b}`);
+      }
+      // One side may be gone (delete_card leaves dangling refs): strip it from
+      // the surviving card only. The missing handle must still be a handle.
+      const missing = !cardA ? handleA : !cardB ? handleB : null;
+      if (missing && !isHandleShaped(missing)) {
+        return fail('INVALID_HANDLE', `Not a handle: ${missing}`);
       }
 
+      const pairs: Array<readonly [NonNullable<typeof cardA>, string]> = [];
+      if (cardA) pairs.push([cardA, handleB]);
+      if (cardB) pairs.push([cardB, handleA]);
+
       const removedFrom: string[] = [];
-      for (const [card, other] of [
-        [cardA, cardB.handle],
-        [cardB, cardA.handle],
-      ] as const) {
+      for (const [card, other] of pairs) {
         let removed = false;
         await mutateCardFile(card.filePath, (current) => {
           // Keep malformed (non-string) entries as-is — lint owns reporting them.
@@ -2268,18 +2277,18 @@ export function buildServer(options: ServerOptions = {}): McpServer {
 
       const lint = await lintPlan(root);
       const after = lint.index;
-      const stillConnected =
-        after.connectedHandles.get(cardA.handle)?.has(cardB.handle) ?? false;
+      const stillConnected = missing
+        ? false
+        : (after.connectedHandles.get(handleA)?.has(handleB) ?? false);
       const remainingSources: string[] = [];
-      if (stillConnected) {
-        for (const [card, other] of [
-          [after.cards.get(cardA.handle)!, cardB.handle],
-          [after.cards.get(cardB.handle)!, cardA.handle],
-        ] as const) {
+      // With a missing side, any leftover frontmatter ref is a dangling E005.
+      if (stillConnected || missing) {
+        for (const [card, other] of pairs) {
+          const now = after.cards.get(card.handle);
           // Only frontmatter makes an edge — a [[link]] or mermaid node ID left
           // behind is a hyperlink, and never keeps two cards connected.
-          if (card.refs.frontmatter.includes(other))
-            remainingSources.push(`frontmatter field on ${card.handle}`);
+          if (now?.refs.frontmatter.includes(other))
+            remainingSources.push(`frontmatter field on ${now.handle}`);
         }
       }
       const touched = new Set(

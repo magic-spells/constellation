@@ -253,6 +253,48 @@ describe('writes', () => {
     expect(data.remaining_sources.join(' ')).toContain('frontmatter field');
   });
 
+  it('remove_connection cleans up a dangling connection after delete_card', async () => {
+    await call('create_card', { handle: 'DOC-DANGLE-B', body: 'Deleted soon.' });
+    await call('create_card', { handle: 'DOC-DANGLE-C', body: 'Also deleted.' });
+    await call('create_card', {
+      handle: 'DOC-DANGLE-A',
+      connections: ['DOC-DANGLE-B', 'DOC-DANGLE-C'],
+      body: 'Survives.',
+    });
+    await call('delete_card', { handle: 'DOC-DANGLE-B' });
+    await call('delete_card', { handle: 'DOC-DANGLE-C' });
+
+    const { data } = await call('remove_connection', {
+      a: 'DOC-DANGLE-A',
+      b: 'doc-dangle-b',
+    });
+    expect(data.removed_from).toEqual(['DOC-DANGLE-A']);
+    expect(data.still_connected).toBe(false);
+    expect(data.remaining_sources).toEqual([]);
+
+    // Missing handle first: argument order does not matter.
+    const flipped = await call('remove_connection', {
+      a: 'DOC-DANGLE-C',
+      b: 'DOC-DANGLE-A',
+    });
+    expect(flipped.isError).toBe(false);
+    expect(flipped.data.removed_from).toEqual(['DOC-DANGLE-A']);
+    expect(flipped.data.issues).toEqual([]);
+
+    const card = await call('get_card', { handle: 'DOC-DANGLE-A' });
+    expect(card.data.card.frontmatter.connections).toBeUndefined();
+    const lint = await call('check_integrity');
+    const dangling = JSON.stringify(lint.data);
+    expect(dangling).not.toContain('DOC-DANGLE-B');
+    expect(dangling).not.toContain('DOC-DANGLE-C');
+  });
+
+  it('remove_connection is NOT_FOUND only when neither card exists', async () => {
+    const res = await call('remove_connection', { a: 'DOC-NOPE-1', b: 'DOC-NOPE-2' });
+    expect(res.isError).toBe(true);
+    expect(res.data.error.code).toBe('NOT_FOUND');
+  });
+
   it('delete_card referenced_by is leftover structured refs, not graph neighbors', async () => {
     // One-sided edge declared only on the deleted card: neighbors are not referrers.
     const onesided = await call('delete_card', { handle: 'TEST-CREATE-TICKET' });
