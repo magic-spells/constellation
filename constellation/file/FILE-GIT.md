@@ -26,6 +26,11 @@ notes:
       simplification, which silently pruned real code commits reachable only via the un-followed
       parent (proven on this repo: 4 real commits dropped, e.g. the viewer sidebar chain via PR
       #11's merge shape). planRootsFor added to compute { codeRoot, gitRoot, prefix } per plan.
+  - kind: state
+    text: >-
+      changedFilesSince and dirtyFilesAmong now union git-diff with ls-files --others
+      --exclude-standard, so untracked bound files count as uncommitted drift. Matches the
+      untracked-card special case in diffPlan.
 ---
 
 `diffPlan` (per-card delta), `planLog`, sync-marker read/write, `headSha`, `changedFilesSince`, `lastCommitByPath`, `dirtyFilesAmong`, `countCodeCommitsSince`, `recentPlanActivity`, `recentCodeActivity`, `latestTag`, `planRootsFor`, `repoRemoteUrl`. `safeRev` rejects a dash-leading revision at every entry point, so no caller string is parsed as a git option. `--end-of-options` backs it at most sites but not all: `countCodeCommitsSince`'s `rev-list --count` omits it, and `diffPlan`'s `git show` pair passes revisions raw — safe only because an earlier `safeRev` in the same function throws first. Ordering, not a guard.

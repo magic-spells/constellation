@@ -1,8 +1,13 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { mutateCardFile, withAppendedNote, withFileLock } from '../src/core/writer.js';
+import {
+  mutateCardFile,
+  StaleWriteError,
+  withAppendedNote,
+  withFileLock,
+} from '../src/core/writer.js';
 
 let dir: string;
 
@@ -70,5 +75,30 @@ describe('mutateCardFile', () => {
     expect(raw).toContain('first');
     expect(raw).toContain('second');
     expect(raw).toContain('Body.'); // body untouched
+  });
+
+  it('if_mtime is checked inside the lock so the second overlapping writer is STALE', async () => {
+    const file = path.join(dir, 'DOC-STALE.md');
+    await writeFile(file, '---\nname: Stale\n---\n\nBody.\n', 'utf8');
+    const t = Math.round((await stat(file)).mtimeMs);
+
+    const first = mutateCardFile(
+      file,
+      async () => {
+        await sleep(40);
+        return { body: 'first\n' };
+      },
+      { if_mtime: t },
+    );
+    await sleep(5);
+    const second = mutateCardFile(file, () => ({ body: 'second\n' }), {
+      if_mtime: t,
+    });
+
+    await first;
+    await expect(second).rejects.toBeInstanceOf(StaleWriteError);
+    const raw = await readFile(file, 'utf8');
+    expect(raw).toContain('first');
+    expect(raw).not.toContain('second');
   });
 });

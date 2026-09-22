@@ -1,4 +1,4 @@
-import { readFile, realpath, rm, stat } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -10,7 +10,7 @@ import {
   TYPE_FOLDERS,
   typeForHandle,
 } from '../core/handles.js';
-import { loadPlan, neighborsOf } from '../core/indexer.js';
+import { loadPlan, neighborsOf, structuredReferrers } from '../core/indexer.js';
 import { lintPlan } from '../core/lint.js';
 import {
   discoverPlans,
@@ -23,7 +23,7 @@ import type { Card, Issue, PlanIndex, TypeName } from '../core/types.js';
 import { TYPE_NAMES } from '../core/types.js';
 import type { RunningServer, ServedPlan } from '../serve/server.js';
 import {
-  changedFilesSince,
+  dirtyFilesAmong,
   diffPlan,
   formatReviewVersion,
   headSha,
@@ -44,10 +44,12 @@ import {
   bodyHeadingTexts,
   createCardFile,
   deepMerge,
+  deleteCardFile,
   mutateCardFile,
   relPathForHandle,
   replaceBodySection,
   reservedFieldKeys,
+  StaleWriteError,
   withAppendedNote,
 } from '../core/writer.js';
 import { renameCard, RenameCardError } from '../core/rename.js';
@@ -115,7 +117,7 @@ bulk-rewrite plan.md. Batch scaffolds with create_cards + add_connections (intra
 set_verified handles: [...] — each lints ONCE. rename_card rewrites every reference plan-wide — never delete-and-recreate
 to rename; for bulk changes loop the singular tools (CLI: constellation rename), never search-and-replace the plan folder.
 delete_card does NOT rewrite references: it returns referenced_by and leaves E005s to clean up; remove_connection strips
-only the connections: list — an edge also declared by a handle-shaped frontmatter field needs edit_section. Call
+only the connections: list — an edge also declared by a handle-shaped frontmatter field needs a field patch. Call
 describe_type before authoring an unfamiliar type, and author in the types the plan already uses.
 
 Call orient at session start: a small read-only briefing on the plan's shape, drift and newest notes. Retrieve lean:
@@ -379,15 +381,22 @@ type CardView = Record<string, unknown>;
 export const HYDRATION_PER_CARD_MAX = 24 * 1024;
 export const HYDRATION_TOTAL_MAX = 96 * 1024;
 
-/** Rough serialized weight of a card's hydrated content. */
-function hydratedBytes(card: Card): number {
+/**
+ * Serialized weight of what hydration actually sends: notes already tailed.
+ * Charging the full diary then slicing it off the payload would degrade
+ * neighbors whose *returned* view still fits the cap.
+ */
+function hydratedBytes(card: Card, notesLimit: number, kind?: string): number {
+  const view = withNotesTail(full(card), card, notesLimit, kind);
+  const fm = (view.frontmatter ?? {}) as Record<string, unknown>;
+  const body = typeof view.body === 'string' ? view.body : card.body;
   let fmBytes = 0;
   try {
-    fmBytes = Buffer.byteLength(JSON.stringify(card.frontmatter) ?? '');
+    fmBytes = Buffer.byteLength(JSON.stringify(fm) ?? '');
   } catch {
     fmBytes = 0;
   }
-  return Buffer.byteLength(card.body) + fmBytes;
+  return Buffer.byteLength(body) + fmBytes;
 }
 
 /**
@@ -414,6 +423,8 @@ class Hydrator {
   private readonly degradedSet = new Set<string>();
   private used = 0;
   private exhausted = false;
+  /** hydratedBytes memo — the same card view is weighed twice per neighbor. */
+  private readonly byteCache = new Map<string, number>();
 
   constructor(private readonly notesLimit: number = DEFAULT_NOTES_TAIL) {}
 
@@ -424,7 +435,7 @@ class Hydrator {
       return { ...summary(card), hydrated_elsewhere: true };
     }
     this.emitted.add(card.handle);
-    this.used += hydratedBytes(card);
+    this.used += this.bytesFor(card, notesKind);
     return withNotesTail(full(card), card, this.notesLimit, notesKind);
   }
 
@@ -442,13 +453,24 @@ class Hydrator {
       return { ...summary(card), degraded_to_summary: reason };
     }
     this.emitted.add(card.handle);
-    this.used += hydratedBytes(card);
+    this.used += this.bytesFor(card);
     return withNotesTail(full(card), card, this.notesLimit);
+  }
+
+  /** Weight of the view this card would send, computed once per card+kind. */
+  private bytesFor(card: Card, kind?: string): number {
+    const key = `${card.handle}\u0000${kind ?? ''}`;
+    let bytes = this.byteCache.get(key);
+    if (bytes === undefined) {
+      bytes = hydratedBytes(card, this.notesLimit, kind);
+      this.byteCache.set(key, bytes);
+    }
+    return bytes;
   }
 
   private degradeReason(card: Card): string | null {
     if (isSupernode(card)) return 'supernode';
-    const bytes = hydratedBytes(card);
+    const bytes = this.bytesFor(card);
     if (bytes > HYDRATION_PER_CARD_MAX) return 'over per-card cap';
     if (this.used + bytes > HYDRATION_TOTAL_MAX) {
       this.exhausted = true;
@@ -888,7 +910,19 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     if (home) {
       const resolved = await resolveConnectedRepo(home, repo);
       if (resolved) return { root: resolved.root };
-      const names = (await readConnectedRepos(home)).map((r) => r.name);
+      const declared = await readConnectedRepos(home);
+      const entry = declared.find((r) => r.name === repo);
+      if (entry) {
+        return {
+          error: fail(
+            'UNREACHABLE_REPO',
+            `Connected repo "${repo}" is declared at ${entry.path} but has no plan on this machine. ` +
+              'list_connected_repos shows reachable: false. Pass a path to a repo that has a ' +
+              'constellation/ plan, or omit repo to use the current plan.',
+          ),
+        };
+      }
+      const names = declared.map((r) => r.name);
       return {
         error: fail(
           'UNKNOWN_REPO',
@@ -1630,7 +1664,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'add_connections',
     {
       description:
-        'Add many connections in one call. Each {from,to} is appended to the source card’s connections list (idempotent and undirected — already-connected pairs are skipped). Lints once at the end. Returns { added, failed, errors }.',
+        'Add many connections in one call. Each {from,to} is appended to the source card’s connections list (idempotent and undirected — already-connected pairs are skipped). Lints once at the end. Returns { added, failed, issues }.',
       inputSchema: {
         connections: z
           .array(z.object({ from: z.string(), to: z.string() }))
@@ -1728,19 +1762,26 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           `fields cannot contain reserved keys: ${reserved.join(', ')}`,
         );
       }
-      if (typeof if_mtime === 'number' && if_mtime !== 0) {
-        const current = Math.round((await stat(card.filePath)).mtimeMs);
-        if (current !== if_mtime) {
-          return fail('STALE', `${card.handle} changed on disk`);
-        }
-      }
-
       // Apply the patch to the file's CURRENT frontmatter inside the lock —
       // patch semantics compose with a concurrent write instead of undoing it.
-      await mutateCardFile(card.filePath, (current) => ({
-        frontmatter: patch ? applyCardPatch(current.frontmatter, patch) : undefined,
-        body,
-      }));
+      // if_mtime is checked inside that lock so two callers who both sampled
+      // the same T cannot both write.
+      try {
+        await mutateCardFile(
+          card.filePath,
+          (current) => ({
+            frontmatter: patch ? applyCardPatch(current.frontmatter, patch) : undefined,
+            body,
+          }),
+          {
+            if_mtime,
+            staleMessage: `${card.handle} changed on disk`,
+          },
+        );
+      } catch (err) {
+        if (err instanceof StaleWriteError) return fail('STALE', err.message);
+        throw err;
+      }
       const lint = await lintPlan(root);
       const updated = lint.index.cards.get(card.handle);
       return ok({
@@ -1994,7 +2035,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           if (allBound.length > 0) {
             const { prefix } = await planRootsFor(root);
             const gitBound = allBound.map((p) => (prefix ? `${prefix}/${p}` : p));
-            const dirty = await changedFilesSince(root, 'HEAD', gitBound);
+            // Dirty = uncommitted right now (untracked included), which is
+            // dirtyFilesAmong's question, not changedFilesSince's.
+            const dirty = await dirtyFilesAmong(root, gitBound);
             const changed = [...dirty].map((p) =>
               prefix && p.startsWith(`${prefix}/`) ? p.slice(prefix.length + 1) : p,
             );
@@ -2079,7 +2122,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'delete_card',
     {
       description:
-        'Delete a card file. Returns the handles that referenced it (their references are now dangling) plus resulting lint issues.',
+        'Delete a card file. Returns referenced_by — handles whose frontmatter still names it (now dangling E005s) — plus resulting lint issues. Neighbors of a one-sided edge declared only on the deleted card are not listed.',
       inputSchema: { handle: z.string(), repo: repoSchema },
     },
     withPlan(async (root, { handle }) => {
@@ -2092,8 +2135,8 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           'PLAN-PROJECT (plan.md) is the plan root card and cannot be deleted.',
         );
       }
-      const referencedBy = [...(index.connectedHandles.get(card.handle) ?? [])].sort();
-      await rm(card.filePath);
+      const referencedBy = structuredReferrers(index, card.handle);
+      await deleteCardFile(card.filePath);
       const lint = await lintPlan(root);
       // Exact-token match so deleting API-USER doesn't surface API-USERS' issues;
       // handles only contain [A-Z0-9-], so those chars delimit a whole handle.
@@ -2155,7 +2198,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       if (!from || !to) {
         return fail('NOT_FOUND', `No card: ${!from ? args.from : args.to}`);
       }
-      if (index.connectedHandles.get(from.handle)?.has(to.handle)) {
+      // Self-pairs are not graph edges (the indexer drops them). Don't write a
+      // YAML self-entry the graph will never show.
+      if (
+        from.handle === to.handle ||
+        index.connectedHandles.get(from.handle)?.has(to.handle)
+      ) {
         return ok({ already_connected: true, between: [from.handle, to.handle] });
       }
       await mutateCardFile(from.filePath, (current) => {
@@ -2184,22 +2232,31 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'remove_connection',
     {
       description:
-        'Remove a connection by deleting it from either card’s connections list. Reports if the cards remain connected through a handle-shaped value in another frontmatter field, which must be edited manually. Body [[links]] and mermaid node IDs are hyperlinks, not connections, so they never keep two cards connected.',
+        'Remove a connection by deleting it from either card’s connections list. Also cleans up after delete_card: when one handle no longer has a card, it is stripped from the surviving card’s connections list. Reports if the cards remain connected (or, for a deleted card, still referenced) through a handle-shaped value in another frontmatter field, which needs a field patch. Body [[links]] and mermaid node IDs are hyperlinks, not connections, so they never keep two cards connected.',
       inputSchema: { a: z.string(), b: z.string(), repo: repoSchema },
     },
     withPlan(async (root, args) => {
       const index = await loadPlan(root);
-      const cardA = index.cards.get(args.a.toUpperCase());
-      const cardB = index.cards.get(args.b.toUpperCase());
-      if (!cardA || !cardB) {
-        return fail('NOT_FOUND', `No card: ${!cardA ? args.a : args.b}`);
+      const handleA = args.a.toUpperCase();
+      const handleB = args.b.toUpperCase();
+      const cardA = index.cards.get(handleA);
+      const cardB = index.cards.get(handleB);
+      if (!cardA && !cardB) {
+        return fail('NOT_FOUND', `No card: ${args.a} or ${args.b}`);
+      }
+      // One side may be gone (delete_card leaves dangling refs): strip it from
+      // the surviving card only. The missing handle must still be a handle.
+      const missing = !cardA ? handleA : !cardB ? handleB : null;
+      if (missing && !isHandleShaped(missing)) {
+        return fail('INVALID_HANDLE', `Not a handle: ${missing}`);
       }
 
+      const pairs: Array<readonly [NonNullable<typeof cardA>, string]> = [];
+      if (cardA) pairs.push([cardA, handleB]);
+      if (cardB) pairs.push([cardB, handleA]);
+
       const removedFrom: string[] = [];
-      for (const [card, other] of [
-        [cardA, cardB.handle],
-        [cardB, cardA.handle],
-      ] as const) {
+      for (const [card, other] of pairs) {
         let removed = false;
         await mutateCardFile(card.filePath, (current) => {
           // Keep malformed (non-string) entries as-is — lint owns reporting them.
@@ -2220,25 +2277,35 @@ export function buildServer(options: ServerOptions = {}): McpServer {
 
       const lint = await lintPlan(root);
       const after = lint.index;
-      const stillConnected =
-        after.connectedHandles.get(cardA.handle)?.has(cardB.handle) ?? false;
+      const stillConnected = missing
+        ? false
+        : (after.connectedHandles.get(handleA)?.has(handleB) ?? false);
       const remainingSources: string[] = [];
-      if (stillConnected) {
-        for (const [card, other] of [
-          [after.cards.get(cardA.handle)!, cardB.handle],
-          [after.cards.get(cardB.handle)!, cardA.handle],
-        ] as const) {
+      // With a missing side, any leftover frontmatter ref is a dangling E005.
+      if (stillConnected || missing) {
+        for (const [card, other] of pairs) {
+          const now = after.cards.get(card.handle);
           // Only frontmatter makes an edge — a [[link]] or mermaid node ID left
           // behind is a hyperlink, and never keeps two cards connected.
-          if (card.refs.frontmatter.includes(other))
-            remainingSources.push(`frontmatter field on ${card.handle}`);
+          if (now?.refs.frontmatter.includes(other))
+            remainingSources.push(`frontmatter field on ${now.handle}`);
         }
+      }
+      // A missing handle the surviving card never named is a typo, not a
+      // dangling reference — don't let the no-op read as success.
+      if (missing && removedFrom.length === 0 && remainingSources.length === 0) {
+        return fail('NOT_FOUND', `No card or dangling reference: ${missing}`);
       }
       const touched = new Set(
         removedFrom
           .map((h) => after.cards.get(h)?.relPath)
           .filter((p): p is string => Boolean(p)),
       );
+      // Surface an E005 a non-connections field still leaves on the survivor.
+      for (const [card] of pairs) {
+        const rel = missing ? after.cards.get(card.handle)?.relPath : undefined;
+        if (rel) touched.add(rel);
+      }
       return ok({
         removed_from: removedFrom,
         still_connected: stillConnected,
@@ -2345,21 +2412,29 @@ export function buildServer(options: ServerOptions = {}): McpServer {
               path: path.relative(target.repoRoot, homeRepoRoot) || '.',
               description: reverse_description,
             };
-            await mutateCardFile(targetPlan.filePath, (current) => ({
-              frontmatter: applyCardPatch(current.frontmatter, {
-                fields: {
-                  connected_repos: upsertConnectedRepo(
-                    connectedReposFromFrontmatter(current.frontmatter),
-                    reverseEntry,
-                  ).map(connectedRepoToFm),
-                },
-              }),
-            }));
-            reciprocated = {
-              ok: true,
-              repo_root: target.repoRoot,
-              entry: connectedRepoToFm(reverseEntry),
-            };
+            try {
+              await mutateCardFile(targetPlan.filePath, (current) => ({
+                frontmatter: applyCardPatch(current.frontmatter, {
+                  fields: {
+                    connected_repos: upsertConnectedRepo(
+                      connectedReposFromFrontmatter(current.frontmatter),
+                      reverseEntry,
+                    ).map(connectedRepoToFm),
+                  },
+                }),
+              }));
+              reciprocated = {
+                ok: true,
+                repo_root: target.repoRoot,
+                entry: connectedRepoToFm(reverseEntry),
+              };
+            } catch (err) {
+              // Home write already landed; don't turn that into INTERNAL.
+              reciprocated = {
+                ok: false,
+                reason: err instanceof Error ? err.message : String(err),
+              };
+            }
           }
         }
       }
@@ -2465,11 +2540,24 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     },
     withPlan(async (root, { handle, limit }) => {
       const index = await loadPlan(root);
-      const card = index.cards.get(handle.toUpperCase());
-      const relPath = card?.relPath ?? relPathForHandle(handle.toUpperCase());
+      const key = handle.toUpperCase();
+      const card = index.cards.get(key);
+      let relPath: string;
+      try {
+        relPath = card?.relPath ?? relPathForHandle(key);
+      } catch {
+        return fail('NOT_FOUND', `No card with handle ${handle}`);
+      }
+      const commits = await planLog(root, relPath, limit ?? 20);
+      // Path fallback lets you ask git about a deleted card. An unknown handle
+      // with no history is a miss, not "this card was never committed."
+      if (!card && commits.length === 0) {
+        return fail('NOT_FOUND', `No card with handle ${handle}`);
+      }
       return ok({
-        handle: handle.toUpperCase(),
-        commits: await planLog(root, relPath, limit ?? 20),
+        handle: key,
+        in_plan: Boolean(card),
+        commits,
       });
     }),
   );

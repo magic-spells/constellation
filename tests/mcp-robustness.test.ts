@@ -68,6 +68,20 @@ describe('bulk creation', () => {
   });
 });
 
+describe('add_connection self-loop', () => {
+  it('does not write a self-entry; reports already_connected', async () => {
+    const { data, isError } = await call('add_connection', {
+      from: 'API-TICKETS',
+      to: 'API-TICKETS',
+    });
+    expect(isError).toBe(false);
+    expect(data.already_connected).toBe(true);
+    const card = await call('get_card', { handle: 'API-TICKETS' });
+    const list = card.data.card.frontmatter.connections ?? [];
+    expect(list).not.toContain('API-TICKETS');
+  });
+});
+
 describe('bulk connections', () => {
   it('add_connections adds and is idempotent', async () => {
     const first = await call('add_connections', {

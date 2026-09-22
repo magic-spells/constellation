@@ -1,5 +1,5 @@
 import { watch } from 'node:fs';
-import { readFile, rm, stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,7 @@ import { compileDocs, prepareDocBody } from '../core/docs.js';
 import { planRootsFor, repoRemoteUrl, writeSyncPoint } from '../core/git.js';
 import { CONSTELLATION_VERSION } from '../core/version.js';
 import { isHandleShaped, typeForHandle } from '../core/handles.js';
+import { structuredReferrers } from '../core/indexer.js';
 import { lintPlan } from '../core/lint.js';
 import { parseFile } from '../core/parse.js';
 import { codeRootFor } from '../core/repos.js';
@@ -22,8 +23,10 @@ import type { Card, Issue } from '../core/types.js';
 import {
   applyCardPatch,
   createCardFile,
+  deleteCardFile,
   mutateCardFile,
   reservedFieldKeys,
+  StaleWriteError,
   type CardPatch,
 } from '../core/writer.js';
 
@@ -317,13 +320,6 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     const card = lint.index.cards.get(handle.toUpperCase());
     if (!card) return failure(res, 404, 'NOT_FOUND', `No card ${handle}`);
 
-    if (typeof body.if_mtime === 'number' && body.if_mtime !== 0) {
-      const current = Math.round((await stat(card.filePath)).mtimeMs);
-      if (current !== body.if_mtime) {
-        return failure(res, 409, 'STALE', `${card.handle} changed on disk`);
-      }
-    }
-
     const patch = body as CardPatch & { body?: string };
     const hasPatch = ['name', 'kind', 'status', 'connections', 'fields'].some(
       (key) => key in body,
@@ -343,10 +339,26 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
 
     // Apply the patch to the file's CURRENT frontmatter inside the write lock,
     // so a viewer edit composes with a concurrent MCP write instead of undoing it.
-    await mutateCardFile(card.filePath, (current) => ({
-      frontmatter: hasPatch ? applyCardPatch(current.frontmatter, patch) : undefined,
-      body: typeof patch.body === 'string' ? patch.body : undefined,
-    }));
+    // if_mtime is checked inside that lock so two callers who both sampled the
+    // same T cannot both write.
+    try {
+      await mutateCardFile(
+        card.filePath,
+        (current) => ({
+          frontmatter: hasPatch ? applyCardPatch(current.frontmatter, patch) : undefined,
+          body: typeof patch.body === 'string' ? patch.body : undefined,
+        }),
+        {
+          if_mtime: typeof body.if_mtime === 'number' ? body.if_mtime : undefined,
+          staleMessage: `${card.handle} changed on disk`,
+        },
+      );
+    } catch (err) {
+      if (err instanceof StaleWriteError) {
+        return failure(res, 409, 'STALE', err.message);
+      }
+      throw err;
+    }
 
     const after = await lintPlan(plan.root);
     const updated = after.index.cards.get(card.handle);
@@ -421,10 +433,8 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
         'PLAN-PROJECT (plan.md) is the plan root card and cannot be deleted.',
       );
     }
-    const referencedBy = [
-      ...(lint.index.connectedHandles.get(card.handle) ?? []),
-    ].sort();
-    await rm(card.filePath);
+    const referencedBy = structuredReferrers(lint.index, card.handle);
+    await deleteCardFile(card.filePath);
     json(res, 200, { deleted: card.handle, referenced_by: referencedBy });
   }
 

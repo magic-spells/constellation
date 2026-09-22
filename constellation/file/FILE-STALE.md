@@ -19,6 +19,10 @@ notes:
       code-root-relative. Directory bindings round-trip through the same translation (underDirs).
       prefix '' is a true identity — single-package repos are byte-for-byte unchanged. See
       DECISION-MONOREPO-CODE-ROOT.
+  - kind: state
+    text: >-
+      Untracked bound files now count: dirtyFilesAmong/changedFilesSince include git ls-files
+      --others. set_verified's dirty warning and stale_report both see a never-added bound file.
 ---
 
 `computeStaleCards` compares every claim card (status built/verified, or carrying a

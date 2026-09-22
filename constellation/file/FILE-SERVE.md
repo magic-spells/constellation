@@ -43,6 +43,10 @@ notes:
       plan; per-plan watchers and SSE channels (wire format unchanged, /events aliases the default);
       JSON 404 for unmatched /api/*; style assets resolve code-root-first with git-root fallback;
       close() tears down every plan's watcher/debounce/SSE.
+  - kind: state
+    text: >-
+      PATCH if_mtime is checked inside mutateCardFile's lock (same StaleWriteError as MCP
+      update_card). DELETE uses deleteCardFile + structuredReferrers, matching MCP delete_card.
 ---
 
 Serves `viewer/dist`, a read API, and a PATCH/POST/DELETE write API (with `if_mtime` stale-write guard), watching files for live reload. Shares the byte-preserving writer with the MCP path. `DELETE /api/card/PLAN-PROJECT` is refused (400 `INVALID_HANDLE`) — same guard as MCP `delete_card`.

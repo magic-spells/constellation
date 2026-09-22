@@ -1,6 +1,6 @@
 {
   "name": "@magic-spells/constellation",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Files-first architecture planning for AI-assisted development. Your project plan as markdown cards in the repo — typed, connected, queryable, and diffable with git.",
   "type": "module",
   "license": "GPL-3.0-or-later",
@@ -27,7 +27,7 @@
     "node": ">=22"
   },
   "bin": {
-    "constellation": "./dist/cli/index.js"
+    "constellation": "dist/cli/index.js"
   },
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
