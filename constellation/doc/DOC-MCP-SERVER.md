@@ -38,6 +38,15 @@ notes:
       plan_log NOT_FOUND; hydration charges tailed notes; delete_card.referenced_by is structured
       referrers; if_mtime inside the write lock; reciprocate target failure is
       reciprocated.ok:false; add_connections returns issues not errors.
+  - kind: decision
+    text: >-
+      remove_connection is the cleanup path after delete_card: it accepts one missing handle and
+      strips it from the surviving card's connections: list. Neither card exists → NOT_FOUND; a
+      missing handle that isn't handle-shaped → INVALID_HANDLE; a missing handle with nothing to
+      strip (a typo) → NOT_FOUND, never a silent ok. A leftover non-connections field naming the
+      deleted card is reported in remaining_sources and its E005 in issues. delete_card itself still
+      rewrites nothing (PR #37).
+    sha: 08b5e5c
 connections:
   - FILE-MCP-SERVER
   - AGENT-GUIDANCE
