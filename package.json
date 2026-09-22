@@ -27,7 +27,7 @@
     "node": ">=22"
   },
   "bin": {
-    "constellation": "./dist/cli/index.js"
+    "constellation": "dist/cli/index.js"
   },
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
