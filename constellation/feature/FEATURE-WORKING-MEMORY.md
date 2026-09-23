@@ -22,8 +22,16 @@ notes:
       SKILL_PAYLOADS and skillDestination(target, payload); a target counts as "current" only when
       EVERY payload is present at this version, so an upgrade that adds a skill folder cannot read
       as up to date, and a symlink at either destination skips the whole target rather than
-      half-installing it. package.json files: gained "skill-working". For a print with no model
-      turn at all the user runs `! npx constellation working`.
+      half-installing it. package.json files: gained "skill-working". For a print with no model turn
+      at all the user runs `! npx constellation working`.
+  - kind: decision
+    text: >-
+      1.0.2: working memory no longer needs a plan. One resolver (resolveWorkingAnchor in
+      src/core/working.ts) serves MCP and CLI: a plan found by walk-up or `repo` resolves exactly as
+      before; no plan inside git anchors at the git root via --git-common-dir (worktrees share
+      main's folder; .gitignore and .claude/settings.json go in the calling checkout); no plan and
+      no git → reads quiet, init fails NO_WORKING_ROOT. Agents must not init_plan just to get
+      working memory.
 release: RELEASE-V1-0-0
 ---
 

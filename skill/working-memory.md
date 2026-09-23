@@ -2,8 +2,9 @@
 
 Cards say what the system **is**. Working memory says what we are **doing about it this
 week**: what is in flight, in which worktree, held by which agent, what is next, what waits
-on the user, what was decided tonight. It lives in `.constellation/` beside the plan folder,
-gitignored, and it is read by the `working_*` tools and by `orient`. It is deliberately not
+on the user, what was decided tonight. It lives in `.constellation/` beside the plan folder
+(or at the git root in a repo with no plan — it never reads a card, so never call `init_plan`
+just to get it), gitignored, and it is read by the `working_*` tools and by `orient`. It is deliberately not
 a card type and shares no vocabulary with cards.
 
 The forcing function is context compaction. The compaction summary is generated from the
@@ -48,12 +49,12 @@ Dropping with a reason writes the reason to `log/YYYY-MM-DD.md`, which is the hi
   update (give `id`). Batch several changes in one call; every write returns the new header.
 - `working_drop { ids, reason? }` — remove items. This is "check it off". Give the reason.
 - `working_log { text }` — append one line to today's log. The only write sub-agents make.
-- `working_init { hook? }` — create the folder for an existing plan; `init_plan` does it
-  for new ones. `hook: true` installs the SessionStart hook that re-prints the file into
+- `working_init { hook? }` — create the folder; `init_plan` does it for new plans, and with
+  no plan it goes at the git root. `hook: true` installs the SessionStart hook that re-prints the file into
   context after every compaction (see *After compaction*).
 
-Errors: `NO_WORKING_FOLDER` (call `working_init`), `NOT_FOUND`, `TYPE_IMMUTABLE`,
-`BAD_ID`, `BAD_TYPE`, `BAD_TEXT` (a newline). Long lines and crowded sets come back as
+Errors: `NO_WORKING_FOLDER` (call `working_init`), `NO_WORKING_ROOT` (no plan and no git
+repo), `NOT_FOUND`, `TYPE_IMMUTABLE`, `BAD_ID`, `BAD_TYPE`, `BAD_TEXT` (a newline). Long lines and crowded sets come back as
 `warnings`, not errors.
 
 ## You infer it; nobody dictates it

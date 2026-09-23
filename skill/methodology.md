@@ -84,6 +84,7 @@ files and trace the data paths; never judge a system from filenames or folder st
 ## Step 0 — Orient and ensure a plan exists
 
 - If tools return `NO_PLAN_FOUND`, call `init_plan` once (or `constellation init`).
+  Working memory (`working_*`) needs no plan — never call `init_plan` just to get it.
 - Skim the map of the repo before reading any single file: `package.json`/manifest,
   README, the top-level folder layout, the router/route table, the build and deploy
   config, the migrations or schema directory, the test layout.

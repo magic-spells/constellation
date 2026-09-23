@@ -14,6 +14,7 @@ import {
   localDay,
   readLog,
   readWorking,
+  resolveWorkingAnchor,
   resolveWorkingDir,
   setItems,
   WorkingError,
@@ -514,5 +515,171 @@ describe('constellation working (the hook command)', () => {
       env: { ...process.env, NO_UPDATE_NOTIFIER: '1' },
     });
     expect(out.trim()).toBe('');
+  });
+});
+
+/* ── no plan: working memory anchors at the git root ─────────────────────── */
+
+function cli(cwd: string, ...args: string[]): string {
+  return execFileSync(tsxBin, [cliPath, ...args], {
+    cwd,
+    encoding: 'utf8',
+    stdio: 'pipe',
+    env: { ...process.env, NO_UPDATE_NOTIFIER: '1' },
+  });
+}
+
+describe('without a plan', () => {
+  let bare: string;
+
+  beforeEach(async () => {
+    bare = await realpath(await mkdtemp(path.join(tmpdir(), 'constellation-noplan-')));
+    await writeFile(path.join(bare, 'index.html'), '<p>site</p>\n');
+    git(bare, 'init', '-b', 'main');
+    git(bare, 'config', 'user.email', 'test@example.com');
+    git(bare, 'config', 'user.name', 'Test');
+    git(bare, 'add', '-A');
+    git(bare, 'commit', '-q', '-m', 'initial');
+  });
+  afterEach(async () => {
+    await rm(bare, { recursive: true, force: true });
+  });
+
+  it('inits, sets, lists, logs and prints at the git root', async () => {
+    const sub = path.join(bare, 'assets', 'css');
+    await mkdir(sub, { recursive: true });
+    const anchor = await resolveWorkingAnchor({ start: sub });
+    expect(anchor).not.toBeNull();
+    expect(anchor!.plan).toBeNull();
+    expect(anchor!.dir).toBe(path.join(bare, '.constellation'));
+
+    const init = await initWorking(anchor!);
+    expect(init.dir).toBe(path.join(bare, '.constellation'));
+    expect(init.gitignore).toBe('added');
+    await expect(readFile(path.join(bare, '.gitignore'), 'utf8')).resolves.toContain(
+      '.constellation/*',
+    );
+    // No plan folder was invented along the way.
+    await expect(readFile(path.join(bare, 'constellation', 'plan.md'), 'utf8')).rejects.toThrow();
+
+    const set = await setItems(anchor!, [{ type: 'T', text: 'site work' }]);
+    expect(set.ids).toEqual(['T1']);
+    expect(set.header.branch).toBe('main');
+    expect((await readWorking(anchor!)).items.map((i) => i.text)).toEqual(['site work']);
+
+    await appendLog(anchor!, 'agent finished');
+    expect(await readLog(anchor!, 'today')).toContainEqual(
+      expect.stringContaining('agent finished'),
+    );
+
+    // The hook command prints it from anywhere in the repo.
+    expect(cli(sub, 'working')).toContain('- T1 [3] site work');
+  });
+
+  it('install-hook works in a repo with no plan', async () => {
+    expect(cli(bare, 'working', 'install-hook')).toContain('Working memory at');
+    await expect(
+      readFile(path.join(bare, '.claude', 'settings.json'), 'utf8'),
+    ).resolves.toContain('constellation working');
+    await expect(
+      readFile(path.join(bare, '.constellation', 'working.md'), 'utf8'),
+    ).resolves.toMatch(/^Updated /);
+  });
+
+  it('shares the main checkout folder from a linked worktree', async () => {
+    const main = (await resolveWorkingAnchor({ start: bare }))!;
+    await initWorking(main);
+    await setItems(main, [{ type: 'T', text: 'in flight' }]);
+
+    const wt = `${bare}-wt`;
+    git(bare, 'worktree', 'add', '-q', '-b', 'feat/x', wt);
+    try {
+      const fromWt = (await resolveWorkingAnchor({ start: wt }))!;
+      expect(await realpath(fromWt.dir)).toBe(await realpath(main.dir));
+      expect((await readWorking(fromWt)).items.map((i) => i.text)).toEqual(['in flight']);
+
+      // Tracked files belong to the checkout the call came from.
+      await initWorking(fromWt, { hook: true });
+      await expect(readFile(path.join(wt, '.gitignore'), 'utf8')).resolves.toContain(
+        '.constellation/*',
+      );
+      await expect(
+        readFile(path.join(wt, '.claude', 'settings.json'), 'utf8'),
+      ).resolves.toContain('constellation working');
+      await expect(
+        readFile(path.join(bare, '.claude', 'settings.json'), 'utf8'),
+      ).rejects.toThrow();
+
+      await appendLog(fromWt, 'wt agent done');
+      expect(await readLog(main, 'today')).toContainEqual(
+        expect.stringContaining('wt agent done'),
+      );
+      expect(cli(wt, 'working')).toContain('- T1 [3] in flight');
+    } finally {
+      git(bare, 'worktree', 'remove', '--force', wt);
+      await rm(wt, { recursive: true, force: true });
+    }
+  });
+
+  it('prints nothing and exits 0 with no plan and no folder', () => {
+    expect(cli(bare, 'working')).toBe('');
+  });
+});
+
+describe('plans still resolve exactly as before', () => {
+  it('a subfolder plan anchors at its code root from anywhere inside it', async () => {
+    const pkg = path.join(repo, 'packages', 'foo');
+    const pkgPlan = path.join(pkg, 'constellation');
+    await mkdir(path.join(pkg, 'src'), { recursive: true });
+    await mkdir(pkgPlan, { recursive: true });
+    await writeFile(path.join(pkgPlan, 'plan.md'), '---\nname: Foo\n---\n\nBody.\n');
+
+    const expected = await resolveWorkingDir(pkgPlan);
+    expect(expected).toBe(path.join(pkg, '.constellation'));
+    for (const start of [pkg, path.join(pkg, 'src'), pkgPlan]) {
+      const anchor = (await resolveWorkingAnchor({ start }))!;
+      expect(anchor.plan).toBe(pkgPlan);
+      expect(anchor.dir).toBe(expected);
+    }
+    // The repo root still finds its own plan, not the package's.
+    const rootAnchor = (await resolveWorkingAnchor({ start: repo }))!;
+    expect(rootAnchor.plan).toBe(planRoot);
+    expect(rootAnchor.dir).toBe(await resolveWorkingDir(planRoot));
+  });
+
+  it('an explicit plan wins over the start directory', async () => {
+    const anchor = (await resolveWorkingAnchor({ plan: planRoot, start: tmpdir() }))!;
+    expect(anchor.plan).toBe(planRoot);
+    expect(anchor.dir).toBe(await resolveWorkingDir(planRoot));
+  });
+});
+
+describe('outside git with no plan', () => {
+  let loose: string;
+  beforeEach(async () => {
+    loose = await mkdtemp(path.join(tmpdir(), 'constellation-loose-'));
+  });
+  afterEach(async () => {
+    await rm(loose, { recursive: true, force: true });
+  });
+
+  it('has no anchor, so reads are quiet and init is refused', async () => {
+    expect(await resolveWorkingAnchor({ start: loose })).toBeNull();
+    expect(cli(loose, 'working')).toBe('');
+
+    let status = 0;
+    let stderr = '';
+    try {
+      cli(loose, 'working', 'install-hook');
+    } catch (err) {
+      const e = err as { status: number; stderr: string };
+      status = e.status;
+      stderr = e.stderr;
+    }
+    expect(status).toBe(2);
+    expect(stderr).toContain('No git repository or constellation/ plan found');
+    await expect(
+      readFile(path.join(loose, '.constellation', 'working.md'), 'utf8'),
+    ).rejects.toThrow();
   });
 });

@@ -69,10 +69,13 @@ import {
   appendLog,
   dropItems,
   initWorking,
+  noWorkingRoot,
   readLog,
   readWorking,
+  resolveWorkingAnchor,
   setItems,
   WorkingError,
+  type WorkingAnchor,
   type WorkingSetItem,
 } from '../core/working.js';
 
@@ -145,12 +148,13 @@ every compaction, before acting on any summary — the summary is authoritative 
 where they disagree verify with git worktree list / git log -1. working_set the moment state changes, in the same turn:
 work dispatched or merged, a plan step finished, a decision made, a rule the user stated, a question only they can
 answer. working_drop with a reason is how you check something off — there is no status field — and the reason goes to
-the log, which is the history. Sub-agents only working_log; working_init creates the folder. Ids are per type and lines
-are headlines (aim under 100 chars, ceiling 160): G goal, keep while undelivered and wanted · C constraint, the user's
-words verbatim, keep until they change it · P plan, one line, ✓ done → next, keep while steps are open · F focus,
-singular and replaced, keep while it is this turn's step · T task — worktree, branch, head, holder — keep while undone ·
-Q question only the user can answer, keep while blocking · I idea, keep while a live option · D decision, keep while it
-steers live work. Promote a lasting decision to a DECISION card, then drop it here.
+the log, which is the history. Sub-agents only working_log; working_init creates the folder. It needs no plan — with
+none it sits at the git root, so never call init_plan just to get it. Ids are per type and lines are headlines (aim
+under 100 chars, ceiling 160): G goal, keep while undelivered and wanted · C constraint, the user's words verbatim, keep
+until they change it · P plan, one line, ✓ done → next, keep while steps are open · F focus, singular and replaced, keep
+while it is this turn's step · T task — worktree, branch, head, holder — keep while undone · Q question only the user
+can answer, keep while blocking · I idea, keep while a live option · D decision, keep while it steers live work. Promote
+a lasting decision to a DECISION card, then drop it here.
 
 Multi-repo: PLAN-PROJECT.connected_repos lists sibling repos (add_connected_repo / remove_connected_repo); pass repo: to
 any tool to read or write THAT plan. Cards never connect across plans. In a monorepo each package keeps its own plan
@@ -892,7 +896,8 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         'server uses its own working directory, so set "cwd" to the project if needed. ' +
         'In a monorepo, plans typically live at packages/<name>/constellation and are ' +
         'addressed with repo=<path or name>. Otherwise call init_plan (optionally with ' +
-        '{ path } pointing at the intended project root), or run `constellation init`.',
+        '{ path } pointing at the intended project root), or run `constellation init`. ' +
+        'The working_* tools need no plan — never init_plan just for working memory.',
     );
 
   /**
@@ -2814,6 +2819,40 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     throw err;
   }
 
+  /**
+   * Like withPlan, but working memory never reads a card, so a missing plan is
+   * not an error: with no `repo` it falls back to the git root of cwd. The
+   * anchor is null only outside git with no plan — reads say so quietly, writes
+   * fail NO_WORKING_ROOT. `repo` still selects a connected plan exactly as before.
+   */
+  function withWorking<A>(
+    handler: (anchor: WorkingAnchor | null, args: A) => Promise<ToolResult>,
+  ): (args: A) => Promise<ToolResult> {
+    return async (args: A) => {
+      const repo = (args as { repo?: string } | undefined)?.repo;
+      let plan: string | null = null;
+      if (repo) {
+        const target = await resolveTarget(repo);
+        if ('error' in target) return target.error;
+        plan = target.root;
+      } else {
+        plan = options.planRoot ?? null;
+      }
+      try {
+        return await handler(await resolveWorkingAnchor({ plan }), args);
+      } catch (err) {
+        if (err instanceof WorkingError) return workingFail(err);
+        return fail('INTERNAL', err instanceof Error ? err.message : String(err));
+      }
+    };
+  }
+
+  /** A write with nowhere to go: no plan and no git. */
+  function requireAnchor(anchor: WorkingAnchor | null): WorkingAnchor {
+    if (!anchor) throw noWorkingRoot(process.cwd());
+    return anchor;
+  }
+
   const workingTypeSchema = z
     .enum(['G', 'C', 'P', 'F', 'T', 'Q', 'I', 'D'])
     .describe('G goal · C constraint · P plan · F focus · T task · Q question · I idea · D decision');
@@ -2832,8 +2871,16 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .describe('"today" for today\'s log lines, or a number for the last N lines'),
       },
     },
-    withPlan(async (root, { log }: { log?: 'today' | number }) => {
-      const set = await readWorking(root);
+    withWorking(async (anchor, { log }: { log?: 'today' | number }) => {
+      if (!anchor) {
+        return ok({
+          exists: false,
+          path: null,
+          items: [],
+          hint: 'No git repository or plan here, so there is no working memory. Working memory needs a git repo (or a plan) to anchor .constellation/.',
+        });
+      }
+      const set = await readWorking(anchor);
       const payload: Record<string, unknown> = {
         exists: set.exists,
         path: set.path,
@@ -2845,7 +2892,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           'No working memory here yet. Call working_init to create .constellation/ (and pass hook: true to have every session start by printing it).';
         return ok(payload);
       }
-      if (log !== undefined) payload.log = await readLog(root, log);
+      if (log !== undefined) payload.log = await readLog(anchor, log);
       return ok(payload);
     }),
   );
@@ -2879,14 +2926,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .describe('batch them — several changes at once is one call'),
       },
     },
-    withPlan(async (root, { items }: { items: WorkingSetItem[] }) => {
-      try {
-        const result = await setItems(root, items);
-        return ok(result);
-      } catch (err) {
-        return workingFail(err);
-      }
-    }),
+    withWorking(async (anchor, { items }: { items: WorkingSetItem[] }) =>
+      ok(await setItems(requireAnchor(anchor), items)),
+    ),
   );
 
   server.registerTool(
@@ -2903,13 +2945,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .describe('why — logged as "- HH:MM drop T12, T13 — <reason>"'),
       },
     },
-    withPlan(async (root, { ids, reason }: { ids: string[]; reason?: string }) => {
-      try {
-        return ok(await dropItems(root, ids, reason));
-      } catch (err) {
-        return workingFail(err);
-      }
-    }),
+    withWorking(async (anchor, { ids, reason }: { ids: string[]; reason?: string }) =>
+      ok(await dropItems(requireAnchor(anchor), ids, reason)),
+    ),
   );
 
   server.registerTool(
@@ -2922,20 +2960,16 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         text: z.string().min(1).describe('one line; newlines are flattened'),
       },
     },
-    withPlan(async (root, { text }: { text: string }) => {
-      try {
-        return ok(await appendLog(root, text));
-      } catch (err) {
-        return workingFail(err);
-      }
-    }),
+    withWorking(async (anchor, { text }: { text: string }) =>
+      ok(await appendLog(requireAnchor(anchor), text)),
+    ),
   );
 
   server.registerTool(
     'working_init',
     {
       description:
-        'Create working memory for this plan: .constellation/ beside constellation/, with CLAUDE.md (the rules, committed), an empty working.md, a log/ folder, and the two .gitignore lines that keep the scratchpad local. Idempotent. hook: true also merges a SessionStart hook into .claude/settings.json so every session — including every compaction — starts by printing the set; that edits the user\'s settings, so ask first. Nothing here is a card: it is never indexed, linted, diffed or shown in the viewer.',
+        'Create working memory: .constellation/ beside constellation/ — or at the git root when the repo has no plan (never init_plan just for this) — with CLAUDE.md (the rules, committed), an empty working.md, a log/ folder, and the two .gitignore lines that keep the scratchpad local. Idempotent. hook: true also merges a SessionStart hook into .claude/settings.json so every session — including every compaction — starts by printing the set; that edits the user\'s settings, so ask first. Nothing here is a card: it is never indexed, linted, diffed or shown in the viewer.',
       inputSchema: {
         repo: repoSchema,
         hook: z
@@ -2944,16 +2978,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .describe('also install the SessionStart hook (default false — ask the user first)'),
       },
     },
-    withPlan(async (root, { hook }: { hook?: boolean }) => {
-      try {
-        const result = await initWorking(root, { hook });
-        return ok({
-          ...result,
-          next: 'Read .constellation/CLAUDE.md for the format, then working_set the goal and constraints already known in this session.',
-        });
-      } catch (err) {
-        return workingFail(err);
-      }
+    withWorking(async (anchor, { hook }: { hook?: boolean }) => {
+      const result = await initWorking(requireAnchor(anchor), { hook });
+      return ok({
+        ...result,
+        next: 'Read .constellation/CLAUDE.md for the format, then working_set the goal and constraints already known in this session.',
+      });
     }),
   );
 

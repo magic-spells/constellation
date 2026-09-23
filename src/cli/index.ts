@@ -238,20 +238,23 @@ program
   });
 
 // `working` is what the SessionStart hook runs, so it must be silent and exit 0
-// wherever there is nothing to print — a repo with no plan, or a plan with no
-// working folder. A hook that errors on every unrelated repo gets uninstalled.
+// wherever there is nothing to print — no working folder, or no plan and no git to
+// anchor one. A hook that errors on every unrelated repo gets uninstalled.
+// Working memory never reads a card: with no plan it anchors at the git root.
+const WORKING_PATH_HELP =
+  'plan folder, a directory containing constellation/, or any directory in a git repo (default: cwd)';
+
 const working = program
   .command('working')
-  .argument(
-    '[path]',
-    'plan folder, or a directory containing constellation/ (default: walk up from cwd)',
-  )
+  .argument('[path]', WORKING_PATH_HELP)
   .description('Print the working memory set (.constellation/working.md)')
   .action(async (target: string | null | undefined) => {
-    const root = await resolvePlanDir(target ?? undefined);
-    if (!root) return;
-    const { readWorkingRaw, workingPreamble } = await import('../core/working.js');
-    const found = await readWorkingRaw(root).catch(() => null);
+    const { readWorkingRaw, resolveWorkingAnchor, workingPreamble } = await import(
+      '../core/working.js'
+    );
+    const anchor = await resolveWorkingAnchor({ start: target ?? undefined }).catch(() => null);
+    if (!anchor) return;
+    const found = await readWorkingRaw(anchor).catch(() => null);
     if (!found) return;
     console.log(workingPreamble(found.path));
     console.log();
@@ -260,22 +263,19 @@ const working = program
 
 working
   .command('install-hook')
-  .argument(
-    '[path]',
-    'plan folder, or a directory containing constellation/ (default: walk up from cwd)',
-  )
+  .argument('[path]', WORKING_PATH_HELP)
   .description('Create .constellation/ and add the SessionStart hook to .claude/settings.json')
   .action(async (target: string | null | undefined) => {
-    const root = await resolvePlanDir(target ?? undefined);
-    if (!root) {
+    const { initWorking, resolveWorkingAnchor } = await import('../core/working.js');
+    const anchor = await resolveWorkingAnchor({ start: target ?? undefined });
+    if (!anchor) {
       console.error(
-        pc.red('No constellation/ folder found.') +
-          ' Run `constellation init` to create one.',
+        pc.red('No git repository or constellation/ plan found.') +
+          ' Working memory needs one of them to anchor .constellation/ — run `git init` first.',
       );
       process.exit(2);
     }
-    const { initWorking } = await import('../core/working.js');
-    const result = await initWorking(root, { hook: true });
+    const result = await initWorking(anchor, { hook: true });
     console.log(`${pc.green('✓')} Working memory at ${result.dir}`);
     for (const file of result.created) {
       console.log(pc.dim(`  created ${path.relative(process.cwd(), file)}`));

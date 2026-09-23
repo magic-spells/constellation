@@ -21,12 +21,16 @@ It also has to be invisible to everything that reads the plan — the index, lin
 
 A gitignored `.constellation/` folder at the plan's code root, sibling to
 `constellation/`, holding `working.md`, `log/YYYY-MM-DD.md` and a committed `CLAUDE.md`
-of rules. State lives in files, not in MCP process memory. A `SessionStart` hook
+of rules. In a repo with no plan it sits at the git root instead: working memory never
+reads a card and only borrowed the plan's location as its anchor, so requiring a plan was
+an accident. Outside git with no plan there is no stable anchor — reads are quiet and
+`working_init` / `install-hook` refuse (`NO_WORKING_ROOT`). State lives in files, not in
+MCP process memory. A `SessionStart` hook
 (matchers `startup|resume|compact|clear`) running `constellation working` prints it back
 into context; the tools are the ergonomics, the hook is the guarantee. IDs are per type
 (`G1`, `C3`, `T12`). Writes go through the existing in-process file lock plus an atomic
 temp-and-rename. The folder resolves through `git rev-parse --git-common-dir`, so every
-linked worktree shares the main checkout's one scratchpad.
+linked worktree shares the main checkout's one scratchpad — with or without a plan.
 
 ## Alternatives
 
