@@ -1,6 +1,6 @@
 ---
 name: v1.0.2 — working memory without a plan
-status: building
+status: built
 version: 1.0.2
 connections:
   - RELEASE-V1-0-1
@@ -10,7 +10,6 @@ connections:
   - DOC-MCP-SERVER
   - AGENT-GUIDANCE
 ---
-
 
 Theme: working memory no longer needs a plan.
 
