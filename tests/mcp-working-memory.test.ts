@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -199,5 +199,91 @@ describe('working memory over MCP', () => {
     expect(raw).toContain('<!-- a note somebody left -->');
     expect(raw).toContain('- T2 [3] and this');
     expect(raw.split('\n')[0]).toMatch(/^Updated \d{4}-\d\d-\d\d \d\d:\d\d · branch `main`/);
+  });
+
+  it('repo: still selects another plan for the working tools', async () => {
+    const other = await realpath(await mkdtemp(path.join(tmpdir(), 'constellation-working-other-')));
+    try {
+      await cp(GOLDEN, path.join(other, 'constellation'), { recursive: true });
+      await call('working_init', { repo: other });
+      await call('working_set', { repo: other, items: [{ type: 'T', text: 'over there' }] });
+      expect(
+        await readFile(path.join(other, '.constellation', 'working.md'), 'utf8'),
+      ).toContain('- T1 [3] over there');
+      expect((await call('working_list')).exists).toBe(false);
+    } finally {
+      await rm(other, { recursive: true, force: true });
+    }
+  });
+
+  it('repo: a path to a repo with no plan anchors at its git root', async () => {
+    const other = await realpath(await mkdtemp(path.join(tmpdir(), 'constellation-working-bare-')));
+    try {
+      execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: other });
+      const init = await call('working_init', { repo: other });
+      expect(init.dir).toBe(path.join(other, '.constellation'));
+      await call('working_set', { repo: other, items: [{ type: 'T', text: 'site work' }] });
+      const list = await call('working_list', { repo: other });
+      expect(list.items.map((i: { text: string }) => i.text)).toEqual(['site work']);
+      // A name that is neither a connected repo nor a directory still errors.
+      const unknown = await call('working_list', { repo: 'no-such-repo' });
+      expect(unknown.error.code).toBe('UNKNOWN_REPO');
+    } finally {
+      await rm(other, { recursive: true, force: true });
+    }
+  });
+});
+
+/* A server with no fixed plan resolves from cwd, like `constellation mcp` does. */
+describe('working memory over MCP without a plan', () => {
+  const home = process.cwd();
+  let dir: string;
+  let bareClient: Client;
+
+  async function bareCall(name: string, args: Record<string, unknown> = {}) {
+    const res = await bareClient.callTool({ name, arguments: args });
+    const content = res.content as Array<{ type: string; text: string }>;
+    return JSON.parse(content[0].text);
+  }
+
+  beforeEach(async () => {
+    dir = await realpath(await mkdtemp(path.join(tmpdir(), 'constellation-working-noplan-')));
+    process.chdir(dir);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await buildServer({}).connect(serverTransport);
+    bareClient = new Client({ name: 'test-client', version: '0.0.0' });
+    await bareClient.connect(clientTransport);
+  });
+
+  afterEach(async () => {
+    process.chdir(home);
+    await bareClient.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('works at the git root of a repo with no plan', async () => {
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir });
+    const init = await bareCall('working_init');
+    expect(init.dir).toBe(path.join(dir, '.constellation'));
+    await bareCall('working_set', { items: [{ type: 'G', text: 'ship the site' }] });
+    await bareCall('working_log', { text: 'started' });
+    const list = await bareCall('working_list', { log: 'today' });
+    expect(list.items.map((i: { text: string }) => i.text)).toEqual(['ship the site']);
+    expect(list.log).toEqual([expect.stringContaining('started')]);
+    // Card tools still need a plan, and their error says working memory does not.
+    const orient = await bareCall('orient');
+    expect(orient.error.code).toBe('NO_PLAN_FOUND');
+    expect(orient.error.message).toContain('working_* tools need no plan');
+  });
+
+  it('outside git, reads are quiet and writes explain what is missing', async () => {
+    const list = await bareCall('working_list');
+    expect(list.exists).toBe(false);
+    expect(list.error).toBeUndefined();
+    const init = await bareCall('working_init');
+    expect(init.error.code).toBe('NO_WORKING_ROOT');
+    expect(init.error.message).toContain('git repository or a Constellation plan');
+    const set = await bareCall('working_set', { items: [{ type: 'T', text: 'x' }] });
+    expect(set.error.code).toBe('NO_WORKING_ROOT');
   });
 });

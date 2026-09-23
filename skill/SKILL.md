@@ -155,7 +155,8 @@ Cards say what the system **is**. Working memory says what we are **doing about 
 week**. It is a gitignored `.constellation/working.md` beside the plan, one line per item,
 eight types with per-type IDs, edited by the `working_*` tools and echoed back into
 context after every compaction by a SessionStart hook. Full rules, the type definitions and
-the keep tests are in [`working-memory.md`](./working-memory.md); the short version:
+the keep tests are in [`working-memory.md`](./working-memory.md). It needs no plan — with
+none it sits at the git root, so never call `init_plan` just to get it. The short version:
 
 - **Infer it; nobody dictates it.** The user talks about the work; you hear the goal, the
   rule, the choice, the open question in what they say and record it in the same turn,

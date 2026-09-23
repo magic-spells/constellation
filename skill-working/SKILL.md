@@ -9,7 +9,7 @@ allowed-tools: Bash(npx --no-install constellation working:*)
 
 The current working-memory set, read from disk just now:
 
-!`npx --no-install constellation working 2>/dev/null || echo "(no .constellation/ folder here — call working_init to create one)"`
+!`npx --no-install constellation working 2>/dev/null | grep '' || echo "(no .constellation/ folder here — call working_init to create one)"`
 
 **No argument** (`/working`): print the block above verbatim in a fenced code block. Nothing
 else: no commentary, no suggestions, no summary. Do not call any tool.
