@@ -86,8 +86,8 @@ header is rewritten on every write; every other line is byte-preserved.
 ## Acceptance
 
 - The SessionStart hook prints the set at startup, resume, compact and clear; `orient`
-  returns the same `{header, items}` for MCP-only clients, and omits the key when the
-  folder does not exist.
+  returns the same `{header, items}` for MCP-only clients when a plan exists, and omits
+  the key when the folder does not exist.
 - `working_set` returns the allocated IDs and the new header; `working_drop` with a
   reason removes the lines and writes one log line.
 - `working_log` called from a linked worktree lands in the main checkout's log.

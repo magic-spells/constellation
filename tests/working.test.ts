@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -628,7 +628,10 @@ describe('without a plan', () => {
 
 describe('plans still resolve exactly as before', () => {
   it('a subfolder plan anchors at its code root from anywhere inside it', async () => {
-    const pkg = path.join(repo, 'packages', 'foo');
+    // The resolver realpaths its start (macOS /var → /private/var); compare in one spelling.
+    const real = await realpath(repo);
+    const planRoot = path.join(real, 'constellation');
+    const pkg = path.join(real, 'packages', 'foo');
     const pkgPlan = path.join(pkg, 'constellation');
     await mkdir(path.join(pkg, 'src'), { recursive: true });
     await mkdir(pkgPlan, { recursive: true });
@@ -642,7 +645,7 @@ describe('plans still resolve exactly as before', () => {
       expect(anchor.dir).toBe(expected);
     }
     // The repo root still finds its own plan, not the package's.
-    const rootAnchor = (await resolveWorkingAnchor({ start: repo }))!;
+    const rootAnchor = (await resolveWorkingAnchor({ start: real }))!;
     expect(rootAnchor.plan).toBe(planRoot);
     expect(rootAnchor.dir).toBe(await resolveWorkingDir(planRoot));
   });
@@ -663,23 +666,85 @@ describe('outside git with no plan', () => {
     await rm(loose, { recursive: true, force: true });
   });
 
+  function installHookFails(cwd: string): { status: number; stderr: string } {
+    try {
+      cli(cwd, 'working', 'install-hook');
+    } catch (err) {
+      const e = err as { status: number; stderr: string };
+      return { status: e.status, stderr: e.stderr };
+    }
+    return { status: 0, stderr: '' };
+  }
+
   it('has no anchor, so reads are quiet and init is refused', async () => {
     expect(await resolveWorkingAnchor({ start: loose })).toBeNull();
     expect(cli(loose, 'working')).toBe('');
 
-    let status = 0;
-    let stderr = '';
-    try {
-      cli(loose, 'working', 'install-hook');
-    } catch (err) {
-      const e = err as { status: number; stderr: string };
-      status = e.status;
-      stderr = e.stderr;
-    }
+    const { status, stderr } = installHookFails(loose);
     expect(status).toBe(2);
-    expect(stderr).toContain('No git repository or constellation/ plan found');
+    expect(stderr).toContain('No git repo or plan here to anchor .constellation/');
     await expect(
       readFile(path.join(loose, '.constellation', 'working.md'), 'utf8'),
     ).rejects.toThrow();
+  });
+
+  it('never climbs to an ancestor plan outside git', async () => {
+    // loose/constellation is a real plan; loose/site and loose/site/deep are not in git.
+    await mkdir(path.join(loose, 'constellation'), { recursive: true });
+    await writeFile(path.join(loose, 'constellation', 'plan.md'), '---\nname: Other\n---\n');
+    const site = path.join(loose, 'site');
+    const deep = path.join(site, 'deep');
+    await mkdir(deep, { recursive: true });
+
+    expect(await resolveWorkingAnchor({ start: site })).toBeNull();
+    expect(await resolveWorkingAnchor({ start: deep })).toBeNull();
+    expect(cli(deep, 'working')).toBe('');
+    expect(installHookFails(site).status).toBe(2);
+    expect(installHookFails(deep).status).toBe(2);
+    // Nothing was written anywhere up the tree.
+    for (const p of [
+      path.join(loose, '.constellation'),
+      path.join(loose, '.gitignore'),
+      path.join(loose, '.claude'),
+      path.join(site, '.constellation'),
+      path.join(site, '.gitignore'),
+      path.join(site, '.claude'),
+      path.join(deep, '.constellation'),
+    ]) {
+      await expect(readFile(p, 'utf8')).rejects.toThrow();
+    }
+  });
+
+  it('accepts only a directory holding plan.md as a plan', async () => {
+    const notAPlan = path.join(loose, 'a');
+    await mkdir(path.join(notAPlan, 'constellation'), { recursive: true });
+    expect(await resolveWorkingAnchor({ start: notAPlan })).toBeNull();
+    const fileNamed = path.join(loose, 'b');
+    await mkdir(fileNamed);
+    await writeFile(path.join(fileNamed, 'constellation'), 'not a folder\n');
+    expect(await resolveWorkingAnchor({ start: fileNamed })).toBeNull();
+
+    // An exact plan at the start directory still works without git.
+    const real = await realpath(loose);
+    await mkdir(path.join(real, 'c', 'constellation'), { recursive: true });
+    await writeFile(path.join(real, 'c', 'constellation', 'plan.md'), '---\nname: C\n---\n');
+    const anchor = (await resolveWorkingAnchor({ start: path.join(real, 'c') }))!;
+    expect(anchor.plan).toBe(path.join(real, 'c', 'constellation'));
+    expect(anchor.dir).toBe(path.join(real, 'c', '.constellation'));
+  });
+
+  it('resolves a symlinked start to one spelling', async () => {
+    const target = await realpath(await mkdtemp(path.join(tmpdir(), 'constellation-linked-')));
+    try {
+      git(target, 'init', '-q', '-b', 'main');
+      const link = path.join(loose, 'link');
+      await symlink(target, link);
+      const anchor = (await resolveWorkingAnchor({ start: link }))!;
+      expect(anchor.dir).toBe(path.join(target, '.constellation'));
+      expect(anchor.gitRoot).toBe(target);
+      expect(anchor.codeRoot).toBe(target);
+    } finally {
+      await rm(target, { recursive: true, force: true });
+    }
   });
 });

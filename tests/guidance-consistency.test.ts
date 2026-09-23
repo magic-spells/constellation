@@ -208,7 +208,7 @@ const RULES: Array<{ id: string; patterns: RegExp[]; in: readonly CopyName[] }> 
   {
     // Working memory never reads a card; an agent that inits a plan to get it litters the repo.
     id: 'working memory needs no plan',
-    patterns: [/needs no plan/i, /never call init_plan just to get it/i],
+    patterns: [/never call init_plan just to get it/i],
     in: ALL,
   },
   {

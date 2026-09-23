@@ -270,8 +270,7 @@ working
     const anchor = await resolveWorkingAnchor({ start: target ?? undefined });
     if (!anchor) {
       console.error(
-        pc.red('No git repository or constellation/ plan found.') +
-          ' Working memory needs one of them to anchor .constellation/ — run `git init` first.',
+        pc.red('No git repo or plan here to anchor .constellation/') + ' — run `git init` first.',
       );
       process.exit(2);
     }

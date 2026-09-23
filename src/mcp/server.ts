@@ -142,19 +142,19 @@ has commits newer than the card's. Commit the card together with the code; stale
 progress — expected, not drift to fix. set_verified is the explicit override, stamping verified_sha / verified_at as the
 baseline; never stamp dirty flags into cards — "what changed" is diff_plan / plan_log / git.
 
-Working memory (.constellation/ beside the plan — a session scratchpad, never a card: not indexed, linted, diffed or
-shown in the viewer) holds what we are DOING: read orient.working or working_list at session start and again right after
-every compaction, before acting on any summary — the summary is authoritative for the conversation, the set for state;
-where they disagree verify with git worktree list / git log -1. working_set the moment state changes, in the same turn:
-work dispatched or merged, a plan step finished, a decision made, a rule the user stated, a question only they can
-answer. working_drop with a reason is how you check something off — there is no status field — and the reason goes to
-the log, which is the history. Sub-agents only working_log; working_init creates the folder. It needs no plan — with
-none it sits at the git root, so never call init_plan just to get it. Ids are per type and lines are headlines (aim
-under 100 chars, ceiling 160): G goal, keep while undelivered and wanted · C constraint, the user's words verbatim, keep
-until they change it · P plan, one line, ✓ done → next, keep while steps are open · F focus, singular and replaced, keep
-while it is this turn's step · T task — worktree, branch, head, holder — keep while undone · Q question only the user
-can answer, keep while blocking · I idea, keep while a live option · D decision, keep while it steers live work. Promote
-a lasting decision to a DECISION card, then drop it here.
+Working memory (.constellation/ beside the plan, or at the git root with none — never call init_plan just to get it — a
+session scratchpad, never a card: not indexed, linted, diffed or shown in the viewer) holds what we are DOING: read
+orient.working or working_list at session start and again right after every compaction, before acting on any summary —
+the summary is authoritative for the conversation, the set for state; where they disagree verify with git worktree list
+/ git log -1. working_set the moment state changes, in the same turn: work dispatched or merged, a plan step finished, a
+decision made, a rule the user stated, a question only they can answer. working_drop with a reason is how you check
+something off — there is no status field — and the reason goes to the log, which is the history. Sub-agents only
+working_log; working_init creates the folder. Ids are per type and lines are headlines (aim under 100 chars, ceiling
+160): G goal, keep while undelivered and wanted · C constraint, the user's words verbatim, keep until they change it · P
+plan, one line, ✓ done → next, keep while steps are open · F focus, singular and replaced, keep while it is this turn's
+step · T task — worktree, branch, head, holder — keep while undone · Q question only the user can answer, keep while
+blocking · I idea, keep while a live option · D decision, keep while it steers live work. Promote a lasting decision to
+a DECISION card, then drop it here.
 
 Multi-repo: PLAN-PROJECT.connected_repos lists sibling repos (add_connected_repo / remove_connected_repo); pass repo: to
 any tool to read or write THAT plan. Cards never connect across plans. In a monorepo each package keeps its own plan
@@ -2830,16 +2830,23 @@ export function buildServer(options: ServerOptions = {}): McpServer {
   ): (args: A) => Promise<ToolResult> {
     return async (args: A) => {
       const repo = (args as { repo?: string } | undefined)?.repo;
-      let plan: string | null = null;
+      let plan: string | null = options.planRoot ?? null;
+      let start: string | undefined;
       if (repo) {
         const target = await resolveTarget(repo);
-        if ('error' in target) return target.error;
-        plan = target.root;
-      } else {
-        plan = options.planRoot ?? null;
+        if ('error' in target) {
+          // A path to a directory with no plan still anchors at its git root.
+          const dir = path.resolve(process.cwd(), repo);
+          const isDir = await stat(dir).then((st) => st.isDirectory(), () => false);
+          if (!isDir) return target.error;
+          plan = null;
+          start = dir;
+        } else {
+          plan = target.root;
+        }
       }
       try {
-        return await handler(await resolveWorkingAnchor({ plan }), args);
+        return await handler(await resolveWorkingAnchor({ plan, start }), args);
       } catch (err) {
         if (err instanceof WorkingError) return workingFail(err);
         return fail('INTERNAL', err instanceof Error ? err.message : String(err));
@@ -2877,7 +2884,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           exists: false,
           path: null,
           items: [],
-          hint: 'No git repository or plan here, so there is no working memory. Working memory needs a git repo (or a plan) to anchor .constellation/.',
+          hint: 'No git repo or plan here to anchor .constellation/, so no working memory.',
         });
       }
       const set = await readWorking(anchor);

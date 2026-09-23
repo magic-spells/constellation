@@ -215,6 +215,23 @@ describe('working memory over MCP', () => {
       await rm(other, { recursive: true, force: true });
     }
   });
+
+  it('repo: a path to a repo with no plan anchors at its git root', async () => {
+    const other = await realpath(await mkdtemp(path.join(tmpdir(), 'constellation-working-bare-')));
+    try {
+      execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: other });
+      const init = await call('working_init', { repo: other });
+      expect(init.dir).toBe(path.join(other, '.constellation'));
+      await call('working_set', { repo: other, items: [{ type: 'T', text: 'site work' }] });
+      const list = await call('working_list', { repo: other });
+      expect(list.items.map((i: { text: string }) => i.text)).toEqual(['site work']);
+      // A name that is neither a connected repo nor a directory still errors.
+      const unknown = await call('working_list', { repo: 'no-such-repo' });
+      expect(unknown.error.code).toBe('UNKNOWN_REPO');
+    } finally {
+      await rm(other, { recursive: true, force: true });
+    }
+  });
 });
 
 /* A server with no fixed plan resolves from cwd, like `constellation mcp` does. */

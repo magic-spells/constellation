@@ -5,12 +5,14 @@ import {
   mkdir,
   readFile,
   readdir,
+  realpath,
+  stat,
 } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { currentBranch, headSha, planRootsFor } from './git.js';
 import { codeRootFor } from './repos.js';
-import { findPlanUp, resolvePlanDir } from './resolve.js';
+import { findPlanUp, findRepoRoot, resolvePlanDir } from './resolve.js';
 import { workingClaudeMd } from './scaffold.js';
 import { withFileLock, writeAtomic } from './writer.js';
 
@@ -207,18 +209,36 @@ export async function anchorForRepo(start: string): Promise<WorkingAnchor | null
   };
 }
 
+/** A plan candidate counts only as a real directory holding plan.md. */
+async function realPlan(candidate: string | null): Promise<string | null> {
+  if (!candidate) return null;
+  try {
+    if (!(await stat(candidate)).isDirectory()) return null;
+    return (await stat(path.join(candidate, 'plan.md'))).isFile() ? candidate : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The one resolver MCP and the CLI share. A known plan (the MCP home plan or a
- * `repo` selection) wins; otherwise `start` (default cwd) is tried as a plan
- * path, then walked up for one within its repo, then anchored at its git root.
- * Null only outside git with no plan.
+ * `repo` selection) wins; otherwise `start` (default cwd) is tried as an exact
+ * plan path, then — inside git only — walked up for one within its repo, then
+ * anchored at its git root. Null only outside git with no exact plan.
+ *
+ * Outside git nothing climbs: findPlanUp is unbounded without a `.git` above,
+ * and would adopt any ancestor's `constellation/` — then write a .gitignore and
+ * a hook into somebody else's tree.
  */
 export async function resolveWorkingAnchor(
   opts: { plan?: string | null; start?: string } = {},
 ): Promise<WorkingAnchor | null> {
   if (opts.plan) return anchorForPlan(opts.plan);
-  const from = path.resolve(opts.start ?? process.cwd());
-  const plan = (opts.start ? await resolvePlanDir(from) : null) ?? (await findPlanUp(from));
+  const resolved = path.resolve(opts.start ?? process.cwd());
+  // One spelling for every path below, so withFileLock keys match across callers.
+  const from = await realpath(resolved).catch(() => resolved);
+  let plan = await realPlan(await resolvePlanDir(from));
+  if (!plan && (await findRepoRoot(from))) plan = await realPlan(await findPlanUp(from));
   if (plan) return anchorForPlan(plan);
   return anchorForRepo(from);
 }
