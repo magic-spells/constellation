@@ -5,18 +5,22 @@ import {
   mkdir,
   readFile,
   readdir,
+  realpath,
+  stat,
 } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { currentBranch, headSha, planRootsFor } from './git.js';
 import { codeRootFor } from './repos.js';
+import { findPlanUp, findRepoRoot, resolvePlanDir } from './resolve.js';
 import { workingClaudeMd } from './scaffold.js';
 import { withFileLock, writeAtomic } from './writer.js';
 
 const exec = promisify(execFile);
 
 /**
- * Working memory — the session scratchpad that lives beside the plan, not in it.
+ * Working memory — the session scratchpad that lives beside the plan, not in it
+ * (or at the git root when the repo has no plan: it never reads a card).
  *
  * Cards are durable architecture; this is what we are doing about it this week:
  * what is in flight, in which worktree, held by which agent, what waits on the
@@ -99,6 +103,14 @@ export class WorkingError extends Error {
   }
 }
 
+/** Outside git with no plan there is nothing to anchor the folder to. */
+export function noWorkingRoot(from: string): WorkingError {
+  return new WorkingError(
+    'NO_WORKING_ROOT',
+    `Working memory needs a git repository or a Constellation plan; found neither at or above ${from}.`,
+  );
+}
+
 function noFolder(dir: string): WorkingError {
   return new WorkingError(
     'NO_WORKING_FOLDER',
@@ -138,6 +150,103 @@ export async function resolveWorkingDir(planRoot: string): Promise<string> {
   }
 }
 
+/**
+ * Where working memory lives and where its two tracked files go. Resolved once
+ * per call by `resolveWorkingAnchor` (or `anchorForPlan`); every read and write
+ * below takes one. A plan root string is accepted too and resolved as a plan.
+ */
+export interface WorkingAnchor {
+  /** The `.constellation/` folder — always in the MAIN checkout. */
+  dir: string;
+  /** Where `.gitignore` gets its two lines: the code root of the calling checkout. */
+  codeRoot: string;
+  /** Where `.claude/settings.json` goes: the git root of the calling checkout. */
+  gitRoot: string;
+  /** Directory the git header fields (branch, head) are read from. */
+  from: string;
+  /** The plan it was resolved through, or null when anchored at the git root. */
+  plan: string | null;
+}
+
+export type WorkingTarget = WorkingAnchor | string;
+
+/** Today's resolution, unchanged: the folder beside a plan, through the main checkout. */
+export async function anchorForPlan(planRoot: string): Promise<WorkingAnchor> {
+  const dir = await resolveWorkingDir(planRoot);
+  const codeRoot = await codeRootFor(planRoot);
+  let gitRoot = codeRoot;
+  try {
+    gitRoot = (await planRootsFor(planRoot)).gitRoot;
+  } catch {
+    gitRoot = codeRoot;
+  }
+  return { dir, codeRoot, gitRoot, from: planRoot, plan: planRoot };
+}
+
+/**
+ * No plan: anchor at the git root of `start`, through `--git-common-dir` so a
+ * linked worktree shares the main checkout's folder (the same rule as a plan).
+ * Null outside git — there is no stable place to put it.
+ */
+export async function anchorForRepo(start: string): Promise<WorkingAnchor | null> {
+  let gitRoot: string;
+  let common: string;
+  try {
+    gitRoot = (await exec('git', ['rev-parse', '--show-toplevel'], { cwd: start })).stdout.trim();
+    common = (await exec('git', ['rev-parse', '--git-common-dir'], { cwd: start })).stdout.trim();
+  } catch {
+    return null;
+  }
+  if (!gitRoot) return null;
+  const commonDir = common ? path.resolve(start, common) : '';
+  const mainRoot = path.basename(commonDir) === '.git' ? path.dirname(commonDir) : gitRoot;
+  return {
+    dir: path.join(mainRoot, WORKING_DIR),
+    codeRoot: gitRoot,
+    gitRoot,
+    from: gitRoot,
+    plan: null,
+  };
+}
+
+/** A plan candidate counts only as a real directory holding plan.md. */
+async function realPlan(candidate: string | null): Promise<string | null> {
+  if (!candidate) return null;
+  try {
+    if (!(await stat(candidate)).isDirectory()) return null;
+    return (await stat(path.join(candidate, 'plan.md'))).isFile() ? candidate : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The one resolver MCP and the CLI share. A known plan (the MCP home plan or a
+ * `repo` selection) wins; otherwise `start` (default cwd) is tried as an exact
+ * plan path, then — inside git only — walked up for one within its repo, then
+ * anchored at its git root. Null only outside git with no exact plan.
+ *
+ * Outside git nothing climbs: findPlanUp is unbounded without a `.git` above,
+ * and would adopt any ancestor's `constellation/` — then write a .gitignore and
+ * a hook into somebody else's tree.
+ */
+export async function resolveWorkingAnchor(
+  opts: { plan?: string | null; start?: string } = {},
+): Promise<WorkingAnchor | null> {
+  if (opts.plan) return anchorForPlan(opts.plan);
+  const resolved = path.resolve(opts.start ?? process.cwd());
+  // One spelling for every path below, so withFileLock keys match across callers.
+  const from = await realpath(resolved).catch(() => resolved);
+  let plan = await realPlan(await resolvePlanDir(from));
+  if (!plan && (await findRepoRoot(from))) plan = await realPlan(await findPlanUp(from));
+  if (plan) return anchorForPlan(plan);
+  return anchorForRepo(from);
+}
+
+async function toAnchor(target: WorkingTarget): Promise<WorkingAnchor> {
+  return typeof target === 'string' ? anchorForPlan(target) : target;
+}
+
 export interface WorkingPaths {
   dir: string;
   file: string;
@@ -145,8 +254,8 @@ export interface WorkingPaths {
   exists: boolean;
 }
 
-export async function workingPaths(planRoot: string): Promise<WorkingPaths> {
-  const dir = await resolveWorkingDir(planRoot);
+export async function workingPaths(target: WorkingTarget): Promise<WorkingPaths> {
+  const { dir } = await toAnchor(target);
   let exists = true;
   try {
     await access(dir);
@@ -377,8 +486,8 @@ async function readDoc(file: string): Promise<WorkingDoc> {
 }
 
 /** The live set. `exists: false` when the folder was never created. */
-export async function readWorking(planRoot: string): Promise<WorkingSet> {
-  const paths = await workingPaths(planRoot);
+export async function readWorking(target: WorkingTarget): Promise<WorkingSet> {
+  const paths = await workingPaths(target);
   if (!paths.exists) {
     return {
       exists: false,
@@ -392,11 +501,11 @@ export async function readWorking(planRoot: string): Promise<WorkingSet> {
 }
 
 /** `working.md` exactly as it sits on disk, or null when there is no folder. */
-export async function readWorkingRaw(planRoot: string): Promise<{
+export async function readWorkingRaw(target: WorkingTarget): Promise<{
   path: string;
   text: string;
 } | null> {
-  const paths = await workingPaths(planRoot);
+  const paths = await workingPaths(target);
   if (!paths.exists) return null;
   try {
     return { path: paths.file, text: await readFile(paths.file, 'utf8') };
@@ -413,10 +522,10 @@ function logPathFor(logDir: string, day = localDay()): string {
 
 /** Append one `- HH:MM …` line to today's log, creating the file and folder. */
 export async function appendLog(
-  planRoot: string,
+  target: WorkingTarget,
   text: string,
 ): Promise<{ path: string }> {
-  const paths = await workingPaths(planRoot);
+  const paths = await workingPaths(target);
   if (!paths.exists) throw noFolder(paths.dir);
   return appendLogAt(paths.logDir, text);
 }
@@ -437,10 +546,10 @@ async function appendLogAt(logDir: string, text: string): Promise<{ path: string
  * without knowing which days it spans.
  */
 export async function readLog(
-  planRoot: string,
+  target: WorkingTarget,
   spec: 'today' | number,
 ): Promise<string[]> {
-  const paths = await workingPaths(planRoot);
+  const paths = await workingPaths(target);
   if (!paths.exists) throw noFolder(paths.dir);
   let files: string[];
   try {
@@ -466,17 +575,17 @@ export async function readLog(
 /* ── writes ─────────────────────────────────────────────────────────────── */
 
 async function freshHeaderFields(
-  planRoot: string,
+  from: string,
 ): Promise<{ updated: string; branch: string | null; head: string | null }> {
   let branch: string | null = null;
   let head: string | null = null;
   try {
-    branch = await currentBranch(planRoot);
+    branch = await currentBranch(from);
   } catch {
     branch = null;
   }
   try {
-    head = (await headSha(planRoot)).slice(0, 7);
+    head = (await headSha(from)).slice(0, 7);
   } catch {
     head = null;
   }
@@ -517,12 +626,13 @@ function validateText(text: string): string {
  * supposed to be the history.
  */
 async function mutate<T>(
-  planRoot: string,
+  target: WorkingTarget,
   fn: (doc: WorkingDoc) => Promise<T> | T,
 ): Promise<{ result: T; header: WorkingHeader; doc: WorkingDoc; logDir: string }> {
-  const paths = await workingPaths(planRoot);
+  const anchor = await toAnchor(target);
+  const paths = await workingPaths(anchor);
   if (!paths.exists) throw noFolder(paths.dir);
-  const fields = await freshHeaderFields(planRoot);
+  const fields = await freshHeaderFields(anchor.from);
   return withFileLock(paths.file, async () => {
     const doc = await readDoc(paths.file);
     const result = await fn(doc);
@@ -546,7 +656,7 @@ export interface WorkingSetResult {
  * create, so the id keeps meaning what it said.
  */
 export async function setItems(
-  planRoot: string,
+  target: WorkingTarget,
   items: WorkingSetItem[],
 ): Promise<WorkingSetResult> {
   if (!Array.isArray(items) || items.length === 0) {
@@ -555,7 +665,7 @@ export async function setItems(
   const superseded: string[] = [];
   const supersedeLogs: string[] = [];
 
-  const { result, header, logDir } = await mutate(planRoot, async (doc) => {
+  const { result, header, logDir } = await mutate(target, async (doc) => {
     const byId = new Map<string, { line: Line; section: Section }>();
     for (const section of doc.sections) {
       for (const line of section.lines) {
@@ -663,7 +773,7 @@ export interface WorkingDropResult {
 
 /** Remove items. With a reason, the drop is logged — that is the history. */
 export async function dropItems(
-  planRoot: string,
+  target: WorkingTarget,
   ids: string[],
   reason?: string,
 ): Promise<WorkingDropResult> {
@@ -677,7 +787,7 @@ export async function dropItems(
     }
   }
 
-  const { result, header, logDir } = await mutate(planRoot, async (doc) => {
+  const { result, header, logDir } = await mutate(target, async (doc) => {
     const present = new Set(docItems(doc).map((i) => i.id));
     const missing = wanted.filter((id) => !present.has(id));
     if (missing.length > 0) {
@@ -726,8 +836,8 @@ async function fileExists(file: string): Promise<boolean> {
 }
 
 /** The starting `working.md`: a header and nothing to read yet. */
-async function emptyWorkingFile(planRoot: string): Promise<string> {
-  const fields = await freshHeaderFields(planRoot);
+async function emptyWorkingFile(from: string): Promise<string> {
+  const fields = await freshHeaderFields(from);
   return `${serializeHeader({ ...fields, next: emptyCounters() })}\n`;
 }
 
@@ -738,22 +848,16 @@ async function emptyWorkingFile(planRoot: string): Promise<string> {
  * invasive enough to be asked for, and it is reported either way.
  */
 export async function initWorking(
-  planRoot: string,
+  target: WorkingTarget,
   opts: { hook?: boolean } = {},
 ): Promise<WorkingInitResult> {
-  // The scratchpad resolves through the MAIN checkout (one per plan), but the two
-  // TRACKED files do not: .gitignore and .claude/settings.json belong to the
-  // checkout this call was made from, or a worktree would silently edit main's
+  // The scratchpad resolves through the MAIN checkout (one per plan or repo), but
+  // the two TRACKED files do not: .gitignore and .claude/settings.json belong to
+  // the checkout this call was made from, or a worktree would silently edit main's
   // files. .gitignore sits at the code root (it ignores a sibling of the plan);
   // settings.json sits at the git root, which is where Claude Code reads it.
-  const dir = await resolveWorkingDir(planRoot);
-  const codeRoot = await codeRootFor(planRoot);
-  let gitRoot = codeRoot;
-  try {
-    gitRoot = (await planRootsFor(planRoot)).gitRoot;
-  } catch {
-    gitRoot = codeRoot;
-  }
+  // Without a plan both are the calling checkout's git root.
+  const { dir, codeRoot, gitRoot, from } = await toAnchor(target);
   const created: string[] = [];
 
   await mkdir(dir, { recursive: true });
@@ -767,7 +871,7 @@ export async function initWorking(
 
   const workingFile = path.join(dir, WORKING_FILE);
   if (!(await fileExists(workingFile))) {
-    await writeAtomic(workingFile, await emptyWorkingFile(planRoot));
+    await writeAtomic(workingFile, await emptyWorkingFile(from));
     created.push(workingFile);
   }
 

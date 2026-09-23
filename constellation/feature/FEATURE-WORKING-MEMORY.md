@@ -22,8 +22,16 @@ notes:
       SKILL_PAYLOADS and skillDestination(target, payload); a target counts as "current" only when
       EVERY payload is present at this version, so an upgrade that adds a skill folder cannot read
       as up to date, and a symlink at either destination skips the whole target rather than
-      half-installing it. package.json files: gained "skill-working". For a print with no model
-      turn at all the user runs `! npx constellation working`.
+      half-installing it. package.json files: gained "skill-working". For a print with no model turn
+      at all the user runs `! npx constellation working`.
+  - kind: decision
+    text: >-
+      1.0.2: working memory no longer needs a plan. One resolver (resolveWorkingAnchor in
+      src/core/working.ts) serves MCP and CLI: a plan found by walk-up or `repo` resolves exactly as
+      before; no plan inside git anchors at the git root via --git-common-dir (worktrees share
+      main's folder; .gitignore and .claude/settings.json go in the calling checkout); no plan and
+      no git → reads quiet, init fails NO_WORKING_ROOT. Agents must not init_plan just to get
+      working memory.
 release: RELEASE-V1-0-0
 ---
 
@@ -78,8 +86,8 @@ header is rewritten on every write; every other line is byte-preserved.
 ## Acceptance
 
 - The SessionStart hook prints the set at startup, resume, compact and clear; `orient`
-  returns the same `{header, items}` for MCP-only clients, and omits the key when the
-  folder does not exist.
+  returns the same `{header, items}` for MCP-only clients when a plan exists, and omits
+  the key when the folder does not exist.
 - `working_set` returns the allocated IDs and the new header; `working_drop` with a
   reason removes the lines and writes one log line.
 - `working_log` called from a linked worktree lands in the main checkout's log.

@@ -66,7 +66,8 @@ writes, and git-powered change tracking over a plan folder. It is a thin layer o
 [[FILE-MCP-SERVER]] + `src/core/`: every tool call reloads the index from disk (tens of ms at
 realistic sizes), so it is always correct while files are edited in parallel — no watcher, no
 cache invalidation. Bootstrap is folder discovery, bounded by the repo root ([[FILE-RESOLVE]]);
-a repo with no plan returns `NO_PLAN_FOUND`. The agent-facing INSTRUCTIONS string is embedded
+a repo with no plan returns `NO_PLAN_FOUND`, except from the `working_*` tools, which never
+read a card and anchor at the git root instead. The agent-facing INSTRUCTIONS string is embedded
 in the server — one of three guidance copies, capped at 68 lines because every session pays
 for it, and held in step with the other two by `tests/guidance-consistency.test.ts`. See
 [[AGENT-GUIDANCE]]. That constant is static; the handshake string is not. On boot the server

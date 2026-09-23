@@ -1,6 +1,6 @@
 ---
 name: v1.0.1 — MCP review fixes
-status: building
+status: built
 version: 1.0.1
 connections:
   - RELEASE-V1-0-0
@@ -9,7 +9,6 @@ connections:
   - FILE-GIT
   - DOC-MCP-SERVER
 ---
-
 
 Theme: close the agent-facing holes found reviewing 1.0.0.
 
