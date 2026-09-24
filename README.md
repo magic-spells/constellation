@@ -1,5 +1,7 @@
 # Constellation
 
+![The Constellation viewer showing a plan's compiled documentation](.github/readme/viewer-docs.webp)
+
 Your project's architecture plan as markdown files in the repo: typed cards,
 connected into a graph, validated by lint, diffed by git, readable by humans on
 GitHub and by AI agents with nothing more than file access.
