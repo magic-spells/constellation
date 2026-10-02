@@ -269,12 +269,16 @@
  * The same values appear again in the @media print block below, which covers
  * printing any route from the app itself. A media query and an attribute cannot
  * share one declaration list, so the two are kept side by side deliberately:
- * change them together. `[data-scheme]` is in the second selector only to
- * outrank the scheme blocks in schemes.css whatever the source order.
+ * change them together. The `[data-scheme]` / `[data-theme]` selectors are there
+ * only to outrank the scheme and medium-mode blocks whatever the source order.
  */
 :root[data-paper],
-:root[data-scheme][data-paper] {
-	color-scheme: light;
+:root[data-scheme][data-paper],
+:root[data-theme][data-paper] {
+	/* !important: appearance.js writes color-scheme INLINE on <html> for every
+	   explicit mode, and a dark inline value would resolve every light-dark()
+	   pair below to its dark half. */
+	color-scheme: light !important;
 	--color-ink: #000;
 	--color-body: #1c1c1c;
 	--color-muted: #555;
@@ -290,6 +294,38 @@
 	/* Links stay a colour so they read as references, not emphasis. */
 	--color-brand: #1a4fa0;
 	--color-brand-tint: #eef2fa;
+	/* Every literal a medium-mode block sets, back to the pieces light values,
+	   so paper never inherits a dusk tint, well or shadow. */
+	--color-surface-raised: #fff;
+	--color-surface-base: #fff;
+	--color-brand-dark: #13397a;
+	--color-brand-on-tint: #1a4fa0;
+	--color-danger: #d11f1f;
+	--color-danger-dark: #a41616;
+	--color-danger-tint: #fdecec;
+	--color-danger-ink: #fff;
+	--color-danger-on-tint: #a41616;
+	--color-success: #0f7a3d;
+	--color-success-tint: #e6f6ec;
+	--color-warning: #a45300;
+	--color-warning-tint: #fdf3e2;
+	--color-border-dashed: #767e8f;
+	--color-ring: #1a4fa0;
+	--color-bar-ink: #000;
+	--color-bar-muted: #555;
+	--color-bar-hover: #f5f5f5;
+	--color-bar-line: #ddd;
+	--color-shadow-contact: rgb(15 23 42 / 0.07);
+	--color-well: rgb(15 23 42 / 0.035);
+	--color-well-strong: rgb(15 23 42 / 0.05);
+	--color-well-deep: rgb(15 23 42 / 0.06);
+	--color-well-deepest: rgb(15 23 42 / 0.1);
+	--color-shadow-soft: rgb(15 23 42 / 0.05);
+	--color-shadow-glow: rgb(15 23 42 / 0.07);
+	--color-shadow-drop: rgb(15 23 42 / 0.14);
+	--color-shadow-popover: rgb(15 23 42 / 0.18);
+	--color-shadow-inset: rgb(15 23 42 / 0);
+	--color-text-shadow: transparent;
 }
 
 /* Observatory's starfield is a scheme flourish, and paper has no sky. */
@@ -323,11 +359,14 @@
 	 * tokens is the only fix that covers every scheme and mode: flipping
 	 * color-scheme alone would not undo a medium block's literal values or a
 	 * scheme's own light half (Observatory's daybreak greys are not paper
-	 * white). The `[data-scheme]` half outranks the scheme blocks.
+	 * white). The attribute selectors outrank the scheme and medium blocks.
 	 */
 	:root,
-	:root[data-scheme] {
-		color-scheme: light;
+	:root[data-scheme],
+	:root[data-theme],
+	:root[data-scheme][data-theme] {
+		/* !important for the same inline color-scheme as the paper block. */
+		color-scheme: light !important;
 		--color-ink: #000;
 		--color-body: #1c1c1c;
 		--color-muted: #555;
@@ -343,6 +382,38 @@
 		/* Links stay a colour so they read as references, not emphasis. */
 		--color-brand: #1a4fa0;
 		--color-brand-tint: #eef2fa;
+		/* Every literal a medium-mode block sets, back to the pieces light values,
+		   so paper never inherits a dusk tint, well or shadow. */
+		--color-surface-raised: #fff;
+		--color-surface-base: #fff;
+		--color-brand-dark: #13397a;
+		--color-brand-on-tint: #1a4fa0;
+		--color-danger: #d11f1f;
+		--color-danger-dark: #a41616;
+		--color-danger-tint: #fdecec;
+		--color-danger-ink: #fff;
+		--color-danger-on-tint: #a41616;
+		--color-success: #0f7a3d;
+		--color-success-tint: #e6f6ec;
+		--color-warning: #a45300;
+		--color-warning-tint: #fdf3e2;
+		--color-border-dashed: #767e8f;
+		--color-ring: #1a4fa0;
+		--color-bar-ink: #000;
+		--color-bar-muted: #555;
+		--color-bar-hover: #f5f5f5;
+		--color-bar-line: #ddd;
+		--color-shadow-contact: rgb(15 23 42 / 0.07);
+		--color-well: rgb(15 23 42 / 0.035);
+		--color-well-strong: rgb(15 23 42 / 0.05);
+		--color-well-deep: rgb(15 23 42 / 0.06);
+		--color-well-deepest: rgb(15 23 42 / 0.1);
+		--color-shadow-soft: rgb(15 23 42 / 0.05);
+		--color-shadow-glow: rgb(15 23 42 / 0.07);
+		--color-shadow-drop: rgb(15 23 42 / 0.14);
+		--color-shadow-popover: rgb(15 23 42 / 0.18);
+		--color-shadow-inset: rgb(15 23 42 / 0);
+		--color-text-shadow: transparent;
 	}
 
 	html,

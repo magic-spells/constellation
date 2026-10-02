@@ -10,8 +10,9 @@
     stored scheme + mode land before first paint (no flash). Local edits:
     `observatory` is in SCHEMES and is the default scheme, and the two keys the
     old ThemeControls wrote (`constellation-scheme`, `constellation-theme`) are
-    migrated once into the one JSON key appearance.js reads. Keep SCHEMES in step
-    with app/lib/appearance.js.
+    migrated once into the one JSON key appearance.js reads. The defaults paint
+    before storage is read, and a junk stored value is validated and rewritten.
+    Keep SCHEMES in step with app/lib/appearance.js.
   -->
   <script data-key="constellation:appearance" data-default-scheme="observatory">
     (function () {
@@ -24,6 +25,22 @@
       var key = attr('data-key') || 'puzzle:appearance';
       window.__puzzleAppearance = { key: key, scheme: attr('data-default-scheme'), mode: attr('data-default-mode') };
       var root = document.documentElement;
+      var fallbackScheme = SCHEMES.indexOf(attr('data-default-scheme')) !== -1 ? attr('data-default-scheme') : 'default';
+      var fallbackMode = MODES.indexOf(attr('data-default-mode')) !== -1 ? attr('data-default-mode') : null;
+      // Paint the defaults FIRST, so storage that throws or holds junk still
+      // gets Observatory rather than the bare pieces palette until boot().
+      var paint = function (scheme, mode) {
+        if (scheme !== 'default') root.setAttribute('data-scheme', scheme);
+        else root.removeAttribute('data-scheme');
+        if (mode) {
+          root.setAttribute('data-theme', mode);
+          root.style.colorScheme = mode === 'light' ? 'light' : 'dark';
+        } else {
+          root.removeAttribute('data-theme');
+          root.style.colorScheme = '';
+        }
+      };
+      paint(fallbackScheme, fallbackMode);
       try {
         var raw = localStorage.getItem(key);
         // Migration from the pre-1.1 ThemeControls: two plain-string keys. An
@@ -33,7 +50,7 @@
           var oldTheme = localStorage.getItem('constellation-theme');
           if (oldScheme !== null || oldTheme !== null) {
             raw = JSON.stringify({
-              scheme: SCHEMES.indexOf(oldScheme) !== -1 ? oldScheme : attr('data-default-scheme'),
+              scheme: SCHEMES.indexOf(oldScheme) !== -1 ? oldScheme : fallbackScheme,
               mode: oldTheme === 'light' || oldTheme === 'dark' ? oldTheme : null,
             });
             localStorage.setItem(key, raw);
@@ -41,20 +58,34 @@
             localStorage.removeItem('constellation-theme');
           }
         }
-        var pick = JSON.parse(raw || 'null') || {};
-        var scheme = pick.scheme || pick.theme || attr('data-default-scheme');
+        if (raw === null) return;
+        // Validate the way appearance.js read() does: a known scheme (a stored
+        // `theme` field counts), a known mode (`mixed` reads as medium), and an
+        // explicit `mode: null` meaning "follow the OS". Anything else is junk,
+        // and junk is rewritten so it cannot repaint the wrong scheme next load.
+        var pick = null;
+        try {
+          pick = JSON.parse(raw);
+        } catch (e) {
+          pick = null;
+        }
+        var valid = !!pick && typeof pick === 'object' && !Array.isArray(pick);
+        if (!valid) pick = {};
+        var scheme = SCHEMES.indexOf(pick.scheme) !== -1 ? pick.scheme : SCHEMES.indexOf(pick.theme) !== -1 ? pick.theme : null;
+        if (!scheme) {
+          valid = false;
+          scheme = fallbackScheme;
+        }
         var mode = pick.mode === 'mixed' ? 'medium' : pick.mode;
         if (pick.mode === null) mode = null;
-        else if (MODES.indexOf(mode) === -1) mode = attr('data-default-mode');
-        if (SCHEMES.indexOf(scheme) !== -1 && scheme !== 'default') {
-          root.setAttribute('data-scheme', scheme);
+        else if (MODES.indexOf(mode) === -1) {
+          if (mode !== undefined) valid = false;
+          mode = fallbackMode;
         }
-        if (MODES.indexOf(mode) !== -1) {
-          root.setAttribute('data-theme', mode);
-          root.style.colorScheme = mode === 'light' ? 'light' : 'dark';
-        }
+        if (!valid) localStorage.setItem(key, JSON.stringify({ scheme: scheme, mode: mode }));
+        paint(scheme, mode);
       } catch (e) {
-        /* storage unavailable — appearance.boot() sorts the attributes out */
+        /* storage unavailable — the defaults above stand */
       }
     })();
   </script>

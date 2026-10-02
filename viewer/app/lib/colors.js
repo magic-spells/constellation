@@ -57,23 +57,25 @@ export function cssVar(name, fallback = '') {
 }
 
 let probe = null;
-let pixel = null;
 
-/** Resolve any CSS color string to hex by painting it onto a 1×1 canvas. */
-function rasterHex(color) {
-  if (!color) return '';
-  try {
-    pixel ??= document.createElement('canvas').getContext('2d', { willReadFrequently: true });
-    if (!pixel) return '';
-    pixel.clearRect(0, 0, 1, 1);
-    pixel.fillStyle = '#000';
-    pixel.fillStyle = color;
-    pixel.fillRect(0, 0, 1, 1);
-    const [r, g, b] = pixel.getImageData(0, 0, 1, 1).data;
-    return toHex([r, g, b]);
-  } catch {
-    return '';
+/**
+ * Parse a computed colour the probe can hand back: `rgb()`/`rgba()` (0–255
+ * channels) or `color(srgb r g b)` (0–1 channels). Anything else is null.
+ */
+function computedHex(value) {
+  const rgb = /^rgba?\(([^)]+)\)$/.exec(value);
+  if (rgb) {
+    const parts = rgb[1].split(/[\s,/]+/).filter(Boolean).slice(0, 3).map(Number);
+    return parts.length === 3 && parts.every(Number.isFinite) ? toHex(parts) : null;
   }
+  const srgb = /^color\(srgb\s+([^)]+)\)$/.exec(value);
+  if (srgb) {
+    const parts = srgb[1].split(/[\s/]+/).filter(Boolean).slice(0, 3).map(Number);
+    return parts.length === 3 && parts.every(Number.isFinite)
+      ? toHex(parts.map((v) => Math.round(Math.min(1, Math.max(0, v)) * 255)))
+      : null;
+  }
+  return null;
 }
 
 /**
@@ -107,14 +109,13 @@ export function cssColor(name, fallback = '') {
   }
   probe.style.color = '';
   probe.style.color = `var(${name})`;
-  const computed = getComputedStyle(probe).color;
-  const m = /^rgba?\(([^)]+)\)$/.exec(computed);
+  const direct = computedHex(getComputedStyle(probe).color);
+  if (direct) return direct;
   // A `color-mix()` token (Observatory's derived shell and medium values)
-  // computes to `oklab(…)` / `color(srgb …)`, not `rgb()`. A canvas speaks
-  // every CSS color syntax, so paint one pixel with it and read the bytes back.
-  if (!m) return rasterHex(computed) || computed || fallback;
-  const parts = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
-  return parts.length >= 3 && parts.slice(0, 3).every(Number.isFinite)
-    ? toHex(parts.slice(0, 3))
-    : fallback;
+  // computes in its own space (`oklab(…)`), which the parser above can't read.
+  // Mixing the token with itself in srgb is the same colour, and computes to a
+  // parseable `color(srgb r g b)` — no canvas, so no fingerprinting noise.
+  probe.style.color = '';
+  probe.style.color = `color-mix(in srgb, var(${name}), var(${name}))`;
+  return computedHex(getComputedStyle(probe).color) || fallback;
 }
