@@ -57,6 +57,24 @@ export function cssVar(name, fallback = '') {
 }
 
 let probe = null;
+let pixel = null;
+
+/** Resolve any CSS color string to hex by painting it onto a 1×1 canvas. */
+function rasterHex(color) {
+  if (!color) return '';
+  try {
+    pixel ??= document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    if (!pixel) return '';
+    pixel.clearRect(0, 0, 1, 1);
+    pixel.fillStyle = '#000';
+    pixel.fillStyle = color;
+    pixel.fillRect(0, 0, 1, 1);
+    const [r, g, b] = pixel.getImageData(0, 0, 1, 1).data;
+    return toHex([r, g, b]);
+  } catch {
+    return '';
+  }
+}
 
 /**
  * Read a CSS custom property and hand back a *usable* color.
@@ -91,7 +109,10 @@ export function cssColor(name, fallback = '') {
   probe.style.color = `var(${name})`;
   const computed = getComputedStyle(probe).color;
   const m = /^rgba?\(([^)]+)\)$/.exec(computed);
-  if (!m) return computed || fallback;
+  // A `color-mix()` token (Observatory's derived shell and medium values)
+  // computes to `oklab(…)` / `color(srgb …)`, not `rgb()`. A canvas speaks
+  // every CSS color syntax, so paint one pixel with it and read the bytes back.
+  if (!m) return rasterHex(computed) || computed || fallback;
   const parts = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
   return parts.length >= 3 && parts.slice(0, 3).every(Number.isFinite)
     ? toHex(parts.slice(0, 3))

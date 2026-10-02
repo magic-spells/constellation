@@ -1,14 +1,14 @@
 <puzzle-view>
-  <div class="contents" @input={ onQuery(event) }>
-    <Command
-      open={ open }
-      items={ items }
-      label="Command palette"
-      placeholder="Search cards, pages and actions…"
-      emptyText="Nothing matches that."
-      @select={ run }
-      @close={ close }/>
-  </div>
+  <Command
+    open={ open }
+    morphSource={ morphSource }
+    items={ items }
+    label="Command palette"
+    placeholder="Search cards, pages and actions…"
+    emptyText="Nothing matches that."
+    @input={ onQuery }
+    @select={ run }
+    @close={ close }/>
 </puzzle-view>
 
 <script>
@@ -16,10 +16,10 @@ import { PuzzleView } from '@magic-spells/puzzle';
 import Command from './ui/Command.pzl';
 import { planIndex } from '../lib/plan-index.js';
 import { GROUPS, hrefForHandle, TYPE_META } from '../lib/types.js';
-import { schemes, getScheme, setScheme } from '../lib/theme.js';
+import { SCHEMES, current as currentAppearance, set as setAppearance } from '../lib/appearance.js';
 
 // CommandPalette — everything in the plan, one ⌘K away: every card (grouped by
-// type), the four standing pages, and the five schemes.
+// type), the standing pages, and the five schemes.
 //
 // CONTROLLED BY THE SHELL. AppShell owns `open` (it binds the global hotkey and
 // the topbar's Search button) and this component owns what is IN the palette.
@@ -27,18 +27,20 @@ import { schemes, getScheme, setScheme } from '../lib/theme.js';
 // filtering — see components/ui/Command.pzl.
 //
 // Props
-//   open   whether the dialog is showing
+//   open         whether the dialog is showing
+//   morphSource  the element the palette grows out of (the header's search
+//                button when it was clicked); defaults to the
+//                `[data-morph-source="search"]` selector, which is what ⌘K uses.
+//                Command skips the morph under prefers-reduced-motion.
 // Callbacks
 //   @close()  asked for on Escape, a backdrop click, or any activation
 //
-// WHY WE MIRROR THE QUERY. Command filters internally and never reports the
-// query out, so the "at most 8 rows per type" cap could not be applied to the
-// items we hand it — capping an unfiltered list would make the 9th API card
-// permanently unsearchable. Instead we listen for the input event bubbling out
-// of the dialog (it is a plain DOM child of this root), filter the cards
-// ourselves with the same substring rule Command uses, and cap each type at
-// PER_GROUP. Command then re-filters a list that already matches, which is a
-// no-op, and does the ranking and grouping.
+// WHY WE MIRROR THE QUERY. The "at most 8 rows per type" cap can't be applied
+// to an unfiltered list — capping it would make the 9th API card permanently
+// unsearchable. So Command reports each keystroke through `@input`, we filter
+// the cards ourselves with the same substring rule Command uses, and cap each
+// type at PER_GROUP. Command then re-filters a list that already matches, which
+// is a no-op, and does the ranking and grouping.
 //
 // Item values are `kind:arg` strings so one `select` handler covers all three
 // kinds of row; a card's label is its name with the handle as the right-hand
@@ -46,6 +48,10 @@ import { schemes, getScheme, setScheme } from '../lib/theme.js';
 // matches a card whose name says nothing of the sort.
 
 const PER_GROUP = 8;
+
+// The header's search button carries this attribute (layouts/AppShell.pzl). It
+// is the morph's fallback source when no clicked element is handed over (⌘K).
+const SEARCH_SOURCE = '[data-morph-source="search"]';
 
 const PAGES = [
 	{ path: '/', label: 'Overview' },
@@ -113,18 +119,18 @@ export default class CommandPalette extends PuzzleView {
 			}
 		}
 
-		const scheme = getScheme();
-		for (const option of schemes()) {
+		const scheme = currentAppearance().scheme;
+		for (const option of SCHEMES) {
 			items.push({
-				value: `scheme:${option.id}`,
+				value: `scheme:${option.value}`,
 				label: option.label,
 				group: 'Scheme',
-				hint: option.id === scheme ? 'Active' : '',
-				keywords: ['scheme', 'theme', 'palette', option.id],
+				hint: option.value === scheme ? 'Active' : '',
+				keywords: ['scheme', 'theme', 'palette', 'appearance', option.value],
 			});
 		}
 
-		return { open, items };
+		return { open, items, morphSource: props.morphSource || SEARCH_SOURCE };
 	}
 
 	_matches(card, q) {
@@ -150,11 +156,9 @@ export default class CommandPalette extends PuzzleView {
 	}
 
 	events = {
-		onQuery: (event) => {
-			const target = event.target;
-			if (!target || target.tagName !== 'INPUT') return;
-			if (this.getData().query === target.value) return;
-			this.setData('query', target.value);
+		onQuery: (query) => {
+			if (this.getData().query === query) return;
+			this.setData('query', query);
 			this.refresh();
 		},
 
@@ -170,7 +174,7 @@ export default class CommandPalette extends PuzzleView {
 
 			if (kind === 'card') this.ctx.router.push(hrefForHandle(arg));
 			else if (kind === 'page') this.ctx.router.push(arg);
-			else if (kind === 'scheme') setScheme(arg);
+			else if (kind === 'scheme') setAppearance({ scheme: arg });
 		},
 
 		close: () => this.props.close?.(),

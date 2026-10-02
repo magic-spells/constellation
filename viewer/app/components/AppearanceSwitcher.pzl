@@ -1,0 +1,135 @@
+<puzzle-view>
+  <!-- The wrapper paints nothing; it is the "inside" the two dismiss modifiers
+       measure against (Escape while focus is within, pointerdown anywhere else). -->
+  <div class="relative" @keydown:escape={ close } @pointerdown:outside={ close }>
+    <button
+      type="button"
+      ref="trigger"
+      class={ triggerClass }
+      aria-haspopup="dialog"
+      aria-expanded={ open ? 'true' : 'false' }
+      aria-controls={ panelId }
+      title="Appearance — scheme and mode"
+      @click={ toggle }>
+      <!-- The dot is the current palette's accent: `data-scheme` scopes it. -->
+      <span class="size-2.5 shrink-0 rounded-full bg-brand ring-1 ring-border" data-scheme={ scheme } aria-hidden="true"></span>
+      <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3a9 9 0 1 0 9 9c0-1.1-.9-2-2-2h-1.2a2 2 0 0 1-1.8-2.8l.4-.9A2.4 2.4 0 0 0 14.2 3H12z"/>
+        <path d="M8.5 7.5h.01M13.5 6.5h.01M17.5 11.5h.01"/>
+      </svg>
+      <span class="sr-only">Appearance: { schemeLabel }, { modeLabel }</span>
+    </button>
+
+    {#if open}
+      <!-- NOT A MODAL — the point is watching the app repaint behind it, so a
+           click on the page closes it AND reaches the page. Fixed to the gutter
+           on a phone; anchored under the trigger from sm up. -->
+      <section
+        id={ panelId }
+        ref="panel"
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby={ titleId }
+        tabindex="-1"
+        class="fixed inset-x-4 top-16 z-50 max-h-appearance-h overflow-y-auto rounded-xl border border-border bg-surface-raised p-4 text-body shadow-popover outline-none sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-appearance">
+        <header class="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h2 id={ titleId } class="text-sm font-semibold text-ink">Appearance</h2>
+            <p class="mt-0.5 text-xs text-muted">{ schemeLabel } · { modeLabel }</p>
+          </div>
+          <button
+            type="button"
+            aria-label="Close"
+            class="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-sunken hover:text-ink outline-ring focus-visible:outline-2"
+            @click={ close }>
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </header>
+        <AppearancePicker schemes={ schemes } scheme={ scheme } mode={ mode } schemeLegend="Scheme" @change={ applyChoice }/>
+      </section>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import AppearancePicker from './ui/AppearancePicker.pzl';
+import { MODES, SCHEMES, current, set, subscribe } from '../lib/appearance.js';
+
+// AppearanceSwitcher — the header's appearance trigger, opening the
+// AppearancePicker piece in a popover. It replaces 1.0's ThemeControls (a
+// scheme Select plus a system/light/dark toggle): the picker covers both axes,
+// adds pieces 0.8's third mode (medium), and previews every scheme as a live
+// miniature of the shell.
+//
+// The picker is controlled; this view wires it to lib/appearance.js — `set()`
+// writes <html>'s attributes, persists, and notifies — and re-renders from
+// `current()` on every notification (another tab's change, or an OS flip while
+// the mode follows the system). Adapted from the pieces demo's
+// AppearanceSwitcher, which parks the same popover at the rail's foot.
+let uid = 0;
+
+const SCHEME_CARDS = SCHEMES.map(({ value, label }) => ({ value, label }));
+
+// Painted with the panel's roles, not the bar's: the header sits inside the
+// work panel, so this is a panel control like the search beside it.
+const TRIGGER =
+  'flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-2 text-muted transition-colors ' +
+  'hover:bg-surface-sunken hover:text-ink outline-ring focus-visible:outline-2 focus-visible:outline-offset-2';
+// Held while the popover is up. Exactly one of the two, never base + override:
+// two same-specificity utilities resolve by stylesheet order, not class order.
+const TRIGGER_IDLE = '';
+const TRIGGER_OPEN = 'bg-surface-sunken text-ink';
+
+export default class AppearanceSwitcher extends PuzzleView {
+  _id = `appearance-${++uid}`;
+
+  data() {
+    const live = current();
+    const scheme = SCHEMES.find((s) => s.value === live.scheme) || SCHEMES[0];
+    const mode = live.mode === null ? null : MODES.find((m) => m.value === live.mode) || null;
+    const open = !!this.getData()?.open;
+    return {
+      open,
+      panelId: `${this._id}-panel`,
+      titleId: `${this._id}-title`,
+      triggerClass: [TRIGGER, open ? TRIGGER_OPEN : TRIGGER_IDLE].join(' '),
+      // Labels only: the registry descriptions are a paragraph each, and five
+      // cards of prose push the mode switch out of a header popover. They stay
+      // on SCHEMES for the palette and anything else that wants them.
+      schemes: SCHEME_CARDS,
+      scheme: scheme.value,
+      mode: live.mode,
+      schemeLabel: scheme.label,
+      modeLabel: mode ? mode.label : 'System',
+    };
+  }
+
+  mounted() {
+    this._unsubscribe = subscribe(() => this.refresh());
+  }
+
+  destroyed() {
+    this._unsubscribe?.();
+    this._unsubscribe = null;
+  }
+
+  events = {
+    toggle: () => {
+      const open = !this.getData().open;
+      this.setData({ open });
+      this.refresh();
+      if (open) requestAnimationFrame(() => this.refs.panel?.focus());
+    },
+    close: () => {
+      if (!this.getData().open) return;
+      this.setData({ open: false });
+      this.refresh();
+      this.refs.trigger?.focus();
+    },
+    applyChoice: (choice) => set(choice),
+  };
+}
+</script>

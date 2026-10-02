@@ -1,11 +1,15 @@
 @import 'tailwindcss';
 
-/* puzzle-pieces design tokens (the `default` scheme) — copied in by
-   `puzzle add piece`. Must come after the Tailwind import. */
+/* puzzle-pieces design tokens (the `default` scheme) and the three other
+   pieces palettes — registry copies, refreshed with `puzzle add theme`. Must
+   come after the Tailwind import. */
 @import './pieces.css';
+@import './themes/dim.css';
+@import './themes/warm.css';
+@import './themes/void.css';
 
-/* Palette overrides per `data-scheme` (observatory is the default) + the 21
-   card-type hues. */
+/* Observatory — Constellation's own palette and the default scheme — plus the
+   21 card-type hues. */
 @import './schemes.css';
 
 /* Bundled Inter + the sans/display stacks it fills. */
@@ -23,6 +27,23 @@
 @theme {
 	/* Old viewer's mono stack, kept for the handle/code typography. */
 	--font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+
+	/* Shell geometry (layouts/AppShell.pzl). The work panel stands off the
+	   window by one inset on the right and bottom and rounds those corners; its
+	   top runs to the window edge, where the in-panel header sits. */
+	--spacing-panel-inset: 0.75rem;
+	--radius-panel: 0.875rem;
+
+	/* Command palette (components/ui/Command.pzl): its top edge hangs just under
+	   the window top, so it grows out of the header's search field in place,
+	   and its list stops at 60% of the viewport. */
+	--spacing-palette-top: 0.5rem;
+	--spacing-palette-list: 60vh;
+
+	/* The appearance popover (components/AppearanceSwitcher.pzl): its width,
+	   and a height cap that keeps it inside the window under the header. */
+	--spacing-appearance: 22rem;
+	--spacing-appearance-h: calc(100dvh - 5rem);
 }
 
 @layer base {
@@ -30,22 +51,37 @@
 	 * Tailwind v4 prunes `@theme` variables that no generated utility references,
 	 * so a token nothing has styled with yet (`--color-success`, the chart slots)
 	 * would be missing from `:root` in the DEFAULT scheme while every
-	 * `data-scheme` block in schemes.css still declares it — an invisible
-	 * scheme-dependent hole for anything reading tokens through
-	 * `getComputedStyle` (the canvas graph, mermaid tinting). Referencing the
-	 * whole palette once keeps it emitted whole.
+	 * `data-scheme` block still declares it — an invisible scheme-dependent
+	 * hole for anything reading tokens through `getComputedStyle` (the canvas
+	 * graph, mermaid tinting) or through an alias. Referencing all 71 pieces
+	 * tokens once keeps the palette emitted whole.
 	 */
 	:root {
 		--palette-guard:
-			var(--color-ink) var(--color-body) var(--color-muted) var(--color-faint)
+			var(--color-ink) var(--color-body) var(--color-muted) var(--color-faint) var(--color-label-ink)
 			var(--color-page) var(--color-surface) var(--color-surface-sunken)
+			var(--color-surface-raised) var(--color-surface-base)
 			var(--color-brand) var(--color-brand-dark) var(--color-brand-tint) var(--color-brand-ink)
+			var(--color-brand-on-tint)
 			var(--color-danger) var(--color-danger-dark) var(--color-danger-tint) var(--color-danger-ink)
+			var(--color-danger-on-tint)
 			var(--color-success) var(--color-success-tint)
 			var(--color-warning) var(--color-warning-tint)
+			var(--color-border) var(--color-border-strong) var(--color-border-dashed) var(--color-ring)
 			var(--color-chart-1) var(--color-chart-2) var(--color-chart-3) var(--color-chart-4)
 			var(--color-chart-5) var(--color-chart-6) var(--color-chart-7) var(--color-chart-8)
-			var(--color-border) var(--color-border-strong) var(--color-ring);
+			var(--color-surface-frame) var(--color-frame-light) var(--color-bar) var(--color-bar-ink)
+			var(--color-bar-muted) var(--color-bar-hover) var(--color-bar-line)
+			var(--color-surface-panel) var(--color-surface-card)
+			var(--color-rail) var(--color-rail-ink) var(--color-rail-muted) var(--color-rail-active)
+			var(--color-rail-edge) var(--color-edge-highlight) var(--color-edge-highlight-strong)
+			var(--color-panel-edge) var(--color-shadow-contact)
+			var(--color-well) var(--color-well-strong) var(--color-well-deep) var(--color-well-deepest)
+			var(--color-scrim) var(--color-scrim-strong) var(--color-shadow-soft) var(--color-shadow-glow)
+			var(--color-shadow-drop) var(--color-shadow-popover) var(--color-shadow-inset)
+			var(--color-text-shadow)
+			var(--shadow-float) var(--shadow-contact) var(--shadow-panel) var(--shadow-card)
+			var(--shadow-popover);
 	}
 
 	body {
@@ -165,30 +201,55 @@
 /*
  * COLLAPSED RAIL.
  *
- * Collapsed, the sidebar is a single column of icons, so everything in it has
- * to be the same 3rem square on the same centre line — the nav rows get there
- * via their own padding (Sidebar's `rowPad`), and the brand tile has to match
- * or it reads as a different kind of control sitting slightly off-axis.
- *
- * The brand lives in a consumer-owned header slot, so Sidebar can't style it;
- * it publishes `data-collapsed` on the nav instead and the slot reacts here.
- * Expanded, the tile stays 2rem with the brand text beside it.
+ * The brand tile sits on the nav icons' centre line (1.875rem, half the
+ * collapsed rail) in both states, so collapsing only has to drop the label. The
+ * brand lives in a consumer-owned header slot, so Sidebar can't style it; our
+ * copy publishes `data-collapsed` on the nav and the slot reacts here.
  */
-[data-collapsed='true'] .cnav-brand {
-	justify-content: center;
-	padding-left: 0.5rem;
-	padding-right: 0.5rem;
-}
-
-[data-collapsed='true'] .cnav-brand-tile {
-	width: 3rem;
-	height: 3rem;
-}
-
-/* Not opacity: the label is a flex item, and a transparent one still takes
-   width and shoves the tile off centre. */
 [data-collapsed='true'] .cnav-brand-label {
-	display: none;
+	opacity: 0;
+}
+
+/*
+ * THE COMMAND PALETTE'S SCRIM (components/ui/Command.pzl).
+ *
+ * An element, not ::backdrop: the palette morphs out of the header's search
+ * button, and for most of that flight the <dialog> is still closed (the morph
+ * blob cannot paint over the native top layer), so there is no ::backdrop to
+ * fade. One fixed element is one continuous surface across the flight and the
+ * modal phase.
+ *
+ * backdrop-filter has to be transitioned explicitly — Chrome otherwise applies
+ * the blur at full strength whatever the element's opacity — and a transition
+ * needs both ends written in the same property, which Tailwind's composed
+ * `--tw-backdrop-*` utilities can't give it. Hence hand-written.
+ */
+.ui-palette-backdrop {
+	opacity: 0;
+	pointer-events: none;
+	-webkit-backdrop-filter: blur(0) saturate(1);
+	backdrop-filter: blur(0) saturate(1);
+	transition:
+		opacity 260ms ease-out,
+		-webkit-backdrop-filter 260ms ease-out,
+		backdrop-filter 260ms ease-out;
+}
+
+.ui-palette-backdrop[data-visible] {
+	opacity: 1;
+	pointer-events: auto;
+	-webkit-backdrop-filter: blur(4px) saturate(1.15);
+	backdrop-filter: blur(4px) saturate(1.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	/* No flight, so no long fade to cover it — a short crossfade, not a snap. */
+	.ui-palette-backdrop {
+		transition:
+			opacity 100ms linear,
+			-webkit-backdrop-filter 100ms linear,
+			backdrop-filter 100ms linear;
+	}
 }
 
 /*
@@ -221,6 +282,9 @@
 	--color-page: #fff;
 	--color-surface: #fff;
 	--color-surface-sunken: #f5f5f5;
+	--color-surface-panel: #fff;
+	--color-surface-frame: #fff;
+	--color-surface-card: #fff;
 	--color-border: #ddd;
 	--color-border-strong: #bbb;
 	/* Links stay a colour so they read as references, not emphasis. */
@@ -256,10 +320,10 @@
 
 	/*
 	 * Paper is white, whatever the app is wearing. Redeclaring the semantic
-	 * tokens is the only fix that covers every scheme: observatory (the default)
-	 * is dark on BOTH halves of its light-dark() pairs, so flipping color-scheme
-	 * would leave white ink on white paper. The `[data-scheme]` half matches the
-	 * specificity of the scheme blocks in schemes.css and wins by coming later.
+	 * tokens is the only fix that covers every scheme and mode: flipping
+	 * color-scheme alone would not undo a medium block's literal values or a
+	 * scheme's own light half (Observatory's daybreak greys are not paper
+	 * white). The `[data-scheme]` half outranks the scheme blocks.
 	 */
 	:root,
 	:root[data-scheme] {
@@ -271,6 +335,9 @@
 		--color-page: #fff;
 		--color-surface: #fff;
 		--color-surface-sunken: #f5f5f5;
+		--color-surface-panel: #fff;
+		--color-surface-frame: #fff;
+		--color-surface-card: #fff;
 		--color-border: #ddd;
 		--color-border-strong: #bbb;
 		/* Links stay a colour so they read as references, not emphasis. */

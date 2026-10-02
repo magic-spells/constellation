@@ -5,16 +5,57 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
   <title>Constellation</title>
-  <script>
-    // Apply the saved scheme + theme before first paint to avoid a flash.
-    // Observatory is the default scheme; theme is unset ("system") unless chosen.
+  <!--
+    Pre-paint: puzzle-pieces 0.8 `registry/theme/pre-paint.js`, inlined so the
+    stored scheme + mode land before first paint (no flash). Local edits:
+    `observatory` is in SCHEMES and is the default scheme, and the two keys the
+    old ThemeControls wrote (`constellation-scheme`, `constellation-theme`) are
+    migrated once into the one JSON key appearance.js reads. Keep SCHEMES in step
+    with app/lib/appearance.js.
+  -->
+  <script data-key="constellation:appearance" data-default-scheme="observatory">
     (function () {
+      var SCHEMES = ['observatory', 'default', 'dim', 'warm', 'void'];
+      var MODES = ['light', 'medium', 'dark'];
+      var script = document.currentScript;
+      var attr = function (name) {
+        return script ? script.getAttribute(name) : null;
+      };
+      var key = attr('data-key') || 'puzzle:appearance';
+      window.__puzzleAppearance = { key: key, scheme: attr('data-default-scheme'), mode: attr('data-default-mode') };
+      var root = document.documentElement;
       try {
-        var scheme = localStorage.getItem('constellation-scheme') || 'observatory';
-        var theme = localStorage.getItem('constellation-theme'); // 'light' | 'dark' | null (system)
-        document.documentElement.dataset.scheme = scheme;
-        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
-      } catch (e) {}
+        var raw = localStorage.getItem(key);
+        // Migration from the pre-1.1 ThemeControls: two plain-string keys. An
+        // absent theme meant "follow the OS", which is mode: null here.
+        if (raw === null) {
+          var oldScheme = localStorage.getItem('constellation-scheme');
+          var oldTheme = localStorage.getItem('constellation-theme');
+          if (oldScheme !== null || oldTheme !== null) {
+            raw = JSON.stringify({
+              scheme: SCHEMES.indexOf(oldScheme) !== -1 ? oldScheme : attr('data-default-scheme'),
+              mode: oldTheme === 'light' || oldTheme === 'dark' ? oldTheme : null,
+            });
+            localStorage.setItem(key, raw);
+            localStorage.removeItem('constellation-scheme');
+            localStorage.removeItem('constellation-theme');
+          }
+        }
+        var pick = JSON.parse(raw || 'null') || {};
+        var scheme = pick.scheme || pick.theme || attr('data-default-scheme');
+        var mode = pick.mode === 'mixed' ? 'medium' : pick.mode;
+        if (pick.mode === null) mode = null;
+        else if (MODES.indexOf(mode) === -1) mode = attr('data-default-mode');
+        if (SCHEMES.indexOf(scheme) !== -1 && scheme !== 'default') {
+          root.setAttribute('data-scheme', scheme);
+        }
+        if (MODES.indexOf(mode) !== -1) {
+          root.setAttribute('data-theme', mode);
+          root.style.colorScheme = mode === 'light' ? 'light' : 'dark';
+        }
+      } catch (e) {
+        /* storage unavailable — appearance.boot() sorts the attributes out */
+      }
     })();
   </script>
   <!-- Relative asset paths so the bundle works when served from a sub-path. -->

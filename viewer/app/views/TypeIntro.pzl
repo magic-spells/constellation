@@ -15,6 +15,7 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import { planIndex } from '../lib/plan-index.js';
 import { TYPE_META, typeForFolder } from '../lib/types.js';
+import { isNarrow } from '../lib/narrow.js';
 
 // TypeIntro — what `/:folder` shows in the detail pane. A non-empty type never
 // actually shows it: picking a type auto-selects its first card (replace(), so
@@ -23,7 +24,9 @@ import { TYPE_META, typeForFolder } from '../lib/types.js';
 // matches the CardList's ordering, so the selected row is the top row.
 //
 // The list itself is AppShell's CardList, not this view — this is only the
-// right-hand half of the split.
+// right-hand half of the split. Below md the shell shows the list ALONE on a
+// folder route, so there the auto-select stands down: jumping to the first
+// card would hide the list the reader came to pick from.
 
 export default class TypeIntro extends PuzzleView {
 	data(params) {
@@ -61,7 +64,7 @@ export default class TypeIntro extends PuzzleView {
 
 	_openFirst() {
 		const { firstHandle, folder } = this.getData();
-		if (firstHandle) this.ctx.router.replace(`/${folder}/${firstHandle}`);
+		if (firstHandle && !isNarrow()) this.ctx.router.replace(`/${folder}/${firstHandle}`);
 	}
 }
 </script>

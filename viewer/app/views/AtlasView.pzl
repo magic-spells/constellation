@@ -109,7 +109,7 @@ import { extractFlowSteps } from '../lib/markdown.js';
 import { planIndex } from '../lib/plan-index.js';
 import { loadAtlasConfig, loadAtlasMetrics } from '../lib/api.js';
 import { hrefForHandle } from '../lib/types.js';
-import { onThemeChange } from '../lib/theme.js';
+import { subscribe as onThemeChange } from '../lib/appearance.js';
 import { buildScene } from '../lib/atlas-scene.js';
 import { LENSES, lensModel, normalizeLens } from '../lib/atlas-lenses.js';
 import { atlasPalette } from '../lib/atlas-palette.js';
@@ -889,7 +889,7 @@ export default class AtlasView extends PuzzleView {
   overflow: hidden;
   cursor: grab;
   touch-action: none;
-  background: var(--color-page);
+  background: var(--color-surface-panel);
 }
 
 .atlas:active {
