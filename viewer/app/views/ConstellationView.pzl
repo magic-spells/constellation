@@ -70,7 +70,7 @@
           <strong>{ focusedCard.displayName }</strong>
           <span class="cn-panel-handle">{ focusedCard.handle }</span>
           {#if focusedCard.status}<span class="cn-panel-status">{ focusedCard.status }</span>{/if}
-          <a href="{ focusedCard.href | link }">Open card →</a>
+          <a href="{ link(focusedCard.href) }">Open card →</a>
         </div>
       {/if}
     {/if}

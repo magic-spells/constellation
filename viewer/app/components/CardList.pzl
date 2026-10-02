@@ -13,7 +13,7 @@
 
       <div class="min-h-0 flex-1 overflow-auto p-2">
         {#for row in rows}
-          <a key={ row.handle } class={ row.class } href="{ row.path | link }" aria-current={ row.current }>
+          <a key={ row.handle } class={ row.class } href="{ link(row.path) }" aria-current={ row.current }>
             <span class="flex min-w-0 flex-1 flex-col gap-px">
               <span class="clist-name truncate text-sm text-ink">{ row.name }</span>
               <span class="clist-handle truncate font-mono text-[0.68rem] text-faint">{ row.handle }</span>

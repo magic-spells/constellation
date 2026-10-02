@@ -32,16 +32,20 @@ import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-// The puzzle repo went monorepo and its compiler moved under packages/puzzle;
-// try that first, then the pre-monorepo layout, so either checkout compiles.
-const PUZZLE_CANDIDATES = [
-	path.resolve(import.meta.dirname, '../../../puzzle/packages/puzzle'),
-	path.resolve(import.meta.dirname, '../../../puzzle'),
-];
-const PUZZLE_REPO =
-	process.env.PUZZLE_REPO ||
-	PUZZLE_CANDIDATES.find((dir) => existsSync(path.join(dir, 'compiler/cmd/pzlc'))) ||
-	PUZZLE_CANDIDATES[1];
+// The puzzle checkout is a sibling of this repo, in one of three layouts
+// (current monorepo nested one level, the first monorepo, pre-monorepo). Walk
+// up from here so a git worktree under .claude/worktrees/ finds it too.
+const LAYOUTS = ['puzzle/puzzle/packages/puzzle', 'puzzle/packages/puzzle', 'puzzle'];
+function findPuzzleRepo() {
+	for (let dir = import.meta.dirname; ; dir = path.dirname(dir)) {
+		for (const layout of LAYOUTS) {
+			const candidate = path.join(dir, layout);
+			if (existsSync(path.join(candidate, 'compiler/cmd/pzlc'))) return candidate;
+		}
+		if (path.dirname(dir) === dir) return path.resolve(import.meta.dirname, '../../../puzzle');
+	}
+}
+const PUZZLE_REPO = process.env.PUZZLE_REPO || findPuzzleRepo();
 
 const SUFFIX = '.pzl.js';
 

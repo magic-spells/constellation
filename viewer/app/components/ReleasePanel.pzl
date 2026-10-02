@@ -36,7 +36,7 @@
                       <ul class="rel-features">
                         {#for f in group.items}
                           <li key={ f.handle }>
-                            <a href="{ f.path | link }">{ f.name }</a>
+                            <a href="{ link(f.path) }">{ f.name }</a>
                             <Badge variant={ f.statusVariant } class={ f.statusTint }>{ f.status }</Badge>
                           </li>
                         {/for}
@@ -46,7 +46,7 @@
                 {:else}
                   <p class="panel-empty">No FEATURE cards target this release yet.</p>
                 {/if}
-                <a class="rel-open" href="{ r.path | link }">Open { r.handle } →</a>
+                <a class="rel-open" href="{ link(r.path) }">Open { r.handle } →</a>
               </div>
             {/if}
           </li>

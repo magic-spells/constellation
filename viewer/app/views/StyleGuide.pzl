@@ -10,7 +10,7 @@
     {:else}
       {#for entry in cards}
         <section key={ entry.handle } class="sg-section">
-          <h2><a href="{ entry.path | link }">{ entry.title }</a></h2>
+          <h2><a href="{ link(entry.path) }">{ entry.title }</a></h2>
           <StyleTokens card={ entry.card } />
           {#if entry.body}
             <div class="sg-body"><MarkdownBlock src={ entry.body } /></div>

@@ -116,7 +116,7 @@ export function diagramsDrawn(root) {
  * navigation.
  *
  * Being hand-encoded also makes it the ONE href in the app that the router's
- * plan base does not reach — every other one goes through `| link` or
+ * plan base does not reach — every other one goes through `link()` or
  * `router.push`. So it prefixes the base itself, read from the module constant
  * lib/plans.js pins at boot; that is `''` on a single-plan server, which is
  * what keeps this string unchanged there.

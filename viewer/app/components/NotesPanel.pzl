@@ -8,7 +8,7 @@
             <span class={ row.glyphClass }>{ row.glyph }</span>
             <span class={ row.kindClass }>{ row.kind }</span>
             <span class="n-text">{ row.text }</span>
-            <a class="n-card" href="{ row.path | link }">{ row.handle }</a>
+            <a class="n-card" href="{ link(row.path) }">{ row.handle }</a>
             <span class="n-when">{ row.when }</span>
           </li>
         {/for}

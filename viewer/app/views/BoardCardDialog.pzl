@@ -37,7 +37,7 @@
 
         <footer class="board-dialog-foot">
           <span class="board-dialog-count">{ connectionLabel }</span>
-          <a class="board-dialog-open" href="{ cardHref | link }">Open full card →</a>
+          <a class="board-dialog-open" href="{ link(cardHref) }">Open full card →</a>
         </footer>
       {:else}
         <div class="board-dialog-body">

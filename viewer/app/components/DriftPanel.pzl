@@ -13,7 +13,7 @@
           <ul class="drift-rows">
             {#for row in rows}
               <li key={ row.handle } class="drift-row">
-                <a class="d-handle" href="{ row.path | link }">{ row.handle }</a>
+                <a class="d-handle" href="{ link(row.path) }">{ row.handle }</a>
                 <Badge variant={ row.statusVariant } class={ row.statusTint }>{ row.status }</Badge>
                 <span class="d-meta">{ row.changedCount } file{ row.plural } changed · { row.baselineSource }</span>
               </li>

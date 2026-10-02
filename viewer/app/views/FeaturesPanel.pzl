@@ -21,13 +21,13 @@
           {:else}
             {#for card in section.cards}
               <div key={ card.handle } class="feat-row">
-                <a class="feat-main" href="{ card.path | link }">
+                <a class="feat-main" href="{ link(card.path) }">
                   <span class="feat-name">{ card.name }</span>
                   <span class="feat-handle">{ card.handle }</span>
                 </a>
                 <span class="feat-meta">
                   {#if card.release}
-                    <a class="feat-chip release" href="{ card.releasePath | link }">✦ { card.release }</a>
+                    <a class="feat-chip release" href="{ link(card.releasePath) }">✦ { card.release }</a>
                   {/if}
                   {#if card.branch}<span class="feat-chip mono">⎇ { card.branch }</span>{/if}
                   {#if card.pr}

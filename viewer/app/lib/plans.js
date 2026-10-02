@@ -19,7 +19,7 @@
  * it strips on read and re-adds on write, and in hash mode the base rides
  * INSIDE the fragment (`#/p/puzzle/api/X`). Everything the app touches —
  * `router.push('/api/X')`, `this.route.pathname`, `this.route.params`, the
- * `| link` formatter — stays base-free, so setting `routerBase` once at
+ * `link()` — stays base-free, so setting `routerBase` once at
  * PuzzleApp construction plan-scopes every route, every href and every deep
  * link without a single change to routes.js or `hrefForHandle`.
  *

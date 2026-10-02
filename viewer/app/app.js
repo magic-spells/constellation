@@ -71,7 +71,7 @@ async function boot() {
 		routerMode: hashRouter(),
 		// The base rides INSIDE the fragment in hash mode (`#/p/puzzle/api/X`),
 		// and the router strips it on read and re-adds it on write. So this one
-		// option plan-scopes all 20 routes, every `| link` href and every deep
+		// option plan-scopes all 20 routes, every `link()` href and every deep
 		// link, and routes.js / hrefForHandle stay base-free and untouched.
 		routerBase: routerBaseFor(active),
 		// D157: store.upsert/request live behind the opt-in adapter capability.
