@@ -451,6 +451,7 @@ export default class Command extends PuzzleView {
     // leaves the search button hidden and a blob on the page.
     this._morph?.destroy();
     this._morph = null;
+    this._disarmFlightKeys();
     // The scrim is a plain element with an attribute on it, so nothing else
     // takes it down. A view destroyed while open (a route change under an open
     // palette) would otherwise leave the page dimmed and blurred.
@@ -484,18 +485,23 @@ export default class Command extends PuzzleView {
     this._setScrim(true);
 
     const source = this._morphSource();
-    // Where focus goes back to on a dismissal. A modal <dialog>'s close()
-    // normally restores focus by itself, but not here: at the instant it closes
-    // the engine still has the source at `visibility: hidden` (it "became" the
-    // panel), and the browser will not focus an invisible element — so focus
-    // lands on <body> and a keyboard user is dropped at the top of the page.
-    // We hold the element and put focus back once the flight is actually home.
-    // The plain (non-morph) open records it too, so both paths return focus.
-    this._returnFocus =
-      source ||
-      (typeof document !== 'undefined' && document.activeElement !== document.body
+    // Where focus goes back to on a dismissal: whatever had it when the palette
+    // opened — the field a ⌘K was pressed in, or the button that was clicked.
+    // The morph source is GEOMETRY only; returning focus to it would send a ⌘K
+    // from a text field back to the search button. Recorded on both paths so
+    // the morph and the reduced-motion open agree. A modal <dialog>'s close()
+    // cannot do this itself here: the engine holds the source invisible until
+    // the flight is home, and focus waits for that (`hidden`).
+    // Local (Constellation): a clicked button that did not take focus (Safari
+    // never focuses one on click) falls back to the clicked element itself.
+    const active =
+      typeof document !== 'undefined' && document.activeElement !== document.body
         ? document.activeElement
-        : null);
+        : null;
+    const clicked = typeof Element !== 'undefined' && this.props.morphSource instanceof Element
+      ? this.props.morphSource
+      : null;
+    this._returnFocus = active || clicked;
     if (source) {
       const morph = this._engine();
       // 'hiding' is the interesting one: reopening mid-close reverses the
@@ -503,7 +509,9 @@ export default class Command extends PuzzleView {
       if (morph.state === 'idle' || morph.state === 'hiding') {
         // The dialog is display:none while closed; `display` is what the engine
         // restores it to for the measure and the flight. Focus waits for
-        // 'reveal', where the dialog becomes modal.
+        // 'reveal', where the dialog becomes modal — until then the keyboard
+        // belongs to the palette anyway (_armFlightKeys).
+        this._armFlightKeys();
         morph.show({ from: source, to: dialog, display: 'block' });
         return;
       }
@@ -516,6 +524,7 @@ export default class Command extends PuzzleView {
 
   _closeFor(dialog) {
     this._setScrim(false);
+    this._disarmFlightKeys();
 
     // LET GO OF FOCUS NOW, on a pick, and not at the end of the fade. The
     // parent is navigating, and the incoming view claims focus on its first
@@ -542,7 +551,13 @@ export default class Command extends PuzzleView {
     // (restoring the search button it had hidden) and the panel takes the
     // shortest exit there is, a fast fade.
     if (flying && this._selected) {
-      morph.complete({ restoreSource: true });
+      // Local (Constellation): `complete()` on a flight still SHOWING queues
+      // behind the spring, so a pick between reveal and settle left the blob
+      // (and the engine's scroll lock) over the next page until it landed.
+      // stop() ends it now and puts the dialog back as it was before show() —
+      // modal and visible if it was already revealed — for the fade to take.
+      if (morph.state === 'showing') morph.stop({ restoreSource: true });
+      else morph.complete({ restoreSource: true });
       this._playExit(dialog, { restoreFocus: false });
       return;
     }
@@ -622,10 +637,15 @@ export default class Command extends PuzzleView {
     morph.on('reveal', ({ to }) => {
       const dialog = this.refs.dialog;
       if (to !== dialog || !dialog || dialog.open) return;
+      this._disarmFlightKeys();
       dialog.showModal();
       // The first moment focus can land: before this the dialog is not modal
       // and focusing it would scroll the page to a panel nobody can see yet.
-      dialog.querySelector('[data-command-input]')?.focus({ preventScroll: true });
+      const input = dialog.querySelector('[data-command-input]');
+      input?.focus({ preventScroll: true });
+      // Text held during the flight is already in the field; type on after it.
+      const end = input?.value?.length ?? 0;
+      input?.setSelectionRange?.(end, end);
     });
 
     // A reversal that swings back below the reveal point un-reveals the dialog
@@ -645,6 +665,69 @@ export default class Command extends PuzzleView {
 
     this._morph = morph;
     return morph;
+  }
+
+  // ---- keys during the flight ----------------------------------------------
+
+  // Local (Constellation): THE KEYBOARD IS THE PALETTE'S FROM THE KEYPRESS ON.
+  // During the flight the dialog is closed and its input hidden, so focus stays
+  // wherever ⌘K was pressed — and without this, the first letters typed after
+  // ⌘K land in that field (an inline card editor would then save them on the
+  // blur at reveal), and Escape does nothing. A capture-phase window listener
+  // holds the keys until reveal: text goes into the query (the input shows it
+  // the moment it appears, already focused), Backspace/arrows/Enter act on the
+  // list, and Escape dismisses — which flies the panel home mid-flight.
+  _armFlightKeys() {
+    this._disarmFlightKeys();
+    if (typeof window === 'undefined') return;
+    this._flightKeys = (event) => {
+      if (event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
+      const key = event.key;
+      const take = () => {
+        event.preventDefault();
+        event.stopPropagation();
+      };
+      if (key === 'Escape') {
+        take();
+        this.props.close?.(event);
+      } else if (key === 'Enter') {
+        take();
+        this.events.onEnter(event);
+      } else if (key === 'ArrowDown') {
+        take();
+        this._move(1);
+      } else if (key === 'ArrowUp') {
+        take();
+        this._move(-1);
+      } else if (key === 'Backspace') {
+        take();
+        this._setQuery(String(this.getData().query ?? '').slice(0, -1), event);
+      } else if (key.length === 1) {
+        take();
+        this._setQuery(String(this.getData().query ?? '') + key, event);
+      }
+    };
+    window.addEventListener('keydown', this._flightKeys, true);
+  }
+
+  _disarmFlightKeys() {
+    if (!this._flightKeys) return;
+    window.removeEventListener('keydown', this._flightKeys, true);
+    this._flightKeys = null;
+  }
+
+  // Every query change — typed into the input, or held during the flight —
+  // re-filters, reseats the active row and reports out.
+  _setQuery(query, event) {
+    const { options } = this._build(this.props, query);
+    this._scrollActive = false;
+    this.setData({ query, activeIndex: this._firstEnabled(options) });
+    this.refresh();
+    // Local: report the query so a server-backed palette can drive its own
+    // (debounced) search and feed new `items` back down. Fired after the local
+    // commit so a purely client-side palette is unaffected.
+    const { input } = this.props;
+    if (typeof input === 'function') input(query, event);
   }
 
   // ---- the scrim ------------------------------------------------------------
@@ -775,20 +858,7 @@ export default class Command extends PuzzleView {
     // Every keystroke re-filters and reseats the active row on the first enabled
     // result (per spec). setData writes the local layer; refresh() re-runs data()
     // so the ranked/grouped rows recompute.
-    onInput: (event) => {
-      const query = event.target.value;
-      const { options } = this._build(this.props, query);
-      this._scrollActive = false;
-      this.setData({ query, activeIndex: this._firstEnabled(options) });
-      this.refresh();
-      // Local: report the query so a server-backed palette can drive its own
-      // (debounced) search and feed new `items` back down. The piece keeps
-      // owning the input, the ranking UI and the keyboard model; only the
-      // SOURCE of the items moves out. Fired after the local commit so a purely
-      // client-side palette is unaffected.
-      const { input } = this.props;
-      if (typeof input === 'function') input(query, event);
-    },
+    onInput: (event) => this._setQuery(event.target.value, event),
 
     moveDown: () => this._move(1),
     moveUp: () => this._move(-1),
