@@ -1,11 +1,16 @@
 {
   "version": 1,
-  "registry": "/Users/coryschulz/Code/@magic-spells/puzzle-pieces/registry",
-  "puzzle": "0.6.0",
+  "registry": "npm:@magic-spells/puzzle-pieces@0.8.0",
+  "puzzle": "0.8.0",
   "pieces": {
     "alert-dialog": {
       "files": {
         "app/components/ui/AlertDialog.pzl": "sha256:c918507879f61637f4e644a9119f0199c51792149a0d59f4d601be0050c09fdd"
+      }
+    },
+    "appearance-picker": {
+      "files": {
+        "app/components/ui/AppearancePicker.pzl": "sha256:5fe1e92a3e64de53a60c7eb00d5455f9cadd0b9d5d8a76a5792b4c927c831dd2"
       }
     },
     "badge": {
@@ -20,7 +25,7 @@
     },
     "command": {
       "files": {
-        "app/components/ui/Command.pzl": "sha256:52824396867963fb0077c455c178b2d02dd4e64a329d3ba3f79ced6746e56309"
+        "app/components/ui/Command.pzl": "sha256:1840edecc0510dc306830efb8ac87d8b84fe281d5962bc57ca9822a52022ffee"
       }
     },
     "description-list": {
@@ -61,7 +66,7 @@
     },
     "search-field": {
       "files": {
-        "app/components/ui/SearchField.pzl": "sha256:c86fb353c11b8e93856ce6c0e6639b139e80984168876ddeb4cf80faecfa6097"
+        "app/components/ui/SearchField.pzl": "sha256:2798cb67c9cc38fdf8c90a1b149404eb1cb301c6f7fc1e7cf779ce7e319f722f"
       }
     },
     "select": {
@@ -76,7 +81,7 @@
     },
     "sidebar": {
       "files": {
-        "app/components/ui/Sidebar.pzl": "sha256:3e6c22c9b246440f1c93a605f1df9c884e63f9755e6394657d3c1c948b29cc2e"
+        "app/components/ui/Sidebar.pzl": "sha256:d0214dfe060f42b6e94dfc92555ef50a309e0e3cf9f0f4fd5a7fa9c137dd98b9"
       }
     },
     "skeleton": {
@@ -94,9 +99,24 @@
         "app/components/ui/Tabs.pzl": "sha256:ee91031675aef566772bb04880e6f778b37f5dc3b06eee0be918af0d1fd0d9bf"
       }
     },
+    "theme/dim.css": {
+      "files": {
+        "app/styles/themes/dim.css": "sha256:11890f460c9633fa10634b2b35bf7e125fca42c65239c17787a7a5f83df66ccb"
+      }
+    },
     "theme/pieces.css": {
       "files": {
-        "app/styles/pieces.css": "sha256:84290f1d7ca1312dc611be673440bafa1a2652ebefc6d9abe5c42b52c2b0f211"
+        "app/styles/pieces.css": "sha256:c2272d59e81617229df272fd4eee5bb19f8a7e488f4d09691aefd714397d3da2"
+      }
+    },
+    "theme/void.css": {
+      "files": {
+        "app/styles/themes/void.css": "sha256:264cd7c861a19f3ccc914ccff7673f6641c9381499c91582c9efe7cc993816a3"
+      }
+    },
+    "theme/warm.css": {
+      "files": {
+        "app/styles/themes/warm.css": "sha256:6a56da15c8e3598a00d92d49f47e46965531dda67ec2e31bbae056a2b48e81b9"
       }
     },
     "toast": {

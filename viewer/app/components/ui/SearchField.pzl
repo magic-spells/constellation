@@ -61,7 +61,7 @@ export default class SearchField extends PuzzleView {
       id: props.id || (this._fallbackId ??= `pp-search-${++uid}`),
       value,
       placeholder: props.placeholder || 'Search…',
-      name: props.name,
+      name: props.name ?? null,
       disabled: !!props.disabled,
       hasValue: String(value).length > 0,
       rootClass: props.class || '',
@@ -75,6 +75,8 @@ export default class SearchField extends PuzzleView {
       if (typeof change === 'function') change(event.target.value, event);
     },
     handleSubmit: (event) => {
+      // IME composition confirm must not act.
+      if (event.isComposing) return;
       const { submit } = this.props;
       if (typeof submit === 'function') submit(event.target.value, event);
     },
