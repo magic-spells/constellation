@@ -1,5 +1,25 @@
 <puzzle-view>
+  <!-- Local: ONE root child, `display: contents`, because the piece now renders
+       TWO fixed surfaces — the scrim and the panel — and a Puzzle view has a
+       single root. `contents` keeps the wrapper out of every layout it is
+       dropped into, exactly as it was when the <dialog> was the root. -->
+  <div class="contents">
+  <!-- Local: the scrim is an ELEMENT, not ::backdrop. The palette morphs out of
+       the top bar's search button, and for most of that flight the dialog is
+       still CLOSED (the morph blob cannot paint under the native top layer), so
+       there is no ::backdrop in existence to fade. One fixed element is one
+       continuous surface across the flight AND the modal phase. The fade and
+       the blur live in app/styles/styles.css (.ui-palette-backdrop), which says
+       why the filter is hand-written. Presentational: the dialog owns the semantics,
+       and its own ::backdrop takes the clicks once it is modal. -->
+  <div
+    data-command-backdrop
+    aria-hidden="true"
+    class="ui-palette-backdrop fixed inset-0 z-50 bg-scrim"
+    @click={ onScrim }></div>
+
   <dialog
+    ref="dialog"
     class={ panelClass }
     role="dialog"
     aria-modal="true"
@@ -21,7 +41,7 @@
         data-command-input
         id={ inputId }
         type="text"
-        class="h-11 w-full bg-transparent text-sm text-ink placeholder:text-muted focus:outline-none"
+        class="h-12 w-full bg-transparent text-base text-ink placeholder:text-muted focus:outline-none"
         role="combobox"
         aria-expanded="true"
         aria-controls={ listId }
@@ -35,12 +55,23 @@
         @input={ onInput(event) }
         @keydown:down:prevent={ moveDown }
         @keydown:up:prevent={ moveUp }
-        @keydown:enter:prevent={ onEnter(event) } />
+        @keydown:enter={ onEnter(event) } />
     </div>
 
-    <div class="max-h-72 overflow-y-auto p-1" id={ listId } role="listbox">
+    <!-- Local: max-h-palette-list (60vh), not max-h-72 (18rem). A plan has dozens of cards
+         and 18rem shows barely eight rows. The token lives in
+         app/styles/styles.css beside --spacing-palette-top, which is the other
+         half of how tall this panel is allowed to get. -->
+    <div class="max-h-palette-list overflow-y-auto p-1" id={ listId } role="listbox">
       {#if empty}
-        <p class="py-6 text-center text-sm text-muted">{ emptyText }</p>
+        <div class="py-8 text-center">
+          <p class="text-sm text-muted">{ emptyText }</p>
+          <!-- Local: a second line under the empty text. The palette uses it to
+               teach a query shape the placeholder has no room for. -->
+          {#if emptyHint}
+            <p class="mt-1 text-xs text-muted">{ emptyHint }</p>
+          {/if}
+        </div>
       {:else}
         {#for row in rows}
           <div
@@ -53,10 +84,17 @@
             @click={ choose(row, event) }
             @mouseenter={ hover(row) }>
             {#if row.kind === 'option'}
-              <span class="truncate">{ row.label }</span>
-              {#if row.hint}
-                <span class="shrink-0 text-xs text-muted">{ row.hint }</span>
-              {/if}
+              <Slot
+                name="option"
+                item={ row.item }
+                active={ row.active }
+                selected={ row.selected }
+                disabled={ row.disabled }>
+                <span class="truncate">{ row.label }</span>
+                {#if row.hint}
+                  <span class="shrink-0 text-xs text-muted">{ row.hint }</span>
+                {/if}
+              </Slot>
             {:else}
               { row.label }
             {/if}
@@ -65,11 +103,20 @@
       {/if}
     </div>
   </dialog>
+</div>
 </puzzle-view>
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { MorphEngine } from '@magic-spells/morph-engine';
+import { MORPH_SPRINGS, reducedMotion } from '../../lib/motion.js';
 
+// PROVENANCE. Not the registry's 0.8 Command (which moved onto the
+// dialog-panel web component): this is the org app-template's copy of the
+// native-<dialog> Command, whose `Local:` edits add the morph out of a search
+// button, the element scrim, `emptyHint` and the `input` callback. Constellation
+// takes it as-is apart from token locations; pieces.lock's hash drifts on purpose.
+//
 // Command — a command palette, self-contained: no other pieces imported. Built
 // on the native <dialog> element so the browser does the hard parts —
 // showModal() traps focus and inerts the page, the top layer and ::backdrop
@@ -92,6 +139,19 @@ import { PuzzleView } from '@magic-spells/puzzle';
 //   disabled? — rendered but not selectable, skipped by keyboard nav
 //   hint?     — right-aligned kbd-ish hint text (⌘K, ⏎, "Recent"…)
 //
+// Local: `emptyHint` renders a second, quieter line under `emptyText` when the
+// list is empty — for teaching a query shape the placeholder cannot show.
+//
+// OPTION SNIPPET. A direct-child <Snippet fits="option" item active selected
+// disabled> replaces only the visual content inside each option element. `item`
+// is the original authored option/item object; `active` is the current keyboard/
+// pointer highlight; `selected` is persistent controlled-value membership (false
+// in Command, which has no persistent selection, and in MultiSelect's dropdown,
+// where selected entries are hidden); `disabled` mirrors item.disabled. The
+// piece still owns the option element's id, role, aria state, and handlers. The
+// Snippet body cannot contain composition markers or ref=. With no snippet, the
+// marker fallback renders the stock row unchanged.
+//
 // CONTROLLED BY THE PARENT. The parent owns `open`; Command syncs the native
 // element to it (showModal()/close() in mounted()/afterUpdate(), exactly like a
 // modal). Command never sets `open` itself — it only *asks* the parent to close
@@ -106,6 +166,33 @@ import { PuzzleView } from '@magic-spells/puzzle';
 //     or a backdrop click. The parent flips `open` false, which routes back
 //     through afterUpdate() → close().
 //
+// Local: THE MORPH (`morphSource`). Given an element — or a selector for one —
+// the palette does not fade in: it grows out of that element with
+// @magic-spells/morph-engine, the same container transform any
+// shared-element route transition uses (the brief asks for the palette to grow out of the search
+// button rather than fade in). Pass the top bar's search button and the
+// field appears to expand in place. Omit the prop, or set prefers-reduced-
+// motion, and everything below is skipped — the dialog just opens.
+//
+//   <Command open={ open } morphSource={ searchButton } … />
+//
+// THE TOP-LAYER PROBLEM, AND THE ONE PATTERN THAT SOLVES IT. The engine's
+// <morph-blob> is an ordinary body child, and the native top layer paints above
+// every one of those — so a blob flying toward an already-modal <dialog> is
+// invisible behind it. The engine's README names the fix and its demo is the
+// reference: fly the dialog CLOSED, in normal flow (the engine flips `display`
+// on to measure and drives it through the flight), and promote it with
+// showModal() on the `reveal` event, while it is still at opacity 0. Promoting
+// at `shown` instead repaints a surface the user can already see, which shifts
+// the panel on the settle frame. Closing runs it backwards: demote FIRST and
+// reverse SECOND, in the same task so nothing paints between them — the dialog
+// drops back to the identical rect and the blob covers it on that same frame.
+// `unreveal` (a reversal that swings back below the reveal point) demotes the
+// same way. This is why PANEL_BASE pins the geometry that `dialog:modal` would
+// otherwise change, and why the scrim is an element rather than ::backdrop.
+//
+// A PICK DOES NOT FLY HOME — see _closeFor().
+//
 // GLOBAL HOTKEY IS NOT THIS COMPONENT'S JOB — the parent (usually a layout) binds
 // it and flips `open`. A layout-level idea:
 //   <div @keydown={ onHotkey(event) }> … <Command open={ cmdOpen } … /> </div>
@@ -117,10 +204,36 @@ import { PuzzleView } from '@magic-spells/puzzle';
 //   }
 let uid = 0;
 
+// Local: max-w-2xl, not max-w-lg. A result row here may carry more than one
+// truncated line, and at max-w-lg a title and its secondary text fight for the
+// same 8rem.
+//
+// Local: ANCHORED NEAR THE TOP, and positioned IDENTICALLY whether the dialog
+// is modal or not. Both halves are load-bearing:
+//
+//   NEAR THE TOP. `mt-palette-top` replaces an `mt-[15vh]` that centred the
+//   panel-ish — the palette hangs near the top of the window rather than
+//   centred-ish. The token (app/styles/styles.css) is a small inset, so the
+//   panel lands over the header band the search button sits in, and the
+//   button reads as expanding in place.
+//
+//   ONE GEOMETRY, TWO PHASES. The morph flies the panel while the dialog is
+//   still CLOSED and in normal flow, then promotes it with showModal() at the
+//   reveal point. If the in-flow and the :modal rects differed the panel would
+//   jump on that frame, so every UA default that only applies to `dialog:modal`
+//   is overridden here: `fixed inset-y-0` for its `position: fixed; inset: 0`,
+//   `max-h-none` for its `max-height: calc(100% - 6px - 2em)`. `inset-x-4`
+//   rather than `inset-x-0` keeps the app's 16px gutter on a narrow window, and
+//   `mx-auto` centres inside it under the `max-w-2xl` cap.
+//
+//   ::backdrop IS TRANSPARENT. The scrim is the element above — see the
+//   template. Two dimming surfaces would double up the moment the dialog
+//   promotes.
 const PANEL_BASE =
-  'm-auto mt-[15vh] w-full max-w-lg rounded-xl border border-border bg-surface p-0 ' +
+  'fixed inset-y-0 inset-x-4 z-50 mx-auto mb-auto mt-palette-top ' +
+  'h-fit max-h-none w-auto max-w-2xl rounded-xl border border-border bg-surface p-0 ' +
   'text-body shadow-xl overflow-hidden ' +
-  '[&::backdrop]:bg-black/50';
+  '[&::backdrop]:bg-transparent';
 
 const OPTION_BASE =
   'flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm select-none';
@@ -138,6 +251,14 @@ export default class Command extends PuzzleView {
     this._uid = ++uid;
     this._base = `pp-command-${this._uid}`;
     this._scrollActive = false; // scroll the active option into view after next render
+    // Local (morph): the logical open state, which is NOT `dialog.open` during a
+    // flight; the engine, built on first morph; and whether this close was asked
+    // for by a SELECT, which exits differently. See _closeFor().
+    this._openState = false;
+    this._morph = null;
+    this._selected = false;
+    this._scrim = null;
+    this._returnFocus = null;
     // Seed local UI state so the first data() run can read it back.
     this.setData({ query: '', activeIndex: -1 });
   }
@@ -152,6 +273,11 @@ export default class Command extends PuzzleView {
     const base = this._base;
     const raw = Array.isArray(props.items) ? props.items : [];
     const q = String(query || '').trim().toLowerCase();
+    // Local: `filter={false}` hands matching to the parent. A server-backed
+    // palette has ALREADY matched — re-filtering its results client-side drops
+    // legitimate fuzzy/remote hits that the local word-prefix test can't see.
+    // Ordering is preserved as given, since the server's ranking is the ranking.
+    const localFilter = props.filter !== false;
 
     const matched = [];
     raw.forEach((entry, i) => {
@@ -159,7 +285,7 @@ export default class Command extends PuzzleView {
       const label = entry.label != null ? String(entry.label) : String(entry.value ?? '');
       const keywords = Array.isArray(entry.keywords) ? entry.keywords.map(String) : [];
       let tier;
-      if (!q) {
+      if (!q || !localFilter) {
         tier = 0;
       } else {
         const hay = [label, ...keywords].map((t) => t.toLowerCase());
@@ -168,6 +294,7 @@ export default class Command extends PuzzleView {
         else return; // no match — drop it
       }
       matched.push({
+        item: entry,
         value: entry.value,
         label,
         hint: entry.hint != null ? String(entry.hint) : '',
@@ -206,11 +333,13 @@ export default class Command extends PuzzleView {
         kind: 'option',
         id: `${base}-opt-${optIndex}`,
         optIndex,
+        item: m.item,
         value: m.value,
         label: m.label,
         hint: m.hint,
         disabled: m.disabled,
         active: false,
+        selected: false,
       };
       rows.push(row);
       options.push(row);
@@ -232,11 +361,26 @@ export default class Command extends PuzzleView {
     const activeIndex = prev.activeIndex ?? -1;
 
     const { rows, options } = this._build(props, query);
-    const activeOpt =
+
+    // Local: re-seat the active row when the current index no longer resolves to
+    // an enabled option. Required for ASYNC item sources: onInput seats the index
+    // against the items present at keystroke time, which for a server-backed
+    // palette is the empty/stale set, so it lands at -1 — and when the results
+    // arrive as new props nothing re-seats it. Nothing is highlighted and ENTER
+    // DOES NOTHING until the user presses an arrow key. A parent cannot fix this
+    // (there is no activeIndex prop), so the fallback belongs here, where it also
+    // covers items shrinking under a stale index.
+    let resolved =
       activeIndex >= 0 && options[activeIndex] && !options[activeIndex].disabled
-        ? options[activeIndex]
-        : null;
+        ? activeIndex
+        : this._firstEnabled(options);
+
+    const activeOpt = resolved >= 0 ? options[resolved] : null;
     if (activeOpt) activeOpt.active = true;
+    // Keep the local layer in step so arrow keys start from what is highlighted.
+    // Terminates: setData() rerenders WITHOUT re-running data(), and the next
+    // data() run reads the seated index back, so the condition is already false.
+    if (resolved !== activeIndex) this.setData({ activeIndex: resolved });
 
     // Precompute per-row presentation. The template renders every row through
     // one shared <div> wrapper (a {#for} body needs a single element root), so
@@ -255,7 +399,13 @@ export default class Command extends PuzzleView {
         r.role = 'option';
         r.cls =
           OPTION_BASE +
-          (r.disabled ? ' text-faint pointer-events-none' : ' cursor-pointer text-body') +
+          // Local: `muted`, not `faint`. `faint` is ~2.3:1 on the panel
+          // — below the 3:1 large-text floor, let alone AA's 4.5:1 — and dimmer
+          // than the group heading above it, so a non-selectable row read as a
+          // rendering fault rather than a state. `faint` is for disabled text on
+          // a control the user could otherwise press; these rows are
+          // informational, which is a different thing wearing the same flag.
+          (r.disabled ? ' text-muted pointer-events-none' : ' cursor-pointer text-body') +
           (r.active ? ' bg-surface-sunken text-ink' : '');
         r.ariaSelected = r.active ? 'true' : 'false';
         r.ariaDisabled = r.disabled ? 'true' : false;
@@ -266,13 +416,17 @@ export default class Command extends PuzzleView {
       rows,
       options,
       query,
-      activeIndex,
+      // `resolved`, not the raw prev value — Enter and the arrow keys read this,
+      // so returning a stale index is what left Enter inert after an async load.
+      activeIndex: resolved,
       activeId: activeOpt ? activeOpt.id : false,
       empty: options.length === 0,
       inputId: `${this._base}-input`,
       listId: `${this._base}-list`,
       placeholder: props.placeholder || 'Type a command or search…',
       emptyText: props.emptyText || 'No results found.',
+      // Local: optional second line under emptyText (see the template).
+      emptyHint: props.emptyHint || '',
       ariaLabel: props.label || 'Command palette',
       panelClass: [PANEL_BASE, props.class || ''].join(' '),
     };
@@ -292,22 +446,227 @@ export default class Command extends PuzzleView {
     }
   }
 
-  // Idempotent: the dialog.open guards make repeat calls (any afterUpdate) safe
-  // and keep showModal() from throwing on an already-open dialog. On the
-  // closed→open edge we clear the query, seat the active row on the first
-  // enabled result, and focus the input.
+  destroyed() {
+    // stop() + restoreSource() + unbind. Without it a teardown mid-flight
+    // leaves the search button hidden and a blob on the page.
+    this._morph?.destroy();
+    this._morph = null;
+    // The scrim is a plain element with an attribute on it, so nothing else
+    // takes it down. A view destroyed while open (a route change under an open
+    // palette) would otherwise leave the page dimmed and blurred.
+    this._setScrim(false);
+    this._returnFocus = null;
+  }
+
+  // Idempotent, and edge-triggered on OUR OWN flag rather than on `dialog.open`.
+  // Local: those two used to be the same thing, and with the morph they are not
+  // — the dialog is deliberately CLOSED for most of an open (it is flying in
+  // normal flow), so keying off `dialog.open` would re-enter show() every
+  // afterUpdate of the flight. On the closed→open edge we clear the query, seat
+  // the active row on the first enabled result, and focus the input.
   syncOpen() {
-    const dialog = this.element;
+    const dialog = this.refs.dialog;
     if (!dialog) return;
     const shouldOpen = !!this.props.open;
-    if (shouldOpen && !dialog.open) {
-      dialog.showModal();
-      this._resetForOpen();
-      dialog.querySelector('[data-command-input]')?.focus();
-      this._playEnter(dialog);
-    } else if (!shouldOpen && dialog.open) {
-      dialog.close();
+    if (shouldOpen === this._openState) return;
+    this._openState = shouldOpen;
+    if (shouldOpen) this._openFor(dialog);
+    else this._closeFor(dialog);
+  }
+
+  // ---- the two edges --------------------------------------------------------
+
+  _openFor(dialog) {
+    this._selected = false;
+    // Before the engine measures: the panel it flies to has to be the panel the
+    // user will see, and the reset is what clears a stale query out of it.
+    this._resetForOpen();
+    this._setScrim(true);
+
+    const source = this._morphSource();
+    // Where focus goes back to on a dismissal. A modal <dialog>'s close()
+    // normally restores focus by itself, but not here: at the instant it closes
+    // the engine still has the source at `visibility: hidden` (it "became" the
+    // panel), and the browser will not focus an invisible element — so focus
+    // lands on <body> and a keyboard user is dropped at the top of the page.
+    // We hold the element and put focus back once the flight is actually home.
+    // The plain (non-morph) open records it too, so both paths return focus.
+    this._returnFocus =
+      source ||
+      (typeof document !== 'undefined' && document.activeElement !== document.body
+        ? document.activeElement
+        : null);
+    if (source) {
+      const morph = this._engine();
+      // 'hiding' is the interesting one: reopening mid-close reverses the
+      // in-flight spring rather than starting a second flight.
+      if (morph.state === 'idle' || morph.state === 'hiding') {
+        // The dialog is display:none while closed; `display` is what the engine
+        // restores it to for the measure and the flight. Focus waits for
+        // 'reveal', where the dialog becomes modal.
+        morph.show({ from: source, to: dialog, display: 'block' });
+        return;
+      }
     }
+
+    if (!dialog.open) dialog.showModal();
+    dialog.querySelector('[data-command-input]')?.focus();
+    this._playEnter(dialog);
+  }
+
+  _closeFor(dialog) {
+    this._setScrim(false);
+
+    // LET GO OF FOCUS NOW, on a pick, and not at the end of the fade. The
+    // parent is navigating, and the incoming view claims focus on its first
+    // frame — a view that claims focus on rAF deliberately stands down if
+    // focus is already somewhere that is not <body>, so that it never yanks it
+    // away from a user who has moved on. Focus still sitting in this palette's
+    // input is exactly that case: the overlay stands down, then our fade ends
+    // and drops focus to <body> anyway, and a keyboard user lands at the top of
+    // the document. Releasing before the navigation leaves the field clear and
+    // the new view takes it. (A dismissal is the opposite: nothing is coming, so
+    // focus goes back to the trigger once the flight is home.)
+    if (this._selected && this.element?.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
+
+    const morph = this._morph;
+    const flying = morph && (morph.state === 'showing' || morph.state === 'shown');
+
+    // A PICK DOES NOT FLY HOME. Escape and a backdrop click are dismissals —
+    // nothing happened, and the panel belongs back in the bar it came from. A
+    // SELECT is the opposite: the parent is navigating, and a quarter-second
+    // flight back into the top bar while the page changes underneath reads as
+    // the click being undone. So the engine hands the flight off permanently
+    // (restoring the search button it had hidden) and the panel takes the
+    // shortest exit there is, a fast fade.
+    if (flying && this._selected) {
+      morph.complete({ restoreSource: true });
+      this._playExit(dialog, { restoreFocus: false });
+      return;
+    }
+
+    if (flying) {
+      // Demote FIRST, reverse SECOND — same task, so nothing paints between the
+      // two: the dialog drops into normal flow at the identical rect and the
+      // blob covers it on that same frame. Focus goes back on the engine's
+      // `hidden` event, which is the first moment the source is visible again.
+      if (dialog.open) dialog.close();
+      morph.hide();
+      return;
+    }
+
+    if (dialog.open) this._playExit(dialog);
+    else this._restoreFocus();
+  }
+
+  // Put focus back on whatever opened the palette. Best-effort on purpose: if
+  // the user has already put focus somewhere themselves, or the trigger has
+  // left the DOM, leave it alone — never yank focus back.
+  _restoreFocus() {
+    const target = this._returnFocus;
+    this._returnFocus = null;
+    if (this._openState || !target || !target.isConnected) return;
+    if (typeof document === 'undefined') return;
+    const active = document.activeElement;
+    const free = !active || active === document.body || this.element?.contains(active);
+    if (!free) return;
+    target.focus?.({ preventScroll: true });
+  }
+
+  // THE INLINE STYLES THE ENGINE LEAVES BEHIND, and why this is not optional.
+  //
+  // During a flight the engine writes `visibility` / `display` / `opacity`
+  // straight onto the target (#ensureRevealed), and restores them from its own
+  // saved copy when a flight ENDS normally. `complete()` does not restore them —
+  // it hands the element to the app and drops the saved copy, because a normal
+  // caller now owns a panel that is meant to stay on screen. We are the other
+  // case: we complete the flight and then close the dialog, and an inline
+  // `display: block` outranks the UA's `dialog:not([open]) { display: none }`.
+  // The dialog goes `open: false` and keeps painting — a non-modal 672×199 panel
+  // over the page, eating clicks, with focus stranded in its input. Measured.
+  _clearMorphInline(dialog) {
+    dialog.style.removeProperty('display');
+    dialog.style.removeProperty('visibility');
+    dialog.style.removeProperty('opacity');
+    if (!dialog.getAttribute('style')) dialog.removeAttribute('style');
+  }
+
+  // ---- the morph ------------------------------------------------------------
+
+  // The element the panel grows out of, or null for the plain open: no prop, a
+  // selector that matches nothing, a source that has left the DOM, or a person
+  // who asked for less motion.
+  _morphSource() {
+    const source = this.props.morphSource;
+    if (!source || reducedMotion() || typeof document === 'undefined') return null;
+    const el = typeof source === 'string' ? document.querySelector(source) : source;
+    // Local (Constellation): a source that is in the DOM but not rendered — the
+    // header hides its search button on a phone — has no rect to grow out of.
+    return el && el.isConnected && el.getClientRects().length > 0 ? el : null;
+  }
+
+  // Lazily built: an app that never opens the palette never constructs a spring.
+  // The two dials are lib/motion.js's, quoted there; zIndex has to clear the
+  // scrim's z-50 so the blob crosses IN FRONT of the dimming rather than under
+  // it, and revealAt is a little early (0.7) because the panel's own content
+  // still has to fade up inside the geometry.
+  _engine() {
+    if (this._morph) return this._morph;
+    const morph = new MorphEngine({ ...MORPH_SPRINGS, zIndex: 60, revealAt: 0.7 });
+
+    // Promote at the reveal point, not at settle: the dialog is still at
+    // opacity 0 when the reveal window opens, so the top-layer repaint happens
+    // on an invisible surface and it fades in already modal.
+    morph.on('reveal', ({ to }) => {
+      const dialog = this.refs.dialog;
+      if (to !== dialog || !dialog || dialog.open) return;
+      dialog.showModal();
+      // The first moment focus can land: before this the dialog is not modal
+      // and focusing it would scroll the page to a panel nobody can see yet.
+      dialog.querySelector('[data-command-input]')?.focus({ preventScroll: true });
+    });
+
+    // A reversal that swings back below the reveal point un-reveals the dialog
+    // — demote it the same way, or the top layer strands a panel the blob is
+    // still carrying home.
+    morph.on('unreveal', ({ to }) => {
+      const dialog = this.refs.dialog;
+      if (to === dialog && dialog?.open) dialog.close();
+    });
+
+    // The flight is home and the source is VISIBLE AGAIN — the first instant
+    // focus can actually land on it. Earlier is a silent no-op: the engine holds
+    // the source at `visibility: hidden` for the whole flight, and the browser
+    // drops focus() on an invisible element without complaining. That is why
+    // dialog.close()'s own focus restoration cannot do this job for us.
+    morph.on('hidden', () => this._restoreFocus());
+
+    this._morph = morph;
+    return morph;
+  }
+
+  // ---- the scrim ------------------------------------------------------------
+
+  // One attribute; the fade, the blur and the reduced-motion case are all in
+  // app/styles/styles.css (.ui-palette-backdrop), because backdrop-filter has to be
+  // transitioned explicitly and Tailwind composes it out of variables a plain
+  // transition cannot interpolate.
+  _setScrim(on) {
+    // Memoized, and that is not an optimization: `destroyed()` has to be able to
+    // take the scrim back down, and by then `this.element` is already gone, so a
+    // lookup at teardown time finds nothing and the clear silently does nothing.
+    // The node is static in the template, so one lookup holds for the view's
+    // life; the re-query is there only in case a patcher ever replaces it.
+    let el = this._scrim;
+    if (!el || (this.element && !this.element.contains(el))) {
+      el = this.element?.querySelector('[data-command-backdrop]') || el;
+      this._scrim = el;
+    }
+    if (!el) return;
+    if (on) el.setAttribute('data-visible', '');
+    else el.removeAttribute('data-visible');
   }
 
   _resetForOpen() {
@@ -317,8 +676,9 @@ export default class Command extends PuzzleView {
     this.refresh();
   }
 
+  // The no-morph entrance: reduced motion, or no `morphSource`. Unchanged.
   _playEnter(dialog) {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    if (reducedMotion()) return;
     dialog.animate(
       [
         { opacity: 0, transform: 'scale(0.98)' },
@@ -326,6 +686,50 @@ export default class Command extends PuzzleView {
       ],
       { duration: 150, easing: 'ease-out' }
     );
+  }
+
+  // Local: the exit for every close that is NOT a morph home — a pick, a
+  // reduced-motion dismissal, a plain <Command> with no source. The dialog has
+  // to stay in the DOM for the length of it (closing drops it out of the top
+  // layer instantly), so the close is hung off the animation's `finish` with a
+  // guard: the palette can be reopened inside 110ms, and a late close would
+  // then shut the one the user just opened.
+  _playExit(dialog, { restoreFocus = true } = {}) {
+    const done = () => {
+      if (this._openState) return; // reopened inside the fade — leave it alone
+      if (dialog.open) dialog.close();
+      // Order matters: close() first (it releases the top layer), then wipe the
+      // engine's inline styles, or the dialog stays painted. See
+      // _clearMorphInline.
+      this._clearMorphInline(dialog);
+      // Focus cannot stay in a panel that is no longer shown. On a dismissal it
+      // goes back to the trigger; on a pick the incoming view claims it, so all
+      // we do is let go.
+      if (restoreFocus) this._restoreFocus();
+      else if (this.element?.contains(document.activeElement)) document.activeElement.blur();
+    };
+
+    if (reducedMotion() || typeof dialog.animate !== 'function') {
+      done();
+      return;
+    }
+    const animation = dialog.animate(
+      [
+        { opacity: 1, transform: 'scale(1)' },
+        { opacity: 0, transform: 'scale(0.99)' },
+      ],
+      { duration: 110, easing: 'ease-in' }
+    );
+    // A stub `animate()` — the test harness installs one, and so does any host
+    // without the Web Animations API — returns something that is not an event
+    // target. Finish now rather than stranding a dialog open waiting for a
+    // `finish` that can never arrive.
+    if (typeof animation?.addEventListener !== 'function') {
+      done();
+      return;
+    }
+    animation.addEventListener('finish', done);
+    animation.addEventListener('cancel', done);
   }
 
   // ---- active-row movement --------------------------------------------------
@@ -377,16 +781,29 @@ export default class Command extends PuzzleView {
       this._scrollActive = false;
       this.setData({ query, activeIndex: this._firstEnabled(options) });
       this.refresh();
+      // Local: report the query so a server-backed palette can drive its own
+      // (debounced) search and feed new `items` back down. The piece keeps
+      // owning the input, the ranking UI and the keyboard model; only the
+      // SOURCE of the items moves out. Fired after the local commit so a purely
+      // client-side palette is unaffected.
+      const { input } = this.props;
+      if (typeof input === 'function') input(query, event);
     },
 
     moveDown: () => this._move(1),
     moveUp: () => this._move(-1),
 
     onEnter: (event) => {
+      // IME composition confirm must not act.
+      if (event.isComposing) return;
+      event.preventDefault();
       const { options, activeIndex } = this.getData();
       const opt = options[activeIndex];
       if (!opt || opt.disabled) return;
       const { select } = this.props;
+      // Local: mark the close that the parent is about to ask for as a PICK, so
+      // it fades instead of flying home (_closeFor).
+      this._selected = true;
       if (typeof select === 'function') select(opt.value, event);
     },
 
@@ -401,6 +818,7 @@ export default class Command extends PuzzleView {
     choose: (row, event) => {
       if (row.kind !== 'option' || row.disabled) return;
       const { select } = this.props;
+      this._selected = true; // Local: see onEnter
       if (typeof select === 'function') select(row.value, event);
     },
 
@@ -415,7 +833,17 @@ export default class Command extends PuzzleView {
     // Backdrop click: the click lands on the <dialog> element itself only when it
     // hit the ::backdrop (clicks on inner content have a deeper target).
     onBackdrop: (event) => {
-      if (event.target !== this.element) return;
+      if (event.target !== this.refs.dialog) return;
+      const { close } = this.props;
+      if (typeof close === 'function') close(event);
+    },
+
+    // Local: the SCRIM element's own click. While the dialog is modal the UA's
+    // ::backdrop takes every outside click (that is onBackdrop above), so this
+    // one only ever fires during the flight — the window in which the palette
+    // is visible, growing, and not yet modal. Without it a click in that window
+    // does nothing and the palette feels stuck.
+    onScrim: (event) => {
       const { close } = this.props;
       if (typeof close === 'function') close(event);
     },
