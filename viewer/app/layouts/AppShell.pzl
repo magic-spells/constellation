@@ -4,29 +4,31 @@
     (Sidebar variant="rail"), so rail and frame read as one surface and the work
     panel beside it is the only thing with an edge.
   -->
-  <Sidebar
-    class="cnav shrink-0"
-    variant="rail"
-    label="Plan navigation"
-    items={ navItems }
-    activePath={ activePath }
-    collapsed={ railCollapsed }
-    @collapse={ setCollapsed }>
-    <!--
-      The brand tile is size-8 centred on the nav icons' column: a row icon's
-      centre is 1.875rem in (list p-2 + row px-3 + half of size-5), so the tile
-      starts at 0.875rem (pl-3.5) in both rail states and collapsing only has to
-      hide the label (styles.css, .cnav-brand-label).
-    -->
-    <div slot="header" class="cnav-brand flex h-14 items-center gap-1.5 overflow-hidden pl-3.5 pr-3">
-      <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-tint text-brand">
-        <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 3l1.7 4.1L18 8.8l-4.3 1.7L12 14.6l-1.7-4.1L6 8.8l4.3-1.7zM18.5 15l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8zM5.5 14l.6 1.5 1.5.6-1.5.6L5.5 18l-.6-1.3L3.4 16l1.5-.5z"/>
-        </svg>
-      </span>
-      <span class="cnav-brand-label min-w-0 truncate text-sm font-semibold tracking-tight text-rail-ink transition-opacity duration-200 motion-reduce:transition-none">Constellation</span>
-    </div>
-  </Sidebar>
+  <!-- The rail is md+ only; a phone gets the NavDrawer below instead. The
+       wrapper carries the breakpoint so the Sidebar's own `flex` never has to
+       fight a `hidden` on the same element. -->
+  <div class="cnav hidden h-full shrink-0 md:block">
+    <Sidebar
+      variant="rail"
+      label="Plan navigation"
+      items={ navItems }
+      activePath={ activePath }>
+      <!--
+        The brand tile is size-8 centred on the nav icons' column: a row icon's
+        centre is 1.875rem in (list p-2 + row px-3 + half of size-5), so the tile
+        starts at 0.875rem (pl-3.5) in both rail states and collapsing only has to
+        hide the label (styles.css, .cnav-brand-label).
+      -->
+      <div slot="header" class="cnav-brand flex h-14 items-center gap-1.5 overflow-hidden pl-3.5 pr-3">
+        <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-tint text-brand">
+          <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3l1.7 4.1L18 8.8l-4.3 1.7L12 14.6l-1.7-4.1L6 8.8l4.3-1.7zM18.5 15l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8zM5.5 14l.6 1.5 1.5.6-1.5.6L5.5 18l-.6-1.3L3.4 16l1.5-.5z"/>
+          </svg>
+        </span>
+        <span class="cnav-brand-label min-w-0 truncate text-sm font-semibold tracking-tight text-rail-ink transition-opacity duration-200 motion-reduce:transition-none">Constellation</span>
+      </div>
+    </Sidebar>
+  </div>
 
   <!--
     THE WORK PANEL. From md up it stands off the window by one inset on the
@@ -36,7 +38,8 @@
     reads as a sheet hung from the top of the screen. The top border is the
     panel-edge highlight, the other three the ordinary hairline, each written as
     a longhand (a `border-*` colour shorthand would set all four sides). Below
-    md there is no inset, radius or edge: on a phone the panel is the window.
+    md there is no rail, inset, radius or edge: on a phone the panel is the
+    window and the navigation is a drawer behind the header's menu button.
   -->
   <div class="shell-body flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-panel md:mb-panel-inset md:ml-1 md:mr-panel-inset md:rounded-b-panel md:border-x md:border-b md:border-x-border md:border-b-border md:shadow-panel">
     <!--
@@ -47,6 +50,16 @@
     -->
     <header class="shell-topbar flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
       <div class="flex min-w-0 flex-1 items-center gap-3 sm:basis-0">
+        <button
+          type="button"
+          class="-ml-2 inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-sunken hover:text-ink outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 md:hidden"
+          aria-label="Open navigation"
+          aria-expanded={ drawerOpen ? 'true' : 'false' }
+          @click={ openDrawer }>
+          <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16"/>
+          </svg>
+        </button>
         <!--
           One slot, two readings. Serving a single plan, the header names it;
           serving several, the name becomes the control that picks between
@@ -125,6 +138,13 @@
     </main>
   </div>
 
+  <NavDrawer
+    open={ drawerOpen }
+    items={ navItems }
+    activePath={ activePath }
+    @close={ closeDrawer }
+    @leave={ leaveVia }
+    @hide={ drawerHidden }/>
   <CommandPalette open={ paletteOpen } morphSource={ paletteSource } @close={ closePalette }/>
   <CreateCardDialog open={ createOpen } type={ createType } @close={ closeCreate }/>
   <Toaster/>
@@ -142,6 +162,7 @@ import CreateCardDialog from '../components/CreateCardDialog.pzl';
 import PlanSwitcher from '../components/PlanSwitcher.pzl';
 import SyncBadge from '../components/SyncBadge.pzl';
 import AppearanceSwitcher from '../components/AppearanceSwitcher.pzl';
+import NavDrawer from '../components/NavDrawer.pzl';
 import { NARROW } from '../lib/narrow.js';
 import { planIndex } from '../lib/plan-index.js';
 import { GROUPS, TYPE_META, typeForFolder } from '../lib/types.js';
@@ -154,10 +175,17 @@ const CONSTELLATION_ROUTES = new Set(['graph', 'atlas', 'atlas-card']);
 // carries the plan's name + freshness, the search that opens the ⌘K palette,
 // and the appearance popover. Also the single Toaster host.
 //
-// THE RAIL COLLAPSES ITSELF BELOW md. `collapsed` is controlled here: it starts
-// at whatever NARROW says, follows the breakpoint as the window crosses it, and
-// the rail's edge toggle flips it in between. Icon-only is what keeps a phone
-// from spending most of its width on navigation.
+// BELOW md THERE IS NO RAIL. The header grows a menu button that opens the
+// same rows in a slide-out NavDrawer (as the org account app does), so a phone
+// gives the content its whole width. From md up the rail is back, with its own
+// edge toggle for the icon-only state.
+//
+// THE DRAWER IS SCOPED TO ONE ROUTE. `drawerOpen` is DERIVED in data() from the
+// path it was opened on, so any committed navigation — a link elsewhere, Back,
+// Forward — re-runs data() with a different path and closes it. A drawer link
+// does not navigate itself: it asks to close (@leave), and the navigation runs
+// once the sheet has gone (@hide), so the router can focus the incoming view
+// rather than fighting a modal for it.
 //
 // The nav is derived, not authored: `planIndex(store)` gives per-type card
 // counts, so a type with no cards simply is not in the rail and each visible
@@ -258,13 +286,23 @@ export default class AppShell extends PuzzleView {
 		// "what is in flight", and it is a view of many types at once rather than
 		// of one folder.
 		const navItems = [
-			{ label: 'Overview', href: url('/'), icon: PAGE_ICON.overview },
-			{ label: 'Tasks', href: url('/tasks/board'), icon: PAGE_ICON.board },
-			{ label: 'Documentation', href: url('/docs'), icon: PAGE_ICON.docs },
-			{ label: 'Constellation', href: url('/constellation/graph'), icon: PAGE_ICON.constellation },
+			{ label: 'Overview', href: url('/'), path: '/', icon: PAGE_ICON.overview },
+			{ label: 'Tasks', href: url('/tasks/board'), path: '/tasks/board', icon: PAGE_ICON.board },
+			{ label: 'Documentation', href: url('/docs'), path: '/docs', icon: PAGE_ICON.docs },
+			{
+				label: 'Constellation',
+				href: url('/constellation/graph'),
+				path: '/constellation/graph',
+				icon: PAGE_ICON.constellation,
+			},
 		];
 		if (count('STYLE') > 0) {
-			navItems.push({ label: 'Style guide', href: url('/style-guide'), icon: PAGE_ICON.style });
+			navItems.push({
+				label: 'Style guide',
+				href: url('/style-guide'),
+				path: '/style-guide',
+				icon: PAGE_ICON.style,
+			});
 		}
 
 		for (const group of GROUPS) {
@@ -277,6 +315,7 @@ export default class AppShell extends PuzzleView {
 				navItems.push({
 					label: TYPE_META[type].label,
 					href: url(`/${TYPE_META[type].folder}`),
+					path: `/${TYPE_META[type].folder}`,
 					icon: TYPE_ICON[type],
 					badge: count(type),
 				});
@@ -295,7 +334,7 @@ export default class AppShell extends PuzzleView {
 		return {
 			navItems,
 			activePath: this._activePath(region, url),
-			railCollapsed: this._collapsed === true,
+			drawerOpen: this._drawerOpenedOn != null && this._drawerOpenedOn === this.route.path,
 			paletteOpen: this.getData().paletteOpen === true,
 			paletteSource: this._paletteSource ?? null,
 			// The create dialog lives here rather than in CardList because the list
@@ -348,8 +387,11 @@ export default class AppShell extends PuzzleView {
 				? window.matchMedia(NARROW)
 				: null;
 		this._narrowNow = !!this._narrow?.matches;
-		this._collapsed = this._narrowNow;
 		this._paletteSource = null;
+		// The path the drawer was opened on, or null; and where a drawer link
+		// asked to go, consumed by the @hide that follows its close.
+		this._drawerOpenedOn = null;
+		this._pendingPath = null;
 	}
 
 	mounted() {
@@ -364,7 +406,8 @@ export default class AppShell extends PuzzleView {
 
 		this._onNarrow = (event) => {
 			this._narrowNow = event.matches;
-			this._collapsed = event.matches;
+			// Widening past md takes the drawer's job away: the rail is back.
+			if (!event.matches) this._drawerOpenedOn = null;
 			this.refresh();
 		};
 		this._narrow?.addEventListener?.('change', this._onNarrow);
@@ -440,9 +483,24 @@ export default class AppShell extends PuzzleView {
 			this._paletteSource = event?.currentTarget ?? null;
 			this._setPalette(true);
 		},
-		setCollapsed: (next) => {
-			this._collapsed = !!next;
+		openDrawer: () => {
+			this._drawerOpenedOn = this.route.path;
 			this.refresh();
+		},
+		closeDrawer: () => {
+			if (this._drawerOpenedOn == null) return;
+			this._drawerOpenedOn = null;
+			this.refresh();
+		},
+		leaveVia: (path) => {
+			this._pendingPath = path;
+			this._drawerOpenedOn = null;
+			this.refresh();
+		},
+		drawerHidden: () => {
+			const path = this._pendingPath;
+			this._pendingPath = null;
+			if (path) this.ctx.router.push(path);
 		},
 		closePalette: () => this._setPalette(false),
 

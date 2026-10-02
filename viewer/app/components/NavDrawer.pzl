@@ -1,0 +1,199 @@
+<puzzle-view>
+  <dialog
+    ref="dialog"
+    class="fixed inset-y-0 left-0 m-0 h-dvh max-h-none w-72 max-w-full overflow-hidden border-r border-rail-edge bg-rail p-0 text-rail-ink shadow-popover backdrop:bg-scrim"
+    aria-labelledby={ titleId }
+    @cancel={ onCancel(event) }
+    @click={ onBackdrop(event) }>
+    <div class="flex h-full flex-col">
+      <div class="flex h-14 shrink-0 items-center gap-2 pl-3.5 pr-2">
+        <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-tint text-brand" aria-hidden="true">
+          <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l1.7 4.1L18 8.8l-4.3 1.7L12 14.6l-1.7-4.1L6 8.8l4.3-1.7zM18.5 15l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8zM5.5 14l.6 1.5 1.5.6-1.5.6L5.5 18l-.6-1.3L3.4 16l1.5-.5z"/>
+          </svg>
+        </span>
+        <h2 id={ titleId } class="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">Constellation</h2>
+        <button
+          type="button"
+          class="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-rail-muted transition-colors hover:bg-rail-active hover:text-rail-ink outline-ring focus-visible:outline-2"
+          aria-label="Close navigation"
+          @click={ dismiss }>
+          <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"/>
+          </svg>
+        </button>
+      </div>
+
+      <nav class="min-h-0 flex-1 overflow-y-auto p-2" aria-label="Plan navigation">
+        <ul class="space-y-0.5">
+          {#for row in rows}
+            <li key={ row.key }>
+              {#if row.group}
+                <p class="px-3 pb-1.5 pt-7 text-xs font-semibold uppercase tracking-wide text-rail-muted">{ row.group }</p>
+              {:else}
+                <!-- A real href, so middle- and ⌘-click still open a tab. A plain
+                     click is taken over: the drawer closes first and the shell
+                     navigates once it is gone (@leave). -->
+                <a
+                  href={ row.href }
+                  class={ row.linkClass }
+                  aria-current={ row.current }
+                  @click={ go(row.path, event) }>
+                  <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d={ row.icon }/>
+                  </svg>
+                  <span class="min-w-0 flex-1 truncate">{ row.label }</span>
+                  {#if row.badge}
+                    <span class="shrink-0 rounded-full bg-rail-active px-2 py-0.5 text-xs font-medium text-rail-muted">{ row.badge }</span>
+                  {/if}
+                </a>
+              {/if}
+            </li>
+          {/for}
+        </ul>
+      </nav>
+    </div>
+  </dialog>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import { reducedMotion } from '../lib/motion.js';
+
+// NavDrawer — the phone's navigation: below md the rail is gone and this
+// slide-out sheet carries the same rows (the shell's `navItems`, groups and
+// counts included). Modelled on the org account app's drawer.
+//
+// A native <dialog> does the hard parts: showModal() traps focus and inerts the
+// page, Escape arrives as `cancel`, and close() hands focus back to the menu
+// button that opened it.
+//
+// CONTROLLED. AppShell owns `open` (it derives it from the route the drawer was
+// opened on, so any navigation — Back included — closes it). This view only
+// asks: @close on Escape, a backdrop tap or the close button; @leave(path) on a
+// plain link click, which asks to close and leaves the navigation to the shell
+// AFTER the sheet has gone. Navigating with the drawer still modal would leave
+// the router unable to focus the incoming view (the page is inert), and the
+// drawer's close would then hand focus back to the menu button anyway.
+//
+// Props
+//   open        whether the sheet is showing
+//   items       the shell's navItems ({ group } | { label, href, path, icon, badge })
+//   activePath  the href of the current row
+// Callbacks
+//   @close()        asked for on Escape, backdrop or the close button
+//   @leave(path)    a link was clicked: close, then navigate to `path`
+//   @hide()         the sheet has finished closing
+
+const ROW =
+  'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ' +
+  'outline-ring focus-visible:outline-2 focus-visible:-outline-offset-2';
+const ROW_IDLE = 'text-rail-muted hover:bg-rail-active hover:text-rail-ink';
+const ROW_ACTIVE = 'bg-rail-active font-medium text-rail-ink';
+
+let uid = 0;
+
+export default class NavDrawer extends PuzzleView {
+  created() {
+    this._titleId = `nav-drawer-${++uid}`;
+    this._openState = false;
+  }
+
+  data(params, props) {
+    const items = Array.isArray(props.items) ? props.items : [];
+    return {
+      titleId: this._titleId,
+      rows: items.map((item, i) =>
+        item.group
+          ? { key: `group:${item.group}`, group: item.group }
+          : {
+              key: `${item.href}:${i}`,
+              href: item.href,
+              path: item.path,
+              icon: item.icon,
+              label: item.label,
+              badge: item.badge ?? '',
+              current: item.href === props.activePath ? 'page' : false,
+              linkClass: [ROW, item.href === props.activePath ? ROW_ACTIVE : ROW_IDLE].join(' '),
+            },
+      ),
+    };
+  }
+
+  mounted() {
+    this._sync();
+  }
+
+  afterUpdate() {
+    this._sync();
+  }
+
+  destroyed() {
+    this._exit?.cancel?.();
+    this._exit = null;
+  }
+
+  // Edge-triggered on our own flag, like the other dialog pieces.
+  _sync() {
+    const dialog = this.refs.dialog;
+    if (!dialog) return;
+    const open = this.props.open === true;
+    if (open === this._openState) return;
+    this._openState = open;
+    if (open) this._show(dialog);
+    else this._hide(dialog);
+  }
+
+  _show(dialog) {
+    this._exit?.cancel?.();
+    this._exit = null;
+    if (!dialog.open) dialog.showModal();
+    if (reducedMotion() || typeof dialog.animate !== 'function') return;
+    dialog.animate([{ transform: 'translateX(-100%)' }, { transform: 'translateX(0)' }], {
+      duration: 220,
+      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+    });
+  }
+
+  // Held open through the slide-out, then closed for real. A reopen inside the
+  // slide cancels it and the sheet never left.
+  _hide(dialog) {
+    const done = () => {
+      this._exit = null;
+      if (this._openState) return;
+      if (dialog.open) dialog.close();
+      this.props.hide?.();
+    };
+    if (!dialog.open) return done();
+    if (reducedMotion() || typeof dialog.animate !== 'function') return done();
+    const animation = dialog.animate(
+      [{ transform: 'translateX(0)' }, { transform: 'translateX(-100%)' }],
+      { duration: 180, easing: 'ease-in' },
+    );
+    if (typeof animation?.addEventListener !== 'function') return done();
+    this._exit = animation;
+    animation.addEventListener('finish', done);
+  }
+
+  events = {
+    // Never let the browser close it behind the vdom's back; ask instead.
+    onCancel: (event) => {
+      event.preventDefault();
+      this.props.close?.();
+    },
+    // A click whose target is the <dialog> itself landed on the ::backdrop.
+    onBackdrop: (event) => {
+      if (event.target === this.refs.dialog) this.props.close?.();
+    },
+    dismiss: () => this.props.close?.(),
+    go: (path, event) => {
+      // Leave the browser's own gestures (new tab, new window) alone.
+      if (event.defaultPrevented || !path) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (event.button !== undefined && event.button !== 0) return;
+      event.preventDefault();
+      this.props.leave?.(path);
+    },
+  };
+}
+</script>

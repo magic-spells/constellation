@@ -15,7 +15,7 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import { planIndex } from '../lib/plan-index.js';
 import { TYPE_META, typeForFolder } from '../lib/types.js';
-import { isNarrow } from '../lib/narrow.js';
+import { isNarrow, NARROW } from '../lib/narrow.js';
 
 // TypeIntro — what `/:folder` shows in the detail pane. A non-empty type never
 // actually shows it: picking a type auto-selects its first card (replace(), so
@@ -54,6 +54,23 @@ export default class TypeIntro extends PuzzleView {
 
 	mounted() {
 		this._openFirst();
+		// Widening a phone past md on a folder route turns the list-only pane
+		// into the split, which wants a card in it — open the first, as a
+		// desktop load does.
+		this._narrow =
+			typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+				? window.matchMedia(NARROW)
+				: null;
+		this._onNarrow = (event) => {
+			if (!event.matches) this._openFirst();
+		};
+		this._narrow?.addEventListener?.('change', this._onNarrow);
+	}
+
+	destroyed() {
+		this._narrow?.removeEventListener?.('change', this._onNarrow);
+		this._narrow = null;
+		this._onNarrow = null;
 	}
 
 	afterUpdate() {
