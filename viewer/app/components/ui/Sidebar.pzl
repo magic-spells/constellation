@@ -263,10 +263,11 @@ import { PuzzleView } from '@magic-spells/puzzle';
 // replaces the old footer toggle button; the footer area is now slot-only. See the
 // EDGE_TOGGLE constant for the interaction rationale (cursor, touch, keyboard).
 //
-// SUBMENU GUIDE + ACTIVE MARKER. An expanded submenu is ruled by a vertical guide
-// (a `before` pseudo-element on the list, NOT a border — see CHILD_MARK), and the
-// ACTIVE child paints a brand-coloured bar on that same line. A flyout has no
-// guide, so its rows use `flyoutLinkClass` and carry no marker.
+// SUBMENU GUIDE. An expanded submenu is ruled by a neutral vertical guide (a
+// `before` pseudo-element on the list). Local (Constellation): the registry's
+// brand-coloured bar on that line for the ACTIVE child is removed — no coloured
+// left-edge accent bars, ever. The active child wears the row's own active fill,
+// the same treatment as a flyout row.
 //
 // COLLAPSED + SUBMENUS — FLYOUT. A collapsed parent remains a disclosure button; click
 // pops its children out to the RIGHT in a fixed panel anchored at rect.right + 8,
@@ -360,12 +361,10 @@ const ROW_BASE =
   'group flex items-center gap-3 rounded-md text-sm ' +
   'transition-[color,background-color] duration-200 ease-out motion-reduce:transition-none ' +
   'outline-ring focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
-// THE CLIP IS SEPARATE FROM THE BASE because ONE row must not have it: an inline
-// submenu's active child draws its marker OUTSIDE its own box, on the guide line
-// 8px to its left, and `overflow-hidden` would slice it off. Every other row —
-// every top-level row and every flyout row — keeps it, which is what lets a label
-// disappear as the rail narrows instead of spilling into the gutter. The inline
-// children are clipped anyway, by the collapsible region that wraps them.
+// THE CLIP IS SEPARATE FROM THE BASE: top-level and flyout rows take it, which is
+// what lets a label disappear as the rail narrows instead of spilling into the
+// gutter. Inline submenu children are clipped by the collapsible region that
+// wraps them.
 const ROW_CLIP = 'overflow-hidden';
 const BADGE = 'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium';
 
@@ -394,24 +393,11 @@ const linkClass = (active, v) =>
 
 const CHILD_PAD = 'px-3 py-1.5';
 
-// THE ACTIVE CHILD'S MARKER, drawn ON the submenu's guide line rather than beside
-// it. The offset is the `pl-2` between the guide and the row, minus half a
-// pixel so the 2px bar sits centred on the 1px guide, so the two
-// measure from the same edge — which is why the guide is a pseudo-element now and
-// not a `border-l`: a border sits outside the padding box and the row would have
-// had to guess its width. `w-0.5` and not `w-px`: the bar's LEFT edge lands on the
-// guide's, and it covers it and one pixel more — a 1px bar read as a slightly
-// bluer guide rather than as a mark.
-const CHILD_MARK =
-  'before:absolute before:inset-y-1 before:left-[calc(var(--spacing)*-2-0.5px)] before:w-0.5 before:rounded-full before:bg-brand';
-
-// An INLINE submenu row: `relative` for the marker above, and no clip.
+// An INLINE submenu row (no clip — its region clips it).
 const childLinkClass = (active, v) =>
-  [ROW_BASE, 'relative', CHILD_PAD, active ? `${v.active} ${CHILD_MARK}` : v.idle].join(' ');
+  [ROW_BASE, CHILD_PAD, active ? v.active : v.idle].join(' ');
 
-// A FLYOUT row (the collapsed rail's pop-out). Same row, NO marker: there is no
-// guide line in a flyout for it to land on, so it would be a bar floating in the
-// panel's padding.
+// A FLYOUT row (the collapsed rail's pop-out).
 const flyoutLinkClass = (active, v) =>
   [ROW_BASE, ROW_CLIP, CHILD_PAD, active ? v.active : v.idle].join(' ');
 
@@ -632,11 +618,7 @@ export default class Sidebar extends PuzzleView {
           it.visualOpen ? 'rotate-90' : '',
           collapsed ? 'opacity-0' : '',
         ].join(' ');
-        // The guide line is a `before` pseudo-element on the list, not a
-        // `border-l`: a border lives outside the padding box, so the active
-        // child's marker could not be positioned against it without hard-coding
-        // the border's width. As a pseudo-element both sit on `left-0` of the
-        // same box, and CHILD_MARK's offset is literally this `pl-2` (less half a pixel to centre).
+        // The guide line is a neutral `before` pseudo-element on the list.
         it.submenuClass = [
           'relative ml-[1.375rem] mt-0.5 space-y-0.5 pl-2',
           'before:absolute before:inset-y-0 before:left-0 before:w-px',
