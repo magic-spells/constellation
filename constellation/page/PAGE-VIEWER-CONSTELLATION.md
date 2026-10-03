@@ -50,7 +50,10 @@ Canvas 2D, on-demand: one `requestAnimationFrame` is scheduled only while a twee
 is running or a draw was requested, so a settled graph costs nothing. Two passes —
 world space for edges and card rects, then screen space for labels, so text never
 inherits the zoom. Per-type colour comes from the `--t-<TYPE>` custom properties,
-resolved once per theme change rather than per frame.
+and the ground is `--color-surface-panel` (the work panel), all resolved once per
+appearance change rather than per frame. `cssColor` in `lib/colors.js` turns a
+`color-mix()` token into hex by probing `color-mix(in srgb, var(x), var(x))` — no
+canvas readback, which anti-fingerprinting noises.
 
 The camera, easing and frame scheduler live in `canvas-camera.js`, shared with the
 atlas so the two canvases cannot drift apart.

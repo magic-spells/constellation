@@ -5,6 +5,10 @@ status: built
 category: color
 code_refs:
   - viewer/app/styles/schemes.css
+  - viewer/app/styles/pieces.css
+  - viewer/app/styles/themes/dim.css
+  - viewer/app/styles/themes/warm.css
+  - viewer/app/styles/themes/void.css
 tokens:
   - name: success
     value: '#66b35c'

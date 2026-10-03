@@ -76,9 +76,11 @@ margins applied, a page break before every section, and a cover page (project
 name, package version, date). It applies on **every** route, not just here: a
 chrome-free print of a card page beats a cropped screenshot.
 
-Print redeclares the colour tokens rather than trusting `color-scheme: light`,
-because observatory carries the same dark value in both halves of every
-`light-dark()` pair — without the override it prints a black page.
+Print redeclares the colour tokens rather than trusting `color-scheme: light`:
+no scheme's light half is paper white, medium blocks set literal values, and
+`appearance.js` writes `color-scheme` inline on `<html>`. So `@media print` and
+the print window's `data-paper` both force `color-scheme: light !important` and
+reset every token a medium block sets — two blocks in `styles.css`, kept in step.
 
 Known rough edge: mermaid SVG fills are baked at render time from computed
 tokens and don't re-render on the print media change, so diagrams print in their

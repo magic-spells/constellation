@@ -14,6 +14,12 @@ connections:
   - PAGE-VIEWER-CONSTELLATION
 verified_at: '2026-08-24T21:11:26.874Z'
 verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+notes:
+  - kind: state
+    text: >-
+      The map's ground is `--color-surface-panel` (the 1.1 work panel), not `--color-page`, read by
+      `atlas-palette.js` through the same `cssColor` probe as the graph, so the canvas is continuous
+      with the panel in every scheme and mode.
 ---
 
 The isometric city: **what shape is this system, and where does data go**. The

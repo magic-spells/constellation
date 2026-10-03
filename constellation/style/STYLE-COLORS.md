@@ -5,6 +5,11 @@ status: built
 category: color
 code_refs:
   - viewer/app/styles/schemes.css
+  - viewer/app/styles/pieces.css
+  - viewer/app/styles/themes/dim.css
+  - viewer/app/styles/themes/warm.css
+  - viewer/app/styles/themes/void.css
+  - viewer/app/lib/appearance.js
 tokens:
   - name: ink
     value: '#e6e8f2'
@@ -21,17 +26,23 @@ tokens:
   - name: page
     value: '#07080f'
     description: The page behind everything
+  - name: surface-frame
+    value: '#0c0e18'
+    description: The window frame — rail and the margin around the work panel
+  - name: surface-panel
+    value: '#07080f'
+    description: The work panel's ground (Observatory aliases it to page); canvases paint it
   - name: surface
     value: '#0c0e18'
-    description: Panels, cards, the topbar
+    description: Panels and cards
   - name: surface-sunken
     value: '#11131f'
     description: Inset wells — board columns, code blocks
   - name: border
-    value: '#3a3936'
+    value: '#1b1e30'
     description: Default hairline
   - name: border-strong
-    value: '#4c4b47'
+    value: '#2a2e48'
     description: Hover and emphasis borders
   - name: brand
     value: '#8ab4ff'
@@ -47,20 +58,24 @@ section: design-system
 order: 30
 ---
 
-The base palette: four text steps, three surfaces, two borders, one brand.
+The base palette: four text steps, five surfaces, two borders, one brand.
 Values shown are **observatory dark**, the default scheme.
 
 ## Two axes, not one
 
-Theming is `data-scheme` (observatory, default, warm, void, dim) × `data-theme`
-(light / dark / system), both stamped pre-paint by an inline script in the shell
-so nothing flashes. Every token is a `light-dark()` pair, so a scheme declares
-both halves once and the theme toggle picks a side.
+Theming is `data-scheme` (observatory, default, dim, warm, void) × `data-theme`
+(light / medium / dark, or unset to follow the OS), applied by `lib/appearance.js`
+and stamped pre-paint by an inline script in `index.html` so nothing flashes.
+Every token is a `light-dark()` pair; medium takes the dark half and each scheme
+adds a medium block that lifts the grounds.
 
-That has a consequence worth knowing before touching print or export:
-**observatory carries dark values in *both* halves**, so flipping
-`color-scheme: light` does not lighten it. Paper has to redeclare the tokens
-outright — see [[PAGE-VIEWER-DOCS]].
+Observatory is ours (`schemes.css`), scoped to `[data-scheme='observatory']`
+rather than `:root` so the picker can preview it on a card, and it restates all
+71 tokens for the same reason. The default palette is `pieces.css`; dim, warm and
+void are registry copies in `styles/themes/`, changed only by `puzzle add theme`.
+
+No scheme's light half is paper white, and medium blocks set literals, so print
+redeclares the tokens outright — see [[PAGE-VIEWER-DOCS]].
 
 ## Rules
 
