@@ -3,11 +3,9 @@ import {
   access,
   appendFile,
   mkdir,
-  open,
   readFile,
   readdir,
   realpath,
-  rename,
   rm,
   stat,
   writeFile,
@@ -26,7 +24,8 @@ import {
   type WorkingConfig,
   type WorkingConfigRead,
 } from './working-config.js';
-import { withFileLock, writeAtomic } from './writer.js';
+import { LockBusyError, withWriteLock as withCrossProcessLock } from './working-lock.js';
+import { renameWithRetry, withFileLock, writeAtomic } from './writer.js';
 
 const exec = promisify(execFile);
 
@@ -643,50 +642,16 @@ function validateText(text: string): string {
   return text.trim();
 }
 
-/** How long a lock file may sit before it is taken for a crashed writer's. */
-const LOCK_STALE_MS = 10_000;
-/** How long a writer waits for the lock before giving up loudly. */
-const LOCK_WAIT_MS = 5_000;
 /** Optimistic retries when working.md changes under a write (a writer outside the lock). */
 const MAX_WRITE_ATTEMPTS = 5;
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Cross-process mutual exclusion on `working.md`: an exclusive `working.md.lock`
- * beside it. withFileLock only orders writers inside one process; the hook, the
- * MCP server and a second agent's server are separate processes. A lock older
- * than LOCK_STALE_MS belongs to a writer that died and is broken.
- */
+/** The cross-process lock (working-lock.ts), with BUSY mapped onto the tool error contract. */
 async function withWriteLock<T>(file: string, fn: () => Promise<T>): Promise<T> {
-  const lock = `${file}.lock`;
-  const deadline = Date.now() + LOCK_WAIT_MS;
-  for (;;) {
-    try {
-      const handle = await open(lock, 'wx');
-      await handle.writeFile(String(process.pid));
-      await handle.close();
-      break;
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
-      const held = await stat(lock).catch(() => null);
-      if (held && Date.now() - held.mtimeMs > LOCK_STALE_MS) {
-        await rm(lock, { force: true });
-        continue;
-      }
-      if (Date.now() > deadline) {
-        throw new WorkingError(
-          'BUSY',
-          `working.md has been locked by another writer for over ${LOCK_WAIT_MS / 1000}s (${lock}); retry, or delete the lock file if no writer is running.`,
-        );
-      }
-      await sleep(10 + Math.random() * 30);
-    }
-  }
   try {
-    return await fn();
-  } finally {
-    await rm(lock, { force: true });
+    return await withCrossProcessLock(file, fn);
+  } catch (err) {
+    if (err instanceof LockBusyError) throw new WorkingError('BUSY', err.message);
+    throw err;
   }
 }
 
@@ -738,7 +703,14 @@ async function mutate<T>(
         try {
           if ((await readRaw(paths.file)) !== before) continue;
           for (const line of logs) await appendLogAt(paths.logDir, line);
-          await rename(tmp, paths.file);
+          try {
+            await renameWithRetry(tmp, paths.file);
+          } catch (err) {
+            // The log already says it happened; say it did not, so the history stays true.
+            const reason = err instanceof Error ? err.message : String(err);
+            if (logs.length > 0) await appendLogAt(paths.logDir, `abort — ${reason}`);
+            throw err;
+          }
         } finally {
           await rm(tmp, { force: true });
         }

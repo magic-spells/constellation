@@ -358,6 +358,7 @@ const working = program
     if (!anchor) return;
     const settings = await readWorkingConfig(anchor);
     if (!settings.config.enabled) return;
+    let notice: string | null = null;
     // stdin is read only when the user chose "clear": the default path stays
     // exactly what it was, and a manual run on a TTY never waits for input.
     // Compact and resume never clear — surviving those is the point of the set.
@@ -365,11 +366,19 @@ const working = program
       const { readHookSource } = await import('./hook-input.js');
       const source = await readHookSource();
       if (source === 'startup' || source === 'clear') {
-        await clearForNewSession(anchor).catch(() => null);
+        await clearForNewSession(anchor).catch((err: unknown) => {
+          // Another writer held the list the whole wait: say so rather than
+          // leaving a stale set that looks freshly cleared.
+          const code = (err as { code?: string }).code;
+          if (code === 'BUSY' || code === 'CONFLICT') {
+            notice = 'working memory: list busy, not cleared this session';
+          }
+        });
       }
     }
     const found = await readWorkingRaw(anchor).catch(() => null);
     if (!found) return;
+    if (notice) console.log(notice);
     console.log(workingPreamble(found.path));
     console.log();
     console.log(found.text.trimEnd());

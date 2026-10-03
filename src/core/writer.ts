@@ -191,12 +191,32 @@ function tmpPathFor(filePath: string): string {
   return `${filePath}.${process.pid}.${(tmpSeq++).toString(36)}.tmp`;
 }
 
+/** Rename errors that mean another program (an editor, antivirus, an indexer) holds the file. */
+const RENAME_RETRY_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
+
+/**
+ * rename, retried with a short backoff when the target is momentarily held open —
+ * routine on Windows, where an editor or virus scanner can block a replace.
+ */
+export async function renameWithRetry(from: string, to: string, attempts = 5): Promise<void> {
+  for (let i = 0; ; i++) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code ?? '';
+      if (!RENAME_RETRY_CODES.has(code) || i >= attempts - 1) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 20 * 2 ** i));
+    }
+  }
+}
+
 /** Write via temp file + rename so a crash can never leave a half-written card. */
 export async function writeAtomic(filePath: string, data: string): Promise<void> {
   const tmp = tmpPathFor(filePath);
   await writeFile(tmp, data, 'utf8');
   try {
-    await rename(tmp, filePath);
+    await renameWithRetry(tmp, filePath);
   } catch (err) {
     await rm(tmp, { force: true });
     throw err;

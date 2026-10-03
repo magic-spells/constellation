@@ -1030,7 +1030,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'init_plan',
     {
       description:
-        'Bootstrap a new plan: create a constellation/ folder with a starter plan.md. Use only when no plan exists yet (other tools return NO_PLAN_FOUND). Pass name to set the project name (shown as the viewer title); if omitted it defaults to a title-cased folder name (pyramid-server → "Pyramid Server"). Propose a name, confirm it with the user, and change it anytime via update_card on PLAN-PROJECT. After this, create_card works immediately. It also sets up working memory (.constellation/) and always ensures its ignore line. Before calling, ask the user "Do you want to use working memory on this repo?" (→ working_enabled) and "Do you want to clear the working memory with every new session?" (→ new_session: clear, else keep). Can\'t ask? Omit them; the defaults (on, keep) apply and defaults_applied lists them for the user. working: false skips working memory entirely (no files, no settings — the question stays open).',
+        'Bootstrap a new plan: create a constellation/ folder with a starter plan.md. Use only when no plan exists yet (other tools return NO_PLAN_FOUND). Pass name to set the project name (shown as the viewer title); if omitted it defaults to a title-cased folder name (pyramid-server → "Pyramid Server"). Propose a name, confirm it with the user, and change it anytime via update_card on PLAN-PROJECT. After this, create_card works immediately. It also sets up working memory (.constellation/) and always ensures its ignore line. Before calling, ask the user "Do you want to use working memory on this repo?" (→ working_enabled) and "Do you want to clear the working memory with every new session?" (→ new_session: clear, else keep). Can\'t ask? Omit them; the defaults (on, keep) apply and defaults_applied lists them for the user. working_enabled: false means THE USER SAID NO (saved as enabled: false). working: false is only kept for backward compatibility and means DON\'T SET UP WORKING MEMORY NOW — the user was not asked, nothing is saved, the question stays open.',
       inputSchema: {
         path: z
           .string()
@@ -1044,13 +1044,13 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .boolean()
           .optional()
           .describe(
-            'false: skip working memory (only the .constellation/ ignore line is written). Default true; no hook — working_init { hook: true } adds that',
+            'backward compatibility only — false = don\'t set up working memory now; the user was not asked, nothing is saved (only the .constellation/ ignore line is written). For the user\'s answer use working_enabled',
           ),
         working_enabled: z
           .boolean()
           .optional()
           .describe(
-            'the user\'s answer to "use working memory on this repo?" — false is saved as enabled: false and creates nothing else',
+            'the user\'s answer to "use working memory on this repo?" — false = the user said no (saved as enabled: false; nothing else is created)',
           ),
         new_session: newSessionSchema,
       },
