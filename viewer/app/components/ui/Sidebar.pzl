@@ -325,7 +325,7 @@ const VARIANTS = {
   rail: {
     nav: 'bg-rail',
     idle: 'text-rail-muted hover:bg-rail-active hover:text-rail-ink',
-    active: 'bg-rail-active text-rail-ink font-medium',
+    active: 'bg-rail-active text-rail-ink font-medium shadow-contact',
     badge: 'bg-rail-active text-rail-muted',
     quiet: 'text-rail-muted',
     line: 'border-rail-edge',

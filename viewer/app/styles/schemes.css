@@ -104,8 +104,9 @@
 	--color-rail: var(--color-surface-frame);
 	--color-rail-ink: var(--color-bar-ink);
 	--color-rail-muted: var(--color-bar-muted);
-	/* The selected rail row keeps 1.0's brand-tint pill. */
-	--color-rail-active: var(--color-brand-tint);
+	/* The selected rail row: a white chip in light (the brand tint sat too close
+	   to the grey frame to read as selected), 1.0's brand-tint pill in dark. */
+	--color-rail-active: light-dark(var(--color-bar-hover), var(--color-brand-tint));
 	--color-rail-edge: var(--color-bar-line);
 	--color-edge-highlight: light-dark(#ffffff, rgb(255 255 255 / 0.04));
 	--color-edge-highlight-strong: light-dark(#ffffff, rgb(255 255 255 / 0.06));
