@@ -334,20 +334,33 @@ describe('no folder', () => {
 });
 
 describe('init', () => {
-  it('creates the folder, the rules, an empty set and the ignore lines — once', async () => {
+  it('creates the folder, the settings, the rules, an empty set and the ignore line — once', async () => {
     const first = await initWorking(planRoot);
     expect(first.gitignore).toBe('added');
+    expect(first.gitignore_check).toBe('ok');
     expect(first.created.map((f) => path.basename(f)).sort()).toEqual([
       'CLAUDE.md',
+      'config.json',
       'working.md',
     ]);
+    // No answers passed: the defaults, spelled out, and named so the agent can say so.
+    expect(first.config).toEqual({ enabled: true, new_session: 'keep' });
+    expect(first.defaults_applied).toEqual(['enabled', 'new_session']);
+    expect(
+      JSON.parse(await readFile(path.join(repo, '.constellation', 'config.json'), 'utf8')),
+    ).toEqual({ working: { enabled: true, new_session: 'keep' } });
     const ignore = await readFile(path.join(repo, '.gitignore'), 'utf8');
-    expect(ignore).toContain('.constellation/*');
-    expect(ignore).toContain('!.constellation/CLAUDE.md');
+    // The WHOLE folder is local — its CLAUDE.md included.
+    expect(ignore.split('\n')).toContain('.constellation/');
+    expect(ignore).not.toContain('!.constellation');
+    expect(git(repo, 'status', '--porcelain', '--untracked-files=all')).not.toContain(
+      '.constellation',
+    );
 
     const second = await initWorking(planRoot);
     expect(second.created).toEqual([]);
     expect(second.gitignore).toBe('present');
+    expect(second.config_created).toBe(false);
     const again = await readFile(path.join(repo, '.gitignore'), 'utf8');
     expect(again).toBe(ignore);
   });
@@ -394,22 +407,37 @@ describe('init', () => {
     expect(await readFile(file, 'utf8')).toBe('{ this is not json ');
   });
 
-  it('appends to a non-empty .gitignore and fills in a half-present pair', async () => {
+  it('appends to a non-empty .gitignore once, and counts an equivalent line', async () => {
     const file = path.join(repo, '.gitignore');
     await writeFile(file, 'node_modules\n.env\n', 'utf8');
     expect(await ensureGitignore(repo)).toBe('added');
-    let raw = await readFile(file, 'utf8');
+    const raw = await readFile(file, 'utf8');
     expect(raw.startsWith('node_modules\n.env\n')).toBe(true);
-    expect(raw).toContain('.constellation/*');
-    expect(raw).toContain('!.constellation/CLAUDE.md');
+    expect(raw.match(/^\.constellation\/$/gm)).toHaveLength(1);
+    expect(await ensureGitignore(repo)).toBe('present');
+    expect(await readFile(file, 'utf8')).toBe(raw);
+
+    await writeFile(file, 'dist\n/.constellation\n', 'utf8');
+    expect(await ensureGitignore(repo)).toBe('present');
+  });
+
+  it('migrates the old two-line form in place, without duplicating anything', async () => {
+    const file = path.join(repo, '.gitignore');
+    await writeFile(
+      file,
+      'node_modules\n\n# Constellation working memory (local scratchpad; the rules file is committed)\n.constellation/*\n!.constellation/CLAUDE.md\ndist\n',
+      'utf8',
+    );
+    expect(await ensureGitignore(repo)).toBe('migrated');
+    expect(await readFile(file, 'utf8')).toBe(
+      'node_modules\n\n# Constellation working memory (local conversational memory; never tracked)\n.constellation/\ndist\n',
+    );
     expect(await ensureGitignore(repo)).toBe('present');
 
-    // Only one of the pair present: the other is added, the first is not duplicated.
-    await writeFile(file, 'dist\n.constellation/*\n', 'utf8');
-    expect(await ensureGitignore(repo)).toBe('added');
-    raw = await readFile(file, 'utf8');
-    expect(raw.match(/^\.constellation\/\*$/gm)).toHaveLength(1);
-    expect(raw).toContain('!.constellation/CLAUDE.md');
+    // Half the old pair beside the new line: the leftover just goes.
+    await writeFile(file, '.constellation/\n!.constellation/CLAUDE.md\n', 'utf8');
+    expect(await ensureGitignore(repo)).toBe('migrated');
+    expect(await readFile(file, 'utf8')).toBe('.constellation/\n');
   });
 
   it('creates settings.json when there is none', async () => {
@@ -442,7 +470,7 @@ describe('worktrees', () => {
         await realpath(await resolveWorkingDir(planRoot)),
       );
       await expect(readFile(path.join(wt, '.gitignore'), 'utf8')).resolves.toContain(
-        '.constellation/*',
+        '.constellation/',
       );
       await expect(
         readFile(path.join(wt, '.claude', 'settings.json'), 'utf8'),
@@ -476,7 +504,7 @@ describe('monorepos', () => {
     expect(result.hook).toBe('installed');
     // .gitignore ignores a sibling of the plan, so it lives with the plan…
     await expect(readFile(path.join(pkg, '.gitignore'), 'utf8')).resolves.toContain(
-      '.constellation/*',
+      '.constellation/',
     );
     await expect(readFile(path.join(repo, '.gitignore'), 'utf8')).rejects.toThrow();
     // …while Claude Code reads settings at the repo root.
@@ -557,7 +585,7 @@ describe('without a plan', () => {
     expect(init.dir).toBe(path.join(bare, '.constellation'));
     expect(init.gitignore).toBe('added');
     await expect(readFile(path.join(bare, '.gitignore'), 'utf8')).resolves.toContain(
-      '.constellation/*',
+      '.constellation/',
     );
     // No plan folder was invented along the way.
     await expect(readFile(path.join(bare, 'constellation', 'plan.md'), 'utf8')).rejects.toThrow();
@@ -601,7 +629,7 @@ describe('without a plan', () => {
       // Tracked files belong to the checkout the call came from.
       await initWorking(fromWt, { hook: true });
       await expect(readFile(path.join(wt, '.gitignore'), 'utf8')).resolves.toContain(
-        '.constellation/*',
+        '.constellation/',
       );
       await expect(
         readFile(path.join(wt, '.claude', 'settings.json'), 'utf8'),

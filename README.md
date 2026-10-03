@@ -39,13 +39,14 @@ Requires Node ≥ 22.
 ## Usage
 
 ```sh
-constellation init          # scaffold constellation/ with a starter plan.md
+constellation init          # scaffold constellation/ with a starter plan.md, set up working memory
 constellation lint          # validate handles, references, folders, schemas
 constellation rename A-X A-Y  # rename a card + rewrite every reference to it
 constellation mcp           # run the MCP server (stdio) for AI agents
 constellation serve         # open the local viewer (editable; --readonly to disable)
 constellation repos         # list sibling repos declared in connected_repos
 constellation working       # print the working memory set (what the SessionStart hook runs)
+constellation working off   # switch working memory off for this repo (on, new-session keep|clear, config)
 constellation add skills    # install the skills (authoring + /working) into ~/.claude, ~/.codex, …
 constellation version       # print the CLI version (`v` also works)
 constellation upgrade       # npm install -g @magic-spells/constellation@latest
@@ -59,7 +60,7 @@ unknown fields, dangling prose links) don't block.
 
 | Path | What |
 |---|---|
-| `.constellation/` | Working memory — the session scratchpad (gitignored except its `CLAUDE.md`); never part of the plan |
+| `.constellation/` | Working memory — the session scratchpad and its `config.json` (local, never tracked); never part of the plan |
 | `constellation/` | Constellation's own plan — the format spec, MCP design, and architecture as connected cards (formerly `docs/`); also a flagship real-world plan |
 | `schemas/` | JSON Schemas: `card.json` (reserved keys) + one per type |
 | `skill/` | AI authoring skill: `SKILL.md` + per-type references with golden examples |
@@ -206,8 +207,17 @@ Types, in file order: **G**OAL, **C**ONSTRAINT, **P**LAN, **F**OCUS, **T**ASK, *
 **I**DEA, **D**ECISION. Ids are allocated per type and never reused; `[1-5]` is importance
 (what gets cut first). There is no status field — an item is in the file or it is dropped,
 and `working_drop` with a reason appends the reason to `.constellation/log/YYYY-MM-DD.md`,
-which is the history. `.constellation/CLAUDE.md` carries the rules and is the one file in
-the folder that is committed.
+which is the history. `.constellation/CLAUDE.md` carries the rules. `constellation/` is the
+tracked long-term plan; `.constellation/` is local conversational memory and is never
+tracked, `CLAUDE.md` included — `init`, `working_init` and `install-hook` add the
+`.constellation/` line to `.gitignore`, verify it with `git check-ignore`, and name any file
+already tracked with the `git rm --cached -r .constellation` command to run.
+
+Two per-repo settings live in `.constellation/config.json`, asked once when working memory
+is first set up: `enabled` (off: no `working_*` tools, a silent hook) and `new_session`
+(`keep`, or `clear`: a new session — startup or `/clear`, never a compaction — keeps only
+the CONSTRAINT items and logs the rest). Change them with `constellation working on|off`,
+`constellation working new-session keep|clear`; `constellation working config` prints them.
 
 In a session, `/working` prints the set (and applies one instruction, e.g. `/working
 drop T12`); `! npx constellation working` prints it with no model turn at all.

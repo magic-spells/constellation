@@ -49,13 +49,35 @@ Dropping with a reason writes the reason to `log/YYYY-MM-DD.md`, which is the hi
   update (give `id`). Batch several changes in one call; every write returns the new header.
 - `working_drop { ids, reason? }` — remove items. This is "check it off". Give the reason.
 - `working_log { text }` — append one line to today's log. The only write sub-agents make.
-- `working_init { hook? }` — create the folder; `init_plan` does it for new plans, and
-  with no plan it goes at the git root. `hook: true` installs the SessionStart hook that
-  re-prints the file into context after every compaction (see *After compaction*).
+- `working_init { hook?, enabled?, new_session? }` — create the folder; `init_plan` does
+  it for new plans, and with no plan it goes at the git root. `hook: true` installs the
+  SessionStart hook that re-prints the file into context after every compaction (see
+  *After compaction*).
 
 Errors: `NO_WORKING_FOLDER` (call `working_init`), `NO_WORKING_ROOT` (no plan and no git
-repo), `NOT_FOUND`, `TYPE_IMMUTABLE`, `BAD_ID`, `BAD_TYPE`, `BAD_TEXT` (a newline). Long
-lines and crowded sets come back as `warnings`, not errors.
+repo), `WORKING_DISABLED` (the user switched it off for that repo), `NOT_FOUND`,
+`TYPE_IMMUTABLE`, `BAD_ID`, `BAD_TYPE`, `BAD_TEXT` (a newline). Long lines and crowded sets
+come back as `warnings`, not errors.
+
+## Settings
+
+`.constellation/config.json` holds two settings: `enabled` (false: no `working_*` tools, no
+`orient.working`, a silent hook) and `new_session` (`keep`, or `clear`: a fresh session —
+startup or `/clear`, never a compaction or resume — drops every item except CONSTRAINT
+lines and logs each with the reason "new session"). A missing file means `true` / `keep`.
+
+The first time working memory is set up in a repo, ask the user "Do you want to use
+working memory on this repo?" and "Do you want to clear the working memory with every new
+session?", and pass the answers to `working_init` (or `init_plan`). If they cannot be
+asked, the defaults apply and the result names them — tell the user. After that never
+change either setting yourself; the user does, with `constellation working on|off` and
+`constellation working new-session keep|clear`.
+
+`constellation/` is the tracked long-term plan; `.constellation/` is local conversational
+memory and is never tracked, `CLAUDE.md` and `config.json` included. `working_init` writes
+the `.constellation/` line to `.gitignore` and checks it with `git check-ignore`; relay
+any warning it returns, such as files already tracked, with the `git rm --cached` command
+it names. Never run that command yourself.
 
 ## You infer it; nobody dictates it
 

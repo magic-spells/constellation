@@ -14,6 +14,14 @@ import { currentBranch, headSha, planRootsFor } from './git.js';
 import { codeRootFor } from './repos.js';
 import { findPlanUp, findRepoRoot, resolvePlanDir } from './resolve.js';
 import { workingClaudeMd } from './scaffold.js';
+import {
+  DEFAULT_WORKING_CONFIG,
+  readWorkingConfigAt,
+  writeWorkingConfigAt,
+  type NewSessionMode,
+  type WorkingConfig,
+  type WorkingConfigRead,
+} from './working-config.js';
 import { withFileLock, writeAtomic } from './writer.js';
 
 const exec = promisify(execFile);
@@ -38,8 +46,20 @@ export const WORKING_FILE = 'working.md';
 export const WORKING_LOG_DIR = 'log';
 export const WORKING_CLAUDE_FILE = 'CLAUDE.md';
 
-/** The `.gitignore` lines that keep the scratchpad local but ship the rules. */
-export const GITIGNORE_LINES = ['.constellation/*', '!.constellation/CLAUDE.md'];
+/**
+ * The `.gitignore` line that keeps the whole folder local. `constellation/` is the
+ * tracked long-term plan; `.constellation/` is conversational memory and is never
+ * tracked — its CLAUDE.md included (a fresh clone has no folder, which is fine).
+ */
+export const GITIGNORE_LINE = '.constellation/';
+export const GITIGNORE_LINES = [GITIGNORE_LINE];
+/** The pre-1.1 pair (rules file committed), migrated in place to GITIGNORE_LINE. */
+export const LEGACY_GITIGNORE_LINES = ['.constellation/*', '!.constellation/CLAUDE.md'];
+const GITIGNORE_COMMENT = '# Constellation working memory (local conversational memory; never tracked)';
+const LEGACY_GITIGNORE_COMMENT =
+  '# Constellation working memory (local scratchpad; the rules file is committed)';
+/** Lines that already ignore the whole folder from the code root. */
+const EQUIVALENT_LINES = new Set(['.constellation/', '.constellation', '/.constellation/', '/.constellation']);
 
 /** What the SessionStart hook runs. Matched verbatim to stay idempotent. */
 // `2>/dev/null || true`: the hook is installed per repo but Claude Code runs it in
@@ -817,12 +837,89 @@ export async function dropItems(
   return { dropped: result.dropped, header, logged: result.logged };
 }
 
+/* ── new session ────────────────────────────────────────────────────────── */
+
+/**
+ * `new_session: "clear"` on a fresh session: drop every item except CONSTRAINT
+ * lines — the user's stated rules outlive any one stretch of work. Same locked
+ * path as dropItems, and each dropped item goes to the log with its text, so
+ * nothing is lost: the log is the history. Callers decide WHEN (startup / clear,
+ * never compact or resume); this only does it. No folder or nothing to drop →
+ * no write at all.
+ */
+export async function clearForNewSession(
+  target: WorkingTarget,
+): Promise<{ dropped: string[] }> {
+  const anchor = await toAnchor(target);
+  const before = await readWorking(anchor);
+  if (!before.exists || !before.items.some((i) => i.type !== 'C')) return { dropped: [] };
+  const { result, logDir } = await mutate(anchor, (doc) => {
+    const dropped: WorkingItem[] = [];
+    for (const section of doc.sections) {
+      section.lines = section.lines.filter((line) => {
+        if (line.item && line.item.type !== 'C') {
+          dropped.push(line.item);
+          return false;
+        }
+        return true;
+      });
+    }
+    return dropped;
+  });
+  for (const item of result) {
+    await appendLogAt(logDir, `drop ${item.id} — new session · [${item.importance}] ${item.text}`);
+  }
+  return { dropped: result.map((i) => i.id) };
+}
+
+/* ── settings ───────────────────────────────────────────────────────────── */
+
+/** The effective `.constellation/config.json` for an anchor. Never throws. */
+export async function readWorkingConfig(target: WorkingTarget): Promise<WorkingConfigRead> {
+  return readWorkingConfigAt((await toAnchor(target)).dir);
+}
+
+/**
+ * Change settings (the CLI's `working on|off|new-session`). The file is local, so
+ * the ignore line is ensured and verified alongside — a config.json that shows
+ * up in `git status` would be a setting about to be committed by accident.
+ */
+export async function setWorkingConfig(
+  target: WorkingTarget,
+  patch: Partial<WorkingConfig>,
+): Promise<{ config: WorkingConfig; path: string; warnings: string[] } & GitignoreReport> {
+  const anchor = await toAnchor(target);
+  const written = await writeWorkingConfigAt(anchor.dir, patch);
+  const ignore = await ensureIgnored(anchor);
+  return {
+    config: written.config,
+    path: written.path,
+    ...ignore,
+    warnings: [...written.warnings, ...ignore.warnings],
+  };
+}
+
 /* ── init ───────────────────────────────────────────────────────────────── */
 
-export interface WorkingInitResult {
+export interface WorkingInitOptions {
+  hook?: boolean;
+  /** The user's answer to "use working memory on this repo?" — only used when config.json is new. */
+  enabled?: boolean;
+  /** The user's answer to "clear it with every new session?" — only used when config.json is new. */
+  new_session?: NewSessionMode;
+}
+
+export interface WorkingInitResult extends GitignoreReport {
   dir: string;
   created: string[];
-  gitignore: 'added' | 'present';
+  /** The settings in force after this call. */
+  config: WorkingConfig;
+  /** True when this call wrote config.json (it never overwrites one). */
+  config_created: boolean;
+  /** Settings filled from defaults because no answer was passed — mention them to the user. */
+  defaults_applied?: Array<keyof WorkingConfig>;
+  /** Answers that were passed but not applied because config.json already existed. */
+  config_unchanged?: string;
   hook?: 'installed' | 'present' | 'skipped';
 }
 
@@ -842,14 +939,18 @@ async function emptyWorkingFile(from: string): Promise<string> {
 }
 
 /**
- * Create the working folder, its rules file, an empty `working.md` and the two
- * `.gitignore` lines. Idempotent: run it twice and the second run creates
- * nothing. The SessionStart hook is opt-in — editing a user's settings.json is
- * invasive enough to be asked for, and it is reported either way.
+ * Create the working folder: config.json (the user's two answers, or the
+ * defaults spelled out), its rules file, an empty `working.md`, `log/`, and the
+ * `.constellation/` ignore line — verified with `git check-ignore`. Idempotent:
+ * run it twice and the second run creates nothing, and an existing config.json
+ * is never overwritten. When working memory is off (answered no now, or already
+ * off in config.json) only config.json and the ignore line are written. The
+ * SessionStart hook is opt-in — editing a user's settings.json is invasive
+ * enough to be asked for, and it is reported either way.
  */
 export async function initWorking(
   target: WorkingTarget,
-  opts: { hook?: boolean } = {},
+  opts: WorkingInitOptions = {},
 ): Promise<WorkingInitResult> {
   // The scratchpad resolves through the MAIN checkout (one per plan or repo), but
   // the two TRACKED files do not: .gitignore and .claude/settings.json belong to
@@ -857,32 +958,69 @@ export async function initWorking(
   // files. .gitignore sits at the code root (it ignores a sibling of the plan);
   // settings.json sits at the git root, which is where Claude Code reads it.
   // Without a plan both are the calling checkout's git root.
-  const { dir, codeRoot, gitRoot, from } = await toAnchor(target);
+  const anchor = await toAnchor(target);
+  const { dir, gitRoot, from } = anchor;
   const created: string[] = [];
 
   await mkdir(dir, { recursive: true });
-  await mkdir(path.join(dir, WORKING_LOG_DIR), { recursive: true });
 
-  const claudeFile = path.join(dir, WORKING_CLAUDE_FILE);
-  if (!(await fileExists(claudeFile))) {
-    await writeAtomic(claudeFile, workingClaudeMd());
-    created.push(claudeFile);
+  const answers: Partial<WorkingConfig> = {};
+  if (opts.enabled !== undefined) answers.enabled = opts.enabled;
+  if (opts.new_session !== undefined) answers.new_session = opts.new_session;
+  const written = await writeWorkingConfigAt(
+    dir,
+    { ...DEFAULT_WORKING_CONFIG, ...answers },
+    { ifMissing: true },
+  );
+  if (written.created) created.push(written.path);
+  const config = written.config;
+
+  // An explicit "no" never creates the scratchpad, whatever an older config says.
+  const enabled = config.enabled && opts.enabled !== false;
+  if (enabled) {
+    await mkdir(path.join(dir, WORKING_LOG_DIR), { recursive: true });
+    const claudeFile = path.join(dir, WORKING_CLAUDE_FILE);
+    if (!(await fileExists(claudeFile))) {
+      await writeAtomic(claudeFile, workingClaudeMd());
+      created.push(claudeFile);
+    }
+    const workingFile = path.join(dir, WORKING_FILE);
+    if (!(await fileExists(workingFile))) {
+      await writeAtomic(workingFile, await emptyWorkingFile(from));
+      created.push(workingFile);
+    }
   }
 
-  const workingFile = path.join(dir, WORKING_FILE);
-  if (!(await fileExists(workingFile))) {
-    await writeAtomic(workingFile, await emptyWorkingFile(from));
-    created.push(workingFile);
+  const ignore = await ensureIgnored(anchor);
+  const result: WorkingInitResult = {
+    dir,
+    created,
+    config,
+    config_created: written.created,
+    ...ignore,
+  };
+  if (written.created) {
+    const defaults = (['enabled', 'new_session'] as const).filter((k) => answers[k] === undefined);
+    if (defaults.length > 0) result.defaults_applied = defaults;
+  } else if (Object.keys(answers).length > 0) {
+    result.config_unchanged =
+      `config.json already exists, so the answers passed were not applied (in force: enabled ${config.enabled}, ` +
+      `new_session ${config.new_session}). Only the user changes it: constellation working on|off|new-session.`;
   }
-
-  const gitignore = await ensureGitignore(codeRoot);
-  const result: WorkingInitResult = { dir, created, gitignore };
-  if (opts.hook) result.hook = await installHook(gitRoot);
+  result.warnings = [...written.warnings, ...ignore.warnings];
+  if (opts.hook && enabled) result.hook = await installHook(gitRoot);
   return result;
 }
 
-/** Add the two ignore lines to `<codeRoot>/.gitignore`, once. */
-export async function ensureGitignore(codeRoot: string): Promise<'added' | 'present'> {
+/**
+ * Ensure `.constellation/` is in `<codeRoot>/.gitignore`, once. An old two-line
+ * form (`.constellation/*` + `!.constellation/CLAUDE.md`) is migrated in place:
+ * the first of its lines becomes `.constellation/`, the rest go, nothing is
+ * duplicated. An equivalent line already there (`/.constellation`, …) counts.
+ */
+export async function ensureGitignore(
+  codeRoot: string,
+): Promise<'added' | 'present' | 'migrated'> {
   const file = path.join(codeRoot, '.gitignore');
   return withFileLock(file, async () => {
     let raw = '';
@@ -891,15 +1029,189 @@ export async function ensureGitignore(codeRoot: string): Promise<'added' | 'pres
     } catch {
       raw = '';
     }
-    const present = new Set(raw.split('\n').map((l) => l.trim()));
-    const missing = GITIGNORE_LINES.filter((l) => !present.has(l));
-    if (missing.length === 0) return 'present' as const;
+    const lines = raw === '' ? [] : raw.replace(/\n$/, '').split('\n');
+    const trimmed = lines.map((l) => l.trim());
+    const present = trimmed.some((l) => EQUIVALENT_LINES.has(l));
+    const legacy = trimmed.some((l) => LEGACY_GITIGNORE_LINES.includes(l));
+
+    if (legacy) {
+      const out: string[] = [];
+      let placed = present;
+      for (const [i, line] of lines.entries()) {
+        const t = trimmed[i];
+        if (t === LEGACY_GITIGNORE_COMMENT) {
+          out.push(GITIGNORE_COMMENT);
+        } else if (LEGACY_GITIGNORE_LINES.includes(t)) {
+          if (!placed) {
+            out.push(GITIGNORE_LINE);
+            placed = true;
+          }
+        } else {
+          out.push(line);
+        }
+      }
+      await writeAtomic(file, `${out.join('\n')}\n`);
+      return 'migrated' as const;
+    }
+    if (present) return 'present' as const;
     const prefix = raw === '' || raw.endsWith('\n') ? '' : '\n';
-    const block = `${prefix}${raw === '' ? '' : '\n'}# Constellation working memory (local scratchpad; the rules file is committed)\n${missing.join('\n')}\n`;
+    const block = `${prefix}${raw === '' ? '' : '\n'}${GITIGNORE_COMMENT}\n${GITIGNORE_LINE}\n`;
     await writeAtomic(file, raw + block);
     return 'added' as const;
   });
 }
+
+/* ── gitignore: checked, not assumed ────────────────────────────────────── */
+
+export interface GitignoreReport {
+  /** What happened to the `.constellation/` line in .gitignore. */
+  gitignore: 'added' | 'present' | 'migrated';
+  /**
+   * `git check-ignore` on the folder and everything in it: ok, fixed (our line
+   * was moved to the end of .gitignore so no later rule un-ignores it), failed
+   * (still not ignored — named in warnings), or skipped (not a git checkout).
+   */
+  gitignore_check: 'ok' | 'fixed' | 'failed' | 'skipped';
+  /** Files under .constellation/ that git already tracks — .gitignore cannot untrack them. */
+  tracked?: string[];
+  warnings: string[];
+}
+
+async function insideGit(cwd: string): Promise<boolean> {
+  try {
+    const { stdout } = await exec('git', ['rev-parse', '--is-inside-work-tree'], { cwd });
+    return stdout.trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/** Paths under `.constellation/` (relative to codeRoot) that the rules leave un-ignored. */
+async function notIgnored(codeRoot: string): Promise<string[]> {
+  const folder = path.join(codeRoot, WORKING_DIR);
+  const candidates = new Set([
+    `${WORKING_DIR}/`,
+    `${WORKING_DIR}/${WORKING_CLAUDE_FILE}`,
+    `${WORKING_DIR}/${WORKING_FILE}`,
+    `${WORKING_DIR}/config.json`,
+    `${WORKING_DIR}/${WORKING_LOG_DIR}/`,
+  ]);
+  try {
+    for (const entry of await readdir(folder, { withFileTypes: true })) {
+      candidates.add(`${WORKING_DIR}/${entry.name}${entry.isDirectory() ? '/' : ''}`);
+    }
+  } catch {
+    // No folder in this checkout (a linked worktree, or not created yet): the
+    // fixed names above are still checked — git matches paths that do not exist.
+  }
+  // -z needs --stdin; NUL-separated both ways so no path is ever quoted.
+  const stdout = await new Promise<string>((resolve, reject) => {
+    const child = execFile(
+      'git',
+      ['check-ignore', '--no-index', '--stdin', '-z', '-v', '-n'],
+      { cwd: codeRoot },
+      (err, out) => {
+        // Exit 1 just means "nothing ignored"; the -n -v output is still complete.
+        if (err && (err as { code?: unknown }).code !== 1) reject(err);
+        else resolve(String(out));
+      },
+    );
+    child.stdin?.end([...candidates].join('\0') + '\0');
+  });
+  const fields = stdout.split('\0');
+  const bad: string[] = [];
+  for (let i = 0; i + 3 < fields.length; i += 4) {
+    const pattern = fields[i + 2];
+    const file = fields[i + 3];
+    if (!pattern || pattern.startsWith('!')) bad.push(file);
+  }
+  return bad;
+}
+
+/** Files under `<codeRoot>/.constellation/` in git's index. */
+async function trackedUnder(codeRoot: string): Promise<string[]> {
+  try {
+    const { stdout } = await exec('git', ['ls-files', '-z', '--', WORKING_DIR], { cwd: codeRoot });
+    return stdout.split('\0').filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function trackedWarning(tracked: string[], codeRoot: string): string {
+  const names = tracked.slice(0, 5).join(', ') + (tracked.length > 5 ? ', …' : '');
+  return (
+    `tracked by git: ${names} — .gitignore cannot untrack files. Run \`git rm --cached -r ${WORKING_DIR}\` ` +
+    `in ${codeRoot} and commit (the files stay on disk).`
+  );
+}
+
+/** Move our ignore line to the end of .gitignore, so it is the last rule that matches. */
+async function moveIgnoreLineLast(codeRoot: string): Promise<void> {
+  const file = path.join(codeRoot, '.gitignore');
+  await withFileLock(file, async () => {
+    const raw = await readFile(file, 'utf8').catch(() => '');
+    const kept = raw
+      .replace(/\n$/, '')
+      .split('\n')
+      .filter((l) => l.trim() !== GITIGNORE_LINE && l.trim() !== GITIGNORE_COMMENT);
+    while (kept.length > 0 && kept[kept.length - 1].trim() === '') kept.pop();
+    const head = kept.length > 0 ? `${kept.join('\n')}\n\n` : '';
+    await writeAtomic(file, `${head}${GITIGNORE_COMMENT}\n${GITIGNORE_LINE}\n`);
+  });
+}
+
+/**
+ * Write the ignore line, then prove it took: `git check-ignore` must say every
+ * path under `.constellation/` is ignored. When a later rule un-ignores it (a
+ * `!.constellation` line after ours), our line is moved to the end of the code
+ * root's .gitignore — the closest file, whose last match wins over every parent
+ * .gitignore, info/exclude and the global excludes file. Files already tracked
+ * are reported with the `git rm --cached` command, never untracked here. Outside
+ * git the check is skipped quietly.
+ */
+export async function ensureIgnored(target: WorkingTarget): Promise<GitignoreReport> {
+  const { codeRoot } = await toAnchor(target);
+  const gitignore = await ensureGitignore(codeRoot);
+  if (!(await insideGit(codeRoot))) {
+    return { gitignore, gitignore_check: 'skipped', warnings: [] };
+  }
+  const warnings: string[] = [];
+  let check: GitignoreReport['gitignore_check'] = 'ok';
+  try {
+    if ((await notIgnored(codeRoot)).length > 0) {
+      await moveIgnoreLineLast(codeRoot);
+      const still = await notIgnored(codeRoot);
+      check = still.length > 0 ? 'failed' : 'fixed';
+      if (still.length > 0) {
+        warnings.push(
+          `still not ignored after moving ${GITIGNORE_LINE} to the end of .gitignore: ${still.join(', ')} — check the git ignore rules by hand`,
+        );
+      }
+    }
+  } catch {
+    check = 'skipped';
+  }
+  const report: GitignoreReport = { gitignore, gitignore_check: check, warnings };
+  const tracked = await trackedUnder(codeRoot);
+  if (tracked.length > 0) {
+    report.tracked = tracked;
+    warnings.push(trackedWarning(tracked, codeRoot));
+  }
+  return report;
+}
+
+/**
+ * The cheap read-side check for orient / working_list: one `git ls-files` on the
+ * working folder. Null when nothing there is tracked (or there is no git).
+ */
+export async function trackedWorkingWarning(target: WorkingTarget): Promise<string | null> {
+  const { dir } = await toAnchor(target);
+  const parent = path.dirname(dir);
+  const tracked = await trackedUnder(parent);
+  return tracked.length > 0 ? trackedWarning(tracked, parent) : null;
+}
+
 
 interface HookEntry {
   matcher?: string;

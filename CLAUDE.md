@@ -37,8 +37,8 @@ npm run build:viewer     # copy:vendor (mermaid + three) then puzzle build → v
 npm run serve:examples   # serve the golden plan in the viewer (no auto-open)
 ```
 
-CLI surface (`src/cli/index.ts`): `init`, `lint`, `rename`, `mcp`, `serve`, `repos`, `working` (+ `working install-hook`), `add skills`, `version`/`v`, `upgrade`.
-`working` prints `.constellation/working.md` — the session scratchpad beside the plan (`src/core/working.ts`), never a card and never indexed, linted, diffed or served. It exits **0** silently when there is no folder, because a SessionStart hook runs it in every repo.
+CLI surface (`src/cli/index.ts`): `init`, `lint`, `rename`, `mcp`, `serve`, `repos`, `working` (+ `working install-hook`, `working on|off`, `working new-session keep|clear`, `working config`), `add skills`, `version`/`v`, `upgrade`.
+`working` prints `.constellation/working.md` — the session scratchpad beside the plan (`src/core/working.ts`), never a card and never indexed, linted, diffed or served. It exits **0** silently when there is no folder or working memory is off, because a SessionStart hook runs it in every repo. `constellation/` is tracked; `.constellation/` (settings in `config.json`, `src/core/working-config.ts`) is local and never tracked.
 `add skills` copies both packaged skill folders — `skill/` (the authoring skill) and `skill-working/` (the user-invocable `/working` command) — into `~/.claude` / `~/.codex` / `~/.cursor` / `~/.agents` skills dirs with a
 `.constellation-skill-version` stamp (`src/cli/skills.ts`); `upgrade` offers to refresh those installs afterward.
 `lint` exits **1** on errors, **0** otherwise (warnings never fail); **2** when no plan is found.

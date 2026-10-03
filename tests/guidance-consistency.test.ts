@@ -212,6 +212,12 @@ const RULES: Array<{ id: string; patterns: RegExp[]; in: readonly CopyName[] }> 
     in: ALL,
   },
   {
+    // The two settings are the user's: asked once at setup, never flipped by an agent.
+    id: 'working memory setup asks the user, then never changes the settings',
+    patterns: [/use working memory on this repo\?/i, /never change either setting yourself/i],
+    in: ALL,
+  },
+  {
     id: 'status vocabulary',
     patterns: [/planned/, /building/, /built/, /verified/],
     in: ALL,
@@ -290,6 +296,7 @@ const NOT_TOOLS = new Set([
   'format_review',
   'total_hits',
   'if_mtime',
+  'new_session',
 ]);
 
 // Prose pluralizes tool names ("concurrent `update_card`s"), and norm() strips the backticks,
