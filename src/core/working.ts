@@ -1,7 +1,6 @@
 import { execFile } from 'node:child_process';
 import {
   access,
-  appendFile,
   mkdir,
   readFile,
   readdir,
@@ -16,8 +15,10 @@ import { currentBranch, headSha, planRootsFor } from './git.js';
 import { codeRootFor } from './repos.js';
 import { findPlanUp, findRepoRoot, resolvePlanDir } from './resolve.js';
 import { workingClaudeMd } from './scaffold.js';
+import { appendNoFollow, assertNotLink, lstatOrNull, readNoFollow, UnsafePathError } from './no-follow.js';
 import {
   DEFAULT_WORKING_CONFIG,
+  WORKING_CONFIG_FILE,
   readWorkingConfigAt,
   writeWorkingConfigAt,
   type NewSessionMode,
@@ -277,7 +278,83 @@ export interface WorkingPaths {
   exists: boolean;
 }
 
+/* ── safety ─────────────────────────────────────────────────────────────── */
+
+/**
+ * `.constellation/` sits inside a repo, and `.gitignore` only keeps UNTRACKED
+ * files out — so a cloned repo can commit anything there: links, a working.md
+ * written to steer an agent, a config.json that sets `new_session: clear`. Two
+ * rules keep that out:
+ *
+ * - Nothing is read, written or deleted through a symbolic link. The folder and
+ *   every name working memory uses in it are checked with lstat, and the log and
+ *   working.md are opened with O_NOFOLLOW (no-follow.ts).
+ * - A folder git TRACKS anything in (but CLAUDE.md, which 1.0 committed on
+ *   purpose) came with the repo, so it is not this machine's memory: nothing in
+ *   it is read into an agent's context or changed.
+ *
+ * Every read and write goes through workingPaths, which enforces both.
+ */
+
+/** The names under `.constellation/` that working memory opens; none may be a link. */
+const GUARDED_NAMES = [WORKING_FILE, WORKING_LOG_DIR, WORKING_CONFIG_FILE, `${WORKING_FILE}.lock`];
+
+function unsafePath(file: string, what?: string): WorkingError {
+  return new WorkingError('UNSAFE_PATH', new UnsafePathError(file, what).message);
+}
+
+/** Up to five tracked names, shown only when they are plain path characters. */
+function describeTracked(tracked: string[]): string {
+  const plain = tracked.filter((f) => f.length <= 80 && /^[\w./-]+$/.test(f));
+  const shown = plain.slice(0, 5);
+  const rest = tracked.length - shown.length;
+  return [...shown, ...(rest > 0 ? [`${rest} other file${rest > 1 ? 's' : ''}`] : [])].join(', ');
+}
+
+/**
+ * Why working memory refuses this folder, or null when it is safe to use. Links
+ * first (cheap lstats), then one `git ls-files`. An absent folder is fine.
+ */
+export async function workingFolderProblem(target: WorkingTarget): Promise<WorkingError | null> {
+  const { dir } = await toAnchor(target);
+  const st = await lstatOrNull(dir);
+  if (!st) return null;
+  if (st.isSymbolicLink()) return unsafePath(dir);
+  if (!st.isDirectory()) return unsafePath(dir, 'not a folder');
+  for (const name of GUARDED_NAMES) {
+    const file = path.join(dir, name);
+    if ((await lstatOrNull(file))?.isSymbolicLink()) return unsafePath(file);
+  }
+  const parent = path.dirname(dir);
+  const shipped = (await trackedUnder(parent)).filter(
+    (f) => f !== `${WORKING_DIR}/${WORKING_CLAUDE_FILE}`,
+  );
+  if (shipped.length === 0) return null;
+  return new WorkingError(
+    'UNTRUSTED_WORKING',
+    `working memory not loaded: git tracks ${describeTracked(shipped)} under ${dir}. ` +
+      'Files a repo ships are not this machine\'s memory, so nothing there is read or changed. ' +
+      `If they are yours, run \`git rm --cached -r ${WORKING_DIR}\` in ${parent} and commit (the files stay on disk).`,
+  );
+}
+
+/** Throw workingFolderProblem's refusal, if any. */
+async function guardWorking(target: WorkingTarget): Promise<void> {
+  const problem = await workingFolderProblem(target);
+  if (problem) throw problem;
+}
+
+/** Turn a no-follow refusal from a helper into the tool error contract. */
+function asWorkingError(err: unknown): unknown {
+  return err instanceof UnsafePathError ? new WorkingError('UNSAFE_PATH', err.message) : err;
+}
+
+/**
+ * The folder's paths, after workingFolderProblem has passed: it throws
+ * UNSAFE_PATH or UNTRUSTED_WORKING instead of handing back a path to use.
+ */
 export async function workingPaths(target: WorkingTarget): Promise<WorkingPaths> {
+  await guardWorking(target);
   const { dir } = await toAnchor(target);
   let exists = true;
   try {
@@ -501,7 +578,7 @@ export interface WorkingSet {
 async function readDoc(file: string): Promise<WorkingDoc> {
   let raw = '';
   try {
-    raw = await readFile(file, 'utf8');
+    raw = await readNoFollow(file);
   } catch {
     raw = '';
   }
@@ -531,7 +608,7 @@ export async function readWorkingRaw(target: WorkingTarget): Promise<{
   const paths = await workingPaths(target);
   if (!paths.exists) return null;
   try {
-    return { path: paths.file, text: await readFile(paths.file, 'utf8') };
+    return { path: paths.file, text: await readNoFollow(paths.file) };
   } catch {
     return null;
   }
@@ -556,12 +633,22 @@ export async function appendLog(
 async function appendLogAt(logDir: string, text: string): Promise<{ path: string }> {
   const flat = text.replace(/\s*\n+\s*/g, ' ').trim();
   const file = logPathFor(logDir);
-  await mkdir(logDir, { recursive: true });
-  await withFileLock(file, async () => {
-    await appendFile(file, `- ${localTime()} ${flat}\n`, 'utf8');
-  });
+  try {
+    await assertNotLink(logDir);
+    await mkdir(logDir, { recursive: true });
+    await withFileLock(file, async () => {
+      // Never through a link: a committed `log/<today>.md -> ~/.bashrc` would
+      // otherwise take an item's text as a line of somebody's shell startup.
+      await appendNoFollow(file, `- ${localTime()} ${flat}\n`);
+    });
+  } catch (err) {
+    throw asWorkingError(err);
+  }
   return { path: file };
 }
+
+/** A log file's name: one day. Nothing else in log/ is read. */
+const LOG_NAME_RE = /^\d{4}-\d{2}-\d{2}\.md$/;
 
 /**
  * Log lines: `"today"` is today's file; a number is the last N lines across the
@@ -576,7 +663,7 @@ export async function readLog(
   if (!paths.exists) throw noFolder(paths.dir);
   let files: string[];
   try {
-    files = (await readdir(paths.logDir)).filter((f) => f.endsWith('.md')).sort();
+    files = (await readdir(paths.logDir)).filter((f) => LOG_NAME_RE.test(f)).sort();
   } catch {
     return [];
   }
@@ -589,7 +676,8 @@ export async function readLog(
   if (limit === 0) return [];
   const lines: string[] = [];
   for (const name of files.slice(spec === 'today' ? 0 : -8)) {
-    const text = await readFile(path.join(paths.logDir, name), 'utf8').catch(() => '');
+    // A log file that is a link is skipped, never read through.
+    const text = await readNoFollow(path.join(paths.logDir, name)).catch(() => '');
     for (const line of text.split('\n')) if (line.trim()) lines.push(line);
   }
   return Number.isFinite(limit) ? lines.slice(-limit) : lines;
@@ -651,13 +739,13 @@ async function withWriteLock<T>(file: string, fn: () => Promise<T>): Promise<T> 
     return await withCrossProcessLock(file, fn);
   } catch (err) {
     if (err instanceof LockBusyError) throw new WorkingError('BUSY', err.message);
-    throw err;
+    throw asWorkingError(err);
   }
 }
 
 async function readRaw(file: string): Promise<string> {
   try {
-    return await readFile(file, 'utf8');
+    return await readNoFollow(file);
   } catch {
     return '';
   }
@@ -973,7 +1061,10 @@ export async function setWorkingConfig(
   patch: Partial<WorkingConfig>,
 ): Promise<{ config: WorkingConfig; path: string; warnings: string[] } & GitignoreReport> {
   const anchor = await toAnchor(target);
-  const written = await writeWorkingConfigAt(anchor.dir, patch);
+  await guardWorking(anchor);
+  const written = await writeWorkingConfigAt(anchor.dir, patch).catch((err) => {
+    throw asWorkingError(err);
+  });
   const ignore = await ensureIgnored(anchor);
   return {
     config: written.config,
@@ -1043,6 +1134,7 @@ export async function initWorking(
   // settings.json sits at the git root, which is where Claude Code reads it.
   // Without a plan both are the calling checkout's git root.
   const anchor = await toAnchor(target);
+  await guardWorking(anchor);
   const { dir, gitRoot, from } = anchor;
   const created: string[] = [];
 
@@ -1244,7 +1336,7 @@ function trackedWarning(tracked: string[], codeRoot: string, legacy: boolean): s
 
 /** Does `<codeRoot>/.gitignore` still carry the pre-1.1 pair? */
 async function hasLegacyIgnore(codeRoot: string): Promise<boolean> {
-  const raw = await readRaw(path.join(codeRoot, '.gitignore'));
+  const raw = await readFile(path.join(codeRoot, '.gitignore'), 'utf8').catch(() => '');
   return raw.split('\n').some((l) => LEGACY_GITIGNORE_LINES.includes(l.trim()));
 }
 

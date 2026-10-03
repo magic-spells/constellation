@@ -1,5 +1,6 @@
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { assertNotLink, lstatOrNull, readNoFollow } from './no-follow.js';
 import { withFileLock, writeAtomic } from './writer.js';
 
 /**
@@ -76,10 +77,18 @@ export function normalizeWorkingConfig(raw: unknown): {
 
 async function readRaw(file: string): Promise<string | null> {
   try {
-    return await readFile(file, 'utf8');
+    return await readNoFollow(file);
   } catch {
     return null;
   }
+}
+
+/** True when the folder or config.json is a symbolic link — never read through one. */
+async function linked(dir: string, file: string): Promise<boolean> {
+  for (const p of [dir, file]) {
+    if ((await lstatOrNull(p).catch(() => null))?.isSymbolicLink()) return true;
+  }
+  return false;
 }
 
 function parseRaw(raw: string): { value: unknown; error: boolean } {
@@ -93,6 +102,14 @@ function parseRaw(raw: string): { value: unknown; error: boolean } {
 /** The effective settings for the working folder `dir`. Never throws. */
 export async function readWorkingConfigAt(dir: string): Promise<WorkingConfigRead> {
   const file = path.join(dir, WORKING_CONFIG_FILE);
+  if (await linked(dir, file)) {
+    return {
+      config: { ...DEFAULT_WORKING_CONFIG },
+      exists: true,
+      path: file,
+      warnings: ['config.json (or its folder) is a symbolic link — not read; using the defaults'],
+    };
+  }
   const raw = await readRaw(file);
   if (raw === null) {
     return { config: { ...DEFAULT_WORKING_CONFIG }, exists: false, path: file, warnings: [] };
@@ -132,7 +149,11 @@ export async function writeWorkingConfigAt(
   opts: { ifMissing?: boolean } = {},
 ): Promise<WorkingConfigWrite> {
   const file = path.join(dir, WORKING_CONFIG_FILE);
+  // Never write through a link (writeAtomic's rename would replace one, but the
+  // read before it and a linked folder would not be safe).
+  await assertNotLink(dir);
   await mkdir(dir, { recursive: true });
+  await assertNotLink(file);
   return withFileLock(file, async () => {
     const raw = await readRaw(file);
     if (raw !== null && opts.ifMissing) {

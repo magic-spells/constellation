@@ -44,10 +44,15 @@ function git(...args: string[]): string {
   return execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
 }
 
+/** A readable label as a lock token: 16 hex characters, the only shape a record name has. */
+function hexToken(label: string): string {
+  return Buffer.from(label).toString('hex').padEnd(16, '0').slice(0, 16);
+}
+
 /** Plant a holder in the lock folder: a record, or raw (corrupt) text. */
 async function writeLock(info: Record<string, unknown> | string): Promise<void> {
   await mkdir(lock, { recursive: true });
-  const name = typeof info === 'string' ? 'corrupt.json' : `${String(info.token)}.json`;
+  const name = `${hexToken(typeof info === 'string' ? 'corrupt' : String(info.token))}.json`;
   await writeFile(path.join(lock, name), typeof info === 'string' ? info : JSON.stringify(info));
 }
 
@@ -104,7 +109,7 @@ describe('stale locks', () => {
       withWriteLock(file, async () => 'never', { waitMs: 100 }),
     ).rejects.toMatchObject({ code: 'BUSY' });
     // Not ours, so not removed.
-    expect(await readdir(lock)).toEqual(['live.json']);
+    expect(await readdir(lock)).toEqual([`${hexToken('live')}.json`]);
   });
 
   it('reads a plain lock file from an earlier build: waits on a live one, breaks a stale one', async () => {
@@ -215,7 +220,7 @@ describe('release', () => {
       await rm(lock, { recursive: true });
       await writeLock({ pid: process.pid, host: hostname(), token: 'theirs', createdAt: Date.now() });
     });
-    expect(await readdir(lock)).toEqual(['theirs.json']);
+    expect(await readdir(lock)).toEqual([`${hexToken('theirs')}.json`]);
   });
 
   it('removes our own lock', async () => {
@@ -234,11 +239,11 @@ describe('debris', () => {
     const old = `${file}.999.0.abc.tmp`;
     const fresh = `${file}.999.1.abd.tmp`;
     // A lock folder a crash left half-built under its temp name.
-    const lockTmp = `${lock}.dead.tmp`;
+    const lockTmp = `${lock}.${hexToken('dead')}.tmp`;
     await writeFile(old, 'x');
     await writeFile(fresh, 'x');
     await mkdir(lockTmp);
-    await writeFile(path.join(lockTmp, 'dead.json'), 'x');
+    await writeFile(path.join(lockTmp, `${hexToken('dead')}.json`), 'x');
     const past = new Date(Date.now() - 5 * 60_000);
     await utimes(old, past, past);
     await utimes(lockTmp, past, past);

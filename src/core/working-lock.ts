@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
-import { mkdir, readdir, readFile, rename, rm, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rename, rm, rmdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { lstatOrNull, readNoFollow, UnsafePathError } from './no-follow.js';
 
 /**
  * Cross-process mutual exclusion for `working.md`: a `<file>.lock` folder beside
@@ -26,6 +27,11 @@ import path from 'node:path';
  * is unreadable or corrupt. Waiters re-check that on every poll, so a crashed
  * holder on this machine is cleared at once. An empty lock folder is a free lock;
  * rmdir removes it, and rmdir only succeeds while it is empty.
+ *
+ * A repo can commit anything under `.constellation/`, so nothing here follows a
+ * link: a lock path that is a link, or a folder holding anything but
+ * `<token>.json` records, is refused (UnsafePathError) and nothing in it is read
+ * or deleted.
  */
 
 export interface LockInfo {
@@ -106,37 +112,66 @@ interface Holder {
 
 type LockRead = { state: 'free' } | { state: 'transient' } | { state: 'held'; holders: Holder[] };
 
-/** Read one holder record; null when it vanished (released or broken meanwhile). */
+/**
+ * The only names ever read or removed inside the lock folder: a newToken() token
+ * plus `.json`. A repo can ship anything in `.constellation/`, so any other name
+ * (or a record that is a link) is left alone and makes the folder unusable.
+ */
+const RECORD_RE = /^[0-9a-f]{16}\.json$/;
+
+/** Read one holder record, never through a link; null when it vanished meanwhile. */
 async function readHolder(file: string): Promise<Holder | null | 'transient'> {
   try {
-    return { path: file, info: parseLock(await readFile(file, 'utf8')) };
+    return { path: file, info: parseLock(await readNoFollow(file)) };
   } catch (err) {
+    if (err instanceof UnsafePathError) throw err;
     const code = errCode(err);
     if (code === 'ENOENT') return null;
     if (TRANSIENT_READ.has(code)) return 'transient';
-    // Unreadable for good (EACCES, EISDIR…): nobody can be relying on it.
+    // Unreadable for good (EACCES…): nobody can be relying on it.
     return { path: file, info: null };
   }
 }
 
+/** Reject the lock folder as unusable: nothing in it is ever deleted. */
+function foreignLock(lock: string): UnsafePathError {
+  return new UnsafePathError(lock, 'a lock folder holding files that are not lock records');
+}
+
 async function readLock(lock: string): Promise<LockRead> {
+  let st;
+  try {
+    st = await lstatOrNull(lock);
+  } catch (err) {
+    if (TRANSIENT_READ.has(errCode(err))) return { state: 'transient' };
+    throw err;
+  }
+  if (!st) return { state: 'free' };
+  // Never through a link: a committed `working.md.lock -> ~/Documents` must not
+  // turn breaking a stale lock into deleting that folder's files.
+  if (st.isSymbolicLink()) throw new UnsafePathError(lock);
+  if (st.isFile()) {
+    // A plain file: a lock left by an earlier build of this module, judged alike.
+    const holder = await readHolder(lock);
+    if (holder === 'transient') return { state: 'transient' };
+    return holder ? { state: 'held', holders: [holder] } : { state: 'free' };
+  }
+  if (!st.isDirectory()) throw new UnsafePathError(lock, 'neither a folder nor a file');
   let names: string[];
   try {
     names = await readdir(lock);
   } catch (err) {
     const code = errCode(err);
     if (code === 'ENOENT') return { state: 'free' };
-    if (code === 'ENOTDIR') {
-      // A plain file: a lock left by an earlier build of this module, judged alike.
-      const holder = await readHolder(lock);
-      if (holder === 'transient') return { state: 'transient' };
-      return holder ? { state: 'held', holders: [holder] } : { state: 'free' };
-    }
     if (TRANSIENT_READ.has(code)) return { state: 'transient' };
     throw err;
   }
   const holders: Holder[] = [];
   for (const name of names) {
+    if (!RECORD_RE.test(name)) throw foreignLock(lock);
+    const entry = await lstatOrNull(path.join(lock, name)).catch(() => null);
+    if (!entry) continue; // released meanwhile
+    if (!entry.isFile()) throw foreignLock(lock);
     const holder = await readHolder(path.join(lock, name));
     if (holder === 'transient') return { state: 'transient' };
     if (holder) holders.push(holder);
@@ -147,7 +182,7 @@ async function readLock(lock: string): Promise<LockRead> {
 /** Take the lock whole, or report that someone else holds it. */
 async function tryCreate(lock: string, info: LockInfo): Promise<boolean> {
   const tmp = `${lock}.${info.token}.tmp`;
-  await mkdir(tmp, { recursive: true });
+  await mkdir(tmp);
   try {
     await writeFile(path.join(tmp, `${info.token}.json`), JSON.stringify(info), 'utf8');
     await rename(tmp, lock);
@@ -174,10 +209,15 @@ async function removeIfEmpty(lock: string): Promise<void> {
   await rmdir(lock).catch(() => undefined);
 }
 
-/** Remove the temp files and temp lock folders a crash left beside `file`. */
+/**
+ * Remove the temp files and temp lock folders a crash left beside `file`: only
+ * real files named `<file>.….tmp` and real folders named like tryCreate's, never
+ * a link and never anything else.
+ */
 export async function sweepDebris(file: string, now = Date.now()): Promise<string[]> {
   const dir = path.dirname(file);
   const base = path.basename(file);
+  const lockTmp = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.lock\\.[0-9a-f]{16}\\.tmp$`);
   const removed: string[] = [];
   let names: string[];
   try {
@@ -188,8 +228,9 @@ export async function sweepDebris(file: string, now = Date.now()): Promise<strin
   for (const name of names) {
     if (!name.startsWith(`${base}.`) || !name.endsWith('.tmp')) continue;
     const full = path.join(dir, name);
-    const st = await stat(full).catch(() => null);
-    if (st && now - st.mtimeMs > TEMP_SWEEP_MS) {
+    const st = await lstatOrNull(full).catch(() => null);
+    if (!st || now - st.mtimeMs <= TEMP_SWEEP_MS) continue;
+    if (st.isFile() || (st.isDirectory() && lockTmp.test(name))) {
       await rm(full, { recursive: true, force: true });
       removed.push(full);
     }
@@ -199,6 +240,7 @@ export async function sweepDebris(file: string, now = Date.now()): Promise<strin
 
 /** Release only our own lock: unlinking our token's record cannot free anyone else's. */
 async function release(lock: string, token: string): Promise<void> {
+  if (!(await lstatOrNull(lock).catch(() => null))?.isDirectory()) return;
   await removeHolder(path.join(lock, `${token}.json`));
   await removeIfEmpty(lock);
 }
@@ -210,6 +252,9 @@ export async function withWriteLock<T>(
   opts: { waitMs?: number } = {},
 ): Promise<T> {
   const lock = `${file}.lock`;
+  // The folder the lock is made in must be a real one, not a link to elsewhere.
+  const parent = await lstatOrNull(path.dirname(lock));
+  if (parent && !parent.isDirectory()) throw new UnsafePathError(path.dirname(lock), 'not a real folder');
   const info: LockInfo = { pid: process.pid, host: hostname(), token: newToken(), createdAt: 0 };
   const deadline = Date.now() + (opts.waitMs ?? LOCK_WAIT_MS);
   for (;;) {

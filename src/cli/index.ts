@@ -352,10 +352,18 @@ const working = program
       readWorkingConfig,
       readWorkingRaw,
       resolveWorkingAnchor,
+      workingFolderProblem,
       workingPreamble,
     } = await import('../core/working.js');
     const anchor = await resolveWorkingAnchor({ start: target ?? undefined }).catch(() => null);
     if (!anchor) return;
+    // A folder the repo shipped, or one that is a link, is neither printed nor
+    // cleared — only the one line saying why goes into the session.
+    const problem = await workingFolderProblem(anchor).catch(() => null);
+    if (problem) {
+      console.log(problem.message);
+      return;
+    }
     const settings = await readWorkingConfig(anchor);
     if (!settings.config.enabled) return;
     let notice: string | null = null;
