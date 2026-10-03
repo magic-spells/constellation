@@ -11,8 +11,6 @@
       aria-controls={ panelId }
       title="Appearance — scheme and mode"
       @click={ toggle }>
-      <!-- The dot is the current palette's accent: `data-scheme` scopes it. -->
-      <span class="size-2.5 shrink-0 rounded-full bg-brand ring-1 ring-border" data-scheme={ scheme } aria-hidden="true"></span>
       <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 3a9 9 0 1 0 9 9c0-1.1-.9-2-2-2h-1.2a2 2 0 0 1-1.8-2.8l.4-.9A2.4 2.4 0 0 0 14.2 3H12z"/>
         <path d="M8.5 7.5h.01M13.5 6.5h.01M17.5 11.5h.01"/>
@@ -76,7 +74,7 @@ const SCHEME_CARDS = SCHEMES.map(({ value, label }) => ({ value, label }));
 // Painted with the panel's roles, not the bar's: the header sits inside the
 // work panel, so this is a panel control like the search beside it.
 const TRIGGER =
-  'flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-2 text-muted transition-colors ' +
+  'grid size-8 shrink-0 cursor-pointer place-items-center rounded-md text-muted transition-colors ' +
   'hover:bg-surface-sunken hover:text-ink outline-ring focus-visible:outline-2 focus-visible:outline-offset-2';
 // Held while the popover is up. Exactly one of the two, never base + override:
 // two same-specificity utilities resolve by stylesheet order, not class order.
