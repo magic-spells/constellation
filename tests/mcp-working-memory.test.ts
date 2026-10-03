@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -176,15 +176,22 @@ describe('working memory over MCP', () => {
         name: 'B',
         working: false,
       });
-      // "No" is an answer: recorded as enabled: false, and nothing else is created…
-      expect(without.working.config.enabled).toBe(false);
-      await expect(
-        readFile(path.join(bare, 'b', '.constellation', 'working.md'), 'utf8'),
-      ).rejects.toThrow();
+      // working: false is 1.0's "skip": no folder, no settings — the question stays open…
+      expect(without.working.skipped).toBe(true);
+      await expect(readdir(path.join(bare, 'b', '.constellation'))).rejects.toThrow();
       // …but init is the moment .constellation/ becomes ignored, whatever the answer.
       expect(
         (await readFile(path.join(bare, 'b', '.gitignore'), 'utf8')).split('\n'),
       ).toContain('.constellation/');
+
+      // Recording a "no" is its own field: saved as enabled: false, nothing else created.
+      const no = await call('init_plan', {
+        path: path.join(bare, 'c'),
+        name: 'C',
+        working_enabled: false,
+      });
+      expect(no.working.config.enabled).toBe(false);
+      expect(await readdir(path.join(bare, 'c', '.constellation'))).toEqual(['config.json']);
     } finally {
       await rm(bare, { recursive: true, force: true });
     }
@@ -312,6 +319,10 @@ describe('working memory settings over MCP', () => {
     const result = await call('working_init');
     expect(result.defaults_applied).toEqual(['enabled', 'new_session']);
     expect(result.next).toContain('defaults were applied');
+    // Unanswered is not an answer: no config.json, so the question stays open.
+    await expect(
+      readFile(path.join(repo, '.constellation', 'config.json'), 'utf8'),
+    ).rejects.toThrow();
   });
 
   it('enabled: false creates no working.md but still ignores the folder', async () => {
@@ -335,7 +346,7 @@ describe('working memory settings over MCP', () => {
       const made = await call('init_plan', {
         path: bare,
         name: 'A',
-        working: true,
+        working_enabled: true,
         new_session: 'clear',
       });
       expect(made.working.config).toEqual({ enabled: true, new_session: 'clear' });

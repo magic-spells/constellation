@@ -19,7 +19,12 @@ export const NEW_SESSION_MODES: NewSessionMode[] = ['keep', 'clear'];
 export interface WorkingConfig {
   /** false: no working_* tools, no orient.working, a silent hook. */
   enabled: boolean;
-  /** clear: a fresh session (startup / clear) drops every item but CONSTRAINT lines. */
+  /**
+   * clear: a fresh session (startup / clear) drops every item but CONSTRAINT
+   * lines. It resets the ONE list every session in the repo shares (worktrees
+   * resolve to the main checkout), so it suits one-session-at-a-time use; a
+   * linked worktree never clears.
+   */
   new_session: NewSessionMode;
 }
 

@@ -306,7 +306,7 @@ async function workingAnswers(
     }
     if (mode === undefined && enabled !== false) {
       const clear = await confirm(
-        'Clear the working memory with every new session? Constraints are kept. [y/N] ',
+        'Clear the working memory with every new session? Constraints are kept; it resets the one list all sessions in this repo share, so it suits one session at a time. [y/N] ',
         false,
       );
       mode = clear ? 'clear' : 'keep';
@@ -438,7 +438,10 @@ working
 
 working
   .command('new-session')
-  .argument('<mode>', 'keep: the set carries over · clear: a new session keeps only CONSTRAINT items')
+  .argument(
+    '<mode>',
+    'keep: the set carries over · clear: a new session keeps only CONSTRAINT items (one list shared by every session in the repo, so best for one session at a time)',
+  )
   .argument('[path]', WORKING_PATH_HELP)
   .description('Choose what a new session (startup or /clear) does to the working set')
   .action(async (mode: string, target: string | null | undefined) =>

@@ -340,15 +340,16 @@ describe('init', () => {
     expect(first.gitignore_check).toBe('ok');
     expect(first.created.map((f) => path.basename(f)).sort()).toEqual([
       'CLAUDE.md',
-      'config.json',
       'working.md',
     ]);
-    // No answers passed: the defaults, spelled out, and named so the agent can say so.
+    // No answers passed: the defaults apply and are named so the agent can say so —
+    // but nothing is saved, so the question stays open for a real setup.
     expect(first.config).toEqual({ enabled: true, new_session: 'keep' });
+    expect(first.config_created).toBe(false);
     expect(first.defaults_applied).toEqual(['enabled', 'new_session']);
-    expect(
-      JSON.parse(await readFile(path.join(repo, '.constellation', 'config.json'), 'utf8')),
-    ).toEqual({ working: { enabled: true, new_session: 'keep' } });
+    await expect(
+      readFile(path.join(repo, '.constellation', 'config.json'), 'utf8'),
+    ).rejects.toThrow();
     const ignore = await readFile(path.join(repo, '.gitignore'), 'utf8');
     // The WHOLE folder is local — its CLAUDE.md included.
     expect(ignore.split('\n')).toContain('.constellation/');

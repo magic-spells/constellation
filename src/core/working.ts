@@ -3,10 +3,14 @@ import {
   access,
   appendFile,
   mkdir,
+  open,
   readFile,
   readdir,
   realpath,
+  rename,
+  rm,
   stat,
+  writeFile,
 } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -639,27 +643,113 @@ function validateText(text: string): string {
   return text.trim();
 }
 
+/** How long a lock file may sit before it is taken for a crashed writer's. */
+const LOCK_STALE_MS = 10_000;
+/** How long a writer waits for the lock before giving up loudly. */
+const LOCK_WAIT_MS = 5_000;
+/** Optimistic retries when working.md changes under a write (a writer outside the lock). */
+const MAX_WRITE_ATTEMPTS = 5;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
- * Run a read→modify→write against `working.md` under the per-file lock. The log
- * dir comes back with the result so callers append AFTER the write lands — a log
- * line for a write that then failed would be a lie in the one place that is
- * supposed to be the history.
+ * Cross-process mutual exclusion on `working.md`: an exclusive `working.md.lock`
+ * beside it. withFileLock only orders writers inside one process; the hook, the
+ * MCP server and a second agent's server are separate processes. A lock older
+ * than LOCK_STALE_MS belongs to a writer that died and is broken.
+ */
+async function withWriteLock<T>(file: string, fn: () => Promise<T>): Promise<T> {
+  const lock = `${file}.lock`;
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  for (;;) {
+    try {
+      const handle = await open(lock, 'wx');
+      await handle.writeFile(String(process.pid));
+      await handle.close();
+      break;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+      const held = await stat(lock).catch(() => null);
+      if (held && Date.now() - held.mtimeMs > LOCK_STALE_MS) {
+        await rm(lock, { force: true });
+        continue;
+      }
+      if (Date.now() > deadline) {
+        throw new WorkingError(
+          'BUSY',
+          `working.md has been locked by another writer for over ${LOCK_WAIT_MS / 1000}s (${lock}); retry, or delete the lock file if no writer is running.`,
+        );
+      }
+      await sleep(10 + Math.random() * 30);
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    await rm(lock, { force: true });
+  }
+}
+
+async function readRaw(file: string): Promise<string> {
+  try {
+    return await readFile(file, 'utf8');
+  } catch {
+    return '';
+  }
+}
+
+/** What a mutation hands back: its result, the log lines it owes, and whether to write at all. */
+interface Mutation<T> {
+  result: T;
+  logs?: string[];
+  write?: boolean;
+}
+
+/**
+ * The one read→modify→write path for `working.md`, shared by every writer (MCP,
+ * the hook's clear). Locked in-process and across processes; then optimistic on
+ * top, for writers that do not take the lock (a hand edit, an older server): the
+ * new content goes to a temp file, and only if `working.md` is still exactly what
+ * was read is the log written and the temp renamed over it — otherwise re-read
+ * and redo, up to MAX_WRITE_ATTEMPTS, then fail CONFLICT. `fn` may run more than
+ * once, so it must keep its state inside what it returns.
+ *
+ * The log goes first: a crash between the two leaves a logged change that never
+ * landed, never a change with no history — and only the attempt that wins logs.
  */
 async function mutate<T>(
   target: WorkingTarget,
-  fn: (doc: WorkingDoc) => Promise<T> | T,
-): Promise<{ result: T; header: WorkingHeader; doc: WorkingDoc; logDir: string }> {
+  fn: (doc: WorkingDoc) => Promise<Mutation<T>> | Mutation<T>,
+): Promise<{ result: T; header: WorkingHeader; doc: WorkingDoc }> {
   const anchor = await toAnchor(target);
   const paths = await workingPaths(anchor);
   if (!paths.exists) throw noFolder(paths.dir);
   const fields = await freshHeaderFields(anchor.from);
-  return withFileLock(paths.file, async () => {
-    const doc = await readDoc(paths.file);
-    const result = await fn(doc);
-    Object.assign(doc.header, fields);
-    await writeAtomic(paths.file, serializeWorking(doc));
-    return { result, header: doc.header, doc, logDir: paths.logDir };
-  });
+  return withFileLock(paths.file, () =>
+    withWriteLock(paths.file, async () => {
+      for (let attempt = 0; attempt < MAX_WRITE_ATTEMPTS; attempt++) {
+        const before = await readRaw(paths.file);
+        const doc = parseWorking(before);
+        const { result, logs = [], write = true } = await fn(doc);
+        if (!write) return { result, header: doc.header, doc };
+        Object.assign(doc.header, fields);
+        const tmp = `${paths.file}.${process.pid}.${attempt}.${Date.now().toString(36)}.tmp`;
+        await writeFile(tmp, serializeWorking(doc), 'utf8');
+        try {
+          if ((await readRaw(paths.file)) !== before) continue;
+          for (const line of logs) await appendLogAt(paths.logDir, line);
+          await rename(tmp, paths.file);
+        } finally {
+          await rm(tmp, { force: true });
+        }
+        return { result, header: doc.header, doc };
+      }
+      throw new WorkingError(
+        'CONFLICT',
+        `working.md kept changing under this write (${MAX_WRITE_ATTEMPTS} attempts); nothing was written. Retry.`,
+      );
+    }),
+  );
 }
 
 export interface WorkingSetResult {
@@ -682,10 +772,9 @@ export async function setItems(
   if (!Array.isArray(items) || items.length === 0) {
     throw new WorkingError('BAD_ITEMS', 'Pass at least one item.');
   }
-  const superseded: string[] = [];
-  const supersedeLogs: string[] = [];
-
-  const { result, header, logDir } = await mutate(target, async (doc) => {
+  const { result, header } = await mutate(target, async (doc) => {
+    const superseded: string[] = [];
+    const supersedeLogs: string[] = [];
     const byId = new Map<string, { line: Line; section: Section }>();
     for (const section of doc.sections) {
       for (const line of section.lines) {
@@ -778,11 +867,13 @@ export async function setItems(
       touched.push(item);
     }
 
-    return { ids, warnings: warningsFor(doc, touched) };
+    return {
+      result: { ids, warnings: warningsFor(doc, touched), superseded },
+      logs: supersedeLogs,
+    };
   });
 
-  for (const text of supersedeLogs) await appendLogAt(logDir, text);
-  return { ids: result.ids, header, warnings: result.warnings, superseded };
+  return { ids: result.ids, header, warnings: result.warnings, superseded: result.superseded };
 }
 
 export interface WorkingDropResult {
@@ -807,7 +898,7 @@ export async function dropItems(
     }
   }
 
-  const { result, header, logDir } = await mutate(target, async (doc) => {
+  const { result, header } = await mutate(target, async (doc) => {
     const present = new Set(docItems(doc).map((i) => i.id));
     const missing = wanted.filter((id) => !present.has(id));
     if (missing.length > 0) {
@@ -828,12 +919,12 @@ export async function dropItems(
       });
     }
     const logged = Boolean(reason && reason.trim());
-    return { dropped, logged };
+    return {
+      result: { dropped, logged },
+      logs: logged ? [`drop ${dropped.join(', ')} — ${(reason as string).trim()}`] : [],
+    };
   });
 
-  if (result.logged) {
-    await appendLogAt(logDir, `drop ${result.dropped.join(', ')} — ${(reason as string).trim()}`);
-  }
   return { dropped: result.dropped, header, logged: result.logged };
 }
 
@@ -845,15 +936,20 @@ export async function dropItems(
  * path as dropItems, and each dropped item goes to the log with its text, so
  * nothing is lost: the log is the history. Callers decide WHEN (startup / clear,
  * never compact or resume); this only does it. No folder or nothing to drop →
- * no write at all.
+ * no write at all, so hooks firing at once log each drop exactly once.
+ *
+ * Never from a linked worktree: the folder resolves through the main checkout,
+ * so one list is shared by every session in the repo, and a session in a
+ * worktree is parallel work by definition — clearing there would wipe the
+ * main session's state mid-flight.
  */
 export async function clearForNewSession(
   target: WorkingTarget,
-): Promise<{ dropped: string[] }> {
+): Promise<{ dropped: string[]; skipped?: 'linked-worktree' }> {
   const anchor = await toAnchor(target);
-  const before = await readWorking(anchor);
-  if (!before.exists || !before.items.some((i) => i.type !== 'C')) return { dropped: [] };
-  const { result, logDir } = await mutate(anchor, (doc) => {
+  if (await isLinkedWorktree(anchor.from)) return { dropped: [], skipped: 'linked-worktree' };
+  if (!(await workingPaths(anchor)).exists) return { dropped: [] };
+  const { result } = await mutate(anchor, (doc) => {
     const dropped: WorkingItem[] = [];
     for (const section of doc.sections) {
       section.lines = section.lines.filter((line) => {
@@ -864,12 +960,28 @@ export async function clearForNewSession(
         return true;
       });
     }
-    return dropped;
+    return {
+      result: dropped.map((i) => i.id),
+      logs: dropped.map((i) => `drop ${i.id} — new session · [${i.importance}] ${i.text}`),
+      write: dropped.length > 0,
+    };
   });
-  for (const item of result) {
-    await appendLogAt(logDir, `drop ${item.id} — new session · [${item.importance}] ${item.text}`);
+  return { dropped: result };
+}
+
+/** True inside a linked worktree (its git dir is not the common one). False outside git. */
+export async function isLinkedWorktree(from: string): Promise<boolean> {
+  try {
+    const { stdout } = await exec('git', ['rev-parse', '--git-dir', '--git-common-dir'], {
+      cwd: from,
+    });
+    const [gitDir, commonDir] = stdout.trim().split('\n');
+    if (!gitDir || !commonDir) return false;
+    const real = (p: string) => realpath(path.resolve(from, p)).catch(() => path.resolve(from, p));
+    return (await real(gitDir)) !== (await real(commonDir));
+  } catch {
+    return false;
   }
-  return { dropped: result.map((i) => i.id) };
 }
 
 /* ── settings ───────────────────────────────────────────────────────────── */
@@ -967,11 +1079,14 @@ export async function initWorking(
   const answers: Partial<WorkingConfig> = {};
   if (opts.enabled !== undefined) answers.enabled = opts.enabled;
   if (opts.new_session !== undefined) answers.new_session = opts.new_session;
-  const written = await writeWorkingConfigAt(
-    dir,
-    { ...DEFAULT_WORKING_CONFIG, ...answers },
-    { ifMissing: true },
-  );
+  const answered = Object.keys(answers).length > 0;
+  // Only a real answer is saved. Unanswered (non-TTY, or the agent omitted them)
+  // leaves no file: a missing file already means on + keep, and it keeps the
+  // question open for the next real setup.
+  const existing = await readWorkingConfigAt(dir);
+  const written = answered
+    ? await writeWorkingConfigAt(dir, { ...DEFAULT_WORKING_CONFIG, ...answers }, { ifMissing: true })
+    : { ...existing, created: false };
   if (written.created) created.push(written.path);
   const config = written.config;
 
@@ -999,10 +1114,10 @@ export async function initWorking(
     config_created: written.created,
     ...ignore,
   };
-  if (written.created) {
+  if (written.created || !existing.exists) {
     const defaults = (['enabled', 'new_session'] as const).filter((k) => answers[k] === undefined);
     if (defaults.length > 0) result.defaults_applied = defaults;
-  } else if (Object.keys(answers).length > 0) {
+  } else if (answered) {
     result.config_unchanged =
       `config.json already exists, so the answers passed were not applied (in force: enabled ${config.enabled}, ` +
       `new_session ${config.new_session}). Only the user changes it: constellation working on|off|new-session.`;
@@ -1138,12 +1253,27 @@ async function trackedUnder(codeRoot: string): Promise<string[]> {
   }
 }
 
-function trackedWarning(tracked: string[], codeRoot: string): string {
+/**
+ * One line. A 1.0 repo tracks `.constellation/CLAUDE.md` on purpose under the
+ * legacy `!` line; untracking it before the ignore line is migrated would leave
+ * it untracked but not ignored. So while the legacy lines are still there, the
+ * migration step comes first.
+ */
+function trackedWarning(tracked: string[], codeRoot: string, legacy: boolean): string {
   const names = tracked.slice(0, 5).join(', ') + (tracked.length > 5 ? ', …' : '');
+  const first = legacy
+    ? 'first migrate .gitignore to `.constellation/` (`constellation working install-hook` or working_init), then '
+    : '';
   return (
-    `tracked by git: ${names} — .gitignore cannot untrack files. Run \`git rm --cached -r ${WORKING_DIR}\` ` +
-    `in ${codeRoot} and commit (the files stay on disk).`
+    `tracked by git: ${names} — ${first}run \`git rm --cached -r ${WORKING_DIR}\` in ${codeRoot} ` +
+    'and commit (the files stay on disk).'
   );
+}
+
+/** Does `<codeRoot>/.gitignore` still carry the pre-1.1 pair? */
+async function hasLegacyIgnore(codeRoot: string): Promise<boolean> {
+  const raw = await readRaw(path.join(codeRoot, '.gitignore'));
+  return raw.split('\n').some((l) => LEGACY_GITIGNORE_LINES.includes(l.trim()));
 }
 
 /** Move our ignore line to the end of .gitignore, so it is the last rule that matches. */
@@ -1196,7 +1326,7 @@ export async function ensureIgnored(target: WorkingTarget): Promise<GitignoreRep
   const tracked = await trackedUnder(codeRoot);
   if (tracked.length > 0) {
     report.tracked = tracked;
-    warnings.push(trackedWarning(tracked, codeRoot));
+    warnings.push(trackedWarning(tracked, codeRoot, await hasLegacyIgnore(codeRoot)));
   }
   return report;
 }
@@ -1209,7 +1339,7 @@ export async function trackedWorkingWarning(target: WorkingTarget): Promise<stri
   const { dir } = await toAnchor(target);
   const parent = path.dirname(dir);
   const tracked = await trackedUnder(parent);
-  return tracked.length > 0 ? trackedWarning(tracked, parent) : null;
+  return tracked.length > 0 ? trackedWarning(tracked, parent, await hasLegacyIgnore(parent)) : null;
 }
 
 

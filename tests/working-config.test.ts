@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -220,14 +220,24 @@ describe('gitignore check', () => {
     git(repo, 'add', '-A');
     git(repo, 'commit', '-q', '-m', 'old layout');
 
+    // Before migrating, the read-side warning names the migration step FIRST:
+    // untracking under the legacy `!` line would leave CLAUDE.md untracked but not ignored.
+    const before = (await trackedWorkingWarning(planRoot))!;
+    expect(before).toContain('.constellation/CLAUDE.md');
+    expect(before.indexOf('install-hook')).toBeGreaterThan(-1);
+    expect(before.indexOf('install-hook')).toBeLessThan(before.indexOf('git rm --cached'));
+    expect(before).not.toContain('\n');
+
     const result = await initWorking(planRoot);
     expect(result.gitignore).toBe('migrated');
     expect(result.gitignore_check).toBe('ok');
     expect(result.tracked).toEqual(['.constellation/CLAUDE.md']);
-    expect(result.warnings.join(' ')).toContain('git rm --cached -r .constellation');
+    const after = result.warnings.join(' ');
+    expect(after).toContain('git rm --cached -r .constellation');
+    // Migrated now, so the step is not asked for again.
+    expect(after).not.toContain('install-hook');
     // Reported, not run: the file is still in the index.
     expect(git(repo, 'ls-files', '.constellation').trim()).toBe('.constellation/CLAUDE.md');
-    expect(await trackedWorkingWarning(planRoot)).toContain('.constellation/CLAUDE.md');
   });
 
   it('skips quietly outside git', async () => {
@@ -279,6 +289,99 @@ describe('clearForNewSession', () => {
     const before = await readFile(path.join(dir, 'working.md'), 'utf8');
     expect((await clearForNewSession(planRoot)).dropped).toEqual([]);
     expect(await readFile(path.join(dir, 'working.md'), 'utf8')).toBe(before);
+  });
+
+  it('never clears from a linked worktree — that session is parallel work', async () => {
+    await seedSet();
+    cli(repo, ['working', 'new-session', 'clear']);
+    const wt = `${repo}-wt`;
+    git(repo, 'worktree', 'add', '-q', '-b', 'feat/x', wt);
+    try {
+      const wtPlan = path.join(wt, 'constellation');
+      expect(await clearForNewSession(wtPlan)).toEqual({ dropped: [], skipped: 'linked-worktree' });
+      const out = cli(wt, ['working'], JSON.stringify({ source: 'startup' }));
+      expect(out).toContain('- T1 [3] stripe webhook');
+      expect((await readWorking(planRoot)).items.map((i) => i.id)).toEqual(['G1', 'C1', 'T1', 'Q1']);
+      // The main checkout still clears.
+      expect(cli(repo, ['working'], JSON.stringify({ source: 'startup' }))).not.toContain(
+        'stripe webhook',
+      );
+    } finally {
+      git(repo, 'worktree', 'remove', '--force', wt);
+      await rm(wt, { recursive: true, force: true });
+    }
+  }, 30_000);
+});
+
+/* ── concurrency across processes ──────────────────────────────────────── */
+
+const workingModule = path.join(repoRoot, 'src', 'core', 'working.ts');
+
+/** Run a small script in its own process (tsx), as another server or hook would. */
+let scriptSeq = 0;
+async function runScript(body: string): Promise<string> {
+  const file = path.join(path.dirname(repo), `${path.basename(repo)}-script-${scriptSeq++}.mts`);
+  await writeFile(
+    file,
+    `import * as w from ${JSON.stringify(workingModule)};\nconst plan = ${JSON.stringify(planRoot)};\n${body}\n`,
+  );
+  try {
+    return await new Promise((resolve, reject) => {
+      execFile(tsxBin, [file], { encoding: 'utf8' }, (err, stdout, stderr) =>
+        err ? reject(new Error(`${err.message}\n${stderr}`)) : resolve(stdout),
+      );
+    });
+  } finally {
+    await rm(file, { force: true });
+  }
+}
+
+describe('concurrent writers in separate processes', { timeout: 60_000 }, () => {
+  it('a clear racing a writer loses no item and logs every drop exactly once', async () => {
+    await seedSet();
+    const [, cleared] = await Promise.all([
+      runScript(
+        'for (let i = 0; i < 30; i++) await w.setItems(plan, [{ type: "C", text: "c" + i }]);',
+      ),
+      runScript(`
+        const made = [];
+        for (let i = 0; i < 15; i++) {
+          made.push(...(await w.setItems(plan, [{ type: "T", text: "t" + i }])).ids);
+          await w.clearForNewSession(plan);
+        }
+        console.log(JSON.stringify(made));`),
+    ]);
+    const set = await readWorking(planRoot);
+    const texts = set.items.map((i) => i.text);
+    for (let i = 0; i < 30; i++) expect(texts).toContain(`c${i}`);
+    expect(set.items.every((i) => i.type === 'C')).toBe(true);
+
+    const log = await readLog(planRoot, 'today');
+    const made: string[] = JSON.parse(cleared.trim().split('\n').at(-1)!);
+    for (const id of [...made, 'G1', 'T1', 'Q1']) {
+      expect(log.filter((l) => l.includes(`drop ${id} — new session`))).toHaveLength(1);
+    }
+  });
+
+  it('three hooks firing at once clear once and log each drop once', async () => {
+    await seedSet();
+    cli(repo, ['working', 'new-session', 'clear']);
+    const hook = () =>
+      new Promise<string>((resolve, reject) => {
+        const child = execFile(
+          tsxBin,
+          [cliPath, 'working'],
+          { cwd: repo, encoding: 'utf8', env: { ...process.env, NO_UPDATE_NOTIFIER: '1' } },
+          (err, stdout) => (err ? reject(err) : resolve(stdout)),
+        );
+        child.stdin?.end(JSON.stringify({ source: 'startup' }));
+      });
+    const outs = await Promise.all([hook(), hook(), hook()]);
+    for (const out of outs) expect(out).toContain('- C1 [5] "never tag or publish"');
+    const log = await readLog(planRoot, 'today');
+    for (const id of ['G1', 'T1', 'Q1']) {
+      expect(log.filter((l) => l.includes(`drop ${id} — new session`))).toHaveLength(1);
+    }
   });
 });
 
@@ -412,6 +515,10 @@ describe('constellation init', { timeout: 30_000 }, () => {
     await expect(readFile(path.join(bare, '.constellation', 'working.md'), 'utf8')).resolves.toMatch(
       /^Updated /,
     );
+    // Nobody answered, so nothing is saved: the question stays open.
+    await expect(
+      readFile(path.join(bare, '.constellation', 'config.json'), 'utf8'),
+    ).rejects.toThrow();
   });
 
   it('--no-working still ignores .constellation/ and creates no working.md', async () => {

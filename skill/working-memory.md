@@ -64,20 +64,20 @@ come back as `warnings`, not errors.
 `.constellation/config.json` holds two settings: `enabled` (false: no `working_*` tools, no
 `orient.working`, a silent hook) and `new_session` (`keep`, or `clear`: a fresh session —
 startup or `/clear`, never a compaction or resume — drops every item except CONSTRAINT
-lines and logs each with the reason "new session"). A missing file means `true` / `keep`.
+lines and logs each with the reason "new session"). `clear` resets the one list every
+session in this repo shares, so it suits one session at a time; a linked worktree never
+clears. A missing file means `true` / `keep`, and nothing is saved until someone answers.
 
 The first time working memory is set up in a repo, ask the user "Do you want to use
 working memory on this repo?" and "Do you want to clear the working memory with every new
-session?", and pass the answers to `working_init` (or `init_plan`). If they cannot be
-asked, the defaults apply and the result names them — tell the user. After that never
-change either setting yourself; the user does, with `constellation working on|off` and
-`constellation working new-session keep|clear`.
+session?", and pass the answers to `working_init` (or `init_plan`). Can't ask? Omit them;
+the defaults (on, keep) apply and `defaults_applied` lists them for the user. After that
+never change either setting yourself; the user does (`constellation working
+on|off|new-session`).
 
-`constellation/` is the tracked long-term plan; `.constellation/` is local conversational
-memory and is never tracked, `CLAUDE.md` and `config.json` included. `working_init` writes
-the `.constellation/` line to `.gitignore` and checks it with `git check-ignore`; relay
-any warning it returns, such as files already tracked, with the `git rm --cached` command
-it names. Never run that command yourself.
+`.constellation/` is local and never tracked (CLAUDE.md and config.json included);
+`working_init` ignores and verifies it. Relay its warnings, e.g. tracked files and the
+`git rm --cached` fix; never run the fix yourself.
 
 ## You infer it; nobody dictates it
 

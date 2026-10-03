@@ -80,13 +80,9 @@ Rules:
 - More than ~25 live items means sweep, not achievement. A decision that outlives the
   stretch becomes a DECISION card; an idea that becomes work becomes a TASK or a card.
 
-Settings live in \`config.json\`: \`enabled\` (false: no working memory in this repo) and
-\`new_session\` (\`keep\`, or \`clear\`: a new session keeps only CONSTRAINT items and logs the
-rest). The first setup asks the user both; after that only the user changes them
-(\`constellation working on|off|new-session\`).
-
-\`constellation/\` is the tracked long-term plan. This folder is local conversational memory
-and is never tracked: \`.constellation/\` is in \`.gitignore\`, this file included.
+Settings (\`config.json\`) are the user's: \`enabled\`, \`new_session\` (\`keep\` | \`clear\`: a new
+session keeps only C items). Only they change them (\`constellation working on|off|new-session\`).
+This folder is gitignored, never tracked.
 `;
 }
 

@@ -161,9 +161,8 @@ none it sits at the git root, so never call `init_plan` just to get it. The shor
 - **Ask twice, at setup only.** The first time working memory is set up in a repo, ask the
   user "Do you want to use working memory on this repo?" and "Do you want to clear the
   working memory with every new session?", and pass the answers to `working_init` (`enabled`,
-  `new_session`; saved in `.constellation/config.json`). After that never change either
-  setting yourself. `constellation/` is the tracked plan; `.constellation/` is local and
-  never tracked — relay any gitignore warning `working_init` returns.
+  `new_session`). Can't ask? Omit them; the defaults (on, keep) apply and `defaults_applied`
+  lists them for the user. Relay its warnings, and never change either setting yourself.
 - **Infer it; nobody dictates it.** The user talks about the work; you hear the goal, the
   rule, the choice, the open question in what they say and record it in the same turn,
   without announcing it or asking. Nobody tells you to drop an item either: when the work

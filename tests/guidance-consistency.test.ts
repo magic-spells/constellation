@@ -297,6 +297,7 @@ const NOT_TOOLS = new Set([
   'total_hits',
   'if_mtime',
   'new_session',
+  'defaults_applied',
 ]);
 
 // Prose pluralizes tool names ("concurrent `update_card`s"), and norm() strips the backticks,

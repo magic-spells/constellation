@@ -69,6 +69,7 @@ import {
   appendLog,
   dropItems,
   anchorForPlan,
+  ensureIgnored,
   initWorking,
   noWorkingRoot,
   readLog,
@@ -132,12 +133,13 @@ describe_type before authoring an unfamiliar type, and author in the types the p
 
 Call orient at session start: a briefing on the plan's shape, drift and newest notes. Retrieve lean: summaries by
 default, full content only for cards you name. traverse and assemble walk the graph; assemble returns an INDEX by
-default (file-disjoint units, bound paths, no bodies); ask hydration: "full" only when you need bodies. Hydration never
-truncates silently: repeats (hydrated_elsewhere), supernodes (DIAGRAM, PLAN-PROJECT) and over-budget cards degrade to
-summaries — everything held back is named in hydration_budget, refetchable by handle. search / list_cards / list_notes
-page: read total/more/next, don't raise limit. get_card returns the newest notes (notes_limit, notes_truncated) and,
-with code:, the code a card is bound to. Grep on cards is allowed; search is the better first call — ranked handles,
-covering notes, path/code_refs and connected repos; AND, relaxing to ANY word (relaxed: true) when nothing matches all.
+default (file-disjoint units, seeds, bound paths, no bodies); ask hydration: "full" only when you need bodies. Hydration
+never truncates silently: repeats (hydrated_elsewhere), supernodes (DIAGRAM / PLAN-PROJECT as neighbors) and over-budget
+cards degrade to summaries — everything held back is named in hydration_budget, refetchable by handle. search /
+list_cards / list_notes page: read total/more/next, don't raise limit. get_card returns the newest notes (notes_limit,
+notes_truncated) and, with code:, the code a card is bound to. Grep on cards is allowed; search is the better first call
+— ranked handles, covering notes, path/code_refs and connected repos; AND, relaxing to ANY word (relaxed: true) when
+nothing matches all.
 
 Plan-first applies to BEHAVIOR changes only — a new FEATURE, an API contract, a STATE change: read the neighborhood,
 express the end state in cards (unbuilt work is status: planned), show that card diff as the proposal, then bring the code
@@ -148,20 +150,19 @@ has commits newer than the card's. Commit the card together with the code; stale
 progress — expected, not drift to fix. set_verified is the explicit override, stamping verified_sha / verified_at as the
 baseline; never stamp dirty flags into cards — "what changed" is diff_plan / plan_log / git.`;
 
-const WORKING_INSTRUCTIONS = `Working memory (.constellation/ beside the plan, or at the git root with none — never call init_plan just to get it — a
-local session scratchpad, gitignored whole, never a card) holds what we are DOING: read orient.working or working_list
-at session start and right after every compaction, before acting on any summary — the summary is authoritative for the
-conversation, the set for state; where they disagree verify with git worktree list / git log -1. working_set the moment
-state changes, in the same turn: work dispatched or merged, a step finished, a decision made, a rule the user stated, a
-question only they can answer. working_drop with a reason checks something off — no status field; the reason goes to the
-log. You will lean toward adding: at every commit, PR, topic change or new plan, run each keep test and drop what fails,
-THEN add the new. Sub-agents only working_log. Ids are per type, lines are headlines (aim under 100 chars, ceiling 160).
-Keep a G goal while undelivered and wanted · C constraint (the user's words verbatim) until they change it · P plan (one
-line, ✓ done → next) while steps are open · F focus (singular, replaced) while it is this turn's step · T task
-(worktree, branch, head, holder) while undone · Q question only the user can answer while blocking · I idea while a live
-option · D decision while it steers live work; promote a lasting one to a DECISION card. First setup in a repo: ask the
-user "use working memory on this repo?" and "clear it with every new session?", pass the answers to working_init
-(enabled, new_session → .constellation/config.json), relay its gitignore warnings; never change either setting yourself.`;
+const WORKING_INSTRUCTIONS = `Working memory (.constellation/ beside the plan, or at the git root with none — never call init_plan just to get it —
+local and untracked, never a card) holds what we are DOING: read orient.working or working_list at session start and
+right after every compaction, before acting on a summary — the summary is authoritative for the conversation, the set
+for state; where they disagree verify with git worktree list / git log -1. working_set the moment state changes, in the
+same turn: work dispatched or merged, a step finished, a decision made, a rule the user stated, a question only they can
+answer. working_drop with a reason checks something off — no status field; the reason is logged. You will lean toward
+adding: at every commit, PR, topic change or new plan, run each keep test and drop what fails, THEN add the new.
+Sub-agents only working_log. Lines are headlines (under 100 chars, ceiling 160). Keep a G goal while undelivered and
+wanted · C constraint (the user's words verbatim) until they change it · P plan (one line, ✓ done → next) while steps
+are open · F focus (singular, replaced) while it is the current step · T task (worktree, branch, head, holder) while
+undone · Q question for the user while it blocks · I idea while a live option · D decision while it steers live work; a
+lasting one becomes a DECISION card. At first setup ask the user "use working memory on this repo?" and "clear it with
+every new session?", pass the answers to working_init, relay its warnings, and never change either setting yourself.`;
 
 const INSTRUCTIONS_TAIL = `Multi-repo: PLAN-PROJECT.connected_repos lists sibling repos (add_connected_repo / remove_connected_repo); pass repo: to
 any tool to read or write THAT plan. Cards never connect across plans. In a monorepo each package keeps its own plan
@@ -865,7 +866,7 @@ const newSessionSchema = z
   .enum(['keep', 'clear'])
   .optional()
   .describe(
-    'the user\'s answer to "clear the working memory with every new session?" — clear: a new session keeps only CONSTRAINT items (the rest go to the log); keep (default): the set carries over',
+    'the user\'s answer to "clear the working memory with every new session?" — clear: a new session (startup or /clear, never in a linked worktree) keeps only CONSTRAINT items and logs the rest — it resets the one list every session in this repo shares, so it suits one session at a time; keep (default): the set carries over',
   );
 const repoSchema = z
   .string()
@@ -1029,7 +1030,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'init_plan',
     {
       description:
-        'Bootstrap a new plan: create a constellation/ folder with a starter plan.md. Use only when no plan exists yet (other tools return NO_PLAN_FOUND). Pass name to set the project name (shown as the viewer title); if omitted it defaults to a title-cased folder name (pyramid-server → "Pyramid Server"). Propose a name, confirm it with the user, and change it anytime via update_card on PLAN-PROJECT. After this, create_card works immediately. It also sets up working memory (.constellation/, local and never tracked — the .constellation/ .gitignore line is ensured even with working: false): before calling, ASK THE USER "Do you want to use working memory on this repo?" (→ working) and "Do you want to clear the working memory with every new session?" (→ new_session: clear, else keep), and pass both answers. Only if the user cannot be asked, omit them: the defaults (on, keep) apply and defaults_applied names them so you can tell the user. An existing .constellation/config.json is never overwritten.',
+        'Bootstrap a new plan: create a constellation/ folder with a starter plan.md. Use only when no plan exists yet (other tools return NO_PLAN_FOUND). Pass name to set the project name (shown as the viewer title); if omitted it defaults to a title-cased folder name (pyramid-server → "Pyramid Server"). Propose a name, confirm it with the user, and change it anytime via update_card on PLAN-PROJECT. After this, create_card works immediately. It also sets up working memory (.constellation/) and always ensures its ignore line. Before calling, ask the user "Do you want to use working memory on this repo?" (→ working_enabled) and "Do you want to clear the working memory with every new session?" (→ new_session: clear, else keep). Can\'t ask? Omit them; the defaults (on, keep) apply and defaults_applied lists them for the user. working: false skips working memory entirely (no files, no settings — the question stays open).',
       inputSchema: {
         path: z
           .string()
@@ -1043,7 +1044,13 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .boolean()
           .optional()
           .describe(
-            'the user\'s answer to "use working memory on this repo?" — true creates .constellation/ working memory beside the plan, false records enabled: false and creates none (default true; no hook — working_init { hook: true } adds that)',
+            'false: skip working memory (only the .constellation/ ignore line is written). Default true; no hook — working_init { hook: true } adds that',
+          ),
+        working_enabled: z
+          .boolean()
+          .optional()
+          .describe(
+            'the user\'s answer to "use working memory on this repo?" — false is saved as enabled: false and creates nothing else',
           ),
         new_session: newSessionSchema,
       },
@@ -1052,11 +1059,13 @@ export function buildServer(options: ServerOptions = {}): McpServer {
       path: target,
       name,
       working,
+      working_enabled: workingEnabledAnswer,
       new_session: newSession,
     }: {
       path?: string;
       name?: string;
       working?: boolean;
+      working_enabled?: boolean;
       new_session?: NewSessionMode;
     }) => {
       try {
@@ -1065,14 +1074,17 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           target ?? process.cwd(),
           { name },
         );
-        // Always: init is the moment .constellation/ must be ignored, so even
-        // working: false writes the ignore line (and records the answer).
+        // Init is the moment .constellation/ must be ignored, so even working:
+        // false writes the ignore line — and nothing else.
         let workingResult: unknown = null;
         try {
-          workingResult = await initWorking(created, {
-            ...(working !== undefined ? { enabled: working } : {}),
-            ...(newSession !== undefined ? { new_session: newSession } : {}),
-          });
+          workingResult =
+            working === false
+              ? { skipped: true, ...(await ensureIgnored(await anchorForPlan(created))) }
+              : await initWorking(created, {
+                  ...(workingEnabledAnswer !== undefined ? { enabled: workingEnabledAnswer } : {}),
+                  ...(newSession !== undefined ? { new_session: newSession } : {}),
+                });
         } catch {
           // A plan is still a plan without a scratchpad; never fail init over it.
           workingResult = null;
@@ -3060,7 +3072,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'working_init',
     {
       description:
-        'Create working memory: .constellation/ beside constellation/ — or at the git root when the repo has no plan (never init_plan just for this) — with config.json (the two settings), CLAUDE.md (the rules), an empty working.md and a log/ folder. constellation/ is the tracked long-term plan; .constellation/ is local conversational memory and is never tracked: this ensures the .constellation/ line in .gitignore, verifies it with git check-ignore (gitignore_check: ok | fixed | failed | skipped) and names already-tracked files in warnings with the git rm --cached command — relay any warning to the user, never run that command yourself. The first time in a repo, ASK THE USER before calling: "Do you want to use working memory on this repo?" (→ enabled) and "Do you want to clear the working memory with every new session?" (→ new_session: clear, else keep); pass both answers. Only if the user cannot be asked, omit them: the defaults (enabled, keep) apply and defaults_applied names them so you can tell the user. An existing config.json is never overwritten — after the first setup an agent never changes either setting; the user does (constellation working on|off|new-session). enabled: false records the answer and creates nothing else. Idempotent. hook: true also merges a SessionStart hook into .claude/settings.json so every session — including every compaction — starts by printing the set; that edits the user\'s settings, so ask first. Nothing here is a card: it is never indexed, linted, diffed or shown in the viewer.',
+        'Create working memory: .constellation/ beside constellation/ — or at the git root when the repo has no plan (never init_plan just for this) — with CLAUDE.md (the rules), an empty working.md and a log/ folder. Ensures and verifies the .constellation/ ignore line (gitignore_check); relay warnings (e.g. tracked files + the git rm --cached fix) — never run the fix yourself. The first time in a repo, ask the user "Do you want to use working memory on this repo?" (→ enabled) and "Do you want to clear the working memory with every new session?" (→ new_session: clear, else keep); the answers are saved in config.json. Can\'t ask? Omit them; the defaults (on, keep) apply and defaults_applied lists them for the user. An existing config.json is never overwritten; after setup only the user changes it (constellation working on|off|new-session). enabled: false saves the answer and creates nothing else. Idempotent. hook: true also merges a SessionStart hook into .claude/settings.json so every session — including every compaction — starts by printing the set; that edits the user\'s settings, so ask first. Nothing here is a card: it is never indexed, linted, diffed or shown in the viewer.',
       inputSchema: {
         repo: repoSchema,
         hook: z

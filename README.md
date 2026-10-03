@@ -60,7 +60,7 @@ unknown fields, dangling prose links) don't block.
 
 | Path | What |
 |---|---|
-| `.constellation/` | Working memory — the session scratchpad and its `config.json` (local, never tracked); never part of the plan |
+| `.constellation/` | Working memory — the session scratchpad and its `config.json`; never part of the plan |
 | `constellation/` | Constellation's own plan — the format spec, MCP design, and architecture as connected cards (formerly `docs/`); also a flagship real-world plan |
 | `schemas/` | JSON Schemas: `card.json` (reserved keys) + one per type |
 | `skill/` | AI authoring skill: `SKILL.md` + per-type references with golden examples |
@@ -216,7 +216,8 @@ already tracked with the `git rm --cached -r .constellation` command to run.
 Two per-repo settings live in `.constellation/config.json`, asked once when working memory
 is first set up: `enabled` (off: no `working_*` tools, a silent hook) and `new_session`
 (`keep`, or `clear`: a new session — startup or `/clear`, never a compaction — keeps only
-the CONSTRAINT items and logs the rest). Change them with `constellation working on|off`,
+the CONSTRAINT items and logs the rest — one list shared by every session in the repo, so it
+suits one session at a time). Change them with `constellation working on|off`,
 `constellation working new-session keep|clear`; `constellation working config` prints them.
 
 In a session, `/working` prints the set (and applies one instruction, e.g. `/working
