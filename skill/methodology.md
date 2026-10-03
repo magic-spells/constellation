@@ -85,6 +85,8 @@ files and trace the data paths; never judge a system from filenames or folder st
 
 - If tools return `NO_PLAN_FOUND`, call `init_plan` once (or `constellation init`).
   Working memory (`working_*`) needs no plan — never call `init_plan` just to get it.
+  Before `init_plan`, ask the two setup questions in `working-memory.md` (*Settings* — "use
+  working memory on this repo?") and pass the answers; never change either setting yourself.
 - Skim the map of the repo before reading any single file: `package.json`/manifest,
   README, the top-level folder layout, the router/route table, the build and deploy
   config, the migrations or schema directory, the test layout.

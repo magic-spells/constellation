@@ -38,10 +38,12 @@ Code has not been reconciled against this plan yet.
 }
 
 /**
- * `.constellation/CLAUDE.md` — the rules for the working set, committed so an
- * agent with no MCP server still knows the format. Keep it short: it is read
- * at session start and after every compaction, so every line is a recurring
- * token bill. The full guidance lives in the skill (`working-memory.md`).
+ * `.constellation/CLAUDE.md` — the rules for the working set, written locally so
+ * an agent with no MCP server still knows the format. Like the rest of the
+ * folder it is never tracked (a fresh clone has none; working_init writes it).
+ * Keep it short: it is read at session start and after every compaction, so
+ * every line is a recurring token bill. The full guidance lives in the skill
+ * (`working-memory.md`).
  */
 export function workingClaudeMd(): string {
   return `# Working memory (\`.constellation/\`)
@@ -78,7 +80,9 @@ Rules:
 - More than ~25 live items means sweep, not achievement. A decision that outlives the
   stretch becomes a DECISION card; an idea that becomes work becomes a TASK or a card.
 
-Everything in this folder except this file is gitignored.
+Settings (\`config.json\`) are the user's: \`enabled\`, \`new_session\` (\`keep\` | \`clear\`: a new
+session keeps only C items). Only they change them (\`constellation working on|off|new-session\`).
+This folder is gitignored, never tracked.
 `;
 }
 

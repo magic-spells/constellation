@@ -1,7 +1,7 @@
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import {
@@ -68,16 +68,21 @@ import type { ConnectedRepo } from '../core/types.js';
 import {
   appendLog,
   dropItems,
+  anchorForPlan,
+  ensureIgnored,
   initWorking,
   noWorkingRoot,
   readLog,
   readWorking,
+  readWorkingConfig,
   resolveWorkingAnchor,
   setItems,
+  trackedWorkingWarning,
   WorkingError,
   type WorkingAnchor,
   type WorkingSetItem,
 } from '../core/working.js';
+import type { NewSessionMode } from '../core/working-config.js';
 
 const PACKAGE_VERSION = CONSTELLATION_VERSION;
 export { PACKAGE_VERSION as MCP_SERVER_VERSION };
@@ -93,7 +98,10 @@ interface ViewerSingleton {
 // a URL the user may already have open in a browser tab.
 let viewer: ViewerSingleton | null = null;
 
-export const INSTRUCTIONS = `# Constellation MCP
+/* The always-on handshake text, in three parts so a repo with working memory
+ * switched off is served the same text minus its paragraph (instructionsFor).
+ * INSTRUCTIONS is the full text — what the guidance-consistency test reads. */
+const INSTRUCTIONS_HEAD = `# Constellation MCP
 
 The plan in constellation/ is this project's durable, cross-session memory. Read the cards covering an area BEFORE
 you change code there — you recover prior agents' understanding instead of starting fresh — and bring them back into
@@ -123,15 +131,15 @@ delete_card does NOT rewrite references: it returns referenced_by and leaves E00
 only the connections: list — an edge also declared by a handle-shaped frontmatter field needs a field patch. Call
 describe_type before authoring an unfamiliar type, and author in the types the plan already uses.
 
-Call orient at session start: a small read-only briefing on the plan's shape, drift and newest notes. Retrieve lean:
-summaries by default, full content only for cards you name. traverse and assemble walk the connection graph; assemble
-returns an INDEX by default (file-disjoint units, seeds, bound paths, no bodies); ask hydration: "full" only when you need
-bodies. Hydration never truncates silently: repeats (hydrated_elsewhere), supernodes (DIAGRAM / PLAN-PROJECT as neighbors)
-and over-budget cards degrade to summaries — everything held back is named in hydration_budget, refetchable by handle.
-search / list_cards / list_notes page: read total/more/next, don't raise limit. get_card returns the newest notes
-(notes_limit, notes_truncated) and, with code:, the code a card is bound to. Grep on cards is allowed, but search is
-usually the better first call — ranked handles not raw lines, one call not grep → map paths → get_card, and it covers
-notes, path/code_refs and connected repos; search is AND, relaxing to ANY word (relaxed: true) when nothing matches all.
+Call orient at session start: a briefing on the plan's shape, drift and newest notes. Retrieve lean: summaries by
+default, full content only for cards you name. traverse and assemble walk the graph; assemble returns an INDEX by
+default (file-disjoint units, seeds, bound paths, no bodies); ask hydration: "full" only when you need bodies. Hydration
+never truncates silently: repeats (hydrated_elsewhere), supernodes (DIAGRAM / PLAN-PROJECT as neighbors) and over-budget
+cards degrade to summaries — everything held back is named in hydration_budget, refetchable by handle. search /
+list_cards / list_notes page: read total/more/next, don't raise limit. get_card returns the newest notes (notes_limit,
+notes_truncated) and, with code:, the code a card is bound to. Grep on cards is allowed; search is the better first call
+— ranked handles, covering notes, path/code_refs and connected repos; AND, relaxing to ANY word (relaxed: true) when
+nothing matches all.
 
 Plan-first applies to BEHAVIOR changes only — a new FEATURE, an API contract, a STATE change: read the neighborhood,
 express the end state in cards (unbuilt work is status: planned), show that card diff as the proposal, then bring the code
@@ -140,27 +148,34 @@ straight to code — then fix the cards it broke. "Sync the plan" means bringing
 a marker and not rewriting cards to match whatever the code does. Drift follows git: a card is stale when its bound code
 has commits newer than the card's. Commit the card together with the code; stale_report on a dirty tree flags work in
 progress — expected, not drift to fix. set_verified is the explicit override, stamping verified_sha / verified_at as the
-baseline; never stamp dirty flags into cards — "what changed" is diff_plan / plan_log / git.
+baseline; never stamp dirty flags into cards — "what changed" is diff_plan / plan_log / git.`;
 
-Working memory (.constellation/ beside the plan, or at the git root with none — never call init_plan just to get it — a
-session scratchpad, never a card: not indexed, linted, diffed or shown in the viewer) holds what we are DOING: read
-orient.working or working_list at session start and again right after every compaction, before acting on any summary —
-the summary is authoritative for the conversation, the set for state; where they disagree verify with git worktree list
-/ git log -1. working_set the moment state changes, in the same turn: work dispatched or merged, a plan step finished, a
-decision made, a rule the user stated, a question only they can answer. working_drop with a reason is how you check
-something off — no status field; the reason goes to the log. You will lean toward adding, never removing: at every
-commit, PR, topic change or new plan, run each keep test and drop what fails, THEN add the new. Sub-agents only
-working_log. Ids are per type and lines are headlines (aim under 100 chars, ceiling 160): G goal, keep while undelivered
-and wanted · C constraint, the user's words verbatim, keep until they change it · P plan, one line, ✓ done → next, keep
-while steps are open · F focus, singular and replaced, keep while it is this turn's step · T task — worktree, branch,
-head, holder — keep while undone · Q question only the user can answer, keep while blocking · I idea, keep while a live
-option · D decision, keep while it steers live work. Promote a lasting decision to a DECISION card, then drop it.
+const WORKING_INSTRUCTIONS = `Working memory (.constellation/ beside the plan, or at the git root with none — never call init_plan just to get it —
+local and untracked, never a card) holds what we are DOING: read orient.working or working_list at session start and
+right after every compaction, before acting on a summary — the summary is authoritative for the conversation, the set
+for state; where they disagree verify with git worktree list / git log -1. working_set the moment state changes, in the
+same turn: work dispatched or merged, a step finished, a decision made, a rule the user stated, a question only they can
+answer. working_drop with a reason checks something off — no status field; the reason is logged. You will lean toward
+adding: at every commit, PR, topic change or new plan, run each keep test and drop what fails, THEN add the new.
+Sub-agents only working_log. Lines are headlines (under 100 chars, ceiling 160). Keep a G goal while undelivered and
+wanted · C constraint (the user's words verbatim) until they change it · P plan (one line, ✓ done → next) while steps
+are open · F focus (singular, replaced) while it is the current step · T task (worktree, branch, head, holder) while
+undone · Q question for the user while it blocks · I idea while a live option · D decision while it steers live work; a
+lasting one becomes a DECISION card. At first setup ask the user "use working memory on this repo?" and "clear it with
+every new session?", pass the answers to working_init, relay its warnings, and never change either setting yourself.`;
 
-Multi-repo: PLAN-PROJECT.connected_repos lists sibling repos (add_connected_repo / remove_connected_repo); pass repo: to
+const INSTRUCTIONS_TAIL = `Multi-repo: PLAN-PROJECT.connected_repos lists sibling repos (add_connected_repo / remove_connected_repo); pass repo: to
 any tool to read or write THAT plan. Cards never connect across plans. In a monorepo each package keeps its own plan
 (packages/<name>/constellation); path: / code_refs are relative to the CODE ROOT, the folder holding that constellation/.
 Never init a full plan at a monorepo root — it holds at most a signpost plan.md whose connected_repos names the package
 plans, so repo: routes by name. start_viewer serves the plan as an editable site — post the returned URL back to the user.`;
+
+export const INSTRUCTIONS = [INSTRUCTIONS_HEAD, WORKING_INSTRUCTIONS, INSTRUCTIONS_TAIL].join('\n\n');
+
+/** The handshake text for a repo; without working memory its paragraph is left out. */
+export function instructionsFor(working: boolean): string {
+  return working ? INSTRUCTIONS : [INSTRUCTIONS_HEAD, INSTRUCTIONS_TAIL].join('\n\n');
+}
 
 /* ── the one-time format-upgrade review ─────────────────────────────────────
  * 0.5.0 changed what makes an edge: a [[link]] or a mermaid node ID stopped
@@ -202,18 +217,38 @@ async function upgradeReviewPending(root: string): Promise<boolean> {
 /**
  * The handshake instructions for this boot: the static string, plus the upgrade
  * notice when a plan resolves and carries no review stamp. No plan (or an
- * unreadable one) → the static string, unchanged.
+ * unreadable one) → the static string, unchanged. `working: false` (the repo
+ * switched working memory off) drops the working memory paragraph.
  */
-export async function bootInstructions(planRoot?: string | null): Promise<string> {
+export async function bootInstructions(
+  planRoot?: string | null,
+  working = true,
+): Promise<string> {
+  const base = instructionsFor(working);
   try {
     // Resolve even a fixed root: a path that holds no plan must not be prompted
     // about, and the notice is never worth an error at handshake time.
     const root = await resolvePlanDir(planRoot ?? undefined);
-    if (!root) return INSTRUCTIONS;
-    if (!(await upgradeReviewPending(root))) return INSTRUCTIONS;
-    return INSTRUCTIONS + upgradeReviewNotice(PACKAGE_VERSION);
+    if (!root) return base;
+    if (!(await upgradeReviewPending(root))) return base;
+    return base + upgradeReviewNotice(PACKAGE_VERSION);
   } catch {
-    return INSTRUCTIONS;
+    return base;
+  }
+}
+
+/**
+ * Is working memory on for the repo this server runs in? Resolved once at boot
+ * (the tool list is fixed at the handshake). No anchor, no config, or a broken
+ * one → on, today's behaviour.
+ */
+export async function workingEnabledAtBoot(planRoot?: string | null): Promise<boolean> {
+  try {
+    const anchor = await resolveWorkingAnchor({ plan: planRoot ?? null });
+    if (!anchor) return true;
+    return (await readWorkingConfig(anchor)).config.enabled;
+  } catch {
+    return true;
   }
 }
 
@@ -738,11 +773,20 @@ async function orientReport(root: string): Promise<Record<string, unknown>> {
 
   // Working memory rides along when it exists: MCP-only clients (Codex, Cursor)
   // have no SessionStart hook, so orient is their one chance to be handed the
-  // set before they act. Absent folder = absent key — orient stays non-hydrating.
-  let working: { header: unknown; items: unknown[] } | null = null;
+  // set before they act. Absent folder, or working memory switched off in
+  // config.json = absent key — orient stays non-hydrating.
+  let working: Record<string, unknown> | null = null;
   try {
-    const set = await readWorking(root);
-    if (set.exists) working = { header: set.header, items: set.items };
+    const anchor = await anchorForPlan(root);
+    const settings = await readWorkingConfig(anchor);
+    const set = settings.config.enabled ? await readWorking(anchor) : null;
+    if (set?.exists) {
+      working = { header: set.header, items: set.items };
+      const warnings = [...settings.warnings];
+      const tracked = await trackedWorkingWarning(anchor);
+      if (tracked) warnings.push(tracked);
+      if (warnings.length > 0) working.warnings = warnings;
+    }
   } catch {
     working = null;
   }
@@ -818,6 +862,12 @@ function pageFields(
 }
 const noteKindSchema = z.enum(['decision', 'gotcha', 'state', 'deviation', 'verified']);
 const codeModeSchema = z.enum(['none', 'paths', 'direct']);
+const newSessionSchema = z
+  .enum(['keep', 'clear'])
+  .optional()
+  .describe(
+    'the user\'s answer to "clear the working memory with every new session?" — clear: a new session (startup or /clear, never in a linked worktree) keeps only CONSTRAINT items and logs the rest — it resets the one list every session in this repo shares, so it suits one session at a time; keep (default): the set carries over',
+  );
 const repoSchema = z
   .string()
   .optional()
@@ -833,12 +883,20 @@ export interface ServerOptions {
    * passes the boot-computed string, which may carry the upgrade-review notice.
    */
   instructions?: string;
+  /**
+   * Working memory on for the server's own repo (default true). False — the
+   * repo's .constellation/config.json says `enabled: false` — registers no
+   * working_* tools and serves the instructions without their paragraph.
+   * `createServer` reads it from the config at boot.
+   */
+  workingEnabled?: boolean;
 }
 
 export function buildServer(options: ServerOptions = {}): McpServer {
+  const workingEnabled = options.workingEnabled ?? true;
   const server = new McpServer(
     { name: 'constellation', version: PACKAGE_VERSION },
-    { instructions: options.instructions ?? INSTRUCTIONS },
+    { instructions: options.instructions ?? instructionsFor(workingEnabled) },
   );
 
   server.registerPrompt(
@@ -896,8 +954,10 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         'server uses its own working directory, so set "cwd" to the project if needed. ' +
         'In a monorepo, plans typically live at packages/<name>/constellation and are ' +
         'addressed with repo=<path or name>. Otherwise call init_plan (optionally with ' +
-        '{ path } pointing at the intended project root), or run `constellation init`. ' +
-        'The working_* tools need no plan — never init_plan just for working memory.',
+        '{ path } pointing at the intended project root), or run `constellation init`.' +
+        (workingEnabled
+          ? ' The working_* tools need no plan — never init_plan just for working memory.'
+          : ''),
     );
 
   /**
@@ -970,7 +1030,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'init_plan',
     {
       description:
-        'Bootstrap a new plan: create a constellation/ folder with a starter plan.md. Use only when no plan exists yet (other tools return NO_PLAN_FOUND). Pass name to set the project name (shown as the viewer title); if omitted it defaults to a title-cased folder name (pyramid-server → "Pyramid Server"). Propose a name, confirm it with the user, and change it anytime via update_card on PLAN-PROJECT. After this, create_card works immediately.',
+        'Bootstrap a new plan: create a constellation/ folder with a starter plan.md. Use only when no plan exists yet (other tools return NO_PLAN_FOUND). Pass name to set the project name (shown as the viewer title); if omitted it defaults to a title-cased folder name (pyramid-server → "Pyramid Server"). Propose a name, confirm it with the user, and change it anytime via update_card on PLAN-PROJECT. After this, create_card works immediately. It also sets up working memory (.constellation/) and always ensures its ignore line. Before calling, ask the user "Do you want to use working memory on this repo?" (→ working_enabled) and "Do you want to clear the working memory with every new session?" (→ new_session: clear, else keep). Can\'t ask? Omit them; the defaults (on, keep) apply and defaults_applied lists them for the user. working_enabled: false means THE USER SAID NO (saved as enabled: false). working: false is only kept for backward compatibility and means DON\'T SET UP WORKING MEMORY NOW — the user was not asked, nothing is saved, the question stays open.',
       inputSchema: {
         path: z
           .string()
@@ -984,18 +1044,29 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           .boolean()
           .optional()
           .describe(
-            'also create .constellation/ working memory beside the plan (default true; no hook — working_init { hook: true } adds that)',
+            'backward compatibility only — false = don\'t set up working memory now; the user was not asked, nothing is saved (only the .constellation/ ignore line is written). For the user\'s answer use working_enabled',
           ),
+        working_enabled: z
+          .boolean()
+          .optional()
+          .describe(
+            'the user\'s answer to "use working memory on this repo?" — false = the user said no (saved as enabled: false; nothing else is created)',
+          ),
+        new_session: newSessionSchema,
       },
     },
     async ({
       path: target,
       name,
       working,
+      working_enabled: workingEnabledAnswer,
+      new_session: newSession,
     }: {
       path?: string;
       name?: string;
       working?: boolean;
+      working_enabled?: boolean;
+      new_session?: NewSessionMode;
     }) => {
       try {
         const { initPlan } = await import('../core/scaffold.js');
@@ -1003,14 +1074,20 @@ export function buildServer(options: ServerOptions = {}): McpServer {
           target ?? process.cwd(),
           { name },
         );
+        // Init is the moment .constellation/ must be ignored, so even working:
+        // false writes the ignore line — and nothing else.
         let workingResult: unknown = null;
-        if (working !== false) {
-          try {
-            workingResult = await initWorking(created);
-          } catch {
-            // A plan is still a plan without a scratchpad; never fail init over it.
-            workingResult = null;
-          }
+        try {
+          workingResult =
+            working === false
+              ? { skipped: true, ...(await ensureIgnored(await anchorForPlan(created))) }
+              : await initWorking(created, {
+                  ...(workingEnabledAnswer !== undefined ? { enabled: workingEnabledAnswer } : {}),
+                  ...(newSession !== undefined ? { new_session: newSession } : {}),
+                });
+        } catch {
+          // A plan is still a plan without a scratchpad; never fail init over it.
+          workingResult = null;
         }
         return ok({
           created,
@@ -2811,7 +2888,13 @@ export function buildServer(options: ServerOptions = {}): McpServer {
    * The session scratchpad beside the plan: not cards, not indexed, not linted,
    * never in diff_plan or the viewer. Every write returns the resulting header
    * so the caller sees the new counters without a second call.
+   *
+   * Off for the server's own repo (config.json `enabled: false`): the tools are
+   * removed again right after registering, so the client never lists them. On
+   * here but off in a repo a call targets (`repo:`, or switched off since boot):
+   * the call fails WORKING_DISABLED. Either way the setting is the user's.
    */
+  const workingTools: RegisteredTool[] = [];
 
   /** Map a WorkingError onto the tool error contract; anything else rethrows. */
   function workingFail(err: unknown): ToolResult {
@@ -2846,7 +2929,16 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         }
       }
       try {
-        return await handler(await resolveWorkingAnchor({ plan, start }), args);
+        const anchor = await resolveWorkingAnchor({ plan, start });
+        if (anchor && !(await readWorkingConfig(anchor)).config.enabled) {
+          return fail(
+            'WORKING_DISABLED',
+            `Working memory is switched off for ${path.dirname(anchor.dir)} ` +
+              '(.constellation/config.json "enabled": false). That is the user\'s choice — do not ' +
+              'change it; they can turn it back on with `constellation working on`.',
+          );
+        }
+        return await handler(anchor, args);
       } catch (err) {
         if (err instanceof WorkingError) return workingFail(err);
         return fail('INTERNAL', err instanceof Error ? err.message : String(err));
@@ -2864,7 +2956,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     .enum(['G', 'C', 'P', 'F', 'T', 'Q', 'I', 'D'])
     .describe('G goal · C constraint · P plan · F focus · T task · Q question · I idea · D decision');
 
-  server.registerTool(
+  workingTools.push(server.registerTool(
     'working_list',
     {
       annotations: { readOnlyHint: true },
@@ -2900,11 +2992,15 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         return ok(payload);
       }
       if (log !== undefined) payload.log = await readLog(anchor, log);
+      const warnings = (await readWorkingConfig(anchor)).warnings;
+      const tracked = await trackedWorkingWarning(anchor);
+      if (tracked) warnings.push(tracked);
+      if (warnings.length > 0) payload.warnings = warnings;
       return ok(payload);
     }),
-  );
+  ));
 
-  server.registerTool(
+  workingTools.push(server.registerTool(
     'working_set',
     {
       description:
@@ -2936,9 +3032,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     withWorking(async (anchor, { items }: { items: WorkingSetItem[] }) =>
       ok(await setItems(requireAnchor(anchor), items)),
     ),
-  );
+  ));
 
-  server.registerTool(
+  workingTools.push(server.registerTool(
     'working_drop',
     {
       description:
@@ -2955,9 +3051,9 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     withWorking(async (anchor, { ids, reason }: { ids: string[]; reason?: string }) =>
       ok(await dropItems(requireAnchor(anchor), ids, reason)),
     ),
-  );
+  ));
 
-  server.registerTool(
+  workingTools.push(server.registerTool(
     'working_log',
     {
       description:
@@ -2970,29 +3066,56 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     withWorking(async (anchor, { text }: { text: string }) =>
       ok(await appendLog(requireAnchor(anchor), text)),
     ),
-  );
+  ));
 
-  server.registerTool(
+  workingTools.push(server.registerTool(
     'working_init',
     {
       description:
-        'Create working memory: .constellation/ beside constellation/ — or at the git root when the repo has no plan (never init_plan just for this) — with CLAUDE.md (the rules, committed), an empty working.md, a log/ folder, and the two .gitignore lines that keep the scratchpad local. Idempotent. hook: true also merges a SessionStart hook into .claude/settings.json so every session — including every compaction — starts by printing the set; that edits the user\'s settings, so ask first. Nothing here is a card: it is never indexed, linted, diffed or shown in the viewer.',
+        'Create working memory: .constellation/ beside constellation/ — or at the git root when the repo has no plan (never init_plan just for this) — with CLAUDE.md (the rules), an empty working.md and a log/ folder. Ensures and verifies the .constellation/ ignore line (gitignore_check); relay warnings (e.g. tracked files + the git rm --cached fix) — never run the fix yourself. The first time in a repo, ask the user "Do you want to use working memory on this repo?" (→ enabled) and "Do you want to clear the working memory with every new session?" (→ new_session: clear, else keep); the answers are saved in config.json. Can\'t ask? Omit them; the defaults (on, keep) apply and defaults_applied lists them for the user. An existing config.json is never overwritten; after setup only the user changes it (constellation working on|off|new-session). enabled: false saves the answer and creates nothing else. Idempotent. hook: true also merges a SessionStart hook into .claude/settings.json so every session — including every compaction — starts by printing the set; that edits the user\'s settings, so ask first. Nothing here is a card: it is never indexed, linted, diffed or shown in the viewer.',
       inputSchema: {
         repo: repoSchema,
         hook: z
           .boolean()
           .optional()
           .describe('also install the SessionStart hook (default false — ask the user first)'),
+        enabled: z
+          .boolean()
+          .optional()
+          .describe(
+            'the user\'s answer to "use working memory on this repo?" (default true) — only applied when config.json does not exist yet',
+          ),
+        new_session: newSessionSchema,
       },
     },
-    withWorking(async (anchor, { hook }: { hook?: boolean }) => {
-      const result = await initWorking(requireAnchor(anchor), { hook });
-      return ok({
-        ...result,
-        next: 'Read .constellation/CLAUDE.md for the format, then working_set the goal and constraints already known in this session.',
-      });
-    }),
-  );
+    withWorking(
+      async (
+        anchor,
+        { hook, enabled, new_session: newSession }: {
+          hook?: boolean;
+          enabled?: boolean;
+          new_session?: NewSessionMode;
+        },
+      ) => {
+        const result = await initWorking(requireAnchor(anchor), {
+          hook,
+          ...(enabled !== undefined ? { enabled } : {}),
+          ...(newSession !== undefined ? { new_session: newSession } : {}),
+        });
+        return ok({
+          ...result,
+          next: result.config.enabled && enabled !== false
+            ? 'Read .constellation/CLAUDE.md for the format, then working_set the goal and constraints already known in this session.' +
+              (result.defaults_applied
+                ? ` Tell the user these defaults were applied: ${result.defaults_applied.join(', ')}.`
+                : '')
+            : 'Working memory is off for this repo, as the user chose; nothing else was created. Do not turn it on yourself.',
+        });
+      },
+    ),
+  ));
+
+  if (!workingEnabled) for (const tool of workingTools) tool.remove();
 
   server.registerTool(
     'stop_viewer',
@@ -3018,9 +3141,12 @@ export function buildServer(options: ServerOptions = {}): McpServer {
  * instructions are fixed at construction time, so the check happens here.
  */
 export async function createServer(options: ServerOptions = {}): Promise<McpServer> {
+  const workingEnabled = options.workingEnabled ?? (await workingEnabledAtBoot(options.planRoot));
   return buildServer({
     ...options,
-    instructions: options.instructions ?? (await bootInstructions(options.planRoot)),
+    workingEnabled,
+    instructions:
+      options.instructions ?? (await bootInstructions(options.planRoot, workingEnabled)),
   });
 }
 

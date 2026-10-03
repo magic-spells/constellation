@@ -158,6 +158,11 @@ context after every compaction by a SessionStart hook. Full rules, the type defi
 the keep tests are in [`working-memory.md`](./working-memory.md). It needs no plan — with
 none it sits at the git root, so never call `init_plan` just to get it. The short version:
 
+- **Ask twice, at setup only.** The first time working memory is set up in a repo, ask the
+  user "Do you want to use working memory on this repo?" and "Do you want to clear the
+  working memory with every new session?", and pass the answers to `working_init` (`enabled`,
+  `new_session`). Can't ask? Omit them; the defaults (on, keep) apply and `defaults_applied`
+  lists them for the user. Relay its warnings, and never change either setting yourself.
 - **Infer it; nobody dictates it.** The user talks about the work; you hear the goal, the
   rule, the choice, the open question in what they say and record it in the same turn,
   without announcing it or asking. Nobody tells you to drop an item either: when the work

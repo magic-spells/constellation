@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildServer } from '../src/mcp/server.js';
+import { buildServer, createServer, INSTRUCTIONS } from '../src/mcp/server.js';
 
 const GOLDEN = fileURLToPath(new URL('../examples/constellation', import.meta.url));
 
@@ -176,10 +176,22 @@ describe('working memory over MCP', () => {
         name: 'B',
         working: false,
       });
-      expect(without.working).toBeUndefined();
-      await expect(
-        readFile(path.join(bare, 'b', '.constellation', 'working.md'), 'utf8'),
-      ).rejects.toThrow();
+      // working: false is 1.0's "skip": no folder, no settings — the question stays open…
+      expect(without.working.skipped).toBe(true);
+      await expect(readdir(path.join(bare, 'b', '.constellation'))).rejects.toThrow();
+      // …but init is the moment .constellation/ becomes ignored, whatever the answer.
+      expect(
+        (await readFile(path.join(bare, 'b', '.gitignore'), 'utf8')).split('\n'),
+      ).toContain('.constellation/');
+
+      // Recording a "no" is its own field: saved as enabled: false, nothing else created.
+      const no = await call('init_plan', {
+        path: path.join(bare, 'c'),
+        name: 'C',
+        working_enabled: false,
+      });
+      expect(no.working.config.enabled).toBe(false);
+      expect(await readdir(path.join(bare, 'c', '.constellation'))).toEqual(['config.json']);
     } finally {
       await rm(bare, { recursive: true, force: true });
     }
@@ -285,5 +297,189 @@ describe('working memory over MCP without a plan', () => {
     expect(init.error.message).toContain('git repository or a Constellation plan');
     const set = await bareCall('working_set', { items: [{ type: 'T', text: 'x' }] });
     expect(set.error.code).toBe('NO_WORKING_ROOT');
+  });
+});
+
+/* ── settings: .constellation/config.json ─────────────────────────────────── */
+describe('working memory settings over MCP', () => {
+  it('working_init writes the user\'s answers; an existing config is never overwritten', async () => {
+    const first = await call('working_init', { enabled: true, new_session: 'clear' });
+    expect(first.config).toEqual({ enabled: true, new_session: 'clear' });
+    expect(first.defaults_applied).toBeUndefined();
+    expect(
+      JSON.parse(await readFile(path.join(repo, '.constellation', 'config.json'), 'utf8')),
+    ).toEqual({ working: { enabled: true, new_session: 'clear' } });
+
+    const again = await call('working_init', { new_session: 'keep' });
+    expect(again.config.new_session).toBe('clear');
+    expect(again.config_unchanged).toContain('already exists');
+  });
+
+  it('with no answers the defaults apply and are named for the agent to relay', async () => {
+    const result = await call('working_init');
+    expect(result.defaults_applied).toEqual(['enabled', 'new_session']);
+    expect(result.next).toContain('defaults were applied');
+    // Unanswered is not an answer: no config.json, so the question stays open.
+    await expect(
+      readFile(path.join(repo, '.constellation', 'config.json'), 'utf8'),
+    ).rejects.toThrow();
+  });
+
+  it('enabled: false creates no working.md but still ignores the folder', async () => {
+    const result = await call('working_init', { enabled: false });
+    expect(result.config.enabled).toBe(false);
+    await expect(
+      readFile(path.join(repo, '.constellation', 'working.md'), 'utf8'),
+    ).rejects.toThrow();
+    expect((await readFile(path.join(repo, '.gitignore'), 'utf8')).split('\n')).toContain(
+      '.constellation/',
+    );
+    // From now on the repo is off: calls fail clearly, orient says nothing.
+    const list = await call('working_list');
+    expect(list.error.code).toBe('WORKING_DISABLED');
+    expect((await call('orient')).working).toBeUndefined();
+  });
+
+  it('init_plan passes the answers through to config.json', async () => {
+    const bare = await mkdtemp(path.join(tmpdir(), 'constellation-working-answers-'));
+    try {
+      const made = await call('init_plan', {
+        path: bare,
+        name: 'A',
+        working_enabled: true,
+        new_session: 'clear',
+      });
+      expect(made.working.config).toEqual({ enabled: true, new_session: 'clear' });
+    } finally {
+      await rm(bare, { recursive: true, force: true });
+    }
+  });
+
+  it('init_plan leaves a repo that already said no without working files', async () => {
+    const bare = await mkdtemp(path.join(tmpdir(), 'constellation-working-off-'));
+    try {
+      execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: bare });
+      await mkdir(path.join(bare, '.constellation'), { recursive: true });
+      await writeFile(
+        path.join(bare, '.constellation', 'config.json'),
+        '{ "working": { "enabled": false } }\n',
+      );
+      const made = await call('init_plan', { path: bare, name: 'Off' });
+      expect(made.working.config.enabled).toBe(false);
+      await expect(
+        readFile(path.join(bare, '.constellation', 'working.md'), 'utf8'),
+      ).rejects.toThrow();
+    } finally {
+      await rm(bare, { recursive: true, force: true });
+    }
+  });
+
+  it('repo: targeting a repo with working memory off fails WORKING_DISABLED', async () => {
+    const other = await realpath(
+      await mkdtemp(path.join(tmpdir(), 'constellation-working-other-off-')),
+    );
+    try {
+      await cp(GOLDEN, path.join(other, 'constellation'), { recursive: true });
+      await mkdir(path.join(other, '.constellation'), { recursive: true });
+      await writeFile(
+        path.join(other, '.constellation', 'config.json'),
+        '{ "working": { "enabled": false } }\n',
+      );
+      const calls: Array<[string, Record<string, unknown>]> = [
+        ['working_list', {}],
+        ['working_set', { items: [{ type: 'T', text: 'x' }] }],
+        ['working_init', {}],
+      ];
+      for (const [name, args] of calls) {
+        const result = await call(name, { repo: other, ...args });
+        expect(result.error.code).toBe('WORKING_DISABLED');
+        expect(result.error.message).toContain('constellation working on');
+      }
+      // The home repo is untouched by it.
+      expect((await call('working_init')).config.enabled).toBe(true);
+    } finally {
+      await rm(other, { recursive: true, force: true });
+    }
+  });
+
+  it('working_list and orient flag files under .constellation/ that git tracks', async () => {
+    await call('working_init');
+    git('add', '-f', '.constellation/working.md');
+    git('commit', '-q', '-m', 'oops');
+    const list = await call('working_list');
+    expect(list.warnings.join(' ')).toContain('.constellation/working.md');
+    expect(list.warnings.join(' ')).toContain('git rm --cached -r .constellation');
+    const orient = await call('orient');
+    expect(orient.working.warnings.join(' ')).toContain('tracked by git');
+  });
+
+  it('a malformed config.json degrades to the defaults with a warning', async () => {
+    await call('working_init');
+    await writeFile(path.join(repo, '.constellation', 'config.json'), '{ nope');
+    const list = await call('working_list');
+    expect(list.exists).toBe(true);
+    expect(list.warnings).toEqual([expect.stringContaining('not valid JSON')]);
+  });
+});
+
+describe('a server whose repo has working memory off', () => {
+  let offClient: Client;
+
+  async function connect(): Promise<Client> {
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await (await createServer({ planRoot })).connect(serverTransport);
+    const c = new Client({ name: 'test-client', version: '0.0.0' });
+    await c.connect(clientTransport);
+    return c;
+  }
+
+  beforeEach(async () => {
+    await mkdir(path.join(repo, '.constellation'), { recursive: true });
+    await writeFile(
+      path.join(repo, '.constellation', 'config.json'),
+      '{ "working": { "enabled": false, "new_session": "keep" } }\n',
+    );
+    offClient = await connect();
+  });
+
+  afterEach(async () => {
+    await offClient.close();
+  });
+
+  it('lists no working_* tools and serves the instructions without the paragraph', async () => {
+    const names = (await offClient.listTools()).tools.map((t) => t.name);
+    expect(names.filter((n) => n.startsWith('working_'))).toEqual([]);
+    expect(names).toContain('orient');
+    const instructions = offClient.getInstructions();
+    expect(instructions).not.toContain('Working memory (');
+    expect(instructions).toContain('Multi-repo:');
+    expect(INSTRUCTIONS).toContain('Working memory (');
+  });
+
+  it('orient omits working even with a folder on disk', async () => {
+    await writeFile(path.join(repo, '.constellation', 'working.md'), 'Updated x · next G1\n');
+    const res = await offClient.callTool({ name: 'orient', arguments: {} });
+    const orient = JSON.parse((res.content as Array<{ text: string }>)[0].text);
+    expect(orient.working).toBeUndefined();
+  });
+
+  it('a repo without config.json still gets every tool and the full instructions', async () => {
+    await rm(path.join(repo, '.constellation'), { recursive: true, force: true });
+    const onClient = await connect();
+    try {
+      const names = (await onClient.listTools()).tools.map((t) => t.name);
+      expect(names).toEqual(
+        expect.arrayContaining([
+          'working_list',
+          'working_set',
+          'working_drop',
+          'working_log',
+          'working_init',
+        ]),
+      );
+      expect(onClient.getInstructions()).toContain('Working memory (');
+    } finally {
+      await onClient.close();
+    }
   });
 });

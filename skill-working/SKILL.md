@@ -9,7 +9,7 @@ allowed-tools: Bash(npx --no-install constellation working:*)
 
 The current working-memory set, read from disk just now:
 
-!`npx --no-install constellation working 2>/dev/null | grep '' || echo "(no .constellation/ folder here — call working_init to create one)"`
+!`npx --no-install constellation working 2>/dev/null | grep '' || echo "(no working memory here — none set up yet, or the user switched it off)"`
 
 **No argument** (`/working`): print the block above verbatim in a fenced code block. Nothing
 else: no commentary, no suggestions, no summary. Do not call any tool.
@@ -21,6 +21,9 @@ result. `sweep` (also the right move after a commit or PR, or when the topic cha
 means run every item's keep test and drop what fails, listing what was dropped and why in
 one line each above the set. Plain English is fine; infer the type and the ID from the
 words. Rules for the set are in the `constellation` skill's `working-memory.md`.
+
+If there is no working memory here, say so. Never switch it on yourself: whether this repo
+uses it, and whether a new session clears it, are the user's settings.
 
 The set belongs to the orchestrator: a sub-agent asked to run this shows the set but does
 not edit it.
