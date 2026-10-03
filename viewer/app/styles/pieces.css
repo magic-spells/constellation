@@ -1,67 +1,105 @@
 /*
  * puzzle-pieces design tokens (Tailwind v4 @theme).
  *
- * Merge this into your app's `app/styles/styles.css`, after `@import "tailwindcss";`.
- * Every puzzle-pieces component styles itself exclusively through the semantic
- * utilities these tokens generate (bg-surface, text-ink, border-border, bg-brand,
- * text-danger, …) — restyle your whole UI by editing the values here.
+ * THE DEFAULT PALETTE — "a nice balanced dark mode with a navy blue tint that
+ * looks classy and premium" (Cory, 2026-09-18). Near-black grounds with a cool
+ * hue (the #0d1117 family), white type, an indigo accent. The navy tint is a
+ * cool hue on the dark surfaces, not a saturated blue. Light is a cool
+ * near-white ladder; medium lifts the dark grounds to mid greys of the same
+ * hue and dims the type one stop.
  *
- * Dark mode: every token is a `light-dark(light, dark)` pair, resolved by the
- * element's `color-scheme`. With no attribute set, `:root` declares
- * `color-scheme: light dark` and the OS preference decides. A manual switcher
- * only has to set `data-theme="light"` / `data-theme="dark"` on <html> — the
- * rules below flip `color-scheme`, which also keeps native UI (form controls,
- * scrollbars, <dialog> backdrops) in step. For a light-only app, change the
- * `:root` rule to `color-scheme: light`.
+ * THIS FILE IS THE SOURCE OF TRUTH. Hand-written CSS — edit the values here,
+ * then run `npm test` (test/contrast.test.mjs holds every palette × mode to
+ * WCAG AA; test/themes.test.mjs checks the four files declare the same tokens).
+ * The three palette files beside it (dim.css, warm.css, void.css) restate
+ * every token under `[data-scheme='…']`.
+ *
+ * USING IT. Import it after `@import "tailwindcss";` — as a dependency,
+ *   @import "@magic-spells/puzzle-pieces/themes/default.css";
+ * or as the copy `puzzle add piece` writes to app/styles/pieces.css. Every
+ * piece styles itself through the semantic utilities these tokens generate
+ * (bg-surface, text-ink, border-border, bg-brand, text-bar-ink, shadow-panel, …).
+ *
+ * THREE MODES on one attribute: `data-theme="light" | "medium" | "dark"` on
+ * <html>. Every token is a `light-dark(light, dark)` pair resolved by
+ * `color-scheme`, which the blocks below set per mode — light and dark come
+ * for free, and MEDIUM ("soft dark": dark structure with the grounds lifted to
+ * mid greys and the type dimmed a stop) re-declares the tokens it changes.
+ * With no attribute, `:root` follows the OS between light and dark.
+ *
+ * PALETTES on a second attribute: `data-scheme="dim" | "warm" | "void"`, absent
+ * for this default. Each is a separate import (themes/dim.css, …) that
+ * overrides these values under `[data-scheme='…']`.
+ *
+ * Set both attributes before first paint with themes/pre-paint.js, and at
+ * runtime with the `appearance` export (or `puzzle:appearance` in
+ * localStorage, `{ "scheme", "mode" }`).
+ *
+ * THE MEDIUM BLOCKS list only what differs from the dark half: `[data-theme=
+ * 'medium']` sets `color-scheme: dark`, so every pair already resolves dark
+ * there. Three selectors per block — the root with no palette, an element
+ * carrying both attributes, and a preview card scoping only the palette under
+ * a medium root (a card naming its own mode is left to its own color-scheme).
+ * Note the converse: an element carrying ONLY `data-theme="medium"` under a
+ * non-default root (say `<html data-scheme="warm">`) matches this file's
+ * `[data-theme='medium']:not([data-scheme])` and picks up the DEFAULT palette's
+ * medium overrides, not warm's — scope a preview with both attributes.
+ *
+ * Keep line 2 of this file intact — `puzzle add piece` keys its installed
+ * detection on the "puzzle-pieces design tokens" string.
  */
 
 :root {
   color-scheme: light dark;
 }
-:root[data-theme='light'] {
+[data-theme='light'] {
   color-scheme: light;
 }
-:root[data-theme='dark'] {
+[data-theme='dark'],
+[data-theme='medium'] {
   color-scheme: dark;
 }
 
 @theme {
-  /* Text — darkest to faintest. */
-  --color-ink: light-dark(#1f2933, #f4f4f5);   /* headings, control labels, strong text */
-  --color-body: light-dark(#52606d, #b4b4bb);  /* default body text */
-  --color-muted: light-dark(#7b8794, #7f7f88); /* secondary text, placeholders, hints */
-  --color-faint: light-dark(#cbd2d9, #46464e); /* disabled text, separators */
+  /* Text — Ink ladders, strongest to faintest. */
+  --color-ink: light-dark(#171a21, #f5f6f8);
+  --color-body: light-dark(#2a2f3a, #c7ccd5);
+  --color-muted: light-dark(#5b6270, #8b93a1);
+  --color-faint: light-dark(#8a909c, #4a5260);
+  --color-label-ink: var(--color-ink);
 
-  /* Surfaces. */
-  --color-page: light-dark(#f5f7fa, #09090b);           /* app background */
-  --color-surface: light-dark(#ffffff, #101013);        /* cards, inputs, panels, popovers */
-  --color-surface-sunken: light-dark(#eef1f6, #18181c); /* wells, secondary-button bg, track fills */
+  /* Surfaces — The stacked grounds content sits on. */
+  --color-page: light-dark(#f5f6f9, #030406);
+  --color-surface: light-dark(#ffffff, #0d1117);
+  --color-surface-sunken: light-dark(#eef0f4, #06070a);
+  --color-surface-raised: light-dark(#ffffff, #11161e);
+  --color-surface-base: light-dark(#fafbfd, #0b0d11);
 
-  /* Brand — the one accent everything keys off. */
-  --color-brand: light-dark(#4c6ef5, #5c7cfa);
-  --color-brand-dark: light-dark(#3b5bdb, #748ffc); /* hover/active */
-  --color-brand-tint: light-dark(#eef2ff, #1d2440); /* selected rows, ghost hover, soft chips */
-  --color-brand-ink: #ffffff;                       /* text/icons on solid brand */
+  /* Brand — The one accent everything keys off. */
+  --color-brand: light-dark(#4f46e5, #5a5ee8);
+  --color-brand-dark: light-dark(#4338ca, #4a4dd6);
+  --color-brand-tint: light-dark(#e9e8fd, #1f2247);
+  --color-brand-ink: #ffffff;
+  --color-brand-on-tint: light-dark(#3f38b4, #a5aaff);
 
-  /* Danger — destructive actions and invalid states. */
-  --color-danger: light-dark(#e03131, #fa5252);
-  --color-danger-dark: light-dark(#c92a2a, #ff6b6b); /* hover/active */
-  --color-danger-tint: light-dark(#fff5f5, #271417); /* soft error backgrounds */
-  --color-danger-ink: #ffffff;                       /* text/icons on solid danger */
+  /* Status — Danger, success and warning, solid and tinted. */
+  --color-danger: light-dark(#d11f1f, #ef4444);
+  --color-danger-dark: light-dark(#a41616, #f87171);
+  --color-danger-tint: light-dark(#fdecec, #2a1215);
+  --color-danger-ink: light-dark(#ffffff, #030406);
+  --color-danger-on-tint: light-dark(#a41616, #f87171);
+  --color-success: light-dark(#0f7a3d, #22c55e);
+  --color-success-tint: light-dark(#e6f6ec, #122616);
+  --color-warning: light-dark(#a45300, #f59e0b);
+  --color-warning-tint: light-dark(#fdf3e2, #2a1c07);
 
-  /* Success — positive deltas, "up is good" indicators (counterpart to danger). */
-  --color-success: light-dark(#006300, #0ca30c);
-  --color-success-tint: light-dark(#ebf7eb, #122616); /* soft positive backgrounds */
+  /* Lines & focus — Hairlines, the dashed outline and the focus ring. */
+  --color-border: light-dark(#e3e5eb, #15181e);
+  --color-border-strong: light-dark(#cdd1da, #1c2029);
+  --color-border-dashed: light-dark(#767e8f, #6b7280);
+  --color-ring: light-dark(#4f46e5, #5a5ee8);
 
-  /* Warning — caution band between success and danger (meters, gauges, alerts). */
-  --color-warning: light-dark(#b45309, #f59e0b);
-  --color-warning-tint: light-dark(#fff8eb, #2a1c07); /* soft caution backgrounds */
-
-  /* Charts — categorical series palette, assigned in fixed slot order (1→8), never cycled.
-     Validated for colorblind safety + lightness/chroma bands in both modes
-     (dataviz six-checks validator, 2026-07-17). Light slots 3/4/5 sit below 3:1
-     contrast on white by design — chart pieces mitigate with legends, tooltips,
-     and their built-in accessible table views. */
+  /* Charts — Eight categorical slots in fixed order. */
   --color-chart-1: light-dark(#2a78d6, #3987e5);
   --color-chart-2: #008300;
   --color-chart-3: light-dark(#e87ba4, #d55181);
@@ -71,9 +109,209 @@
   --color-chart-7: light-dark(#4a3aa7, #9085e9);
   --color-chart-8: light-dark(#e34948, #e66767);
 
-  /* Lines & focus. */
-  --color-border: light-dark(#e4e9f0, #1f1f23);        /* default hairlines */
-  --color-border-strong: light-dark(#c3cfe6, #2e2e35); /* hover borders, pressed outlines */
-  --color-ring: light-dark(#4c6ef5, #5c7cfa);          /* focus rings (usually = brand) */
+  /* Shell — The frame, the bar, the rail, the panel and the card. */
+  --color-surface-frame: light-dark(#e9ebf0, #030406);
+  --color-frame-light: #e9ebf0;
+  --color-bar: var(--color-surface-frame);
+  --color-bar-ink: light-dark(#171a21, #f5f6f8);
+  --color-bar-muted: light-dark(#5b6270, #8b93a1);
+  --color-bar-hover: light-dark(#ffffff, #11151b);
+  --color-bar-line: light-dark(#d7dae2, #1c2029);
+  --color-surface-panel: light-dark(#ffffff, #0b0d11);
+  --color-surface-card: light-dark(#ffffff, #0d1117);
+  --color-rail: var(--color-surface-frame);
+  --color-rail-ink: var(--color-bar-ink);
+  --color-rail-muted: var(--color-bar-muted);
+  --color-rail-active: var(--color-bar-hover);
+  --color-rail-edge: var(--color-bar-line);
+  --color-edge-highlight: light-dark(#ffffff, rgb(255 255 255 / 0.04));
+  --color-edge-highlight-strong: light-dark(#ffffff, rgb(255 255 255 / 0.06));
+  --color-panel-edge: light-dark(var(--color-border), var(--color-edge-highlight-strong));
+  --color-shadow-contact: light-dark(rgb(15 23 42 / 0.07), rgb(0 0 0 / 0.4));
+
+  /* Alpha family — Wells, scrims and shadow colours that tint whatever they land on. */
+  --color-well: light-dark(rgb(15 23 42 / 0.035), rgb(0 0 0 / 0.2));
+  --color-well-strong: light-dark(rgb(15 23 42 / 0.05), rgb(0 0 0 / 0.4));
+  --color-well-deep: light-dark(rgb(15 23 42 / 0.06), rgb(0 0 0 / 0.5));
+  --color-well-deepest: light-dark(rgb(15 23 42 / 0.1), rgb(0 0 0 / 1));
+  --color-scrim: light-dark(rgb(15 23 42 / 0.4), rgb(0 0 0 / 0.5));
+  --color-scrim-strong: light-dark(rgb(15 23 42 / 0.5), rgb(0 0 0 / 0.6));
+  --color-shadow-soft: light-dark(rgb(15 23 42 / 0.05), rgb(0 0 0 / 0.5));
+  --color-shadow-glow: light-dark(rgb(15 23 42 / 0.07), rgb(0 0 0 / 0.6));
+  --color-shadow-drop: light-dark(rgb(15 23 42 / 0.14), rgb(0 0 0 / 0.6));
+  --color-shadow-popover: light-dark(rgb(15 23 42 / 0.18), rgb(0 0 0 / 0.75));
+  --color-shadow-inset: light-dark(rgb(15 23 42 / 0), rgb(0 0 0 / 0.5));
+  --color-text-shadow: light-dark(transparent, rgb(0 0 0 / 0.45));
+
+  /* Shadows — Composed box-shadow values, built from the shadow colours. */
+  --shadow-float: 0 18px 40px -20px var(--color-shadow-soft);
+  --shadow-contact: 0 1px 2px var(--color-shadow-contact);
+  --shadow-panel: var(--shadow-contact), var(--shadow-float);
+  --shadow-card: inset 0 1px 0 var(--color-edge-highlight), var(--shadow-contact), var(--shadow-float);
+  --shadow-popover: inset 0 1px 0 var(--color-edge-highlight), var(--shadow-contact), 0 24px 56px -16px var(--color-shadow-popover);
 }
 
+/*
+ * MEDIUM — the third mode. `color-scheme: dark` resolves every pair above to
+ * its dark half; only the tokens whose medium value differs are restated.
+ */
+[data-theme='medium']:not([data-scheme]),
+[data-scheme='default'][data-theme='medium'],
+[data-theme='medium'] [data-scheme='default']:not([data-theme]) {
+  color-scheme: dark;
+
+  /* Text */
+  --color-ink: #e2e5eb;
+  --color-body: #b6bcc7;
+  --color-muted: #98a0ae;
+  --color-faint: #5a6270;
+
+  /* Surfaces */
+  --color-page: #1c2028;
+  --color-surface: #242933;
+  --color-surface-sunken: #191d24;
+  --color-surface-raised: #2b313c;
+  --color-surface-base: #20252d;
+
+  /* Brand */
+  --color-brand: #5f63ec;
+  --color-brand-dark: #4f53dc;
+  --color-brand-tint: #2a2e5c;
+  --color-brand-on-tint: #b4b8ff;
+
+  /* Status */
+  --color-danger: #f56565;
+  --color-danger-dark: #f98080;
+  --color-danger-tint: #3a2226;
+  --color-danger-ink: #1c2028;
+  --color-danger-on-tint: #f98080;
+  --color-success: #2dc96a;
+  --color-success-tint: #16301f;
+  --color-warning: #f5a524;
+  --color-warning-tint: #332409;
+
+  /* Lines & focus */
+  --color-border: #2e343f;
+  --color-border-strong: #3a4150;
+  --color-border-dashed: #7b8494;
+  --color-ring: #5f63ec;
+
+  /* Shell */
+  --color-surface-frame: #171a20;
+  --color-bar-ink: #e2e5eb;
+  --color-bar-muted: #98a0ae;
+  --color-bar-hover: #252a33;
+  --color-bar-line: #2e343f;
+  --color-surface-panel: #1f242c;
+  --color-surface-card: #262b35;
+  --color-shadow-contact: rgb(0 0 0 / 0.35);
+
+  /* Alpha family */
+  --color-well: rgb(0 0 0 / 0.16);
+  --color-well-strong: rgb(0 0 0 / 0.3);
+  --color-well-deep: rgb(0 0 0 / 0.4);
+  --color-well-deepest: rgb(0 0 0 / 0.7);
+  --color-shadow-soft: rgb(0 0 0 / 0.4);
+  --color-shadow-glow: rgb(0 0 0 / 0.5);
+  --color-shadow-drop: rgb(0 0 0 / 0.5);
+  --color-shadow-popover: rgb(0 0 0 / 0.65);
+  --color-shadow-inset: rgb(0 0 0 / 0.4);
+  --color-text-shadow: rgb(0 0 0 / 0.4);
+}
+
+/*
+ * The default palette restated on an attribute. Its real home is the `@theme`
+ * block above (emitted onto `:root`); this copy exists for preview cards that
+ * scope `data-scheme="default"` on themselves under a root carrying another
+ * palette. Not anchored to `:root`, like every scheme block.
+ */
+[data-scheme='default'] {
+  /* Text — Ink ladders, strongest to faintest. */
+  --color-ink: light-dark(#171a21, #f5f6f8);
+  --color-body: light-dark(#2a2f3a, #c7ccd5);
+  --color-muted: light-dark(#5b6270, #8b93a1);
+  --color-faint: light-dark(#8a909c, #4a5260);
+  --color-label-ink: var(--color-ink);
+
+  /* Surfaces — The stacked grounds content sits on. */
+  --color-page: light-dark(#f5f6f9, #030406);
+  --color-surface: light-dark(#ffffff, #0d1117);
+  --color-surface-sunken: light-dark(#eef0f4, #06070a);
+  --color-surface-raised: light-dark(#ffffff, #11161e);
+  --color-surface-base: light-dark(#fafbfd, #0b0d11);
+
+  /* Brand — The one accent everything keys off. */
+  --color-brand: light-dark(#4f46e5, #5a5ee8);
+  --color-brand-dark: light-dark(#4338ca, #4a4dd6);
+  --color-brand-tint: light-dark(#e9e8fd, #1f2247);
+  --color-brand-ink: #ffffff;
+  --color-brand-on-tint: light-dark(#3f38b4, #a5aaff);
+
+  /* Status — Danger, success and warning, solid and tinted. */
+  --color-danger: light-dark(#d11f1f, #ef4444);
+  --color-danger-dark: light-dark(#a41616, #f87171);
+  --color-danger-tint: light-dark(#fdecec, #2a1215);
+  --color-danger-ink: light-dark(#ffffff, #030406);
+  --color-danger-on-tint: light-dark(#a41616, #f87171);
+  --color-success: light-dark(#0f7a3d, #22c55e);
+  --color-success-tint: light-dark(#e6f6ec, #122616);
+  --color-warning: light-dark(#a45300, #f59e0b);
+  --color-warning-tint: light-dark(#fdf3e2, #2a1c07);
+
+  /* Lines & focus — Hairlines, the dashed outline and the focus ring. */
+  --color-border: light-dark(#e3e5eb, #15181e);
+  --color-border-strong: light-dark(#cdd1da, #1c2029);
+  --color-border-dashed: light-dark(#767e8f, #6b7280);
+  --color-ring: light-dark(#4f46e5, #5a5ee8);
+
+  /* Charts — Eight categorical slots in fixed order. */
+  --color-chart-1: light-dark(#2a78d6, #3987e5);
+  --color-chart-2: #008300;
+  --color-chart-3: light-dark(#e87ba4, #d55181);
+  --color-chart-4: light-dark(#eda100, #c98500);
+  --color-chart-5: light-dark(#1baf7a, #199e70);
+  --color-chart-6: light-dark(#eb6834, #d95926);
+  --color-chart-7: light-dark(#4a3aa7, #9085e9);
+  --color-chart-8: light-dark(#e34948, #e66767);
+
+  /* Shell — The frame, the bar, the rail, the panel and the card. */
+  --color-surface-frame: light-dark(#e9ebf0, #030406);
+  --color-frame-light: #e9ebf0;
+  --color-bar: var(--color-surface-frame);
+  --color-bar-ink: light-dark(#171a21, #f5f6f8);
+  --color-bar-muted: light-dark(#5b6270, #8b93a1);
+  --color-bar-hover: light-dark(#ffffff, #11151b);
+  --color-bar-line: light-dark(#d7dae2, #1c2029);
+  --color-surface-panel: light-dark(#ffffff, #0b0d11);
+  --color-surface-card: light-dark(#ffffff, #0d1117);
+  --color-rail: var(--color-surface-frame);
+  --color-rail-ink: var(--color-bar-ink);
+  --color-rail-muted: var(--color-bar-muted);
+  --color-rail-active: var(--color-bar-hover);
+  --color-rail-edge: var(--color-bar-line);
+  --color-edge-highlight: light-dark(#ffffff, rgb(255 255 255 / 0.04));
+  --color-edge-highlight-strong: light-dark(#ffffff, rgb(255 255 255 / 0.06));
+  --color-panel-edge: light-dark(var(--color-border), var(--color-edge-highlight-strong));
+  --color-shadow-contact: light-dark(rgb(15 23 42 / 0.07), rgb(0 0 0 / 0.4));
+
+  /* Alpha family — Wells, scrims and shadow colours that tint whatever they land on. */
+  --color-well: light-dark(rgb(15 23 42 / 0.035), rgb(0 0 0 / 0.2));
+  --color-well-strong: light-dark(rgb(15 23 42 / 0.05), rgb(0 0 0 / 0.4));
+  --color-well-deep: light-dark(rgb(15 23 42 / 0.06), rgb(0 0 0 / 0.5));
+  --color-well-deepest: light-dark(rgb(15 23 42 / 0.1), rgb(0 0 0 / 1));
+  --color-scrim: light-dark(rgb(15 23 42 / 0.4), rgb(0 0 0 / 0.5));
+  --color-scrim-strong: light-dark(rgb(15 23 42 / 0.5), rgb(0 0 0 / 0.6));
+  --color-shadow-soft: light-dark(rgb(15 23 42 / 0.05), rgb(0 0 0 / 0.5));
+  --color-shadow-glow: light-dark(rgb(15 23 42 / 0.07), rgb(0 0 0 / 0.6));
+  --color-shadow-drop: light-dark(rgb(15 23 42 / 0.14), rgb(0 0 0 / 0.6));
+  --color-shadow-popover: light-dark(rgb(15 23 42 / 0.18), rgb(0 0 0 / 0.75));
+  --color-shadow-inset: light-dark(rgb(15 23 42 / 0), rgb(0 0 0 / 0.5));
+  --color-text-shadow: light-dark(transparent, rgb(0 0 0 / 0.45));
+
+  /* Shadows — Composed box-shadow values, built from the shadow colours. */
+  --shadow-float: 0 18px 40px -20px var(--color-shadow-soft);
+  --shadow-contact: 0 1px 2px var(--color-shadow-contact);
+  --shadow-panel: var(--shadow-contact), var(--shadow-float);
+  --shadow-card: inset 0 1px 0 var(--color-edge-highlight), var(--shadow-contact), var(--shadow-float);
+  --shadow-popover: inset 0 1px 0 var(--color-edge-highlight), var(--shadow-contact), 0 24px 56px -16px var(--color-shadow-popover);
+}

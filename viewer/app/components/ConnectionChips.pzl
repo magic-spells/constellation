@@ -6,7 +6,7 @@
         <span class="connection-chips">
           {#for chip in group.chips}
             <span class="connection-chip-wrap" style={ chip.style }>
-              <a class="connection-chip" href="{ chip.href | link }" style={ chip.style }>
+              <a class="connection-chip" href="{ link(chip.href) }" style={ chip.style }>
                 { chip.handle }
               </a>
               {#if chip.removable}

@@ -26,7 +26,7 @@
           {#if column.overflow}
             <a
               class="mx-2 mb-3 block rounded-lg border border-dashed border-border px-3 py-2 text-center text-xs text-muted transition-colors hover:border-border-strong hover:text-ink outline-ring focus-visible:outline-2 focus-visible:outline-offset-2"
-              href="{ column.overflow.href | link }">{ column.overflow.text }</a>
+              href="{ link(column.overflow.href) }">{ column.overflow.text }</a>
           {/if}
         </section>
       {/for}

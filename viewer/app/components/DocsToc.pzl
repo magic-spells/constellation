@@ -19,16 +19,16 @@
         <p class="dtoc-head">Contents</p>
         {#if solo}
           <!-- The way out of a soloed section: without it the rail is a dead end. -->
-          <a class="dtoc-all" href="{ '/docs' | link }">← Whole document</a>
+          <a class="dtoc-all" href="{ link('/docs') }">← Whole document</a>
         {/if}
 
         <!-- Rows truncate in a 13rem gutter, so each carries its full name as a
              tooltip rather than losing it. -->
         {#for section in sections}
           <div key={ section.id } class="dtoc-group">
-            <a class={ section.class } href="{ section.href | link }" title={ section.name } aria-current={ section.current }>{ section.name }</a>
+            <a class={ section.class } href="{ link(section.href) }" title={ section.name } aria-current={ section.current }>{ section.name }</a>
             {#for card in section.cards}
-              <a key={ card.handle } class={ card.class } href="{ card.href | link }" title={ card.name } aria-current={ card.current }>{ card.name }</a>
+              <a key={ card.handle } class={ card.class } href="{ link(card.href) }" title={ card.name } aria-current={ card.current }>{ card.name }</a>
             {/for}
           </div>
         {/for}

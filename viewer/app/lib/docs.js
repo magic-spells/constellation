@@ -10,7 +10,7 @@
  * Scroll-spy crosses a component boundary: the document is the routed view, the
  * TOC sits in AppShell's split pane, and neither owns the other. So the page
  * PUBLISHES which anchor the viewport is on and the TOC subscribes — the same
- * shape as `theme.js`'s `onThemeChange`, and the reason neither has to know the
+ * shape as `appearance.js`'s `subscribe`, and the reason neither has to know the
  * other exists.
  */
 
@@ -116,7 +116,7 @@ export function diagramsDrawn(root) {
  * navigation.
  *
  * Being hand-encoded also makes it the ONE href in the app that the router's
- * plan base does not reach — every other one goes through `| link` or
+ * plan base does not reach — every other one goes through `link()` or
  * `router.push`. So it prefixes the base itself, read from the module constant
  * lib/plans.js pins at boot; that is `''` on a single-plan server, which is
  * what keeps this string unchanged there.

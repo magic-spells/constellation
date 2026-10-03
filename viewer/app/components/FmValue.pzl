@@ -2,7 +2,7 @@
   <div class="fm-value">
     {#if isString}
       {#if isHandleValue}
-        <a class="fm-chip" href="{ cardHref | link }" style={ chipStyle }>
+        <a class="fm-chip" href="{ link(cardHref) }" style={ chipStyle }>
           { stringValue }
         </a>
       {:else}

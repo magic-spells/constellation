@@ -6,6 +6,11 @@ import { fetchPlans, loadDocs, loadPlan, loadPlans, loadSync, setActivePlan, sta
 import { planFromHash, routerBaseFor } from './lib/plans.js';
 import models from './models/index.js';
 import routes from './routes.js';
+import { boot as bootAppearance } from './lib/appearance.js';
+
+// The pre-paint script in public/index.html has already painted the stored
+// scheme + mode; boot() makes the appearance module agree with that paint.
+bootAppearance();
 
 // Hash routing keeps every URL bookmarkable (`#/api/API-TICKETS`) without
 // asking the server for a deep-link rewrite — its static contract stays a
@@ -71,7 +76,7 @@ async function boot() {
 		routerMode: hashRouter(),
 		// The base rides INSIDE the fragment in hash mode (`#/p/puzzle/api/X`),
 		// and the router strips it on read and re-adds it on write. So this one
-		// option plan-scopes all 20 routes, every `| link` href and every deep
+		// option plan-scopes all 20 routes, every `link()` href and every deep
 		// link, and routes.js / hrefForHandle stay base-free and untouched.
 		routerBase: routerBaseFor(active),
 		// D157: store.upsert/request live behind the opt-in adapter capability.

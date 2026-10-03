@@ -1,56 +1,112 @@
-<puzzle-view class="shell-root flex h-screen overflow-hidden bg-page text-body">
-  <Sidebar class="cnav shrink-0" label="Plan navigation" items={ navItems } activePath={ activePath }>
-    <!--
-      Expanded, the brand shares the nav rows' two alignments. A nav icon sits
-      at 20px (list p-2 + row px-3) and is 20px wide, so its centre is 30px and
-      its label starts at 52px (gap-3). The brand tile is 32px, so it centres on
-      30px from pl-[0.875rem], and gap-1.5 puts its label at the same 52px.
-      Matching the tile's LEFT EDGE instead is what looked wrong: it pushed the
-      glyph inside it 6px right of every icon below.
-    -->
-    <div slot="header" class="cnav-brand flex items-center gap-1.5 overflow-hidden pl-[0.875rem] pr-3 pb-1 pt-4">
-      <span class="cnav-brand-tile grid size-8 shrink-0 place-items-center rounded-lg bg-brand-tint text-brand">
-        <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 3l1.7 4.1L18 8.8l-4.3 1.7L12 14.6l-1.7-4.1L6 8.8l4.3-1.7zM18.5 15l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8zM5.5 14l.6 1.5 1.5.6-1.5.6L5.5 18l-.6-1.3L3.4 16l1.5-.5z"/>
-        </svg>
-      </span>
-      <span class="cnav-brand-label min-w-0 truncate text-sm font-semibold tracking-tight text-ink">Constellation</span>
-    </div>
-  </Sidebar>
-
-  <div class="shell-body flex min-w-0 flex-1 flex-col">
-    <header class="shell-topbar flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface px-4">
+<puzzle-view class="shell-root flex h-screen overflow-hidden bg-surface-frame text-body">
+  <!--
+    THE FRAME is the root's surface-frame; the rail is painted in the same role
+    (Sidebar variant="rail"), so rail and frame read as one surface and the work
+    panel beside it is the only thing with an edge.
+  -->
+  <!-- The rail is md+ only; a phone gets the NavDrawer below instead. The
+       wrapper carries the breakpoint so the Sidebar's own `flex` never has to
+       fight a `hidden` on the same element. -->
+  <div class="cnav hidden h-full shrink-0 md:block">
+    <Sidebar
+      variant="rail"
+      label="Plan navigation"
+      items={ navItems }
+      activePath={ activePath }>
       <!--
-        One slot, two readings. Serving a single plan, the topbar names it and
-        that is the whole story; serving several, the name becomes the control
-        that picks between them — same position, same weight, now clickable.
-        (An {#if} is fine here: only the default <Slot/> is once-per-template.)
+        The brand tile is size-8 centred on the nav icons' column: a row icon's
+        centre is 1.875rem in (list p-2 + row px-3 + half of size-5), so the tile
+        starts at 0.875rem (pl-3.5) in both rail states and collapsing only has to
+        hide the label (styles.css, .cnav-brand-label).
       -->
-      {#if multiPlan}
-        <PlanSwitcher plans={ plans } active={ activePlan }/>
-      {:else}
-        <h1 class="min-w-0 truncate text-sm font-semibold text-ink">{ projectName }</h1>
-      {/if}
-      <SyncBadge/>
+      <div slot="header" class="cnav-brand flex h-14 items-center gap-1.5 overflow-hidden pl-3.5 pr-3">
+        <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-tint text-brand">
+          <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3l1.7 4.1L18 8.8l-4.3 1.7L12 14.6l-1.7-4.1L6 8.8l4.3-1.7zM18.5 15l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8zM5.5 14l.6 1.5 1.5.6-1.5.6L5.5 18l-.6-1.3L3.4 16l1.5-.5z"/>
+          </svg>
+        </span>
+        <span class="cnav-brand-label min-w-0 truncate text-sm font-semibold tracking-tight text-rail-ink transition-opacity duration-200 motion-reduce:transition-none">Constellation</span>
+      </div>
+    </Sidebar>
+  </div>
 
-      <div class="ml-auto flex shrink-0 items-center gap-3">
+  <!--
+    THE WORK PANEL. From md up it stands off the window by one inset on the
+    top, right and bottom and rounds all four corners — on the left the rail's
+    own p-2 gutter plus ml-1 makes the same 12px of air. The header sits inside
+    it, across its top. Below md there is no rail, inset, radius or edge: on a
+    phone the panel is the window and the navigation is a drawer behind the
+    header's menu button.
+  -->
+  <div class="shell-body flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-panel md:my-panel-inset md:ml-1 md:mr-panel-inset md:rounded-panel md:border md:border-border md:shadow-panel">
+    <!--
+      THE HEADER, three tracks: from sm up two equal flex-1 wings and the
+      search between them, so the search sits in the middle of the PANEL
+      however wide the right cluster gets. On a phone the search is an icon
+      and the plan name needs every pixel, so the wings stop being equal.
+    -->
+    <header class="shell-topbar flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
+      <div class="flex min-w-0 flex-1 items-center gap-3 sm:basis-0">
         <button
           type="button"
-          class="hidden cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface-sunken px-2 py-1 text-xs text-muted transition-colors hover:text-ink md:flex outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          aria-label="Open the command palette"
-          @click={ openPalette }>
-          Search
+          class="-ml-2 inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-sunken hover:text-ink outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 md:hidden"
+          aria-label="Open navigation"
+          aria-expanded={ drawerOpen ? 'true' : 'false' }
+          @click={ openDrawer }>
+          <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16"/>
+          </svg>
+        </button>
+        <!--
+          One slot, two readings. Serving a single plan, the header names it;
+          serving several, the name becomes the control that picks between
+          them — same position, same weight, now clickable.
+        -->
+        {#if multiPlan}
+          <PlanSwitcher plans={ plans } active={ activePlan }/>
+        {:else}
+          <h1 class="min-w-0 truncate text-sm font-semibold text-ink">{ projectName }</h1>
+        {/if}
+        <!-- Below sm the plan name needs the room; Overview still shows sync. -->
+        <div class="hidden shrink-0 sm:block">
+          <SyncBadge/>
+        </div>
+      </div>
+
+      <!--
+        SEARCH IS A BUTTON DRESSED AS AN INPUT: it opens the command palette,
+        which grows out of it (Command's morph). `data-morph-source="search"` is
+        the palette's hook — the click hands this element over directly, and ⌘K,
+        which has no element of its own, falls back to the attribute. Icon-only
+        on a phone, where the wings need the room.
+      -->
+      <button
+        type="button"
+        data-morph-source="search"
+        class="flex h-8 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface-sunken px-2 text-sm text-muted transition-colors hover:text-ink outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 sm:w-64 sm:justify-start sm:px-3 lg:w-96"
+        aria-label="Search cards, pages and actions"
+        aria-keyshortcuts="Meta+K Control+K"
+        @click={ openPalette(event) }>
+        <svg class="size-4 shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="9" cy="9" r="6"/>
+          <path d="M14 14l4 4" stroke-linecap="round"/>
+        </svg>
+        <span class="hidden min-w-0 flex-1 truncate text-left sm:block">Search…</span>
+        <span class="hidden shrink-0 items-center gap-0.5 sm:flex" aria-hidden="true">
           <Kbd>⌘</Kbd>
           <Kbd>K</Kbd>
-        </button>
-        <ThemeControls/>
+        </span>
+      </button>
+
+      <div class="flex shrink-0 items-center justify-end gap-1 sm:min-w-0 sm:flex-1 sm:basis-0">
+        <AppearanceSwitcher/>
         <!-- Last in the row on purpose: "out to the repo" belongs in the corner. -->
         {#if repoUrl}
           <a
             href={ repoUrl }
             target="_blank"
             rel="noopener noreferrer"
-            class="grid size-7 place-items-center rounded-lg text-muted transition-colors hover:text-ink outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            class="grid size-8 shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-surface-sunken hover:text-ink outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             aria-label="Open the repository on GitHub">
             <svg class="size-4.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path fill-rule="evenodd" clip-rule="evenodd" d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.69 1.25 3.35.96.1-.75.4-1.25.72-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 2.87-.39c.97 0 1.95.13 2.87.39 2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.73.81 1.18 1.83 1.18 3.09 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.14 0 1.54-.01 2.78-.01 3.16 0 .31.21.67.8.56A10.52 10.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"/>
@@ -70,7 +126,7 @@
         disabled={ splitDisabled }
         storageKey="constellation-list">
         <div slot="first" class="shell-pane-list h-full min-h-0">
-          {#if split}
+          {#if showList}
             <CardList folder={ activeFolder } activeHandle={ activeHandle } @create={ createCard }/>
           {/if}
         </div>
@@ -79,7 +135,14 @@
     </main>
   </div>
 
-  <CommandPalette open={ paletteOpen } @close={ closePalette }/>
+  <NavDrawer
+    open={ drawerOpen }
+    items={ navItems }
+    activePath={ activePath }
+    @close={ closeDrawer }
+    @leave={ leaveVia }
+    @hide={ drawerHidden }/>
+  <CommandPalette open={ paletteOpen } morphSource={ paletteSource } @close={ closePalette }/>
   <CreateCardDialog open={ createOpen } type={ createType } @close={ closeCreate }/>
   <Toaster/>
 </puzzle-view>
@@ -95,7 +158,9 @@ import CommandPalette from '../components/CommandPalette.pzl';
 import CreateCardDialog from '../components/CreateCardDialog.pzl';
 import PlanSwitcher from '../components/PlanSwitcher.pzl';
 import SyncBadge from '../components/SyncBadge.pzl';
-import ThemeControls from '../components/ThemeControls.pzl';
+import AppearanceSwitcher from '../components/AppearanceSwitcher.pzl';
+import NavDrawer from '../components/NavDrawer.pzl';
+import { NARROW } from '../lib/narrow.js';
 import { planIndex } from '../lib/plan-index.js';
 import { GROUPS, TYPE_META, typeForFolder } from '../lib/types.js';
 
@@ -103,15 +168,27 @@ import { GROUPS, TYPE_META, typeForFolder } from '../lib/types.js';
 const CONSTELLATION_ROUTES = new Set(['graph', 'atlas', 'atlas-card']);
 
 // AppShell — the persistent chrome every route renders inside: the pieces
-// Sidebar rail on the left, a topbar carrying the plan's name + freshness +
-// appearance controls, and the single Toaster host.
+// Sidebar rail on the left, and beside it the rounded work panel, whose header
+// carries the plan's name + freshness, the search that opens the ⌘K palette,
+// and the appearance popover. Also the single Toaster host.
+//
+// BELOW md THERE IS NO RAIL. The header grows a menu button that opens the
+// same rows in a slide-out NavDrawer (as the org account app does), so a phone
+// gives the content its whole width. From md up the rail is back, with its own
+// edge toggle for the icon-only state.
+//
+// THE DRAWER IS SCOPED TO ONE ROUTE. `drawerOpen` is DERIVED in data() from the
+// path it was opened on, so any committed navigation — a link elsewhere, Back,
+// Forward — re-runs data() with a different path and closes it. A drawer link
+// does not navigate itself: it asks to close (@leave), and the navigation runs
+// once the sheet has gone (@hide), so the router can focus the incoming view
+// rather than fighting a modal for it.
 //
 // The nav is derived, not authored: `planIndex(store)` gives per-type card
 // counts, so a type with no cards simply is not in the rail and each visible
 // one carries its count as a badge. That is the Svelte viewer's Nav.svelte
-// semantics minus its coloured ✦ bullets — the type's hue now shows up only as
-// a 2px accent bar on the ACTIVE row (the `.cnav` rules in styles/styles.css;
-// the Sidebar piece is config-first and has no per-item style hook).
+// semantics minus its coloured ✦ bullets — the Sidebar piece is config-first
+// and has no per-item style hook, so a row is its icon, label and count.
 //
 // Hrefs are mode-encoded through `router.url()` — the exact function the `link`
 // formatter wraps. The template can't pipe them because they live in the
@@ -140,9 +217,12 @@ const CONSTELLATION_ROUTES = new Set(['graph', 'atlas', 'atlas-card']);
 //
 // The shell also owns the ⌘K palette's OPEN state, because it owns the two
 // things that set it: the window-level hotkey (bound in mounted(), released in
-// destroyed()) and the topbar's Search button. CommandPalette owns everything
-// else about the palette. That state is local UI, so it lives in setData and
-// data() reads it back — never in the store.
+// destroyed()) and the header's Search button. A click also hands the button
+// itself over as the palette's morph source; ⌘K hands nothing and the palette
+// falls back to the button's `data-morph-source` attribute. CommandPalette owns
+// everything else about the palette. That state is local UI, so it lives in
+// setData and data() reads it back — never in the store.
+
 
 // Icons are SVG path `d` strings on a 24×24 stroked grid (the Sidebar's icon
 // contract). Every row needs one: the collapsed rail shows nothing else.
@@ -203,13 +283,23 @@ export default class AppShell extends PuzzleView {
 		// "what is in flight", and it is a view of many types at once rather than
 		// of one folder.
 		const navItems = [
-			{ label: 'Overview', href: url('/'), icon: PAGE_ICON.overview },
-			{ label: 'Tasks', href: url('/tasks/board'), icon: PAGE_ICON.board },
-			{ label: 'Documentation', href: url('/docs'), icon: PAGE_ICON.docs },
-			{ label: 'Constellation', href: url('/constellation/graph'), icon: PAGE_ICON.constellation },
+			{ label: 'Overview', href: url('/'), path: '/', icon: PAGE_ICON.overview },
+			{ label: 'Tasks', href: url('/tasks/board'), path: '/tasks/board', icon: PAGE_ICON.board },
+			{ label: 'Documentation', href: url('/docs'), path: '/docs', icon: PAGE_ICON.docs },
+			{
+				label: 'Constellation',
+				href: url('/constellation/graph'),
+				path: '/constellation/graph',
+				icon: PAGE_ICON.constellation,
+			},
 		];
 		if (count('STYLE') > 0) {
-			navItems.push({ label: 'Style guide', href: url('/style-guide'), icon: PAGE_ICON.style });
+			navItems.push({
+				label: 'Style guide',
+				href: url('/style-guide'),
+				path: '/style-guide',
+				icon: PAGE_ICON.style,
+			});
 		}
 
 		for (const group of GROUPS) {
@@ -222,6 +312,7 @@ export default class AppShell extends PuzzleView {
 				navItems.push({
 					label: TYPE_META[type].label,
 					href: url(`/${TYPE_META[type].folder}`),
+					path: `/${TYPE_META[type].folder}`,
 					icon: TYPE_ICON[type],
 					badge: count(type),
 				});
@@ -231,12 +322,18 @@ export default class AppShell extends PuzzleView {
 		const project = index.projectCard;
 		const region = this._region();
 		const split = region.mode === 'split';
+		const narrow = this._narrowNow === true;
+		const resizable = split && !narrow;
+		const listOnly = split && narrow && !region.handle;
+		const cardOnly = split && narrow && !!region.handle;
 		const plan = this.ctx.store.findOne('plan', 'plan');
 
 		return {
 			navItems,
 			activePath: this._activePath(region, url),
+			drawerOpen: this._drawerOpenedOn != null && this._drawerOpenedOn === this.route.path,
 			paletteOpen: this.getData().paletteOpen === true,
+			paletteSource: this._paletteSource ?? null,
 			// The create dialog lives here rather than in CardList because the list
 			// is unmounted the moment we navigate to the card it just created.
 			createOpen: this.getData().createOpen === true,
@@ -253,6 +350,7 @@ export default class AppShell extends PuzzleView {
 			activePlan: plan?.activePlan || '',
 
 			split,
+			showList: split && !cardOnly,
 			activeFolder: region.folder,
 			activeHandle: region.handle,
 
@@ -262,12 +360,15 @@ export default class AppShell extends PuzzleView {
 			// and a width past which the list is just stealing space from the card;
 			// committed sizes persist under `split-panel:constellation-list`.
 			// Without one: controlled at [0, 100], divider disabled and hidden.
-			splitClass: split ? 'h-full' : 'shell-flat h-full',
-			splitSizes: split ? undefined : [0, 100],
-			splitDefaults: split ? [24, 76] : [0, 100],
-			splitMin: split ? ['220px', '360px'] : [null, null],
-			splitMax: split ? ['480px', null] : [null, null],
-			splitDisabled: !split,
+			// Below md there is no room for both, so the split becomes ONE pane:
+			// the list alone on a folder route, the card alone on a card route
+			// (the rail's type row leads back to the list).
+			splitClass: resizable ? 'h-full' : 'shell-flat h-full',
+			splitSizes: resizable ? undefined : listOnly ? [100, 0] : [0, 100],
+			splitDefaults: resizable ? [24, 76] : listOnly ? [100, 0] : [0, 100],
+			splitMin: resizable ? ['220px', '360px'] : [null, null],
+			splitMax: resizable ? ['480px', null] : [null, null],
+			splitDisabled: !resizable,
 			detailClass:
 				region.mode === 'bleed' ? 'shell-bleed h-full overflow-hidden' : 'min-h-full',
 		};
@@ -277,19 +378,43 @@ export default class AppShell extends PuzzleView {
 	// the palette must open no matter what has focus — including the canvas graph
 	// and the split-panel divider, neither of which is inside a form control the
 	// browser would route a key event through to us.
+	created() {
+		this._narrow =
+			typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+				? window.matchMedia(NARROW)
+				: null;
+		this._narrowNow = !!this._narrow?.matches;
+		this._paletteSource = null;
+		// The path the drawer was opened on, or null; and where a drawer link
+		// asked to go, consumed by the @hide that follows its close.
+		this._drawerOpenedOn = null;
+		this._pendingPath = null;
+	}
+
 	mounted() {
 		this._onHotkey = (event) => {
 			if (event.altKey || !(event.metaKey || event.ctrlKey)) return;
 			if ((event.key || '').toLowerCase() !== 'k') return;
 			event.preventDefault();
+			this._paletteSource = null;
 			this._setPalette(true);
 		};
 		window.addEventListener('keydown', this._onHotkey);
+
+		this._onNarrow = (event) => {
+			this._narrowNow = event.matches;
+			// Widening past md takes the drawer's job away: the rail is back.
+			if (!event.matches) this._drawerOpenedOn = null;
+			this.refresh();
+		};
+		this._narrow?.addEventListener?.('change', this._onNarrow);
 	}
 
 	destroyed() {
 		if (this._onHotkey) window.removeEventListener('keydown', this._onHotkey);
 		this._onHotkey = null;
+		this._narrow?.removeEventListener?.('change', this._onNarrow);
+		this._onNarrow = null;
 	}
 
 	_setPalette(open) {
@@ -351,7 +476,29 @@ export default class AppShell extends PuzzleView {
 	}
 
 	events = {
-		openPalette: () => this._setPalette(true),
+		openPalette: (event) => {
+			this._paletteSource = event?.currentTarget ?? null;
+			this._setPalette(true);
+		},
+		openDrawer: () => {
+			this._drawerOpenedOn = this.route.path;
+			this.refresh();
+		},
+		closeDrawer: () => {
+			if (this._drawerOpenedOn == null) return;
+			this._drawerOpenedOn = null;
+			this.refresh();
+		},
+		leaveVia: (path) => {
+			this._pendingPath = path;
+			this._drawerOpenedOn = null;
+			this.refresh();
+		},
+		drawerHidden: () => {
+			const path = this._pendingPath;
+			this._pendingPath = null;
+			if (path) this.ctx.router.push(path);
+		},
 		closePalette: () => this._setPalette(false),
 
 		createCard: (type) => {

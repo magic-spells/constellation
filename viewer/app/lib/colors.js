@@ -59,6 +59,26 @@ export function cssVar(name, fallback = '') {
 let probe = null;
 
 /**
+ * Parse a computed colour the probe can hand back: `rgb()`/`rgba()` (0–255
+ * channels) or `color(srgb r g b)` (0–1 channels). Anything else is null.
+ */
+function computedHex(value) {
+  const rgb = /^rgba?\(([^)]+)\)$/.exec(value);
+  if (rgb) {
+    const parts = rgb[1].split(/[\s,/]+/).filter(Boolean).slice(0, 3).map(Number);
+    return parts.length === 3 && parts.every(Number.isFinite) ? toHex(parts) : null;
+  }
+  const srgb = /^color\(srgb\s+([^)]+)\)$/.exec(value);
+  if (srgb) {
+    const parts = srgb[1].split(/[\s/]+/).filter(Boolean).slice(0, 3).map(Number);
+    return parts.length === 3 && parts.every(Number.isFinite)
+      ? toHex(parts.map((v) => Math.round(Math.min(1, Math.max(0, v)) * 255)))
+      : null;
+  }
+  return null;
+}
+
+/**
  * Read a CSS custom property and hand back a *usable* color.
  *
  * Custom properties compute to their raw token stream, so every puzzle-pieces
@@ -89,11 +109,13 @@ export function cssColor(name, fallback = '') {
   }
   probe.style.color = '';
   probe.style.color = `var(${name})`;
-  const computed = getComputedStyle(probe).color;
-  const m = /^rgba?\(([^)]+)\)$/.exec(computed);
-  if (!m) return computed || fallback;
-  const parts = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
-  return parts.length >= 3 && parts.slice(0, 3).every(Number.isFinite)
-    ? toHex(parts.slice(0, 3))
-    : fallback;
+  const direct = computedHex(getComputedStyle(probe).color);
+  if (direct) return direct;
+  // A `color-mix()` token (Observatory's derived shell and medium values)
+  // computes in its own space (`oklab(…)`), which the parser above can't read.
+  // Mixing the token with itself in srgb is the same colour, and computes to a
+  // parseable `color(srgb r g b)` — no canvas, so no fingerprinting noise.
+  probe.style.color = '';
+  probe.style.color = `color-mix(in srgb, var(${name}), var(${name}))`;
+  return computedHex(getComputedStyle(probe).color) || fallback;
 }

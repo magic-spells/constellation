@@ -1,6 +1,8 @@
 <puzzle-view>
+  <!-- Local: data-collapsed lets a slotted header react to the rail state
+       (styles.css, .cnav-brand-label). -->
   <nav class={ rootClass } aria-label={ navLabel } data-collapsed={ collapsed ? 'true' : false }>
-    <div class="shrink-0 empty:hidden">
+    <div class="shrink-0 overflow-hidden empty:hidden">
       <Slot name="header"/>
     </div>
 
@@ -8,77 +10,93 @@
       {#for item in items}
         <li key={ item.key } class={ item.rowClass }>
           {#if item.kind === 'divider'}
-            <div class="mx-1 my-2 border-t border-border" role="separator" aria-hidden="true"></div>
+            <div class={ dividerClass } role="separator" aria-hidden="true"></div>
 
           {:else if item.kind === 'group'}
-            {#if collapsed}
-              <div class="mx-1 my-2 border-t border-border" role="separator" aria-hidden="true"></div>
-            {:else}
-              <p class="px-3 pb-1.5 pt-7 text-xs font-semibold uppercase tracking-wide text-muted">{ item.label }</p>
-            {/if}
+            <!-- The unpadded wrapper is the grid item: padding on the item itself would floor the 0fr track at padding height, so the padded heading clips inside it instead. -->
+            <div class="min-h-0 overflow-hidden">
+              <p class={ groupHeadingClass }>{ item.label }</p>
+            </div>
 
           {:else if item.kind === 'parent'}
-            {#if collapsed}
-              <a
-                href={ item.href }
-                class={ item.linkClass }
-                title={ item.label }
-                aria-current={ item.childActive ? 'page' : false }>
-                {#if item.icon}
-                  <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d={ item.icon }/>
-                  </svg>
-                {:else}
-                  <span class="size-5 shrink-0" aria-hidden="true"></span>
-                {/if}
-                <span class="sr-only">{ item.label }</span>
-              </a>
-            {:else}
-              <button
-                type="button"
-                id={ item.triggerId }
-                class={ item.buttonClass }
-                aria-expanded={ item.open ? 'true' : 'false' }
-                aria-controls={ item.submenuId }
-                @click={ toggleSubmenu(item.index) }>
-                {#if item.icon}
-                  <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d={ item.icon }/>
-                  </svg>
-                {:else}
-                  <span class="size-5 shrink-0" aria-hidden="true"></span>
-                {/if}
-                <span class="min-w-0 flex-1 truncate text-left">{ item.label }</span>
-                {#if item.badge}
-                  <span class={ badgeClass }>{ item.badge }</span>
-                {/if}
-                <svg
-                  class="size-4 shrink-0 text-muted transition-[rotate] duration-200 {#if item.open}rotate-90{/if}"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  aria-hidden="true">
-                  <path d="M7 5l5 5-5 5z"/>
+            <button
+              type="button"
+              id={ item.triggerId }
+              data-sidebar-trigger
+              data-index={ item.index }
+              class={ item.triggerClass }
+              title={ collapsed ? item.label : false }
+              aria-current={ item.ariaCurrent }
+              aria-haspopup={ item.hasPopup }
+              aria-expanded={ item.ariaExpanded }
+              aria-controls={ item.ariaControls }
+              @click={ toggleSubmenu(item.index) }
+              @keydown:escape={ onFlyoutEscape(event) }>
+              {#if item.icon}
+                <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d={ item.icon }/>
                 </svg>
-              </button>
+              {:else}
+                <span class="size-5 shrink-0" aria-hidden="true"></span>
+              {/if}
+              <span class={ labelClass }>{ item.label }</span>
+              {#if item.badge}
+                <span class={ badgeClass }>{ item.badge }</span>
+              {/if}
+              <svg
+                class={ item.chevronClass }
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true">
+                <path d="M7 5l5 5-5 5z"/>
+              </svg>
+            </button>
+            <div
+              id={ item.submenuId }
+              data-sidebar-submenu
+              data-index={ item.index }
+              class="overflow-hidden"
+              role="region"
+              aria-labelledby={ item.triggerId }
+              aria-hidden={ item.visualOpen ? false : 'true' }
+              inert={ !item.visualOpen }>
+              <ul class={ item.submenuClass }>
+                {#for child in item.children}
+                  <li key={ child.key }>
+                    <a
+                      href={ child.href }
+                      class={ child.linkClass }
+                      aria-current={ child.active ? 'page' : false }>
+                      <span class="min-w-0 flex-1 truncate text-left">{ child.label }</span>
+                      {#if child.badge}
+                        <span class={ badgeClass }>{ child.badge }</span>
+                      {/if}
+                    </a>
+                  </li>
+                {/for}
+              </ul>
+            </div>
+            {#if item.flyoutOpen}
+              <!-- Never add data-sidebar-submenu here: the WAAPI walker would animate the flyout to 0px. -->
               <div
-                id={ item.submenuId }
-                data-sidebar-submenu
-                data-index={ item.index }
-                class="overflow-hidden"
-                role="region"
+                id={ item.flyoutId }
+                data-sidebar-flyout
+                class={ flyoutClass }
+                style={ flyoutStyle }
                 aria-labelledby={ item.triggerId }
-                aria-hidden={ item.open ? false : 'true' }
-                inert={ !item.open }>
-                <ul class="ml-[1.375rem] mt-0.5 space-y-0.5 border-l border-border pl-2">
+                @keydown:escape={ onFlyoutEscape(event) }>
+                <p class={ flyoutHeadingClass }>{ item.label }</p>
+                <ul class="space-y-0.5">
                   {#for child in item.children}
-                    <li key={ child.key }>
+                    <li>
                       <a
                         href={ child.href }
-                        class={ child.linkClass }
-                        aria-current={ child.active ? 'page' : false }>
+                        class={ child.flyoutLinkClass }
+                        aria-current={ child.active ? 'page' : false }
+                        @click={ onFlyoutLink }>
                         <span class="min-w-0 flex-1 truncate text-left">{ child.label }</span>
                         {#if child.badge}
-                          <span class={ badgeClass }>{ child.badge }</span>
+                          <span class={ badgeStatic }>{ child.badge }</span>
                         {/if}
                       </a>
                     </li>
@@ -92,7 +110,7 @@
               href={ item.href }
               class={ item.linkClass }
               title={ collapsed ? item.label : false }
-              aria-current={ item.active ? 'page' : false }>
+              aria-current={ item.ariaCurrent }>
               {#if item.icon}
                 <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d={ item.icon }/>
@@ -100,7 +118,7 @@
               {:else}
                 <span class="size-5 shrink-0" aria-hidden="true"></span>
               {/if}
-              <span class="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left transition-opacity duration-200 motion-reduce:transition-none {#if collapsed}opacity-0{/if}">{ item.label }</span>
+              <span class={ labelClass }>{ item.label }</span>
               {#if item.badge}
                 <span class={ badgeClass }>{ item.badge }</span>
               {/if}
@@ -110,31 +128,52 @@
       {/for}
     </ul>
 
-    <div class="mt-auto shrink-0 border-t border-border p-2">
-      <div class="empty:hidden">
-        <Slot name="footer"/>
-      </div>
-      <button
-        type="button"
-        class={ toggleClass }
-        aria-label={ toggleLabel }
-        title={ toggleLabel }
-        aria-pressed={ collapsed ? 'true' : 'false' }
-        @click={ toggleCollapsed }>
+    <!-- THE FOOT IS NOT RULED OFF FROM THE LIST. A hairline here reads as a box
+         drawn around the account row rather than as a seam, and the row is a
+         rail row like any other — the air above it is the seam.
+
+         `px-3` IS THE COLLAPSED RAIL'S MATH, not a taste: 12 here plus a slotted
+         row's own `px-2` puts its MARK at x=20 and its centre at 1.875rem — the
+         collapsed rail's centre line and the very column the list's `p-2` + row
+         `px-3` puts every icon above it on. A slotted row wearing `px-2 gap-3`
+         with a `size-5` mark therefore lines up, icon and label, with the rows.
+
+         `pb-3` rather than an even `p-2` sets the row one 12px inset off the
+         rail's bottom — the same inset an app shell's main panel keeps, so the
+         two bottom edges read as one line. `pt-2` keeps the air above. -->
+    <div class={ footerClass }>
+      <Slot name="footer"/>
+    </div>
+
+    <!-- THE EDGE TOGGLE, and only when the rail collapses at all. `collapsible`
+         false takes the whole control out of the DOM rather than hiding it: it
+         is a focusable button with a tooltip, and a hidden one is still in the
+         tab order. The branch is the LAST child of the nav, beside the flyout's,
+         so no preceding row DOM shifts when it is absent. -->
+    {#if collapsible}
+    <button
+      type="button"
+      data-sidebar-toggle
+      class={ edgeToggleClass }
+      aria-label={ toggleLabel }
+      title={ toggleLabel }
+      aria-pressed={ collapsed ? 'true' : 'false' }
+      @click={ toggleCollapsed }>
+      <span class={ edgeLineClass } aria-hidden="true"></span>
+      <span class={ edgeArrowClass } aria-hidden="true">
         <svg
-          class="size-5 shrink-0 text-muted transition-[rotate] duration-200 {#if collapsed}rotate-180{/if}"
+          class="size-3 shrink-0 transition-[rotate] duration-200 motion-reduce:transition-none {#if collapsed}rotate-180{/if}"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
           stroke-width="2"
           stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true">
-          <path d="M13 6l-6 6 6 6M19 6l-6 6 6 6"/>
+          stroke-linejoin="round">
+          <path d="M15 6l-6 6 6 6"/>
         </svg>
-        <span class="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left transition-opacity duration-200 motion-reduce:transition-none {#if collapsed}opacity-0{/if}">Collapse</span>
-      </button>
-    </div>
+      </span>
+    </button>
+    {/if}
   </nav>
 </puzzle-view>
 
@@ -160,7 +199,8 @@ import { PuzzleView } from '@magic-spells/puzzle';
 //   </Sidebar>
 //
 // ITEMS — a flat array mixing three shapes (order preserved):
-//   { group: 'Label' }                              a section heading (hidden when collapsed)
+//   { group: 'Label' }                              a section heading (fades out and
+//                                                   collapses to zero height when collapsed)
 //   { divider: true }                               a hairline separator
 //   { label, href, icon?, badge?, children? }       a navigation entry
 //     children: [{ label, href, badge? }]           → renders a collapsible submenu
@@ -170,8 +210,8 @@ import { PuzzleView } from '@magic-spells/puzzle';
 // stroke-width="2"> — so author paths on a 24×24 grid, stroked (fill none). This is
 // the config-first equivalent of an icon slot. Example (a house / "Home"):
 //   icon: 'M3 12l9-7 9 7M5 10v10h14V10'
-// Icons are strongly recommended: the collapsed rail shows ONLY the icon (labels go
-// sr-only), so an icon-less item is blank there.
+// Icons are strongly recommended: the collapsed rail shows ONLY the icon while the
+// mounted label fades and clips, so an icon-less item is blank there.
 //
 // PROPS
 //   items       array   the navigation config described above.
@@ -182,58 +222,184 @@ import { PuzzleView } from '@magic-spells/puzzle';
 //                       activePath changes to land inside it).
 //   collapsed   bool    OPTIONAL-CONTROLLED (DatePicker's shape): omit it and the rail
 //                       owns its collapsed state internally, toggled by the built-in
-//                       control at the bottom; pass it and the PARENT owns it — the
+//                       EDGE TOGGLE on the right border; pass it and the PARENT owns it — the
 //                       rail only reflects the prop and *asks* to change via @collapse.
-//                       Collapsed = an icon-only w-16 rail (expanded is w-64); the width
-//                       eases via transition-[width] (motion-reduce disables it).
+//                       Collapsed = an icon-only w-[3.75rem] rail (expanded is w-64); the
+//                       width eases via transition-[width] (motion-reduce disables it).
+//   variant     string  'surface' (default) | 'rail'. `surface` is a content-level rail:
+//                       bg-surface, border-border, text-muted rows, the brand tint on the
+//                       active row. `rail` paints the piece as the app shell's RAIL with
+//                       the shell roles every theme file declares — bg-rail, text-rail-ink /
+//                       text-rail-muted, bg-rail-active on hover and the active row, and
+//                       border-rail-edge for every hairline — so it reads as one flat
+//                       surface with a top bar (bg-bar) in all three modes: dark frame
+//                       in dark and medium, light-grey frame in light. The flyout stays a
+//                       surface popover in both variants (it floats over content).
+//   collapsible bool    OPTIONAL, default true. `false` removes the edge toggle from
+//                       the DOM, ignores `collapsed`, and keeps the rail at its full
+//                       width for good — no icon-only mode and no flyouts. For a shell
+//                       whose rail is simply always open; every existing consumer is
+//                       unchanged by the default.
 //   label       string  accessible <nav> label (default 'Main').
-//   class       string  appended to the root <nav> (width classes come last from the
-//                       component, so a `class` width utility overrides them).
+//   class       string  appended to the root <nav>.
 //
 // SLOTS
 //   header  brand / logo area pinned to the top (collapses via empty:hidden when unused).
-//   footer  user-card / account area pinned to the bottom (mt-auto).
+//   footer  user-card / account area pinned to the bottom (mt-auto). NO rule above it
+//           and the list's own gutter (px-3 pt-2 pb-3), so a slotted row reads as a
+//           detached chip on the rows' column with its bottom edge one 12px inset off
+//           the rail's — the air is the seam. It renders only when the slot is filled
+//           (empty:hidden on the wrapper); both wrappers clip rather than reflow as the
+//           rail narrows.
 //
 // CALLBACK
-//   @collapse(next)  fired with the NEXT collapsed boolean when the built-in toggle is
-//                    pressed. A controlled parent flips `collapsed` in response.
+//   @collapse(next)  fired with the NEXT collapsed boolean when the built-in edge toggle
+//                    is pressed. A controlled parent flips `collapsed` in response.
 //
-// COLLAPSED + SUBMENUS — a v1 SIMPLIFICATION. Submenus do not open in the collapsed
-// rail (there is no flyout in v1). A collapsed parent item instead renders as a plain
-// link to its own `href` (or its first child's href when it has none), carrying the
-// parent icon + a `title` tooltip + sr-only label. Expand the rail to use the submenu.
+// EDGE TOGGLE — the collapse control is the rail's right border itself: a full-height
+// button (data-sidebar-toggle) straddling the border. Hovering the edge — or focusing
+// the button with the keyboard — highlights the border line and reveals a circular
+// chevron that points the way the rail will move (rotate-180 when collapsed). It
+// replaces the old footer toggle button; the footer area is now slot-only. See the
+// EDGE_TOGGLE constant for the interaction rationale (cursor, touch, keyboard).
+//
+// SUBMENU GUIDE. An expanded submenu is ruled by a neutral vertical guide (a
+// `before` pseudo-element on the list). Local (Constellation): the registry's
+// brand-coloured bar on that line for the ACTIVE child is removed — no coloured
+// left-edge accent bars, ever. The active child wears the row's own active fill,
+// the same treatment as a flyout row.
+//
+// COLLAPSED + SUBMENUS — FLYOUT. A collapsed parent remains a disclosure button; click
+// pops its children out to the RIGHT in a fixed panel anchored at rect.right + 8,
+// rect.top, then clamped above the viewport bottom in afterUpdate. One flyout opens at
+// a time. Outside pointerdown, Escape, a child-link click, any capture-phase scroll or
+// resize, and any collapsed change dismiss it. Escape is wired on trigger AND panel and
+// refocuses the trigger. Listeners attach in openFlyout and detach in closeFlyout plus
+// destroyed(). The inline `_openMap` survives a collapsed round trip. The trigger uses
+// aria-haspopup="true", aria-expanded, and aria-controls switching between its region
+// and flyout ids; the plain-link panel is labelled by the trigger and intentionally has
+// no menu role. It carries data-sidebar-flyout, never data-sidebar-submenu. A consumer
+// ancestor with transform/filter/backdrop-filter/perspective/contain/will-change becomes
+// the fixed panel's containing block and can clip it. Skipped in v1: horizontal flip,
+// hover-to-open, arrow-key roving focus, and enter animation (floating panels in this
+// registry appear without one). A parent's own href is unused while it has children;
+// normalizeItems keeps the fallback because it still serves kind:'link'.
+//
+// COLLAPSE ANIMATION — one DOM serves both states: fixed row padding keeps each icon in
+// place and only class/attribute values change. The list p-2 plus row px-3 puts a size-5
+// icon center 1.875rem from the rail edge, so the collapsed width is twice that:
+// w-[3.75rem]. Labels, badges, and chevrons stay mounted and fade while row overflow
+// clips them. Group headings use a CSS grid 1fr ↔ 0fr track animation — deliberately
+// the one CSS-only, height-agnostic deviation from the established WAAPI height idiom;
+// unsupported browsers degrade to a snap plus fade. Submenu height continues through
+// the WAAPI path, and all transitions honor reduced motion. Never add an `{#if
+// collapsed}` structural branch inside a row. The last-child `{#if item.flyoutOpen}` is
+// the one allowed state branch because it does not replace or shift preceding row DOM.
+// A collapsed group leaves the list's ~2px space-y-0.5 residual. Submenu children must
+// not wrap because region scrollHeight is measured at the collapsed width.
 
 let uid = 0;
 
+// Local: the right border moved into the variants. The rail variant draws
+// none — the rail is the app frame, and the work panel beside it carries its
+// own edge, so a rule here doubled it (the org app-template's local edit too).
 const NAV_BASE =
-  'flex h-full flex-col bg-surface border-r border-border ' +
+  'relative flex h-full flex-col ' +
   'transition-[width] duration-200 ease-out motion-reduce:transition-none';
+
+// VARIANTS — the colour vocabulary per variant. Everything geometric is shared;
+// only the tokens differ. `surface` is the content-level rail the piece always
+// had; `rail` is the app shell's rail drawn with the shell roles (see the
+// `variant` prop above). Literal class strings so Tailwind's scan sees them.
+const VARIANTS = {
+  surface: {
+    nav: 'bg-surface border-r border-border',
+    idle: 'text-muted hover:bg-surface-sunken hover:text-ink',
+    active: 'bg-brand-tint text-ink font-medium',
+    badge: 'bg-surface-sunken text-muted',
+    quiet: 'text-muted',
+    line: 'border-border',
+    guide: 'before:bg-border',
+    edgeArrow: 'border-border bg-surface text-muted',
+  },
+  rail: {
+    nav: 'bg-rail',
+    idle: 'text-rail-muted hover:bg-rail-active hover:text-rail-ink',
+    active: 'bg-rail-active text-rail-ink font-medium',
+    badge: 'bg-rail-active text-rail-muted',
+    quiet: 'text-rail-muted',
+    line: 'border-rail-edge',
+    guide: 'before:bg-rail-edge',
+    edgeArrow: 'border-rail-edge bg-rail-active text-rail-ink',
+  },
+};
+const variantOf = (name) => VARIANTS[name] || VARIANTS.surface;
+
+// EDGE TOGGLE — the collapse control is a full-height button straddling the
+// right border (w-3 with translate-x-1/2: 6px inside the rail, 6px over the
+// adjacent content). Idle it is invisible; hover OR keyboard focus reveals the
+// border-line highlight and the circular chevron, so it stays keyboard-operable
+// as the only built-in collapse control. cursor-pointer on purpose: this is a
+// click toggle, not a drag-resize handle — a resize cursor would promise
+// dragging. Touch has no hover, but the full-height strip is still tappable.
+const EDGE_TOGGLE =
+  'group/edge absolute inset-y-0 right-0 z-10 w-3 translate-x-1/2 cursor-pointer outline-none';
+const EDGE_LINE =
+  'absolute inset-y-0 left-1/2 w-px -translate-x-1/2 ' +
+  'transition-colors duration-150 motion-reduce:transition-none ' +
+  'group-hover/edge:bg-ring group-focus-visible/edge:bg-ring';
+const EDGE_ARROW =
+  'absolute left-1/2 top-1/2 flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center ' +
+  'rounded-full border shadow-sm ' +
+  'opacity-0 transition-opacity duration-150 motion-reduce:transition-none ' +
+  'group-hover/edge:opacity-100 group-focus-visible/edge:opacity-100 ' +
+  'outline-ring group-focus-visible/edge:outline-2';
 
 // Shared row chrome. Unconditional outline COLOR (outline-ring) sits alongside the
 // focus-visible reveal so the outline never flashes from the default on focus.
 const ROW_BASE =
-  'group flex items-center gap-3 rounded-md text-sm overflow-hidden ' +
-  'transition-[padding,color,background-color] duration-200 ease-out motion-reduce:transition-none ' +
+  'group flex items-center gap-3 rounded-md text-sm ' +
+  'transition-[color,background-color] duration-200 ease-out motion-reduce:transition-none ' +
   'outline-ring focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
-const IDLE = 'text-muted hover:bg-surface-sunken hover:text-ink';
-const ACTIVE = 'bg-brand-tint text-ink font-medium';
-const BADGE =
-  'shrink-0 rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-medium text-muted';
+// THE CLIP IS SEPARATE FROM THE BASE: top-level and flyout rows take it, which is
+// what lets a label disappear as the rail narrows instead of spilling into the
+// gutter. Inline submenu children are clipped by the collapsible region that
+// wraps them.
+const ROW_CLIP = 'overflow-hidden';
+const BADGE = 'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium';
 
-// A top-level link/button pad: comfortable when expanded; when collapsed the
-// padding centers the size-5 icon in a SQUARE row box — the rail is w-16 but
-// the list wraps rows in p-2, so the row spans 3rem: (3rem − 1.25rem)/2 =
-// 0.875rem on every side. Square matters because the collapsed rail is a
-// column of icons: an oblong active pill reads as a different control from the
-// brand tile above it. Padding (unlike justify-center) animates, so the icon
-// slides into place with the width transition.
-const rowPad = (collapsed) => (collapsed ? 'p-[0.875rem]' : 'px-3 py-2');
+// ROW_PAD is load-bearing geometry: list p-2 + row px-3 centers the size-5 icon
+// at 1.875rem, exactly half the collapsed rail. Keep gap-3/px-3/size-5 together;
+// badges land on the clip edge, so another shrink-0 item between icon and label
+// could peek into the 0.75rem gutter.
+const ROW_PAD = 'px-3 py-2';
+const LABEL_BASE =
+  'min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left transition-opacity duration-200 ease-out motion-reduce:transition-none';
+const CHEVRON_BASE =
+  'size-4 shrink-0 transition-[rotate,opacity] duration-200 ease-out motion-reduce:transition-none';
+// Local: pb-1.5 pt-7 — more air above each section heading than the piece's pb-1 pt-4.
+const GROUP_HEADING = 'truncate px-3 pb-1.5 pt-7 text-xs font-semibold uppercase tracking-wide';
+const GROUP_ROW =
+  'grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none';
+const FLYOUT_GAP = 8;
+const FLYOUT_MARGIN = 8;
+const FLYOUT =
+  'fixed z-50 min-w-[10rem] rounded-lg border border-border bg-surface p-1 shadow-lg';
+const FLYOUT_HEADING =
+  'px-2.5 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-muted';
 
-const linkClass = (active, collapsed) =>
-  [ROW_BASE, rowPad(collapsed), active ? ACTIVE : IDLE].join(' ');
+const linkClass = (active, v) =>
+  [ROW_BASE, ROW_CLIP, ROW_PAD, active ? v.active : v.idle].join(' ');
 
-const childLinkClass = (active) =>
-  [ROW_BASE, 'px-3 py-1.5', active ? ACTIVE : IDLE].join(' ');
+const CHILD_PAD = 'px-3 py-1.5';
+
+// An INLINE submenu row (no clip — its region clips it).
+const childLinkClass = (active, v) =>
+  [ROW_BASE, CHILD_PAD, active ? v.active : v.idle].join(' ');
+
+// A FLYOUT row (the collapsed rail's pop-out).
+const flyoutLinkClass = (active, v) =>
+  [ROW_BASE, ROW_CLIP, CHILD_PAD, active ? v.active : v.idle].join(' ');
 
 // Normalize the raw items prop into tagged rows the template branches on, resolving
 // active state against activePath. The array index is kept as a stable key for the
@@ -268,8 +434,8 @@ function normalizeItems(items, activePath) {
     return {
       kind: hasChildren ? 'parent' : 'link',
       index: i,
-      // Row identity for the keyed {#for} — href is unique per nav entry; the
-      // index tail keeps duplicate/absent hrefs from colliding.
+      // Local: row identity for the keyed {#for} — the plan's type rows come and
+      // go with its cards, and an index-matched row would carry the wrong state.
       key: `${href}:${i}`,
       rowClass: '',
       label: it && it.label != null ? String(it.label) : '',
@@ -300,6 +466,23 @@ export default class Sidebar extends PuzzleView {
     // silently without re-deriving the render model (setData never re-runs
     // data()), leaving the click with no visible effect.
     this._uncontrolledCollapsed = false;
+    // Flyout state stays in instance fields because data() derives the panel model.
+    this._flyoutIndex = null;
+    this._flyoutPos = { left: 0, top: 0 };
+    this._flyoutBound = false;
+    this._needsFlyoutClamp = false;
+    this._onDocPointerDown = (event) => {
+      if (this._flyoutIndex === null) return;
+      const panel = this.element && this.element.querySelector('[data-sidebar-flyout]');
+      if (panel && panel.contains(event.target)) return;
+      // A trigger's own click handler owns closing or switching the flyout.
+      if (event.target.closest && event.target.closest('[data-sidebar-trigger]')) return;
+      this.closeFlyout({ refocus: false });
+    };
+    // Scroll and resize invalidate the measured anchor, so dismiss instead of chasing it.
+    this._onFlyoutDismiss = () => {
+      if (this._flyoutIndex !== null) this.closeFlyout({ refocus: false });
+    };
   }
 
   // ---- collapsed: optional-controlled resolution ---------------------------
@@ -308,10 +491,81 @@ export default class Sidebar extends PuzzleView {
     return this.props.collapsed !== undefined;
   }
 
+  // `collapsible={false}` is checked HERE and not at each call site: every
+  // collapsed behaviour in the piece — the icon-only width, the fading labels,
+  // the flyout, the auto-open suppression — is derived from this one method, so
+  // one gate turns all of them off and none can disagree with the others.
   _collapsed() {
+    if (this.props.collapsible === false) return false;
     return this._collapsedControlled()
       ? !!this.props.collapsed
       : !!this._uncontrolledCollapsed;
+  }
+
+  _requestCollapsed(next) {
+    if (this.props.collapsible === false) return;
+    this.closeFlyout({ refocus: false });
+    const { collapse } = this.props;
+    if (typeof collapse === 'function') collapse(next);
+    if (!this._collapsedControlled()) this._uncontrolledCollapsed = next;
+  }
+
+  _regionOpen(index) {
+    return this._openMap[index] === true && !this._collapsed();
+  }
+
+  // ---- collapsed submenu flyout --------------------------------------------
+
+  openFlyout(index) {
+    const trigger =
+      this.element &&
+      this.element.querySelector(`[data-sidebar-trigger][data-index="${index}"]`);
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    this._flyoutIndex = index;
+    this._flyoutPos = { left: rect.right + FLYOUT_GAP, top: rect.top };
+    this._needsFlyoutClamp = true;
+    if (!this._flyoutBound) {
+      document.addEventListener('pointerdown', this._onDocPointerDown);
+      window.addEventListener('scroll', this._onFlyoutDismiss, true);
+      window.addEventListener('resize', this._onFlyoutDismiss);
+      this._flyoutBound = true;
+    }
+    this.refresh();
+  }
+
+  closeFlyout({ refocus = false } = {}) {
+    if (this._flyoutIndex === null) return;
+    const index = this._flyoutIndex;
+    if (this._flyoutBound) {
+      document.removeEventListener('pointerdown', this._onDocPointerDown);
+      window.removeEventListener('scroll', this._onFlyoutDismiss, true);
+      window.removeEventListener('resize', this._onFlyoutDismiss);
+      this._flyoutBound = false;
+    }
+    this._flyoutIndex = null;
+    this._needsFlyoutClamp = false;
+    this.refresh();
+    if (refocus) {
+      const trigger =
+        this.element &&
+        this.element.querySelector(`[data-sidebar-trigger][data-index="${index}"]`);
+      if (trigger) trigger.focus();
+    }
+  }
+
+  _clampFlyout() {
+    const panel = this.element && this.element.querySelector('[data-sidebar-flyout]');
+    if (!panel || typeof window === 'undefined') return;
+    const maxY = Math.max(
+      FLYOUT_MARGIN,
+      window.innerHeight - panel.offsetHeight - FLYOUT_MARGIN
+    );
+    const top = Math.min(Math.max(this._flyoutPos.top, FLYOUT_MARGIN), maxY);
+    if (top !== this._flyoutPos.top) {
+      this._flyoutPos = { ...this._flyoutPos, top };
+      this.refresh();
+    }
   }
 
   // ---- render model --------------------------------------------------------
@@ -319,8 +573,12 @@ export default class Sidebar extends PuzzleView {
   data(params, props) {
     const activePath = props.activePath || '';
     const collapsed = this._collapsed();
+    const collapsible = props.collapsible !== false;
+    const v = variantOf(props.variant);
     const items = normalizeItems(props.items, activePath);
     const base = `pieces-sidebar-${this._uid}`;
+    const flyoutIndex = collapsed ? this._flyoutIndex : null;
+    const labelClass = [LABEL_BASE, collapsed ? 'opacity-0' : ''].join(' ');
 
     // Auto-open the submenu containing the active child — on first render and again
     // whenever activePath changes to land inside a (different) submenu. Never
@@ -334,18 +592,48 @@ export default class Sidebar extends PuzzleView {
 
     // Decorate each row with its open flag, ids, and precomputed classes.
     items.forEach((it) => {
-      if (it.kind === 'parent') {
+      if (it.kind === 'group') {
+        it.rowClass = [
+          GROUP_ROW,
+          collapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr]',
+        ].join(' ');
+      } else if (it.kind === 'parent') {
         it.open = this._openMap[it.index] === true;
+        it.visualOpen = it.open && !collapsed;
         it.triggerId = `${base}-trigger-${it.index}`;
         it.submenuId = `${base}-submenu-${it.index}`;
-        it.buttonClass = [
-          linkClass(false, false),
+        it.flyoutId = `${base}-flyout-${it.index}`;
+        it.flyoutOpen = flyoutIndex === it.index;
+        it.hasPopup = collapsed ? 'true' : false;
+        it.ariaCurrent = collapsed && it.childActive ? 'page' : false;
+        it.ariaControls = collapsed ? it.flyoutId : it.submenuId;
+        it.ariaExpanded = (collapsed ? it.flyoutOpen : it.visualOpen) ? 'true' : 'false';
+        it.triggerClass = [
+          linkClass(collapsed && (it.childActive || it.active), v),
           'w-full cursor-pointer',
         ].join(' ');
-        it.linkClass = linkClass(it.childActive, collapsed); // collapsed-as-link form
-        it.children = it.children.map((c) => ({ ...c, linkClass: childLinkClass(c.active) }));
+        it.chevronClass = [
+          CHEVRON_BASE,
+          v.quiet,
+          it.visualOpen ? 'rotate-90' : '',
+          collapsed ? 'opacity-0' : '',
+        ].join(' ');
+        // The guide line is a neutral `before` pseudo-element on the list.
+        it.submenuClass = [
+          'relative ml-[1.375rem] mt-0.5 space-y-0.5 pl-2',
+          'before:absolute before:inset-y-0 before:left-0 before:w-px',
+          v.guide,
+          'transition-opacity duration-200 ease-out motion-reduce:transition-none',
+          collapsed ? 'opacity-0' : '',
+        ].join(' ');
+        it.children = it.children.map((c) => ({
+          ...c,
+          linkClass: childLinkClass(c.active, v),
+          flyoutLinkClass: flyoutLinkClass(c.active, v),
+        }));
       } else if (it.kind === 'link') {
-        it.linkClass = linkClass(it.active, collapsed);
+        it.linkClass = linkClass(it.active, v);
+        it.ariaCurrent = it.active ? 'page' : false;
       }
     });
 
@@ -354,21 +642,28 @@ export default class Sidebar extends PuzzleView {
     return {
       items,
       collapsed,
+      collapsible,
+      labelClass,
       navLabel: props.label || 'Main',
       // Badges ride the same fade as labels — kept mounted, clipped by the row.
       badgeClass: [
         BADGE,
+        v.badge,
         'transition-opacity duration-200 motion-reduce:transition-none',
         collapsed ? 'opacity-0' : '',
       ].join(' '),
+      badgeStatic: [BADGE, VARIANTS.surface.badge].join(' '),
+      groupHeadingClass: [GROUP_HEADING, v.quiet].join(' '),
+      dividerClass: ['mx-1 my-2 border-t', v.line].join(' '),
+      footerClass: 'mt-auto shrink-0 overflow-hidden px-3 pt-2 pb-3 empty:hidden',
+      flyoutClass: FLYOUT,
+      flyoutHeadingClass: FLYOUT_HEADING,
+      flyoutStyle: `left:${this._flyoutPos.left}px;top:${this._flyoutPos.top}px;`,
       toggleLabel,
-      toggleClass: [
-        ROW_BASE,
-        rowPad(collapsed),
-        'w-full cursor-pointer',
-        IDLE,
-      ].join(' '),
-      rootClass: [NAV_BASE, collapsed ? 'w-16' : 'w-64', props.class || ''].join(' '),
+      edgeToggleClass: EDGE_TOGGLE,
+      edgeLineClass: EDGE_LINE,
+      edgeArrowClass: [EDGE_ARROW, v.edgeArrow].join(' '),
+      rootClass: [NAV_BASE, v.nav, collapsed ? 'w-[3.75rem]' : 'w-64', props.class || ''].join(' '),
     };
   }
 
@@ -382,10 +677,22 @@ export default class Sidebar extends PuzzleView {
   }
 
   afterUpdate() {
+    // An outside-controlled expansion removes the panel before closeFlyout runs.
+    if (this._flyoutIndex !== null && !this._collapsed()) this.closeFlyout();
+    if (this._needsFlyoutClamp) {
+      this._needsFlyoutClamp = false;
+      this._clampFlyout();
+    }
     this._syncRegions(false);
   }
 
   destroyed() {
+    if (this._flyoutBound) {
+      document.removeEventListener('pointerdown', this._onDocPointerDown);
+      window.removeEventListener('scroll', this._onFlyoutDismiss, true);
+      window.removeEventListener('resize', this._onFlyoutDismiss);
+      this._flyoutBound = false;
+    }
     if (!this.element) return;
     this.element.querySelectorAll('[data-sidebar-submenu]').forEach((body) => {
       if (body._pzAnim) {
@@ -409,7 +716,7 @@ export default class Sidebar extends PuzzleView {
     if (!this.element) return;
     this.element.querySelectorAll('[data-sidebar-submenu]').forEach((body) => {
       const idx = body.getAttribute('data-index');
-      const open = this._openMap[idx] === true;
+      const open = this._regionOpen(idx);
       const prev = this._regionState[idx];
       const hasHeight = body.style.height !== '';
       if (initial || prev === undefined || !hasHeight) {
@@ -449,7 +756,7 @@ export default class Sidebar extends PuzzleView {
       anim.onfinish = () => {
         body._pzAnim = null;
         // Leave it at auto so later content changes reflow — only if still open.
-        if (this._openMap[body.getAttribute('data-index')] === true) body.style.height = 'auto';
+        if (this._regionOpen(body.getAttribute('data-index'))) body.style.height = 'auto';
       };
     } else {
       body.style.height = '0px';
@@ -466,21 +773,30 @@ export default class Sidebar extends PuzzleView {
 
   events = {
     toggleSubmenu: (index) => {
+      if (this._collapsed()) {
+        // Collapsed submenus pop out to the right, one at a time. Preserve
+        // _openMap so expanded disclosure state survives a collapsed round trip.
+        if (this._flyoutIndex === index) this.closeFlyout({ refocus: false });
+        else this.openFlyout(index);
+        return;
+      }
       this._openMap[index] = !this._openMap[index];
       this.refresh();
     },
 
     toggleCollapsed: () => {
-      const next = !this._collapsed();
-      const { collapse } = this.props;
-      if (typeof collapse === 'function') collapse(next);
-      // Uncontrolled: own the flip and refresh() so data() re-derives the
-      // layout. Controlled: the parent's prop change drives it.
-      if (!this._collapsedControlled()) {
-        this._uncontrolledCollapsed = next;
-        this.refresh();
-      }
+      this._requestCollapsed(!this._collapsed());
+      if (!this._collapsedControlled()) this.refresh();
     },
+
+    onFlyoutEscape: (event) => {
+      if (this._flyoutIndex === null) return;
+      event.preventDefault();
+      this.closeFlyout({ refocus: true });
+    },
+
+    // Deliberately do not preventDefault: navigation proceeds after dismissal.
+    onFlyoutLink: () => { this.closeFlyout({ refocus: false }); },
   };
 }
 </script>

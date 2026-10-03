@@ -70,7 +70,7 @@
           <strong>{ focusedCard.displayName }</strong>
           <span class="cn-panel-handle">{ focusedCard.handle }</span>
           {#if focusedCard.status}<span class="cn-panel-status">{ focusedCard.status }</span>{/if}
-          <a href="{ focusedCard.href | link }">Open card →</a>
+          <a href="{ link(focusedCard.href) }">Open card →</a>
         </div>
       {/if}
     {/if}
@@ -83,7 +83,7 @@ import ConstellationTabs from '../components/ConstellationTabs.pzl';
 import { hrefForHandle, TYPE_META } from '../lib/types.js';
 import { planIndex } from '../lib/plan-index.js';
 import { cssColor, darken as darkenHex, mix as mixHex, luminance as relLum } from '../lib/colors.js';
-import { onThemeChange } from '../lib/theme.js';
+import { subscribe as onThemeChange } from '../lib/appearance.js';
 import {
   buildGraph,
   createSimulation,
@@ -399,7 +399,7 @@ export default class ConstellationView extends PuzzleView {
     const colors = this.colors;
     colors.edge = cssColor('--color-border-strong', '#888');
     colors.accent = cssColor('--color-brand', '#88f');
-    colors.bg = cssColor('--color-page', '#000');
+    colors.bg = cssColor('--color-surface-panel', cssColor('--color-page', '#000'));
     colors.panel = cssColor('--color-surface', '#111');
     colors.text = cssColor('--color-body', '#aaa');
     colors.textStrong = cssColor('--color-ink', '#fff');
@@ -1171,7 +1171,7 @@ export default class ConstellationView extends PuzzleView {
       color-mix(in oklab, var(--color-brand) 7%, transparent),
       transparent 62%
     ),
-    var(--color-page);
+    var(--color-surface-panel);
 }
 
 .constellation:active {

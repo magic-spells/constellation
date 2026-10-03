@@ -30,7 +30,9 @@ export function atlasPalette(types = []) {
 	// which is what `false` selects below.
 	const paper = false;
 
-	const page = cssColor('--color-page', '#111');
+	// The ground the map is drawn on: the work panel, which every scheme paints
+	// with surface-panel (Observatory aliases it to its page).
+	const page = cssColor('--color-surface-panel', cssColor('--color-page', '#111'));
 	const ink = cssColor('--color-ink', '#eee');
 	const muted = cssColor('--color-muted', '#888');
 	const border = cssColor('--color-border', '#444');

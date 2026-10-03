@@ -15,7 +15,7 @@
             {#if row.hasCards}
               <span class="a-cards">
                 {#for chip in row.cards}
-                  <a key={ chip.handle } class="a-card" href="{ chip.path | link }">{ chip.handle }</a>
+                  <a key={ chip.handle } class="a-card" href="{ link(chip.path) }">{ chip.handle }</a>
                 {/for}
                 {#if row.more}<span class="a-more">{ row.more }</span>{/if}
               </span>
