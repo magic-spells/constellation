@@ -414,7 +414,11 @@ working
       process.exit(2);
     }
     const answers = await workingAnswers(anchor, opts);
-    const result = await initWorking(anchor, { hook: true, ...answers });
+    const result = await initWorking(anchor, { hook: true, ...answers }).catch((err: unknown) => {
+      // UNSAFE_PATH (a linked .claude/ or .constellation/), UNTRUSTED_WORKING, …
+      console.error(pc.red(err instanceof Error ? err.message : String(err)));
+      process.exit(2);
+    });
     printWorkingInit(result);
     if (!result.config.enabled) return;
     console.log(

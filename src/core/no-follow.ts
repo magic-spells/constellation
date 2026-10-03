@@ -1,5 +1,7 @@
+import { randomBytes } from 'node:crypto';
 import { constants, type Stats } from 'node:fs';
-import { lstat, open } from 'node:fs/promises';
+import { lstat, open, rename, rm } from 'node:fs/promises';
+import path from 'node:path';
 
 /**
  * File access that never goes through a symbolic link. `.constellation/` sits in
@@ -18,7 +20,7 @@ export class UnsafePathError extends Error {
   code = 'UNSAFE_PATH';
   constructor(file: string, what = 'a symbolic link') {
     super(
-      `${file} is ${what}; working memory will not read, write or delete anything through it. ` +
+      `${file} is ${what}; Constellation will not read, write or delete anything through it. ` +
         'Remove it (a cloned repo may have shipped it) and retry.',
     );
     this.name = 'UnsafePathError';
@@ -67,5 +69,29 @@ export async function appendNoFollow(file: string, text: string): Promise<void> 
     await handle.appendFile(text, 'utf8');
   } finally {
     await handle.close();
+  }
+}
+
+/**
+ * Write `file` whole (temp + rename) without going through a link. Neither its
+ * folder nor the file may be a link, the temp is created fresh (O_EXCL plus
+ * O_NOFOLLOW), and rename replaces the name rather than following it.
+ */
+export async function writeNoFollow(file: string, text: string): Promise<void> {
+  await assertNotLink(path.dirname(file));
+  await assertNotLink(file);
+  const tmp = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
+  const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | NOFOLLOW;
+  const handle = await open(tmp, flags, 0o644).catch((err) => rethrowLoop(err, tmp));
+  try {
+    await handle.writeFile(text, 'utf8');
+  } finally {
+    await handle.close();
+  }
+  try {
+    await rename(tmp, file);
+  } catch (err) {
+    await rm(tmp, { force: true });
+    throw err;
   }
 }

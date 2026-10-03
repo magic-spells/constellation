@@ -15,7 +15,14 @@ import { currentBranch, headSha, planRootsFor } from './git.js';
 import { codeRootFor } from './repos.js';
 import { findPlanUp, findRepoRoot, resolvePlanDir } from './resolve.js';
 import { workingClaudeMd } from './scaffold.js';
-import { appendNoFollow, assertNotLink, lstatOrNull, readNoFollow, UnsafePathError } from './no-follow.js';
+import {
+  appendNoFollow,
+  assertNotLink,
+  lstatOrNull,
+  readNoFollow,
+  UnsafePathError,
+  writeNoFollow,
+} from './no-follow.js';
 import {
   DEFAULT_WORKING_CONFIG,
   WORKING_CONFIG_FILE,
@@ -326,16 +333,103 @@ export async function workingFolderProblem(target: WorkingTarget): Promise<Worki
     if ((await lstatOrNull(file))?.isSymbolicLink()) return unsafePath(file);
   }
   const parent = path.dirname(dir);
-  const shipped = (await trackedUnder(parent)).filter(
-    (f) => f !== `${WORKING_DIR}/${WORKING_CLAUDE_FILE}`,
-  );
-  if (shipped.length === 0) return null;
+  const found = await shippedUnder(dir);
+  if ('error' in found) {
+    return new WorkingError(
+      'UNTRUSTED_WORKING',
+      `working memory not loaded: could not ask git what it tracks under ${dir} (${found.error}), ` +
+        'so the folder is treated as one the repo shipped. Fix git here and retry.',
+    );
+  }
+  if (found.shipped.length === 0) return null;
   return new WorkingError(
     'UNTRUSTED_WORKING',
-    `working memory not loaded: git tracks ${describeTracked(shipped)} under ${dir}. ` +
+    `working memory not loaded: git tracks ${describeTracked(found.shipped)} under ${dir}. ` +
       'Files a repo ships are not this machine\'s memory, so nothing there is read or changed. ' +
       `If they are yours, run \`git rm --cached -r ${WORKING_DIR}\` in ${parent} and commit (the files stay on disk).`,
   );
+}
+
+/**
+ * git for the trust check, unable to be steered by the repo or the caller: no
+ * inherited GIT_* overrides (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE…), no
+ * fsmonitor command, no hooks, no optional index lock, and unquoted paths.
+ */
+const TRUST_GIT_CONFIG = [
+  '-c', 'core.fsmonitor=false',
+  '-c', 'core.hooksPath=/dev/null',
+  '-c', 'core.quotePath=false',
+];
+
+function trustGitEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!key.startsWith('GIT_')) env[key] = value;
+  }
+  env.GIT_OPTIONAL_LOCKS = '0';
+  return env;
+}
+
+async function trustGit(cwd: string, args: string[]): Promise<string> {
+  const { stdout } = await exec('git', [...TRUST_GIT_CONFIG, ...args], {
+    cwd,
+    env: trustGitEnv(),
+    timeout: 10_000,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  return stdout;
+}
+
+/** Regular-file modes: a tracked CLAUDE.md is only harmless as one of these. */
+const REGULAR_MODES = new Set(['100644', '100755']);
+
+/**
+ * Every index entry at or under `dir` that the repo shipped: anything but a
+ * regular-file `CLAUDE.md` directly inside it (the 1.0 layout). Fail-closed: when
+ * `dir` is inside a git repo, any git failure is an `error`, never "nothing
+ * tracked". Outside git (no `.git` above) nothing can be tracked.
+ *
+ * The query cannot be fooled by spelling. Paths come NUL-separated and unquoted
+ * (`-z`, quotePath off) and in full from the repo top (`--full-name`), so a
+ * monorepo plan's `packages/x/.constellation` is matched as itself. The pathspec
+ * and the segment comparison ignore case, because on a case-insensitive disk
+ * `.Constellation/working.md` is this folder. `-s` carries each entry's mode, so
+ * a link or a submodule named CLAUDE.md is caught too.
+ */
+async function shippedUnder(dir: string): Promise<{ shipped: string[] } | { error: string }> {
+  if (!(await findRepoRoot(dir))) return { shipped: [] };
+  let out: string;
+  let folder: string[];
+  try {
+    const top = (await trustGit(path.dirname(dir), ['rev-parse', '--show-toplevel'])).trim();
+    const rel = path.relative(await realpath(top), await realpath(dir));
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+      return { error: 'the folder is not inside the repository git reports' };
+    }
+    folder = rel.split(path.sep);
+    out = await trustGit(top, ['ls-files', '-s', '-z', '--full-name', '--', `:(top,icase,literal)${folder.join('/')}`]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message.split('\n')[0] : String(err);
+    return { error: message || 'git failed' };
+  }
+  const lower = folder.map((s) => s.toLowerCase());
+  const shipped: string[] = [];
+  for (const entry of out.split('\0')) {
+    if (!entry) continue;
+    const tab = entry.indexOf('\t');
+    const mode = tab > 0 ? entry.slice(0, tab).split(' ')[0] : '';
+    const name = tab > 0 ? entry.slice(tab + 1) : entry;
+    const segs = name.split('/');
+    const inside = lower.every((s, i) => segs[i]?.toLowerCase() === s);
+    if (!inside) continue;
+    const rest = segs.slice(lower.length);
+    const claudeOnly =
+      rest.length === 1 &&
+      rest[0].toLowerCase() === WORKING_CLAUDE_FILE.toLowerCase() &&
+      REGULAR_MODES.has(mode);
+    if (!claudeOnly) shipped.push(name);
+  }
+  return { shipped };
 }
 
 /** Throw workingFolderProblem's refusal, if any. */
@@ -1427,12 +1521,18 @@ export async function installHook(
 ): Promise<'installed' | 'present' | 'skipped'> {
   const dir = path.join(gitRoot, '.claude');
   const file = path.join(dir, 'settings.json');
+  // A repo can commit `.claude -> ~/.claude`: never read or write through a link,
+  // or this would edit the user's global settings instead of the repo's.
+  for (const p of [dir, file]) {
+    if ((await lstatOrNull(p))?.isSymbolicLink()) throw unsafePath(p);
+  }
   return withFileLock(file, async () => {
     let settings: Record<string, unknown> = {};
     let raw: string | null = null;
     try {
-      raw = await readFile(file, 'utf8');
-    } catch {
+      raw = await readNoFollow(file);
+    } catch (err) {
+      if (err instanceof UnsafePathError) throw asWorkingError(err);
       raw = null;
     }
     if (raw !== null && raw.trim()) {
@@ -1466,7 +1566,9 @@ export async function installHook(
     });
     settings.hooks = { ...hooks, SessionStart: sessionStart };
     await mkdir(dir, { recursive: true });
-    await writeAtomic(file, `${JSON.stringify(settings, null, 2)}\n`);
+    await writeNoFollow(file, `${JSON.stringify(settings, null, 2)}\n`).catch((err) => {
+      throw asWorkingError(err);
+    });
     return 'installed' as const;
   });
 }
