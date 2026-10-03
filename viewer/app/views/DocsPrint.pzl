@@ -92,6 +92,9 @@ export default class DocsPrint extends PuzzleView {
 
 	mounted() {
 		document.documentElement.setAttribute('data-paper', '');
+		// No AppShell here to own the tab title (routes carry none), and it is the
+		// default PDF file name, so name the project.
+		document.title = [this.getData().title, 'Print'].filter(Boolean).join(' · ');
 		// A preview opens at page one. Chrome will otherwise restore whatever this
 		// window was scrolled to the last time it held this URL, which in a named
 		// window (see DocsPage) is a real possibility. Only when it has to: a

@@ -4,6 +4,7 @@ import { enableMorph } from '@magic-spells/puzzle/morph';
 import { adapter } from '@magic-spells/puzzle/adapter';
 import { fetchPlans, loadDocs, loadPlan, loadPlans, loadSync, setActivePlan, startLive } from './lib/api.js';
 import { planFromHash, routerBaseFor } from './lib/plans.js';
+import { availablePlans } from './lib/workspaces.js';
 import models from './models/index.js';
 import routes from './routes.js';
 import { boot as bootAppearance } from './lib/appearance.js';
@@ -42,7 +43,10 @@ async function boot() {
 	// One plan is not "multi" even from a multi-plan server: there is nothing to
 	// switch between, so the page keeps the unprefixed URLs a single-plan server
 	// would have served and no switcher appears.
-	const multi = (roster?.plans?.length ?? 0) > 1;
+	// Only plans the server can open count: an unavailable connected repo is a
+	// disabled row in the switcher, never a place to route to.
+	const openable = availablePlans(roster?.plans);
+	const multi = openable.length > 1;
 
 	// A deep link may name a plan by id OR by one of its aliases; either way the
 	// canonical id is what the base is built from. An unknown name (a renamed
@@ -50,7 +54,7 @@ async function boot() {
 	// 404ing the whole app.
 	const wanted = typeof location === 'undefined' ? null : planFromHash(location.hash);
 	const active = multi
-		? (roster.plans.find((p) => p.id === wanted || p.aliases?.includes(wanted))?.id ??
+		? (openable.find((p) => p.id === wanted || p.aliases?.includes(wanted))?.id ??
 			roster.default)
 		: null;
 

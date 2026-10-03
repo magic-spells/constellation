@@ -458,12 +458,18 @@ program
           /* a watcher or concurrent edit can make banner garnish unavailable */
         }
         const mark = plan.id === running.defaultPlan ? '•' : ' ';
+        const from = plan.repo.kind === 'connected' ? pc.dim(`  ↳ ${plan.repo.path}`) : '';
         console.log(
-          `      ${mark} ${plan.id.padEnd(18)}${plan.name.padEnd(30)}${cards}`,
+          `      ${mark} ${plan.id.padEnd(18)}${plan.name.padEnd(30)}${String(cards).padEnd(6)}${from}`,
         );
       }
     } else {
       line('Plan:', planLabel);
+    }
+    // Declared connected repos that could not be served stay visible here and
+    // as disabled rows in the viewer's workspace switcher.
+    for (const down of running.unavailable) {
+      line('Skipped:', pc.yellow(down.repo.name) + pc.dim(`  ${down.reason}`));
     }
     if (opts.readonly) line('Mode:', pc.dim('read-only (browser edits disabled)'));
 

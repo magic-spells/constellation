@@ -1,7 +1,13 @@
 import path from 'node:path';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { parseFile } from './parse.js';
-import { resolvePlanDir } from './resolve.js';
+import {
+  discoverPlans,
+  findRepoRoot,
+  includeDiscoveredPlan,
+  resolvePlanDir,
+  type DiscoveredPlan,
+} from './resolve.js';
 import type { ConnectedRepo } from './types.js';
 
 /**
@@ -129,6 +135,66 @@ export async function listConnectedRepos(
     repos.map(async (r) => {
       const planRoot = await resolveRepoPath(homePlanRoot, r.path);
       return { ...r, reachable: planRoot !== null, planRoot };
+    }),
+  );
+}
+
+/**
+ * A connected repo as a viewer workspace: its plans, discovered the way `serve`
+ * discovers the home repo's (bounded BFS that never enters another `.git`), or
+ * the reason it cannot be served. One level only — the connected repo's own
+ * `connected_repos` are never read here.
+ */
+export type ConnectedWorkspace =
+  | {
+      repo: ConnectedRepo;
+      /** The declared path, resolved against the home repo root. */
+      abs: string;
+      available: true;
+      /** The connected repo's git root: its git state and asset fallback. */
+      gitRoot: string;
+      /** Where its plans were discovered from; plan paths are relative to this. */
+      scanRoot: string;
+      plans: DiscoveredPlan[];
+    }
+  | { repo: ConnectedRepo; abs: string; available: false; reason: string };
+
+/**
+ * Resolve every `connected_repos` entry on the home plan into a workspace.
+ * Never throws for a bad entry: a missing path, a non-git directory or a repo
+ * without a plan comes back `available: false` with a reason.
+ */
+export async function discoverConnectedWorkspaces(
+  homePlanRoot: string,
+): Promise<ConnectedWorkspace[]> {
+  const repos = await readConnectedRepos(homePlanRoot);
+  return Promise.all(
+    repos.map(async (repo): Promise<ConnectedWorkspace> => {
+      const abs = path.isAbsolute(repo.path)
+        ? path.resolve(repo.path)
+        : path.resolve(repoRootOf(homePlanRoot), repo.path);
+      const down = (reason: string): ConnectedWorkspace => ({
+        repo,
+        abs,
+        available: false,
+        reason,
+      });
+      try {
+        const info = await stat(abs).catch(() => null);
+        if (!info) return down(`Path not found: ${repo.path}`);
+        if (!info.isDirectory()) return down(`Not a directory: ${repo.path}`);
+        const gitRoot = await findRepoRoot(abs);
+        if (!gitRoot) return down(`Not a git repository: ${repo.path}`);
+        // A path naming the plan folder itself scans from the folder above it.
+        const direct = await resolvePlanDir(abs);
+        const scanRoot = direct && path.resolve(direct) === abs ? path.dirname(abs) : abs;
+        let plans = await discoverPlans(scanRoot);
+        if (direct) plans = await includeDiscoveredPlan(plans, scanRoot, direct);
+        if (plans.length === 0) return down(`No constellation/ plan in ${repo.path}`);
+        return { repo, abs, available: true, gitRoot, scanRoot, plans };
+      } catch (err) {
+        return down(err instanceof Error ? err.message : String(err));
+      }
     }),
   );
 }

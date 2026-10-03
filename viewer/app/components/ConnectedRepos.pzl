@@ -3,16 +3,26 @@
     {#if repos.length > 0}
       <div class="home-section">
         <h3>Connected repos</h3>
-        <div class="repos">
+        <div class="flex flex-col gap-2">
           {#for repo in repos}
-            <div key={ repo.path } class="repo" style={ repo.style }>
-              <span class="r-name">{ repo.name }</span>
-              <code class="r-path">{ repo.path }</code>
-              {#if repo.description}<span class="r-desc">{ repo.description }</span>{/if}
-            </div>
+            <!-- A real href when it opens, so ⌘-click still gets a new tab and a
+                 plain click reloads this tab into it. No href = not a link. -->
+            <a
+              key={ repo.path }
+              href={ repo.href }
+              aria-disabled={ repo.open ? false : 'true' }
+              class={ repo.rowClass }
+              style={ repo.style }
+              @click={ open(repo.id, event) }>
+              <span class={ repo.tileClass } aria-hidden="true">{ repo.letter }</span>
+              <span class="text-sm font-semibold text-ink">{ repo.name }</span>
+              <code class="font-mono text-xs text-muted">{ repo.path }</code>
+              <span class="ml-auto shrink-0 text-xs tabular-nums text-muted">{ repo.status }</span>
+              {#if repo.description}<span class="basis-full text-sm text-body">{ repo.description }</span>{/if}
+            </a>
           {/for}
         </div>
-        <p class="repos-note">Separate plans — open each repo's own viewer to browse it.</p>
+        <p class="mt-2.5 text-xs text-muted">Separate plans, each its own workspace — open one here or from the switcher at the top of the sidebar.</p>
       </div>
     {/if}
   </div>
@@ -20,42 +30,75 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { monogram, monogramTone, rosterMatch, switchWorkspace, workspaceHref } from '../lib/workspaces.js';
 
 // ConnectedRepos — the sibling repos PLAN-PROJECT declares in
-// `connected_repos:`. Repo-level links only: a connected repo has its OWN plan,
-// so these are informational rows, not navigation into this viewer. Ported from
-// the Svelte viewer's ConnectedRepos.svelte.
+// `connected_repos:`. Each is its own plan, and when the server serves it (the
+// launching repo's connected repos, one level deep) the row opens it as the
+// viewer's workspace — the same reload the sidebar's switcher does. A repo the
+// server can't open (missing path, no git, no plan, or simply not followed from
+// here) is a plain row carrying the reason.
 //
-// Props: `repos` — `[{ name, path, description? }]`, already normalized by the
-// caller (Home). The whole block disappears when the list is empty.
+// Props: `repos` — `[{ name, path, description? }]`, normalized by Home;
+// `plans` — the roster; `active` — the plan id this page is scoped to.
+
+const ROW =
+	'repo flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface px-4 py-3';
+const ROW_OPEN =
+	'cursor-pointer transition-colors hover:border-border-strong hover:bg-surface-sunken ' +
+	'outline-ring focus-visible:outline-2 focus-visible:outline-offset-2';
+const ROW_DOWN = 'opacity-70';
+const TILE = 'grid size-6 shrink-0 place-items-center rounded-md text-xs font-semibold';
 
 export default class ConnectedRepos extends PuzzleView {
 	data(params, props) {
 		const list = Array.isArray(props.repos) ? props.repos : [];
-		return { repos: list.map((repo, i) => ({ ...repo, style: `--i: ${i}` })) };
+		const loc = typeof location === 'undefined' ? null : location;
+		return {
+			repos: list.map((repo, i) => {
+				const match = rosterMatch(repo, props.plans, props.active || '');
+				const current = match?.id === props.active;
+				const open = !!match?.available && !current;
+				const status = current
+					? 'This workspace'
+					: open
+						? `${match.cards} cards`
+						: match?.reason || 'Not served by this viewer';
+				return {
+					...repo,
+					id: match?.id ?? '',
+					open,
+					href: open ? workspaceHref(match.id, loc) : false,
+					status,
+					// The served project's monogram, so the tile matches the switcher's.
+					letter: monogram(match?.name || repo.name),
+					tileClass: `${TILE} ${monogramTone(match?.name || repo.name)}`,
+					rowClass: [ROW, open ? ROW_OPEN : ROW_DOWN].join(' '),
+					style: `--i: ${i}`,
+				};
+			}),
+		};
 	}
+
+	events = {
+		open: (id, event) => {
+			if (!event.currentTarget?.hasAttribute('href')) return;
+			// Leave the browser's own gestures (new tab, new window) alone.
+			if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+			if (event.button !== undefined && event.button !== 0) return;
+			event.preventDefault();
+			switchWorkspace(id);
+		},
+	};
 }
 </script>
 
 <style>
 /* `.home-section` (the heading frame) and the `cst-rise` keyframe belong to
    Home.pzl, this component's only caller — .pzl <style> blocks are collected
-   into one sheet, so they resolve there. */
-.repos { display: flex; flex-direction: column; gap: 0.45rem; }
+   into one sheet, so they resolve there. The stagger needs the row index. */
 .repo {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
-	gap: 0.9rem;
-	border: 1px solid var(--color-border);
-	border-radius: 10px;
-	background: var(--color-surface);
-	padding: 0.7rem 1rem;
 	animation: cst-rise 0.3s ease both;
 	animation-delay: calc(var(--i) * 18ms);
 }
-.repo .r-name { font-size: 0.9rem; font-weight: 600; }
-.repo .r-path { color: var(--color-muted); font-family: var(--font-mono); font-size: 0.78rem; }
-.repo .r-desc { flex-basis: 100%; color: var(--color-body); font-size: 0.9rem; }
-.repos-note { margin: 0.6rem 0 0; color: var(--color-muted); font-size: 0.78rem; }
 </style>

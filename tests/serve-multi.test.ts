@@ -89,6 +89,7 @@ describe('multi-plan HTTP serving', () => {
       'alpha',
       'beta',
     ]);
+    const selfRepo = { name: path.basename(repo), path: '.', root: repo, kind: 'self' };
     expect(data.plans).toEqual([
       {
         id: 'root',
@@ -98,6 +99,8 @@ describe('multi-plan HTTP serving', () => {
         plan_path: 'constellation',
         cards: 1,
         default: false,
+        available: true,
+        repo: selfRepo,
       },
       {
         id: 'alpha',
@@ -107,6 +110,8 @@ describe('multi-plan HTTP serving', () => {
         plan_path: 'packages/alpha/constellation',
         cards: 26,
         default: false,
+        available: true,
+        repo: selfRepo,
       },
       {
         id: 'beta',
@@ -116,6 +121,8 @@ describe('multi-plan HTTP serving', () => {
         plan_path: 'packages/beta/constellation',
         cards: 1,
         default: true,
+        available: true,
+        repo: selfRepo,
       },
     ]);
   });
