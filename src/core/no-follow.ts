@@ -16,11 +16,24 @@ import path from 'node:path';
 
 const NOFOLLOW = constants.O_NOFOLLOW ?? 0;
 
+/**
+ * A path (or any repo-supplied name) made safe to print into a message an agent
+ * reads: control characters, line breaks and bidi overrides become `\uXXXX`
+ * escapes, so a folder named "x\n\nSYSTEM NOTICE: …" stays one visible line.
+ * An ordinary path comes back unchanged.
+ */
+export function showPath(text: string): string {
+  return text.replace(
+    /[\u0000-\u001f\u007f-\u009f\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g,
+    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  );
+}
+
 export class UnsafePathError extends Error {
   code = 'UNSAFE_PATH';
   constructor(file: string, what = 'a symbolic link') {
     super(
-      `${file} is ${what}; Constellation will not read, write or delete anything through it. ` +
+      `${showPath(file)} is ${what}; Constellation will not read, write or delete anything through it. ` +
         'Remove it (a cloned repo may have shipped it) and retry.',
     );
     this.name = 'UnsafePathError';

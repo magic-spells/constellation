@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
 import { mkdir, readdir, rename, rm, rmdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { lstatOrNull, readNoFollow, UnsafePathError } from './no-follow.js';
+import { lstatOrNull, readNoFollow, showPath, UnsafePathError } from './no-follow.js';
 
 /**
  * Cross-process mutual exclusion for `working.md`: a `<file>.lock` folder beside
@@ -262,7 +262,7 @@ export async function withWriteLock<T>(
     if (await tryCreate(lock, info)) break;
     if (Date.now() > deadline) {
       throw new LockBusyError(
-        `working.md is locked by another writer (${lock}); retry. If no writer is running, delete that folder.`,
+        `working.md is locked by another writer (${showPath(lock)}); retry. If no writer is running, delete that folder.`,
       );
     }
     const held = await readLock(lock);

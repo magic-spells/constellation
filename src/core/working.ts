@@ -3,6 +3,7 @@ import {
   access,
   mkdir,
   readFile,
+  lstat,
   readdir,
   realpath,
   rm,
@@ -12,7 +13,7 @@ import {
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { currentBranch, headSha, planRootsFor } from './git.js';
-import { codeRootFor } from './repos.js';
+import { codeRootFor, resolveCodeRoot } from './repos.js';
 import { findPlanUp, findRepoRoot, resolvePlanDir } from './resolve.js';
 import { workingClaudeMd } from './scaffold.js';
 import {
@@ -20,6 +21,7 @@ import {
   assertNotLink,
   lstatOrNull,
   readNoFollow,
+  showPath,
   UnsafePathError,
   writeNoFollow,
 } from './no-follow.js';
@@ -138,14 +140,14 @@ export class WorkingError extends Error {
 export function noWorkingRoot(from: string): WorkingError {
   return new WorkingError(
     'NO_WORKING_ROOT',
-    `Working memory needs a git repository or a Constellation plan; found neither at or above ${from}.`,
+    `Working memory needs a git repository or a Constellation plan; found neither at or above ${showPath(from)}.`,
   );
 }
 
 function noFolder(dir: string): WorkingError {
   return new WorkingError(
     'NO_WORKING_FOLDER',
-    `No working memory at ${dir}. Call working_init (or \`constellation working install-hook\`) to create it.`,
+    `No working memory at ${showPath(dir)}. Call working_init (or \`constellation working install-hook\`) to create it.`,
   );
 }
 
@@ -323,7 +325,19 @@ function describeTracked(tracked: string[]): string {
  * first (cheap lstats), then one `git ls-files`. An absent folder is fine.
  */
 export async function workingFolderProblem(target: WorkingTarget): Promise<WorkingError | null> {
-  const { dir } = await toAnchor(target);
+  const { dir, plan } = await toAnchor(target);
+  if (plan) {
+    // The anchor already fell back to the default root, but a code_root that
+    // tried to leave the repo is a repo trying to steer this: say so and stop.
+    const { escape } = await resolveCodeRoot(plan);
+    if (escape) {
+      return new WorkingError(
+        'UNSAFE_PATH',
+        `working memory not loaded: ${showPath(escape)}. Working memory never puts .constellation/ ` +
+          'or a .gitignore line outside the repository. Fix code_root in plan.md and retry.',
+      );
+    }
+  }
   const st = await lstatOrNull(dir);
   if (!st) return null;
   if (st.isSymbolicLink()) return unsafePath(dir);
@@ -337,28 +351,30 @@ export async function workingFolderProblem(target: WorkingTarget): Promise<Worki
   if ('error' in found) {
     return new WorkingError(
       'UNTRUSTED_WORKING',
-      `working memory not loaded: could not ask git what it tracks under ${dir} (${found.error}), ` +
+      `working memory not loaded: could not ask git what it tracks under ${showPath(dir)} (${showPath(found.error)}), ` +
         'so the folder is treated as one the repo shipped. Fix git here and retry.',
     );
   }
   if (found.shipped.length === 0) return null;
   return new WorkingError(
     'UNTRUSTED_WORKING',
-    `working memory not loaded: git tracks ${describeTracked(found.shipped)} under ${dir}. ` +
+    `working memory not loaded: git tracks ${describeTracked(found.shipped)} under ${showPath(dir)}. ` +
       'Files a repo ships are not this machine\'s memory, so nothing there is read or changed. ' +
-      `If they are yours, run \`git rm --cached -r ${WORKING_DIR}\` in ${parent} and commit (the files stay on disk).`,
+      `If they are yours, run \`git rm --cached -r ${WORKING_DIR}\` in ${showPath(parent)} and commit (the files stay on disk).`,
   );
 }
 
 /**
  * git for the trust check, unable to be steered by the repo or the caller: no
  * inherited GIT_* overrides (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE…), no
- * fsmonitor command, no hooks, no optional index lock, and unquoted paths.
+ * fsmonitor command, no hooks, no optional index lock, unquoted paths, and
+ * paths exactly as committed (no precomposing NFD to NFC on macOS).
  */
 const TRUST_GIT_CONFIG = [
   '-c', 'core.fsmonitor=false',
   '-c', 'core.hooksPath=/dev/null',
   '-c', 'core.quotePath=false',
+  '-c', 'core.precomposeUnicode=false',
 ];
 
 function trustGitEnv(): NodeJS.ProcessEnv {
@@ -370,66 +386,115 @@ function trustGitEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
-async function trustGit(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await exec('git', [...TRUST_GIT_CONFIG, ...args], {
+/** Run git for the trust check; stdout as raw bytes, so no name is mangled by decoding. */
+async function trustGit(cwd: string, args: string[]): Promise<Buffer> {
+  const { stdout } = (await exec('git', [...TRUST_GIT_CONFIG, ...args], {
     cwd,
     env: trustGitEnv(),
     timeout: 10_000,
-    maxBuffer: 64 * 1024 * 1024,
-  });
+    maxBuffer: 256 * 1024 * 1024,
+    encoding: 'buffer',
+  })) as unknown as { stdout: Buffer };
   return stdout;
 }
 
 /** Regular-file modes: a tracked CLAUDE.md is only harmless as one of these. */
 const REGULAR_MODES = new Set(['100644', '100755']);
+const SLASH = 0x2f;
+const TAB = 0x09;
 
 /**
  * Every index entry at or under `dir` that the repo shipped: anything but a
- * regular-file `CLAUDE.md` directly inside it (the 1.0 layout). Fail-closed: when
- * `dir` is inside a git repo, any git failure is an `error`, never "nothing
- * tracked". Outside git (no `.git` above) nothing can be tracked.
+ * regular-file `CLAUDE.md` directly inside it (the 1.0 layout). Fail-closed:
+ * inside a git repo any git or filesystem failure is an `error`, never
+ * "nothing tracked". Outside git (no `.git` above) nothing can be tracked.
  *
- * The query cannot be fooled by spelling. Paths come NUL-separated and unquoted
- * (`-z`, quotePath off) and in full from the repo top (`--full-name`), so a
- * monorepo plan's `packages/x/.constellation` is matched as itself. The pathspec
- * and the segment comparison ignore case, because on a case-insensitive disk
- * `.Constellation/working.md` is this folder. `-s` carries each entry's mode, so
- * a link or a submodule named CLAUDE.md is caught too.
+ * Matched by what the disk resolves, never by spelling. A case-insensitive or
+ * normalization-insensitive disk (APFS, NTFS) treats `.Constellation`,
+ * `.conſtellation` or an NFD `pkgé/` as this very folder, and no pathspec or
+ * string fold covers every such spelling. So git lists the whole index, as raw
+ * bytes (`-z`, quotePath and precomposeUnicode off, `--full-name` from the
+ * top). Entries are grouped by their first N path segments, N being `dir`'s depth
+ * below the top, and each distinct prefix is lstat'ed once. A prefix whose
+ * dev+ino is `dir`'s is this folder however it is spelled. `-s` gives each
+ * entry's mode, so a CLAUDE.md that is a link or a submodule counts as shipped.
  */
 async function shippedUnder(dir: string): Promise<{ shipped: string[] } | { error: string }> {
   if (!(await findRepoRoot(dir))) return { shipped: [] };
-  let out: string;
-  let folder: string[];
   try {
-    const top = (await trustGit(path.dirname(dir), ['rev-parse', '--show-toplevel'])).trim();
-    const rel = path.relative(await realpath(top), await realpath(dir));
+    const topRaw = await trustGit(path.dirname(dir), ['rev-parse', '--show-toplevel']);
+    const top = topRaw.subarray(0, topRaw.length - (topRaw.at(-1) === 0x0a ? 1 : 0));
+    const rel = path.relative(await realpath(top.toString('utf8')), await realpath(dir));
     if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
       return { error: 'the folder is not inside the repository git reports' };
     }
-    folder = rel.split(path.sep);
-    out = await trustGit(top, ['ls-files', '-s', '-z', '--full-name', '--', `:(top,icase,literal)${folder.join('/')}`]);
+    const depth = rel.split(path.sep).length;
+    const own = await lstat(dir, { bigint: true });
+    const index = await trustGit(top.toString('utf8'), ['ls-files', '-s', '-z', '--full-name']);
+
+    // Group entries by their first `depth` path segments, as byte-exact keys.
+    // One pass over the raw buffer; a name is only decoded once it matched.
+    const groups = new Map<string, { prefix: Buffer; records: Buffer[] }>();
+    for (let start = 0; start < index.length; ) {
+      let end = index.indexOf(0, start);
+      if (end === -1) end = index.length;
+      const record = index.subarray(start, end);
+      start = end + 1;
+      if (record.length === 0) continue;
+      const tab = record.indexOf(TAB);
+      if (tab <= 0) return { error: 'unreadable git ls-files output' };
+      // The end of the `depth`-th segment: the depth-th slash after the tab, or the name's end.
+      let cut = tab;
+      let seen = 0;
+      while (seen < depth) {
+        const slash = record.indexOf(SLASH, cut + 1);
+        if (slash === -1) {
+          cut = seen === depth - 1 ? record.length : -1;
+          seen = depth;
+        } else {
+          cut = slash;
+          seen += 1;
+        }
+      }
+      if (cut === -1) continue; // fewer segments than `dir` has: not under it
+      const key = record.toString('latin1', tab + 1, cut);
+      let group = groups.get(key);
+      if (!group) groups.set(key, (group = { prefix: record.subarray(tab + 1, cut), records: [] }));
+      group.records.push(record);
+    }
+
+    const shipped: string[] = [];
+    const keys = [...groups.keys()];
+    for (let i = 0; i < keys.length; i += 64) {
+      const batch = keys.slice(i, i + 64).map((k) => groups.get(k)!);
+      const hits = await Promise.all(
+        batch.map(async (group) => {
+          const at = Buffer.concat([top, Buffer.from('/'), group.prefix]);
+          const st = await lstat(at, { bigint: true }).catch((err: NodeJS.ErrnoException) => {
+            // Tracked but not on disk (deleted, or a sparse checkout): not this folder.
+            if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return null;
+            throw err;
+          });
+          return st !== null && st.dev === own.dev && st.ino === own.ino;
+        }),
+      );
+      batch.forEach((group, j) => {
+        if (!hits[j]) return;
+        for (const record of group.records) {
+          const tab = record.indexOf(TAB);
+          const mode = record.toString('latin1', 0, tab).split(' ')[0];
+          const name = record.toString('utf8', tab + 1);
+          const rest = record.toString('utf8', tab + 1 + group.prefix.length);
+          const claudeOnly = rest === `/${WORKING_CLAUDE_FILE}` && REGULAR_MODES.has(mode);
+          if (!claudeOnly) shipped.push(name);
+        }
+      });
+    }
+    return { shipped };
   } catch (err) {
     const message = err instanceof Error ? err.message.split('\n')[0] : String(err);
     return { error: message || 'git failed' };
   }
-  const lower = folder.map((s) => s.toLowerCase());
-  const shipped: string[] = [];
-  for (const entry of out.split('\0')) {
-    if (!entry) continue;
-    const tab = entry.indexOf('\t');
-    const mode = tab > 0 ? entry.slice(0, tab).split(' ')[0] : '';
-    const name = tab > 0 ? entry.slice(tab + 1) : entry;
-    const segs = name.split('/');
-    const inside = lower.every((s, i) => segs[i]?.toLowerCase() === s);
-    if (!inside) continue;
-    const rest = segs.slice(lower.length);
-    const claudeOnly =
-      rest.length === 1 &&
-      rest[0].toLowerCase() === WORKING_CLAUDE_FILE.toLowerCase() &&
-      REGULAR_MODES.has(mode);
-    if (!claudeOnly) shipped.push(name);
-  }
-  return { shipped };
 }
 
 /** Throw workingFolderProblem's refusal, if any. */
@@ -1291,17 +1356,32 @@ export async function initWorking(
  * the first of its lines becomes `.constellation/`, the rest go, nothing is
  * duplicated. An equivalent line already there (`/.constellation`, …) counts.
  */
+/**
+ * `.gitignore` is repo content too: a committed `.gitignore -> ../victim/secret.env`
+ * must never be read (its text would be copied back into the repo) or replaced.
+ * A linked one is refused with UNSAFE_PATH; a missing one reads as empty.
+ */
+async function readGitignore(file: string): Promise<string> {
+  try {
+    return await readNoFollow(file);
+  } catch (err) {
+    if (err instanceof UnsafePathError) throw asWorkingError(err);
+    return '';
+  }
+}
+
+async function writeGitignore(file: string, text: string): Promise<void> {
+  await writeNoFollow(file, text).catch((err: unknown) => {
+    throw asWorkingError(err);
+  });
+}
+
 export async function ensureGitignore(
   codeRoot: string,
 ): Promise<'added' | 'present' | 'migrated'> {
   const file = path.join(codeRoot, '.gitignore');
   return withFileLock(file, async () => {
-    let raw = '';
-    try {
-      raw = await readFile(file, 'utf8');
-    } catch {
-      raw = '';
-    }
+    const raw = await readGitignore(file);
     const lines = raw === '' ? [] : raw.replace(/\n$/, '').split('\n');
     const trimmed = lines.map((l) => l.trim());
     const present = trimmed.some((l) => EQUIVALENT_LINES.has(l));
@@ -1323,13 +1403,13 @@ export async function ensureGitignore(
           out.push(line);
         }
       }
-      await writeAtomic(file, `${out.join('\n')}\n`);
+      await writeGitignore(file, `${out.join('\n')}\n`);
       return 'migrated' as const;
     }
     if (present) return 'present' as const;
     const prefix = raw === '' || raw.endsWith('\n') ? '' : '\n';
     const block = `${prefix}${raw === '' ? '' : '\n'}${GITIGNORE_COMMENT}\n${GITIGNORE_LINE}\n`;
-    await writeAtomic(file, raw + block);
+    await writeGitignore(file, raw + block);
     return 'added' as const;
   });
 }
@@ -1418,19 +1498,19 @@ async function trackedUnder(codeRoot: string): Promise<string[]> {
  * migration step comes first.
  */
 function trackedWarning(tracked: string[], codeRoot: string, legacy: boolean): string {
-  const names = tracked.slice(0, 5).join(', ') + (tracked.length > 5 ? ', …' : '');
+  const names = describeTracked(tracked);
   const first = legacy
     ? 'first migrate .gitignore to `.constellation/` (`constellation working install-hook` or working_init), then '
     : '';
   return (
-    `tracked by git: ${names} — ${first}run \`git rm --cached -r ${WORKING_DIR}\` in ${codeRoot} ` +
+    `tracked by git: ${names} — ${first}run \`git rm --cached -r ${WORKING_DIR}\` in ${showPath(codeRoot)} ` +
     'and commit (the files stay on disk).'
   );
 }
 
 /** Does `<codeRoot>/.gitignore` still carry the pre-1.1 pair? */
 async function hasLegacyIgnore(codeRoot: string): Promise<boolean> {
-  const raw = await readFile(path.join(codeRoot, '.gitignore'), 'utf8').catch(() => '');
+  const raw = await readGitignore(path.join(codeRoot, '.gitignore'));
   return raw.split('\n').some((l) => LEGACY_GITIGNORE_LINES.includes(l.trim()));
 }
 
@@ -1438,14 +1518,14 @@ async function hasLegacyIgnore(codeRoot: string): Promise<boolean> {
 async function moveIgnoreLineLast(codeRoot: string): Promise<void> {
   const file = path.join(codeRoot, '.gitignore');
   await withFileLock(file, async () => {
-    const raw = await readFile(file, 'utf8').catch(() => '');
+    const raw = await readGitignore(file);
     const kept = raw
       .replace(/\n$/, '')
       .split('\n')
       .filter((l) => l.trim() !== GITIGNORE_LINE && l.trim() !== GITIGNORE_COMMENT);
     while (kept.length > 0 && kept[kept.length - 1].trim() === '') kept.pop();
     const head = kept.length > 0 ? `${kept.join('\n')}\n\n` : '';
-    await writeAtomic(file, `${head}${GITIGNORE_COMMENT}\n${GITIGNORE_LINE}\n`);
+    await writeGitignore(file, `${head}${GITIGNORE_COMMENT}\n${GITIGNORE_LINE}\n`);
   });
 }
 
@@ -1473,7 +1553,7 @@ export async function ensureIgnored(target: WorkingTarget): Promise<GitignoreRep
       check = still.length > 0 ? 'failed' : 'fixed';
       if (still.length > 0) {
         warnings.push(
-          `still not ignored after moving ${GITIGNORE_LINE} to the end of .gitignore: ${still.join(', ')} — check the git ignore rules by hand`,
+          `still not ignored after moving ${GITIGNORE_LINE} to the end of .gitignore: ${showPath(still.join(', '))} — check the git ignore rules by hand`,
         );
       }
     }
@@ -1575,5 +1655,5 @@ export async function installHook(
 
 /** The one-line preamble the CLI prints above the file. */
 export function workingPreamble(file: string): string {
-  return `Working memory · ${file} · authoritative for what is in flight; verify against git/worktrees before acting`;
+  return `Working memory · ${showPath(file)} · authoritative for what is in flight; verify against git/worktrees before acting`;
 }

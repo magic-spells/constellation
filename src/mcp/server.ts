@@ -65,6 +65,7 @@ import {
   upsertConnectedRepo,
 } from '../core/repos.js';
 import type { ConnectedRepo } from '../core/types.js';
+import { showPath } from '../core/no-follow.js';
 import {
   appendLog,
   dropItems,
@@ -2939,7 +2940,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         if (anchor && !(await readWorkingConfig(anchor)).config.enabled) {
           return fail(
             'WORKING_DISABLED',
-            `Working memory is switched off for ${path.dirname(anchor.dir)} ` +
+            `Working memory is switched off for ${showPath(path.dirname(anchor.dir))} ` +
               '(.constellation/config.json "enabled": false). That is the user\'s choice — do not ' +
               'change it; they can turn it back on with `constellation working on`.',
           );

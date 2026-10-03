@@ -6,6 +6,7 @@ import process from 'node:process';
 import { Command } from 'commander';
 import pc from 'picocolors';
 import { lintPlan } from '../core/lint.js';
+import { showPath } from '../core/no-follow.js';
 import { listConnectedRepos } from '../core/repos.js';
 import {
   countPlanCards,
@@ -325,12 +326,12 @@ function printGitignore(report: GitignoreReport): void {
 
 function printWorkingInit(result: WorkingInitResult): void {
   if (result.config.enabled) {
-    console.log(`${pc.green('✓')} Working memory at ${result.dir}`);
+    console.log(`${pc.green('✓')} Working memory at ${showPath(result.dir)}`);
   } else {
-    console.log(`${pc.green('✓')} Working memory off ${pc.dim(`(${result.dir}/config.json)`)}`);
+    console.log(`${pc.green('✓')} Working memory off ${pc.dim(`(${showPath(result.dir)}/config.json)`)}`);
   }
   for (const file of result.created) {
-    console.log(pc.dim(`  created ${path.relative(process.cwd(), file)}`));
+    console.log(pc.dim(`  created ${showPath(path.relative(process.cwd(), file))}`));
   }
   console.log(
     pc.dim(
@@ -359,7 +360,13 @@ const working = program
     if (!anchor) return;
     // A folder the repo shipped, or one that is a link, is neither printed nor
     // cleared — only the one line saying why goes into the session.
-    const problem = await workingFolderProblem(anchor).catch(() => null);
+    // Fail closed: a check that cannot finish is a refusal, never a pass.
+    const problem = await workingFolderProblem(anchor).catch(
+      (err: unknown) =>
+        new Error(
+          `working memory not loaded: its safety check failed (${showPath(err instanceof Error ? err.message.split('\n')[0] : String(err))}).`,
+        ),
+    );
     if (problem) {
       console.log(problem.message);
       return;
@@ -409,7 +416,7 @@ working
     if (settings.exists && !settings.config.enabled) {
       console.error(
         pc.yellow('Working memory is off for this repo') +
-          ` (${settings.path}). Turn it on first: constellation working on`,
+          ` (${showPath(settings.path)}). Turn it on first: constellation working on`,
       );
       process.exit(2);
     }
@@ -437,7 +444,7 @@ async function setWorking(
   const anchor = await requireWorkingAnchor(target);
   const result = await setWorkingConfig(anchor, patch);
   console.log(
-    `${pc.green('✓')} Working memory ${result.config.enabled ? 'on' : 'off'}, new_session ${result.config.new_session} ${pc.dim(`(${result.path})`)}`,
+    `${pc.green('✓')} Working memory ${result.config.enabled ? 'on' : 'off'}, new_session ${result.config.new_session} ${pc.dim(`(${showPath(result.path)})`)}`,
   );
   printGitignore(result);
   if (result.config.enabled && !(await readWorkingRaw(anchor))) {
@@ -478,7 +485,7 @@ working
     const anchor = await requireWorkingAnchor(target);
     const settings = await readWorkingConfig(anchor);
     console.log(
-      `Working memory settings · ${settings.path}${settings.exists ? '' : pc.dim(' (no file — defaults)')}`,
+      `Working memory settings · ${showPath(settings.path)}${settings.exists ? '' : pc.dim(' (no file — defaults)')}`,
     );
     console.log(`  enabled      ${settings.config.enabled}`);
     console.log(`  new_session  ${settings.config.new_session}`);
