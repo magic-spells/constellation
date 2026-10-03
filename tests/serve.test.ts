@@ -180,7 +180,7 @@ describe('constellation serve — port selection', () => {
     process.platform === 'win32' ? 'tsx.cmd' : 'tsx',
   );
 
-  /** Run `serve` until it prints its Local: URL, then kill it. */
+  /** Run `serve` until its banner is complete, then kill it. */
   function serveUntilBanner(port: number): Promise<string> {
     return new Promise((resolve, reject) => {
       const child = spawn(
@@ -200,7 +200,9 @@ describe('constellation serve — port selection', () => {
       );
       child.stdout.on('data', (chunk) => {
         out += String(chunk);
-        if (out.includes('Local:')) done(() => resolve(out));
+        // `Plan:` is the banner's last line, after `Port:` — stdout to a pipe
+        // can arrive in several chunks, so stopping at `Local:` raced the note.
+        if (out.includes('Plan:')) done(() => resolve(out));
       });
       child.stderr.on('data', (chunk) => (out += String(chunk)));
       child.on('error', (err) => done(() => reject(err)));

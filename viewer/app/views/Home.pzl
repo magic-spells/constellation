@@ -19,7 +19,7 @@
       {/if}
     </div>
 
-    <ConnectedRepos repos={ repos } />
+    <ConnectedRepos repos={ repos } plans={ plans } active={ activePlan } />
   </div>
 </puzzle-view>
 
@@ -96,6 +96,9 @@ export default class Home extends PuzzleView {
 			hasPlanCard: !!planCard,
 			planBody: planCard?.body ?? '',
 			repos: reposOf(planCard),
+			// The served workspaces, so each connected repo can link into its own.
+			plans: plan?.plans ?? [],
+			activePlan: plan?.activePlan || '',
 		};
 	}
 

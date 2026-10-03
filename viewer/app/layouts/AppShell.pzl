@@ -14,18 +14,14 @@
       items={ navItems }
       activePath={ activePath }>
       <!--
-        The brand tile is size-8 centred on the nav icons' column: a row icon's
-        centre is 1.875rem in (list p-2 + row px-3 + half of size-5), so the tile
-        starts at 0.875rem (pl-3.5) in both rail states and collapsing only has to
-        hide the label (styles.css, .cnav-brand-label).
+        THE WORKSPACE SWITCHER. Its top sits one panel inset down and it is as
+        tall as the panel header (h-14), so the project name shares the header
+        title's line. The monogram tile is size-8 centred on the nav icons'
+        column (1.875rem in: px-2 here + the button's px-1.5 + half the tile),
+        so collapsing only has to hide the label (styles.css, .cnav-brand-label).
       -->
-      <div slot="header" class="cnav-brand flex h-14 items-center gap-1.5 overflow-hidden pl-3.5 pr-3">
-        <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-tint text-brand">
-          <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 3l1.7 4.1L18 8.8l-4.3 1.7L12 14.6l-1.7-4.1L6 8.8l4.3-1.7zM18.5 15l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8zM5.5 14l.6 1.5 1.5.6-1.5.6L5.5 18l-.6-1.3L3.4 16l1.5-.5z"/>
-          </svg>
-        </span>
-        <span class="cnav-brand-label min-w-0 truncate text-sm font-semibold tracking-tight text-rail-ink transition-opacity duration-200 motion-reduce:transition-none">Constellation</span>
+      <div slot="header" class="px-2 pt-panel-inset">
+        <WorkspaceSwitcher plans={ plans } active={ activePlan } projectName={ projectName }/>
       </div>
     </Sidebar>
   </div>
@@ -57,17 +53,10 @@
             <path d="M4 7h16M4 12h16M4 17h16"/>
           </svg>
         </button>
-        <!--
-          One slot, two readings. Serving a single plan, the header names it;
-          serving several, the name becomes the control that picks between
-          them — same position, same weight, now clickable.
-        -->
-        {#if multiPlan}
-          <PlanSwitcher plans={ plans } active={ activePlan }/>
-        {:else}
-          <h1 class="min-w-0 truncate text-sm font-semibold text-ink">{ projectName }</h1>
-        {/if}
-        <!-- Below sm the plan name needs the room; Overview still shows sync. -->
+        <!-- The page, not the project: the project names itself at the top of
+             the rail, in the workspace switcher. -->
+        <h1 class="min-w-0 truncate text-sm font-semibold text-ink">{ pageTitle }</h1>
+        <!-- Below sm the page title needs the room; Overview still shows sync. -->
         <div class="hidden shrink-0 sm:block">
           <SyncBadge/>
         </div>
@@ -139,6 +128,9 @@
     open={ drawerOpen }
     items={ navItems }
     activePath={ activePath }
+    plans={ plans }
+    activePlan={ activePlan }
+    projectName={ projectName }
     @close={ closeDrawer }
     @leave={ leaveVia }
     @hide={ drawerHidden }/>
@@ -156,7 +148,7 @@ import Toaster from '../components/ui/Toaster.pzl';
 import CardList from '../components/CardList.pzl';
 import CommandPalette from '../components/CommandPalette.pzl';
 import CreateCardDialog from '../components/CreateCardDialog.pzl';
-import PlanSwitcher from '../components/PlanSwitcher.pzl';
+import WorkspaceSwitcher from '../components/WorkspaceSwitcher.pzl';
 import SyncBadge from '../components/SyncBadge.pzl';
 import AppearanceSwitcher from '../components/AppearanceSwitcher.pzl';
 import NavDrawer from '../components/NavDrawer.pzl';
@@ -327,10 +319,29 @@ export default class AppShell extends PuzzleView {
 		const listOnly = split && narrow && !region.handle;
 		const cardOnly = split && narrow && !!region.handle;
 		const plan = this.ctx.store.findOne('plan', 'plan');
+		const plans = plan?.plans ?? [];
+		const activePlan = plan?.activePlan || '';
+		const activePath = this._activePath(region, url);
+		// The header names the PAGE: the rail row that owns this route, so a card
+		// page reads as its type's list ("API endpoints"), as the rail does.
+		// A type with no cards has no row, so its folder names it instead.
+		const pageTitle =
+			navItems.find((item) => item.href && item.href === activePath)?.label ??
+			(region.folder ? TYPE_META[typeForFolder(region.folder)]?.label : '') ??
+			'';
+		// No product wordmark: the project is the name. Its live PLAN-PROJECT
+		// name, else the roster's, read at server start.
+		const projectName =
+			project?.frontmatter?.name ||
+			project?.name ||
+			plans.find((p) => p.id === activePlan)?.name ||
+			'';
 
 		return {
 			navItems,
-			activePath: this._activePath(region, url),
+			activePath,
+			pageTitle,
+			docTitle: [projectName, region.handle || pageTitle].filter(Boolean).join(' · '),
 			drawerOpen: this._drawerOpenedOn != null && this._drawerOpenedOn === this.route.path,
 			paletteOpen: this.getData().paletteOpen === true,
 			paletteSource: this._paletteSource ?? null,
@@ -338,16 +349,13 @@ export default class AppShell extends PuzzleView {
 			// is unmounted the moment we navigate to the card it just created.
 			createOpen: this.getData().createOpen === true,
 			createType: this.getData().createType || '',
-			projectName: project?.frontmatter?.name || project?.name || 'Constellation',
+			projectName,
 			repoUrl: plan?.repoUrl || '',
 
-			// Multi-plan serving (lib/plans.js). All three are fixed for the life
-			// of the page — the roster lands once at boot and switching plans is a
-			// reload — so this is a straight read, not something that changes under
-			// the shell while it is mounted.
-			multiPlan: plan?.multi === true,
-			plans: plan?.plans ?? [],
-			activePlan: plan?.activePlan || '',
+			// Workspaces (lib/workspaces.js). Fixed for the life of the page — the
+			// roster lands once at boot and switching is a reload.
+			plans,
+			activePlan,
 
 			split,
 			showList: split && !cardOnly,
@@ -408,6 +416,22 @@ export default class AppShell extends PuzzleView {
 			this.refresh();
 		};
 		this._narrow?.addEventListener?.('change', this._onNarrow);
+		this._syncTitle();
+	}
+
+	afterUpdate() {
+		this._syncTitle();
+	}
+
+	// The tab reads "<project> · <page>". Routes carry no meta.title, so the
+	// router leaves document.title alone and the shell — the one place that
+	// knows both halves — owns it. This runs while the navigation renders, ahead
+	// of its commit, so the route announcement reads the new title.
+	_syncTitle() {
+		const title = this.getData()?.docTitle;
+		if (title && typeof document !== 'undefined' && document.title !== title) {
+			document.title = title;
+		}
 	}
 
 	destroyed() {

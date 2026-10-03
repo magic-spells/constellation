@@ -291,6 +291,19 @@ constellation serve     # http://localhost:4747 (walks upward if busy; assets sh
 npm run build:viewer    # only when developing from source
 ```
 
+The server only answers requests addressed to itself (`localhost`, `127.0.0.1` or
+`[::1]` on its own port), and only accepts edits from pages it served, so no other
+website can read or change your plan. To view it through a **forwarded or proxied
+port** (`ssh -L 8080:localhost:4747`, VS Code / Codespaces port forwarding, a dev
+proxy), name that port's loopback origin:
+
+```sh
+constellation serve --dev-origin http://localhost:8080
+```
+
+If the plan's `PLAN-PROJECT` lists `connected_repos`, the viewer serves those repos
+too, and the project name at the top of the sidebar switches between them.
+
 In an agent session you don't need the CLI — ask Claude to open the viewer and it
 calls the `start_viewer` MCP tool, which returns the URL (`stop_viewer` closes it).
 

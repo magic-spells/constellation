@@ -1,0 +1,253 @@
+<puzzle-view>
+  <!-- The wrapper is the "inside" for both dismiss paths: keys while focus is
+       within, and pointerdown anywhere else. The popover is fixed-positioned
+       but stays in this subtree, so a click on it is still inside. -->
+  <div class="relative" @keydown={ onKey(event) } @pointerdown:outside={ dismiss }>
+    {#if switchable}
+      <button
+        type="button"
+        ref="trigger"
+        class={ triggerClass }
+        title={ current.name }
+        aria-haspopup="listbox"
+        aria-expanded={ open ? 'true' : 'false' }
+        aria-controls={ panelId }
+        data-workspace-trigger
+        @click={ toggle }>
+        <span class={ current.tileClass } aria-hidden="true">{ current.letter }</span>
+        <span class={ labelClass }>{ current.name }</span>
+        <svg class={ chevronClass } viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <path d="M6.5 8l3.5-3.5L13.5 8M6.5 12l3.5 3.5 3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    {:else}
+      <div class={ staticClass } title={ current.name }>
+        <span class={ current.tileClass } aria-hidden="true">{ current.letter }</span>
+        <span class={ labelClass }>{ current.name }</span>
+      </div>
+    {/if}
+
+    {#if open}
+      <!-- NOT A MODAL, like the appearance popover: anchored to the trigger
+           (fixed, so the rail's clipping header can't cut it off), dismissed by
+           Escape, a pick, or a click anywhere else. -->
+      <div
+        id={ panelId }
+        ref="panel"
+        role="listbox"
+        aria-label="Workspaces"
+        class="fixed z-50 max-h-96 w-72 max-w-workspace-max overflow-y-auto rounded-xl border border-border bg-surface-raised p-1.5 text-body shadow-popover"
+        style={ panelStyle }>
+        {#for group in groups}
+          <div key={ group.label } role="group" aria-label={ group.label }>
+            <p class="px-2 pb-1 pt-2 text-xs font-medium text-muted" aria-hidden="true">{ group.label }</p>
+            {#for item in group.items}
+              <div
+                key={ item.id }
+                role="option"
+                tabindex="-1"
+                data-workspace-item
+                data-id={ item.id }
+                aria-selected={ item.active ? 'true' : 'false' }
+                aria-disabled={ item.available ? false : 'true' }
+                class={ item.rowClass }
+                @click={ pick(item.id) }>
+                <span class={ item.tileClass } aria-hidden="true">{ item.letter }</span>
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-sm text-ink">{ item.name }</span>
+                  {#if item.detail}
+                    <span class="block truncate text-xs text-muted">{ item.detail }</span>
+                  {/if}
+                </span>
+                {#if item.available}
+                  <span class="shrink-0 text-xs tabular-nums text-muted">{ item.cards }</span>
+                {/if}
+                {#if item.active}
+                  <svg class="size-4 shrink-0 text-brand" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M5 10l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                {:else}
+                  <span class="size-4 shrink-0" aria-hidden="true"></span>
+                {/if}
+              </div>
+            {/for}
+          </div>
+        {/for}
+      </div>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import { switchWorkspace, workspaceModel } from '../lib/workspaces.js';
+
+// WorkspaceSwitcher — the project at the top of the rail (and of the phone
+// drawer): a monogram tile, the project's name and a chevron, opening a list of
+// every workspace the server serves — this repo's plan(s), then its connected
+// repos (lib/workspaces.js builds the rows). Picking one reloads into it.
+// With nothing to switch to it is just the tile and the name.
+//
+// Props
+//   plans        the roster (GET /api/plans)
+//   active       the plan id this page is scoped to
+//   projectName  the live PLAN-PROJECT name
+//   variant      'rail' (default) or 'drawer' — row height and colour roles
+//
+// The collapsed rail hides the label and chevron through `.cnav-brand-label`
+// (styles.css), leaving the tile on the nav icons' column.
+
+let uid = 0;
+
+const TILE = 'grid shrink-0 place-items-center rounded-lg font-semibold';
+
+// `pt-px` on the rail: the panel header sits inside the panel's 1px border, so
+// its content box starts 13px down. The button keeps the panel's 12px top and
+// h-14, and the pixel puts its content on the header title's line.
+const BOX = {
+  rail: 'flex h-14 w-full items-center gap-2.5 rounded-lg px-1.5 pt-px text-left text-rail-ink',
+  drawer: 'flex h-10 w-full items-center gap-2.5 rounded-lg px-1.5 text-left text-rail-ink',
+};
+const INTERACTIVE =
+  'cursor-pointer transition-colors hover:bg-rail-active focus-visible:bg-rail-active ' +
+  'outline-ring focus-visible:outline-2 focus-visible:-outline-offset-2';
+// Held while open. Exactly one of idle/open: same-specificity utilities
+// resolve by stylesheet order, not class order.
+const OPEN = 'bg-rail-active';
+
+const LABEL =
+  'cnav-brand-label min-w-0 flex-1 truncate text-sm font-semibold tracking-tight ' +
+  'transition-opacity duration-200 motion-reduce:transition-none';
+const CHEVRON =
+  'cnav-brand-label size-4 shrink-0 text-rail-muted transition-opacity duration-200 motion-reduce:transition-none';
+
+const ROW = 'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left outline-none select-none';
+const ROW_OPEN = 'cursor-pointer hover:bg-surface-sunken focus:bg-surface-sunken';
+const ROW_DOWN = 'cursor-not-allowed opacity-60';
+
+export default class WorkspaceSwitcher extends PuzzleView {
+  _id = `workspace-${++uid}`;
+
+  data(params, props) {
+    const model = workspaceModel(props.plans, props.active || '', props.projectName || '');
+    const open = model.switchable && this.getData()?.open === true;
+    const pos = this.getData()?.pos;
+    const box = BOX[props.variant] ?? BOX.rail;
+    return {
+      open,
+      switchable: model.switchable,
+      panelId: `${this._id}-panel`,
+      panelStyle: pos ? `left: ${pos.left}px; top: ${pos.top}px;` : '',
+      current: { ...model.current, tileClass: `${TILE} size-8 text-sm ${model.current.tone}` },
+      triggerClass: [box, INTERACTIVE, open ? OPEN : ''].join(' '),
+      staticClass: box,
+      labelClass: LABEL,
+      chevronClass: CHEVRON,
+      groups: model.groups.map((group) => ({
+        label: group.label,
+        items: group.items.map((item) => ({
+          ...item,
+          tileClass: `${TILE} size-7 text-xs ${item.tone}`,
+          rowClass: [ROW, item.available ? ROW_OPEN : ROW_DOWN].join(' '),
+        })),
+      })),
+    };
+  }
+
+  mounted() {
+    // A resize moves the trigger out from under a fixed popover; close it.
+    this._onResize = () => this._close(false);
+    window.addEventListener('resize', this._onResize);
+  }
+
+  destroyed() {
+    window.removeEventListener('resize', this._onResize);
+  }
+
+  _items() {
+    return [...(this.refs.panel?.querySelectorAll('[data-workspace-item]:not([aria-disabled="true"])') ?? [])];
+  }
+
+  _open() {
+    const rect = this.refs.trigger?.getBoundingClientRect();
+    const pos = rect ? { left: Math.round(rect.left), top: Math.round(rect.bottom + 4) } : null;
+    this.setData({ open: true, pos });
+    this.refresh();
+    requestAnimationFrame(() => {
+      const items = this._items();
+      (items.find((el) => el.getAttribute('aria-selected') === 'true') ?? items[0])?.focus();
+    });
+  }
+
+  _close(refocus) {
+    if (!this.getData()?.open) return;
+    this.setData({ open: false });
+    this.refresh();
+    if (refocus) this.refs.trigger?.focus();
+  }
+
+  _move(event, step) {
+    event.preventDefault();
+    const items = this._items();
+    if (items.length === 0) return;
+    const at = items.indexOf(document.activeElement);
+    const next =
+      step === 'first' ? 0 : step === 'last' ? items.length - 1 : (at + step + items.length) % items.length;
+    items[at === -1 && step === -1 ? items.length - 1 : next]?.focus();
+  }
+
+  events = {
+    toggle: () => (this.getData()?.open ? this._close(false) : this._open()),
+    dismiss: () => this._close(false),
+
+    onKey: (event) => {
+      const open = this.getData()?.open === true;
+      if (!open) {
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          if (!event.target.closest?.('[data-workspace-trigger]')) return;
+          event.preventDefault();
+          this._open();
+        }
+        return;
+      }
+      switch (event.key) {
+        case 'Escape':
+          // Stop here: inside the phone drawer, Escape would also close the sheet.
+          event.preventDefault();
+          event.stopPropagation();
+          this._close(true);
+          return;
+        case 'ArrowDown':
+          return this._move(event, 1);
+        case 'ArrowUp':
+          return this._move(event, -1);
+        case 'Home':
+          return this._move(event, 'first');
+        case 'End':
+          return this._move(event, 'last');
+        case 'Enter':
+        case ' ': {
+          const id = event.target.closest?.('[data-workspace-item]')?.dataset?.id;
+          if (!id) return;
+          event.preventDefault();
+          this.events.pick(id);
+          return;
+        }
+        case 'Tab':
+          this._close(false);
+          return;
+      }
+    },
+
+    pick: (id) => {
+      const row = this.refs.panel?.querySelector(`[data-workspace-item][data-id="${CSS.escape(id)}"]`);
+      if (row?.getAttribute('aria-disabled') === 'true') return;
+      if (id === (this.props.active || '')) {
+        this._close(true);
+        return;
+      }
+      switchWorkspace(id);
+    },
+  };
+}
+</script>

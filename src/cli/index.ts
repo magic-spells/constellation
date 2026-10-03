@@ -302,10 +302,15 @@ program
   .option('--plan <id>', 'set the default plan without filtering the served set')
   .option('--no-open', 'do not open the browser')
   .option('--readonly', 'disable editing from the browser')
+  .option(
+    '--dev-origin <origin>',
+    'view through a forwarded or proxied port (ssh -L, VS Code, the puzzle dev proxy): ' +
+      'also accept that loopback Host and Origin, e.g. http://localhost:8080',
+  )
   .description('Serve a website rendering the plan, editable in place')
   .action(async (
     target: string | null | undefined,
-    opts: { port: string; plan?: string; open: boolean; readonly?: boolean },
+    opts: { port: string; plan?: string; open: boolean; readonly?: boolean; devOrigin?: string },
   ) => {
     const explicit = target !== null && target !== undefined;
     let root: string;
@@ -380,6 +385,7 @@ program
               planRoot: root,
               port,
               readonly: opts.readonly ?? false,
+              devOrigins: opts.devOrigin ? [opts.devOrigin] : undefined,
             })
           : await startServer({
               plans: discovered as DiscoveredPlan[],
@@ -387,6 +393,7 @@ program
               defaultPlan,
               port,
               readonly: opts.readonly ?? false,
+              devOrigins: opts.devOrigin ? [opts.devOrigin] : undefined,
             });
       } catch (err) {
         const code = (err as NodeJS.ErrnoException)?.code;
@@ -458,12 +465,18 @@ program
           /* a watcher or concurrent edit can make banner garnish unavailable */
         }
         const mark = plan.id === running.defaultPlan ? '•' : ' ';
+        const from = plan.repo.kind === 'connected' ? pc.dim(`  ↳ ${plan.repo.path}`) : '';
         console.log(
-          `      ${mark} ${plan.id.padEnd(18)}${plan.name.padEnd(30)}${cards}`,
+          `      ${mark} ${plan.id.padEnd(18)}${plan.name.padEnd(30)}${String(cards).padEnd(6)}${from}`,
         );
       }
     } else {
       line('Plan:', planLabel);
+    }
+    // Declared connected repos that could not be served stay visible here and
+    // as disabled rows in the viewer's workspace switcher.
+    for (const down of running.unavailable) {
+      line('Skip:', pc.yellow(down.repo.name) + pc.dim(`  ${down.reason}`));
     }
     if (opts.readonly) line('Mode:', pc.dim('read-only (browser edits disabled)'));
 

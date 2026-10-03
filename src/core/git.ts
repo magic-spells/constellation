@@ -1,10 +1,11 @@
 import { execFile } from 'node:child_process';
-import { readFile, realpath, writeFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { isHandleShaped, typeForHandle } from './handles.js';
 import { parseFile } from './parse.js';
 import { codeRootFor } from './repos.js';
+import { writeAtomic } from './writer.js';
 
 const exec = promisify(execFile);
 
@@ -117,11 +118,9 @@ export async function readSyncPoint(planRoot: string): Promise<SyncPoint | null>
 }
 
 async function writeSyncMarker(planRoot: string, marker: SyncMarker): Promise<void> {
-  await writeFile(
-    path.join(planRoot, SYNC_FILE),
-    `${JSON.stringify(marker, null, 2)}\n`,
-    'utf8',
-  );
+  // Temp + rename replaces a symlinked `.sync.json` instead of writing through
+  // it, so the marker can never land outside the plan folder.
+  await writeAtomic(path.join(planRoot, SYNC_FILE), `${JSON.stringify(marker, null, 2)}\n`);
 }
 
 export async function writeSyncPoint(

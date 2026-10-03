@@ -44,6 +44,10 @@
 	   and a height cap that keeps it inside the window under the header. */
 	--spacing-appearance: 22rem;
 	--spacing-appearance-h: calc(100dvh - 5rem);
+
+	/* The workspace popover (components/WorkspaceSwitcher.pzl) never runs past
+	   a phone's 16px gutters. */
+	--spacing-workspace-max: calc(100vw - 2rem);
 }
 
 @layer base {
@@ -201,10 +205,11 @@
 /*
  * COLLAPSED RAIL.
  *
- * The brand tile sits on the nav icons' centre line (1.875rem, half the
- * collapsed rail) in both states, so collapsing only has to drop the label. The
- * brand lives in a consumer-owned header slot, so Sidebar can't style it; our
- * copy publishes `data-collapsed` on the nav and the slot reacts here.
+ * The workspace switcher's monogram sits on the nav icons' centre line
+ * (1.875rem, half the collapsed rail) in both states, so collapsing only has to
+ * drop its name and chevron. It lives in a consumer-owned header slot, so
+ * Sidebar can't style it; our copy publishes `data-collapsed` on the nav and
+ * the slot reacts here.
  */
 [data-collapsed='true'] .cnav-brand-label {
 	opacity: 0;

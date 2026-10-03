@@ -53,6 +53,21 @@ export function planFromHash(hash) {
 	return match ? match[1] : null;
 }
 
+/**
+ * The fragment `hash` re-scoped to plan `id`, keeping its route:
+ *
+ *   '#/api/API-TICKETS', 'root'      → '#/p/root/api/API-TICKETS'
+ *   '#/p/old-alias/api/X', 'puzzle'  → '#/p/puzzle/api/X'
+ *   '' / '#' / '#/', 'root'          → '#/p/root/'
+ */
+export function scopeHash(hash, id) {
+	let rest = String(hash ?? '').replace(/^#/, '');
+	const scoped = /^\/p\/[^/?#]+(.*)$/.exec(rest);
+	if (scoped) rest = scoped[1];
+	if (!rest.startsWith('/')) rest = `/${rest}`;
+	return `#/p/${id}${rest}`;
+}
+
 /** The Puzzle `routerBase` for a plan; `''` (no base) for the default plan. */
 export function routerBaseFor(id) {
 	return id ? `/p/${id}` : '';

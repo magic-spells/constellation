@@ -6,13 +6,12 @@
     @cancel={ onCancel(event) }
     @click={ onBackdrop(event) }>
     <div class="flex h-full flex-col">
-      <div class="flex h-14 shrink-0 items-center gap-2 pl-3.5 pr-2">
-        <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-tint text-brand" aria-hidden="true">
-          <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3l1.7 4.1L18 8.8l-4.3 1.7L12 14.6l-1.7-4.1L6 8.8l4.3-1.7zM18.5 15l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8zM5.5 14l.6 1.5 1.5.6-1.5.6L5.5 18l-.6-1.3L3.4 16l1.5-.5z"/>
-          </svg>
-        </span>
-        <h2 id={ titleId } class="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">Constellation</h2>
+      <div class="flex h-14 shrink-0 items-center gap-2 pl-2 pr-2">
+        <h2 id={ titleId } class="sr-only">Navigation</h2>
+        <!-- The same switcher as the rail's, at the drawer's head. -->
+        <div class="min-w-0 flex-1">
+          <WorkspaceSwitcher variant="drawer" plans={ plans } active={ activePlan } projectName={ projectName }/>
+        </div>
         <button
           type="button"
           class="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-rail-muted transition-colors hover:bg-rail-active hover:text-rail-ink outline-ring focus-visible:outline-2"
@@ -58,6 +57,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import WorkspaceSwitcher from './WorkspaceSwitcher.pzl';
 import { reducedMotion } from '../lib/motion.js';
 
 // NavDrawer — the phone's navigation: below md the rail is gone and this
@@ -80,6 +80,7 @@ import { reducedMotion } from '../lib/motion.js';
 //   open        whether the sheet is showing
 //   items       the shell's navItems ({ group } | { label, href, path, icon, badge })
 //   activePath  the href of the current row
+//   plans, activePlan, projectName   for the WorkspaceSwitcher at its head
 // Callbacks
 //   @close()        asked for on Escape, backdrop or the close button
 //   @leave(path)    a link was clicked: close, then navigate to `path`
@@ -103,6 +104,9 @@ export default class NavDrawer extends PuzzleView {
     const items = Array.isArray(props.items) ? props.items : [];
     return {
       titleId: this._titleId,
+      plans: props.plans ?? [],
+      activePlan: props.activePlan || '',
+      projectName: props.projectName || '',
       rows: items.map((item, i) =>
         item.group
           ? { key: `group:${item.group}`, group: item.group }

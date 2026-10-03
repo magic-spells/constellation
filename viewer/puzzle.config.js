@@ -3,6 +3,12 @@ export default {
 	dev: {
 		// The Constellation dev API (`npm run serve:examples`) listens on 4747.
 		//
+		// The proxy forwards the browser's Host and Origin unchanged
+		// (localhost:3000), which the server's Host/Origin guard refuses unless
+		// told otherwise — hence `--dev-origin http://localhost:3000` on
+		// serve:examples, and `--strict-port` on dev:viewer so the dev server
+		// fails loudly instead of drifting to a port the API doesn't allow.
+		//
 		// SSE spike (2026-08-13, puzzle 0.6.0 dev CLI): `/events` STREAMS through
 		// the Go dev proxy — `data: connected` arrives immediately on connect and
 		// `data: change` lands within ~1s of a file edit, byte-for-byte identical

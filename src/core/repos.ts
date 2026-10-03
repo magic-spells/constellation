@@ -1,7 +1,13 @@
 import path from 'node:path';
-import { readFile } from 'node:fs/promises';
+import { lstat, readFile, realpath, stat } from 'node:fs/promises';
 import { parseFile } from './parse.js';
-import { resolvePlanDir } from './resolve.js';
+import {
+  discoverPlans,
+  findRepoRoot,
+  includeDiscoveredPlan,
+  resolvePlanDir,
+  type DiscoveredPlan,
+} from './resolve.js';
 import type { ConnectedRepo } from './types.js';
 
 /**
@@ -131,6 +137,114 @@ export async function listConnectedRepos(
       return { ...r, reachable: planRoot !== null, planRoot };
     }),
   );
+}
+
+/**
+ * A connected repo as a viewer workspace: its plans, discovered the way `serve`
+ * discovers the home repo's (bounded BFS that never enters another `.git`), or
+ * the reason it cannot be served. One level only — the connected repo's own
+ * `connected_repos` are never read here.
+ */
+export type ConnectedWorkspace =
+  | {
+      repo: ConnectedRepo;
+      /** The declared path, resolved against the home repo root. */
+      abs: string;
+      available: true;
+      /** The connected repo's git root: its git state and asset fallback. */
+      gitRoot: string;
+      /** Where its plans were discovered from; plan paths are relative to this. */
+      scanRoot: string;
+      plans: DiscoveredPlan[];
+      /** Real plans refused anyway (a `code_root` outside the repo). */
+      rejected: RejectedPlan[];
+    }
+  | { repo: ConnectedRepo; abs: string; available: false; reason: string };
+
+export interface RejectedPlan {
+  plan: DiscoveredPlan;
+  reason: string;
+}
+
+/**
+ * Resolve every `connected_repos` entry on the home plan into a workspace.
+ * Never throws for a bad entry: a missing path, a non-git directory or a repo
+ * without a plan comes back `available: false` with a reason.
+ */
+export async function discoverConnectedWorkspaces(
+  homePlanRoot: string,
+): Promise<ConnectedWorkspace[]> {
+  const repos = await readConnectedRepos(homePlanRoot);
+  return Promise.all(
+    repos.map(async (repo): Promise<ConnectedWorkspace> => {
+      const abs = path.isAbsolute(repo.path)
+        ? path.resolve(repo.path)
+        : path.resolve(repoRootOf(homePlanRoot), repo.path);
+      const down = (reason: string): ConnectedWorkspace => ({
+        repo,
+        abs,
+        available: false,
+        reason,
+      });
+      try {
+        const info = await stat(abs).catch(() => null);
+        if (!info) return down(`Path not found: ${repo.path}`);
+        if (!info.isDirectory()) return down(`Not a directory: ${repo.path}`);
+        const gitRoot = await findRepoRoot(abs);
+        if (!gitRoot) return down(`Not a git repository: ${repo.path}`);
+        // A path naming the plan folder itself scans from the folder above it.
+        const direct = await resolvePlanDir(abs);
+        const scanRoot = direct && path.resolve(direct) === abs ? path.dirname(abs) : abs;
+        let plans = await discoverPlans(scanRoot);
+        if (direct) plans = await includeDiscoveredPlan(plans, scanRoot, direct);
+        // Stricter than local discovery, because these plans are served and
+        // written from another repo's viewer: a plan needs a real plan.md, and
+        // its folder must be a real directory whose real path stays inside the
+        // connected repo — no symlink out to node_modules or anywhere else.
+        const realScan = await realpath(scanRoot);
+        const kept: DiscoveredPlan[] = [];
+        for (const plan of plans) {
+          if (await isServablePlan(plan.root, realScan)) kept.push(plan);
+        }
+        if (kept.length === 0) return down(`No constellation/ plan in ${repo.path}`);
+        // A plan's `code_root` is the connected repo's own, untrusted say-so,
+        // and every code read (style assets, metrics, drift) resolves under
+        // it. One whose real path leaves the repo is refused, reported rather
+        // than dropped so it never disappears silently.
+        const realGit = await realpath(gitRoot);
+        plans = [];
+        const rejected: RejectedPlan[] = [];
+        for (const plan of kept) {
+          const real = await realpath(plan.codeRoot).catch(() => null);
+          if (real && (real === realGit || real.startsWith(realGit + path.sep))) plans.push(plan);
+          else {
+            // Identified by its plan folder, so nothing outside the repo (the
+            // escaping code_root's name) shapes its id or paths.
+            const home = path.dirname(plan.root);
+            const relPath = path.relative(scanRoot, home).split(path.sep).join('/');
+            rejected.push({
+              plan: { ...plan, codeRoot: home, relPath },
+              reason: `code_root leaves the repo: ${repo.path}`,
+            });
+          }
+        }
+        return { repo, abs, available: true, gitRoot, scanRoot, plans, rejected };
+      } catch (err) {
+        return down(err instanceof Error ? err.message : String(err));
+      }
+    }),
+  );
+}
+
+async function isServablePlan(planRoot: string, realRepoRoot: string): Promise<boolean> {
+  try {
+    if ((await lstat(planRoot)).isSymbolicLink()) return false;
+    if (!(await stat(path.join(planRoot, 'plan.md'))).isFile()) return false;
+    const real = await realpath(planRoot);
+    return real.startsWith(realRepoRoot + path.sep);
+  } catch {
+    return false;
+  }
 }
 
 /** Upsert an entry by name (replacing any existing entry with the same name). */
