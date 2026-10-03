@@ -5,6 +5,7 @@ status: built
 connections:
   - FILE-REPOS
   - FILE-RESOLVE
+  - FILE-SERVE
 section: format
 order: 50
 notes:
@@ -37,6 +38,10 @@ siblings sit ([[DECISION-MONOREPO-CODE-ROOT]]).
 sibling. **Plan resolution still never crosses a repo boundary** on its own ([[FILE-RESOLVE]])
 — a sibling is reached only when explicitly named. Management tools: `list_connected_repos`,
 `add_connected_repo` (`reciprocate` writes the reverse link too), `remove_connected_repo`.
+
+The viewer serves them too: `constellation serve` adds the launching repo's connected repos as
+workspaces in the rail's switcher ([[FEATURE-WORKSPACE-SWITCHER]], [[FILE-SERVE]]) — one level
+deep, fixed at startup, unreachable ones listed as unavailable with the reason.
 
 The same mechanism also routes *inside* one repo: a monorepo root carries a signpost `plan.md`
 whose `connected_repos` names the package plans, so `repo:` reaches a package without a full

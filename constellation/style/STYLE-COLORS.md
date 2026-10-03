@@ -84,9 +84,10 @@ Four text steps exist so quiet things can be quiet without inventing a grey.
 `muted` to "soften" a paragraph is how a page ends up with no hierarchy at all.
 
 Backgrounds mark state, borders do not: a selected row is `brand-tint`, never a
-coloured border. `brand` means *you can click this* — it carries no meaning
-about what something **is**. That job belongs to [[STYLE-UTILITY-COLORS]] and
-[[STYLE-CARD-TYPES]].
+coloured border. The one exception is the rail's active row in Observatory light,
+a near-white raised chip, because the tint sat too close to the grey frame.
+`brand` means *you can click this* — it carries no meaning about what something
+**is**. That job belongs to [[STYLE-UTILITY-COLORS]] and [[STYLE-CARD-TYPES]].
 
 Deliberately absent: an `info` token. A neutral notice uses `muted` on
 `surface-sunken`; adding a blue for it would collide with `brand` and teach

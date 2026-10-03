@@ -30,18 +30,19 @@ It also has to be invisible to everything that reads the plan — the index, lin
 
 ## Decision
 
-A gitignored `.constellation/` folder at the plan's code root, sibling to
-`constellation/`, holding `working.md`, `log/YYYY-MM-DD.md` and a committed `CLAUDE.md`
-of rules. In a repo with no plan it sits at the git root instead: working memory never
-reads a card and only borrowed the plan's location as its anchor, so requiring a plan was
-an accident. Outside git with no plan there is no stable anchor — reads are quiet and
-`working_init` / `install-hook` refuse (`NO_WORKING_ROOT`). State lives in files, not in
-MCP process memory. A `SessionStart` hook
-(matchers `startup|resume|compact|clear`) running `constellation working` prints it back
-into context; the tools are the ergonomics, the hook is the guarantee. IDs are per type
-(`G1`, `C3`, `T12`). Writes go through the existing in-process file lock plus an atomic
-temp-and-rename. The folder resolves through `git rev-parse --git-common-dir`, so every
-linked worktree shares the main checkout's one scratchpad — with or without a plan.
+A `.constellation/` folder at the plan's code root, sibling to `constellation/`, holding
+`working.md`, `log/YYYY-MM-DD.md`, a `CLAUDE.md` of rules and the user's `config.json`
+([[FEATURE-WORKING-MEMORY-SETTINGS]]). **The whole folder is local and untracked** — one
+`.constellation/` line in `.gitignore`, verified with `git check-ignore`: `constellation/` is
+long-term planning in the repo, `.constellation/` is conversational memory. With no plan it
+sits at the git root (working memory never reads a card); outside git with no plan there is
+no anchor — reads are quiet, `working_init` / `install-hook` refuse (`NO_WORKING_ROOT`).
+State lives in files, not MCP process memory. A `SessionStart` hook (matchers
+`startup|resume|compact|clear`) running `constellation working` prints it back into
+context; the tools are the ergonomics, the hook is the guarantee. IDs are per type (`G1`,
+`C3`, `T12`). Every `working.md` write takes a cross-process `working.md.lock`, re-checks the
+file is unchanged before an atomic temp-and-rename, and logs before the rename. The folder
+resolves through `git rev-parse --git-common-dir`, so linked worktrees share one scratchpad.
 
 ## Alternatives
 
@@ -57,9 +58,11 @@ linked worktree shares the main checkout's one scratchpad — with or without a 
 - **`W<n>` ids** — rejected: `T12` says what it is without reading the section header.
 - **A status field (`active|paused|done`)** — rejected: done items are noise on every
   re-read. An item is in the file or it is dropped, and the reason goes to the log.
-- **A `.lock` file** — rejected: one MCP process per session, and sub-agents share its
-  connection, so the in-process lock covers every race that matters. Two orchestrators on
-  one repo is unsupported, as it already is for cards.
+- **The in-process lock alone** — 1.0's choice, dropped in 1.1.0: the automatic clear at
+  session start made a hook process writing beside the MCP server routine, not an edge case.
+- **A committed `CLAUDE.md`** (1.0's `.constellation/*` + `!.constellation/CLAUDE.md`) —
+  dropped in 1.1.0 on the user's rule: ".constellation/ folder is local, conversational
+  memory, not tracked". `working_init` / `install-hook` migrate the old pair in place.
 - **Steering the compaction summary** (a `PreCompact` hook, custom instructions) —
   rejected because it cannot be done: `PreCompact` can only block, and blocking
   compaction lets the context grow past the window. The design must not depend on the
@@ -68,8 +71,11 @@ linked worktree shares the main checkout's one scratchpad — with or without a 
 ## Consequences
 
 - Working memory is readable and editable by hand, by any agent, with or without the MCP
-  server — hence the committed `CLAUDE.md`.
+  server — hence the local `CLAUDE.md` of rules, written by `working_init`. A fresh clone
+  has none.
 - The history is append-only in `log/`, not in the file; the set stays small enough to
   re-read after every compaction, and past ~25 items it says so.
 - `.constellation` joins the code-metrics walk skip list so a FILE card bound to `path: .`
   never counts scratchpad files.
+- Breaking a stale lock still has a known race; the fix is in progress on
+  `fix/working-lock-break`.

@@ -51,6 +51,10 @@ notes:
 
 Serves `viewer/dist`, a read API, and a PATCH/POST/DELETE write API (with `if_mtime` stale-write guard), watching files for live reload. Shares the byte-preserving writer with the MCP path. `DELETE /api/card/PLAN-PROJECT` is refused (400 `INVALID_HANDLE`) — same guard as MCP `delete_card`.
 
+**Every request passes the guard first** ([[DECISION-SERVE-REQUEST-GUARD]]): `Host` must name this loopback server, writes need a same-server `Origin`, and `devOrigins` (CLI `--dev-origin`) is the only widening; refusals are 403 `FORBIDDEN`. Containment is by realpath — style assets against the serving root's realpath, new cards never through a symlinked type folder, `.sync.json` replaced rather than written through.
+
+**Workspaces.** Beside the plans discovered in this repo, startup adds the plans of the root (else default) plan's `connected_repos` ([[FILE-REPOS]] `discoverConnectedWorkspaces`), one level deep and fixed until restart. `/api/plans` entries carry `available`, `reason` and `repo { name, path, root, kind, description? }`; an unreachable repo, or one that fails to read or watch, is an unavailable row that still reserves its id, never a crash. Each plan's git, sync, drift and style-asset fallback run from its own repo root; connected plans' code metrics are bounded by that repo's realpath. Ids and routing: [[DECISION-MULTI-PLAN-SERVE]].
+
 Specialized reads stay thin over the core modules: `GET /api/docs` compiles the ordered document and prepares body headings; `GET /api/atlas-metrics` returns [[FILE-CODE]]'s bound-code sizes; `GET /api/atlas-config` returns authored atlas placement; and `GET /api/style-asset` serves contained font files for STYLE specimens. Atlas metrics are cached for five seconds and invalidated immediately by the plan watcher, because code edits sit outside that watch root.
 
 `PUT /api/atlas-config` validates and writes the authored config through `src/core/atlas-config.ts`; it is covered by the same `--readonly` guard as card and sync writes. Derived atlas geometry is never persisted.

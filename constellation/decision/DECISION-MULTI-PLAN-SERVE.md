@@ -1,5 +1,5 @@
 ---
-name: One server, every plan in the repo, a dropdown to switch
+name: One server, every plan in the repo and its connected repos, a switcher to change
 status: verified
 connections:
   - FILE-SERVE
@@ -9,6 +9,7 @@ connections:
   - DECISION-MONOREPO-CODE-ROOT
   - PAGE-VIEWER-HOME
   - DOC-CONNECTED-REPOS
+  - FILE-REPOS
 notes:
   - kind: verified
     text: >-
@@ -25,7 +26,7 @@ verified_at: '2026-08-24T21:13:27.099Z'
 verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 ---
 
-# One server, every plan in the repo, a dropdown to switch
+# One server, every plan in the repo and its connected repos, a switcher to change
 
 ## Context
 
@@ -33,13 +34,14 @@ verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
 
 ## Decision
 
-- **Discovery** (`discoverPlans` in [[FILE-RESOLVE]], beside `findPlanUp`): BFS down from the git root (or cwd without one), maxDepth 3, accepting only dirs containing `constellation/plan.md`. Never descends into node_modules, dot-dirs, dist/build/out/coverage/target/vendor/tmp, another `constellation` dir, or **any dir containing `.git`** — the downward mirror of the upward `.git` stop. Runs once at startup; a brand-new plan needs a serve restart (documented limitation).
-- **Plan identity:** the repo-root plan is always `root`; otherwise the slugified code-root basename when unique across the set, else the full dashed relative path (`packages-puzzle`). The dashed path form is ALWAYS accepted as an alias, so short-id demotion (a second `puzzle` appearing) never rots a link. Collisions after that get `-2`/`-3` in code_path order.
-- **API addressing:** path prefix — `/api/p/<id>/{plan,sync,docs,atlas-metrics,atlas-config,style-asset,cards,card/<HANDLE>,sync-point}` plus per-plan SSE `/api/p/<id>/events`. Every unprefixed route survives and resolves to the **default plan**, so single-plan repos are byte-identical and old bookmarks work. `GET /api/plans` lists the roster. An unmatched `/api/*` is a JSON 404, never the SPA fallback. **Security invariant: a plan id is a Map lookup built at startup — never joined onto a filesystem path**; the map doubles as the write-route allowlist.
-- **Server state:** per-plan `PlanState` (repoUrl memo, metrics cache, cardCount, SSE client set, watcher, debounce), one recursive `fs.watch` per plan root — never one repo-root watcher (build/node_modules churn thrashes the debounce, and fs.watch filename attribution is unreliable). `close()` tears down every watcher, debounce, and SSE response per plan. SSE wire format unchanged (`data: change`). Style assets resolve code-root-first with a git-root fallback, containment enforced on whichever root served.
-- **Viewer:** the plan rides the URL as a hash segment via Puzzle's `routerBase = '/p/<id>'` — all routes and hrefs become plan-scoped with no changes to routes.js or `hrefForHandle` (the app-facing router surface is base-free). The roster is fetched before the app is constructed; a fetch failure degrades to base-less single-plan behavior. The topbar's project name becomes the PlanSwitcher dropdown only when more than one plan exists; the signpost/shell plan is listed like any other. Switching = `location.replace('#/p/<id>/')` + reload — routerBase is fixed at construction, and a reload against a local server is honest project-switching. localStorage keys stay global (appearance prefs, not plan data).
-- **MCP `start_viewer`:** gains `repo`, boots multi-plan like the CLI, returns `plan_url` (deep link) beside the back-compat `url`. If a viewer is already running and the wanted plan is served, return its deep link; if not served, report `requested_plan_not_served` with a stop_viewer hint — **never auto-restart** (it would yank an open tab).
-- **CLI:** bare `serve` at a monorepo root boots multi-plan directly; `--plan <id>` sets the default (not a filter); explicit `constellation serve <path>` stays the single-plan escape hatch; multi-plan banner lists the roster with the default marked.
+- **Discovery** (`discoverPlans` in [[FILE-RESOLVE]], beside `findPlanUp`): BFS down from the git root (or cwd without one), maxDepth 3, accepting only dirs containing `constellation/plan.md`. Never descends into node_modules, dot-dirs, dist/build/out/coverage/target/vendor/tmp, another `constellation` dir, or **any dir containing `.git`** — the downward mirror of the upward `.git` stop. Runs once at startup; a new plan needs a restart.
+- **Connected workspaces:** the launching repo's root (else default) plan's `connected_repos` are discovered the same way inside each repo's own git root and served beside the home plans — one level only, fixed at startup, with stricter checks (real `plan.md`, no symlinked plan folder, `code_root` inside the repo). Unreachable repos are roster rows, never a crash ([[FEATURE-WORKSPACE-SWITCHER]]).
+- **Plan identity:** the repo-root plan is always `root`; otherwise the slugified code-root basename when unique, else the dashed relative path (`packages-puzzle`), which is ALWAYS accepted as an alias so short-id demotion never rots a link. Collisions get `-2`/`-3`. Connected plans are `<name>` / `<name>-<planid>` and never shadow a home id.
+- **API addressing:** path prefix — `/api/p/<id>/{plan,sync,docs,atlas-metrics,atlas-config,style-asset,cards,card/<HANDLE>,sync-point,events}`. Unprefixed routes resolve to the **default plan**, so single-plan repos and old bookmarks are unchanged. `GET /api/plans` is the roster: id, name, aliases, card count, plus `available`, `reason` and `repo { name, path, root, kind: self|connected, description? }`. An unmatched `/api/*` is a JSON 404. **Security invariant: a plan id is a Map lookup built at startup — never joined onto a filesystem path**; the map doubles as the write allowlist.
+- **Server state:** per-plan `PlanState` (repoUrl memo, metrics cache, cardCount, SSE clients, watcher, debounce), one recursive `fs.watch` per plan root. `close()` tears all of it down. Git, sync and drift run from each plan's own root; style assets fall back to the plan's own repo root, contained by realpath.
+- **Viewer:** the plan rides the hash via Puzzle's `routerBase = '/p/<id>'`, so routes and hrefs need no changes. The roster is fetched before the app is constructed; failure degrades to single-plan. With more than one openable plan, the rail's `WorkspaceSwitcher` (which replaced the topbar `PlanSwitcher`) switches by `location.replace('#/p/<id>/')` + reload — routerBase is fixed at construction. Boot canonicalisation keeps the route (`scopeHash`). localStorage keys stay global.
+- **MCP `start_viewer`:** gains `repo`, boots multi-plan like the CLI, returns `plan_url` beside `url`. A running viewer that serves the wanted plan returns its deep link; otherwise `requested_plan_not_served` with a stop_viewer hint — **never auto-restart**.
+- **CLI:** bare `serve` at a monorepo root boots multi-plan; `--plan <id>` sets the default (not a filter); `constellation serve <path>` stays single-plan; the banner lists the roster, marks connected plans and lists skipped repos.
 
 ## Alternatives
 

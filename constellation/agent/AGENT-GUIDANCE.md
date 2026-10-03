@@ -24,17 +24,22 @@ notes:
     text: >-
       All three copies now carry the monorepo model (per DECISION-MONOREPO-CODE-ROOT /
       DECISION-MULTI-PLAN-SERVE): packages keep their own plans, paths are code-root-relative, a
-      monorepo root holds at most a signpost plan.md, serve hosts every plan behind a dropdown.
-      NOT_TOOLS in the consistency test gained 'code_root'. Budget alert: INSTRUCTIONS is at 54/55
-      lines and SKILL.md at exactly 340/340 — the next SKILL.md addition must trim something first.
+      monorepo root holds at most a signpost plan.md, serve hosts every plan behind a switcher.
+      NOT_TOOLS in the consistency test gained 'code_root'.
   - kind: state
     text: >-
       2026-09-16: the always-on budgets moved for working memory — INSTRUCTIONS 55 → 68 lines,
       SKILL.md 340 → 400 (tests/guidance-consistency.test.ts). The INSTRUCTIONS paragraph carries
       the read/write rhythm plus the eight types in one line each, because an agent with the
       working_* tools but not the rules writes a to-do list instead of memory.
-      skill/working-memory.md is a topical reference like atlas.md, NOT a fourth canonical copy; the
-      body of DOC-MCP-SERVER still says "capped at 55 lines". See FEATURE-WORKING-MEMORY.
+      skill/working-memory.md is a topical reference like atlas.md, NOT a fourth canonical copy. See
+      FEATURE-WORKING-MEMORY.
+  - kind: state
+    text: >-
+      1.1.0 (PR #44): a new three-copy rule — at first setup ask the user "use working memory on
+      this repo?" and "clear it every new session?", pass the answers, and never change either
+      setting yourself. NOT_TOOLS gained new_session and defaults_applied. Budget: INSTRUCTIONS
+      still 68/68, SKILL.md 396/400 — trim before adding. See FEATURE-WORKING-MEMORY-SETTINGS.
 ---
 
 # Agent guidance

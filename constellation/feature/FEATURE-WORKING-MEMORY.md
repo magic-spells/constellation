@@ -87,10 +87,13 @@ header is rewritten on every write; every other line is byte-preserved.
 
 - The SessionStart hook prints the set at startup, resume, compact and clear; `orient`
   returns the same `{header, items}` for MCP-only clients when a plan exists, and omits
-  the key when the folder does not exist.
+  the key when the folder does not exist or working memory is off.
 - `working_set` returns the allocated IDs and the new header; `working_drop` with a
   reason removes the lines and writes one log line.
 - `working_log` called from a linked worktree lands in the main checkout's log.
 - `constellation working` prints nothing and exits 0 where there is no folder, so the
   hook is safe to install globally.
 - `constellation lint` and the viewer are unaffected by anything in `.constellation/`.
+
+1.1.0 added the user's settings, the clear-on-new-session mode, the whole-folder ignore
+rule and the cross-process lock: [[FEATURE-WORKING-MEMORY-SETTINGS]].
