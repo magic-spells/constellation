@@ -12,10 +12,12 @@
  * SPRING_POP_IN  ~3.5% overshoot, settles in ~450ms: a bounce you can see but
  *                not one you can measure from across the room.
  * SPRING_CLOSE   a dismissal is an undo; ~4% dip past the button, ~340ms, so
- *                the ending reads as an arrival rather than a fade.
+ *                the ending reads as an arrival rather than a fade. Those
+ *                figures are the template's 0.2; ours is eased to 0.18 so the
+ *                trip home is a touch slower and the dip a touch shallower.
  */
 export const SPRING_POP_IN = { attraction: 0.08, friction: 0.29 };
-export const SPRING_CLOSE = { attraction: 0.2, friction: 0.43 };
+export const SPRING_CLOSE = { attraction: 0.18, friction: 0.43 };
 
 /** The engine's constructor shape: the base bag is the show leg, `hide` the way back. */
 export const MORPH_SPRINGS = { ...SPRING_POP_IN, hide: { ...SPRING_CLOSE } };
