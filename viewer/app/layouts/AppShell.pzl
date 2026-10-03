@@ -32,16 +32,13 @@
 
   <!--
     THE WORK PANEL. From md up it stands off the window by one inset on the
-    right and bottom and rounds its bottom corners — on the left the rail's own
-    p-2 gutter plus ml-1 makes the same 12px of air — while its top runs to
-    the window edge — the header sits inside it, across its top, so the panel
-    reads as a sheet hung from the top of the screen. The top border is the
-    panel-edge highlight, the other three the ordinary hairline, each written as
-    a longhand (a `border-*` colour shorthand would set all four sides). Below
-    md there is no rail, inset, radius or edge: on a phone the panel is the
-    window and the navigation is a drawer behind the header's menu button.
+    top, right and bottom and rounds all four corners — on the left the rail's
+    own p-2 gutter plus ml-1 makes the same 12px of air. The header sits inside
+    it, across its top. Below md there is no rail, inset, radius or edge: on a
+    phone the panel is the window and the navigation is a drawer behind the
+    header's menu button.
   -->
-  <div class="shell-body flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-panel md:mb-panel-inset md:ml-1 md:mr-panel-inset md:rounded-b-panel md:border-x md:border-b md:border-x-border md:border-b-border md:shadow-panel">
+  <div class="shell-body flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-panel md:my-panel-inset md:ml-1 md:mr-panel-inset md:rounded-panel md:border md:border-border md:shadow-panel">
     <!--
       THE HEADER, three tracks: from sm up two equal flex-1 wings and the
       search between them, so the search sits in the middle of the PANEL
