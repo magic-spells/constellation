@@ -1,6 +1,6 @@
 ---
 name: Working memory (.constellation/)
-status: building
+status: built
 change: feature
 branch: feat/working-memory
 connections:
