@@ -5,6 +5,17 @@ connections:
   - FEATURE-WORKING-MEMORY
   - FILE-MCP-SERVER
   - AGENT-GUIDANCE
+notes:
+  - kind: decision
+    text: >-
+      Pruning has named checkpoints (1.1.0): every commit, every PR opened or merged, a change of
+      topic, and the start of a new plan or feature — sweep first (drop what fails its keep test),
+      then add the new items. Why: in long sessions agents only ever added, so the set filled with
+      lines about work that had already landed. "Whenever you close work" was too vague a trigger.
+      The guidance now names the add-only bias outright, in all three copies plus the
+      .constellation/CLAUDE.md template and the working_drop description. Rejected for now: a
+      PostToolUse hook on git commit / gh pr and auto-flagging merged TASK lines — wording first,
+      mechanical nudges if it isn't enough.
 ---
 
 # Working memory is a dot-folder beside the plan, guaranteed by a hook

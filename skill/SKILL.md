@@ -173,6 +173,10 @@ none it sits at the git root, so never call `init_plan` just to get it. The shor
   merged, a question answered or an idea decided, `working_drop` it with a one-line reason.
   Never keep a finished line, never rewrite it as "done". An empty set at the end of a
   stretch is the goal.
+- **Prune at every checkpoint.** You will lean toward adding and never removing, and a
+  stale line misleads every context that reads it. At each commit, each PR opened or
+  merged, a change of topic, and the start of a new plan or feature, run every keep test
+  and drop what fails first — then add the items for what comes next.
 - **`/working`** prints the set in the chat (`! npx constellation working` does it
   with no model turn).
 - **One question per type.** GOAL: what outcome is wanted? PLAN: in what order, one line,

@@ -92,6 +92,13 @@ verification agent returning with nothing changed is not a state change; do not 
 file for it. If you would put it in a compaction summary, put it in working memory now —
 you do not know when compaction will fire. Batch with `items: [...]`.
 
+**At every checkpoint.** A commit, a PR opened or merged, a change of topic, the start of
+a new plan or feature: sweep before you write. Run every keep test, drop what fails with a
+reason, and only then add the new items. A new plan is the clearest case — the old goal,
+plan, focus, tasks and ideas almost all fail their keep tests, so drop them (promote a
+lasting decision to a card first), keep the user's constraints, then write the new G and P.
+Clear, then write; never stack the new plan on top of the old one.
+
 **Sub-agents.** Worktrees do not carry gitignored files, but the tools resolve to the main
 checkout, so agents may call `working_log` and `working_list` from anywhere. Put the
 relevant C lines and the agent's T line verbatim in its brief; do not expect it to read the
@@ -190,9 +197,12 @@ achieved.
 
 ## Keep the set clean
 
-Every live item is text you read again after every compaction. Sweep the set at session
-start, after compaction, and whenever you close work: run each keep test and drop what
-fails. Close what you finished in the same turn the work lands, not later. An answered
+Every live item is text you read again after every compaction, and a stale one steers
+the next context wrong. Your instinct will be to add and never remove; on a long task that
+is how the set fills with lines about work that landed hours ago. Pruning is half the job.
+Sweep at session start, after compaction, at every commit and every PR opened or merged,
+when the topic changes, and when a new plan or feature starts: run each keep test and drop
+what fails. Close what you finished in the same turn the work lands, not later. An answered
 question is a dropped question; never rewrite a line to report its own status. Never add an
 item for something already there; update that item instead. When unsure about a
 user-stated constraint, keep it. When unsure about anything else, ask whether its absence

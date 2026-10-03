@@ -72,6 +72,9 @@ Rules:
 - Keep lines short — aim under 100 characters, hard ceiling 160. A headline, not a
   sentence: identifiers, not descriptions. Link cards as \`[[HANDLE]]\`; never restate them.
 - Only the orchestrating session edits \`working.md\`. Sub-agents append to the log.
+- Prune at every checkpoint — each commit, each PR opened or merged, a change of topic, a
+  new plan or feature: drop what fails its keep test first, then add the new items. The
+  pull is to add and never remove; resist it.
 - More than ~25 live items means sweep, not achievement. A decision that outlives the
   stretch becomes a DECISION card; an idea that becomes work becomes a TASK or a card.
 

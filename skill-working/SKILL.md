@@ -17,10 +17,10 @@ else: no commentary, no suggestions, no summary. Do not call any tool.
 **With an argument** (`/working drop T12`, `/working add task Stripe webhook — wt
 stripe-webhook, 148846a → merge`, `/working G1 is done`, `/working sweep`): apply it with
 `working_set` or `working_drop`, then print the updated set the same way from the tool's
-result. `sweep` means run every item's keep test and drop what fails, listing what was
-dropped and why in one line each above the set. Plain English is fine; infer the type and
-the ID from the words. Rules for the set are in the `constellation` skill's
-`working-memory.md`.
+result. `sweep` (also the right move after a commit or PR, or when the topic changes)
+means run every item's keep test and drop what fails, listing what was dropped and why in
+one line each above the set. Plain English is fine; infer the type and the ID from the
+words. Rules for the set are in the `constellation` skill's `working-memory.md`.
 
 The set belongs to the orchestrator: a sub-agent asked to run this shows the set but does
 not edit it.

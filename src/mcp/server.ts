@@ -148,13 +148,13 @@ orient.working or working_list at session start and again right after every comp
 the summary is authoritative for the conversation, the set for state; where they disagree verify with git worktree list
 / git log -1. working_set the moment state changes, in the same turn: work dispatched or merged, a plan step finished, a
 decision made, a rule the user stated, a question only they can answer. working_drop with a reason is how you check
-something off — there is no status field — and the reason goes to the log, which is the history. Sub-agents only
-working_log; working_init creates the folder. Ids are per type and lines are headlines (aim under 100 chars, ceiling
-160): G goal, keep while undelivered and wanted · C constraint, the user's words verbatim, keep until they change it · P
-plan, one line, ✓ done → next, keep while steps are open · F focus, singular and replaced, keep while it is this turn's
-step · T task — worktree, branch, head, holder — keep while undone · Q question only the user can answer, keep while
-blocking · I idea, keep while a live option · D decision, keep while it steers live work. Promote a lasting decision to
-a DECISION card, then drop it here.
+something off — no status field; the reason goes to the log. You will lean toward adding, never removing: at every
+commit, PR, topic change or new plan, run each keep test and drop what fails, THEN add the new. Sub-agents only
+working_log. Ids are per type and lines are headlines (aim under 100 chars, ceiling 160): G goal, keep while undelivered
+and wanted · C constraint, the user's words verbatim, keep until they change it · P plan, one line, ✓ done → next, keep
+while steps are open · F focus, singular and replaced, keep while it is this turn's step · T task — worktree, branch,
+head, holder — keep while undone · Q question only the user can answer, keep while blocking · I idea, keep while a live
+option · D decision, keep while it steers live work. Promote a lasting decision to a DECISION card, then drop it.
 
 Multi-repo: PLAN-PROJECT.connected_repos lists sibling repos (add_connected_repo / remove_connected_repo); pass repo: to
 any tool to read or write THAT plan. Cards never connect across plans. In a monorepo each package keeps its own plan
@@ -2942,7 +2942,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
     'working_drop',
     {
       description:
-        'Remove working memory items — this is how you check something off; there is no status field. Drop a task when it merges, a question when it is answered, a goal when it is delivered, in the same turn the work lands. Pass reason to append one line to today\'s log, which is the history the set deliberately does not keep. Batch the ids.',
+        'Remove working memory items — this is how you check something off; there is no status field. Drop a task when it merges, a question when it is answered, a goal when it is delivered, in the same turn the work lands. Sweep at every commit, PR, topic change and new plan: drop what fails its keep test before adding the new items — the set should shrink as often as it grows. Pass reason to append one line to today\'s log, which is the history the set deliberately does not keep. Batch the ids.',
       inputSchema: {
         repo: repoSchema,
         ids: z.array(z.string()).min(1).describe('ids to drop, e.g. ["T12", "T13"]'),
