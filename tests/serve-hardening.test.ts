@@ -4,6 +4,8 @@ import http from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { codeMetrics } from '../src/core/code.js';
+import { loadPlan } from '../src/core/indexer.js';
 import { discoverPlans } from '../src/core/resolve.js';
 import { startServer, type RunningServer } from '../src/serve/server.js';
 import { sameOrigin } from './same-origin.js';
@@ -19,6 +21,9 @@ import { sameOrigin } from './same-origin.js';
 //   locked/      its constellation/doc is chmod 000            → unavailable
 //   linked/      constellation is a symlink to elsewhere/      → unavailable
 //   noplan/      constellation/ without plan.md                → unavailable
+//   rootcode/    root plan fine; packages/x sets code_root: ../../..
+//                (outside the repo) and symlinks a font to a secret → that
+//                plan unavailable, its id kept
 
 let ws: string;
 let home: string;
@@ -84,6 +89,8 @@ beforeAll(async () => {
         '    path: ../linked',
         '  - name: noplan',
         '    path: ../noplan',
+        '  - name: rootcode',
+        '    path: ../rootcode',
         '',
       ].join('\n'),
     ),
@@ -113,6 +120,11 @@ beforeAll(async () => {
 
   await write('noplan/constellation/doc/DOC-X.md', '---\nname: X\n---\n');
   gitRepo('noplan');
+
+  await write('rootcode/constellation/plan.md', PLAN('Rootcode'));
+  await write('rootcode/packages/x/constellation/plan.md', PLAN('Escaper', 'code_root: ../../..\n'));
+  await symlink('../secret.txt', path.join(ws, 'rootcode', 'x.woff2'));
+  gitRepo('rootcode');
 
   running = await startServer({ plans: await discoverPlans(home), scanRoot: home, port: 0 });
 });
@@ -207,6 +219,25 @@ describe('request guard', () => {
         req.end();
       });
       expect(ok).toBe(200);
+      // A forwarded port (ssh -L 8080:…) carries its own Host on every read.
+      for (const [host, want] of [
+        ['localhost:3999', 200],
+        ['127.0.0.1:3999', 200],
+        ['localhost:4000', 403],
+      ] as const) {
+        const status = await new Promise<number>((resolve, reject) => {
+          const req = http.request(
+            { host: '127.0.0.1', port: dev.port, path: '/api/plans', headers: { host } },
+            (res) => {
+              res.resume();
+              resolve(res.statusCode ?? 0);
+            },
+          );
+          req.on('error', reject);
+          req.end();
+        });
+        expect(status, host).toBe(want);
+      }
     } finally {
       await dev.close();
     }
@@ -240,6 +271,26 @@ describe('connected repo failures', () => {
       reason: 'No constellation/ plan in ../noplan',
     });
     expect(data.plans.some((p: { name: string }) => p.name === 'Elsewhere')).toBe(false);
+  });
+});
+
+describe('connected code_root', () => {
+  it('refuses a connected plan whose code_root leaves its repo, keeping its id', async () => {
+    const data = await (await fetch(url('/api/plans'))).json();
+    const rows = data.plans.filter((p: { repo: { name: string } }) => p.repo.name === 'rootcode');
+    expect(rows.map((p: { id: string; available: boolean }) => [p.id, p.available])).toEqual([
+      ['rootcode', true],
+      ['rootcode-x', false],
+    ]);
+    expect(rows[1].reason).toBe('code_root leaves the repo: ../rootcode');
+    const leak = await fetch(url('/api/p/rootcode-x/style-asset?path=rootcode/x.woff2'));
+    expect(leak.status).toBe(404);
+    expect(await leak.text()).not.toContain('TOP SECRET');
+  });
+
+  it('bounds code metrics by the repo', async () => {
+    const index = await loadPlan(path.join(ws, 'rootcode', 'packages', 'x', 'constellation'));
+    expect(await codeMetrics(index, { bound: path.join(ws, 'rootcode') })).toEqual({});
   });
 });
 

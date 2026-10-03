@@ -304,7 +304,8 @@ program
   .option('--readonly', 'disable editing from the browser')
   .option(
     '--dev-origin <origin>',
-    'also accept requests from this loopback origin (the puzzle dev server), e.g. http://localhost:3000',
+    'view through a forwarded or proxied port (ssh -L, VS Code, the puzzle dev proxy): ' +
+      'also accept that loopback Host and Origin, e.g. http://localhost:8080',
   )
   .description('Serve a website rendering the plan, editable in place')
   .action(async (

@@ -348,7 +348,10 @@ async function walkDir(
  * from bound-and-empty. A card whose bound paths have all moved away reports
  * zeros, which is itself the signal.
  */
-export async function codeMetrics(index: PlanIndex): Promise<Record<string, CodeMetric>> {
+export async function codeMetrics(
+  index: PlanIndex,
+  opts: { bound?: string } = {},
+): Promise<Record<string, CodeMetric>> {
   let codeRoot: string;
   try {
     codeRoot = await codeRootFor(await realpath(index.root));
@@ -356,6 +359,14 @@ export async function codeMetrics(index: PlanIndex): Promise<Record<string, Code
     return {};
   }
   const realCodeRoot = await realpath(codeRoot).catch(() => codeRoot);
+  // `bound` (the viewer's connected repos): a code_root whose real path leaves
+  // it reports nothing — sizes and line counts are still file contents.
+  if (opts.bound) {
+    const realBound = await realpath(opts.bound).catch(() => null);
+    if (!realBound || (realCodeRoot !== realBound && !realCodeRoot.startsWith(realBound + path.sep))) {
+      return {};
+    }
+  }
   const escapes = (real: string) =>
     real !== realCodeRoot && !real.startsWith(realCodeRoot + path.sep);
 

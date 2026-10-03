@@ -119,9 +119,11 @@ export type ServeOptions = {
   port: number;
   readonly?: boolean;
   /**
-   * Extra loopback origins allowed past the Host/Origin guard, e.g. the
-   * `puzzle dev` server at `http://localhost:3000`, whose proxy forwards the
-   * browser's Host and Origin unchanged. Loopback http origins only.
+   * Extra loopback origins allowed past the Host/Origin guard — the Host
+   * (`localhost:<p>`, `127.0.0.1:<p>`, `[::1]:<p>`) for reads and the Origin
+   * for writes. For a forwarded port (`ssh -L 8080:localhost:4747`, VS Code)
+   * or the `puzzle dev` proxy, which forward the browser's Host and Origin
+   * unchanged. Loopback http origins only.
    */
   devOrigins?: string[];
 } & (
@@ -302,7 +304,8 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
   ): Promise<void> {
     if (!plan.metrics || Date.now() - plan.metrics.at > METRICS_TTL_MS) {
       const lint = await lintPlan(plan.root);
-      plan.metrics = { at: Date.now(), data: await codeMetrics(lint.index) };
+      const bound = plan.repo.kind === 'connected' ? plan.assetRoot : undefined;
+      plan.metrics = { at: Date.now(), data: await codeMetrics(lint.index, { bound }) };
     }
     json(res, 200, plan.metrics.data);
   }
@@ -375,8 +378,11 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     }
     const roots = [plan.codeRoot];
     if (path.resolve(plan.codeRoot) !== plan.assetRoot) roots.push(plan.assetRoot);
+    // A connected repo's code_root is its own untrusted say-so (discovery
+    // already refuses one outside the repo); bound every read by the repo too.
+    const bound = plan.repo.kind === 'connected' ? plan.assetRoot : undefined;
     for (const root of roots) {
-      const found = await readContained(root, rel);
+      const found = await readContained(root, rel, bound);
       if (found === 'escape') return failure(res, 403, 'FORBIDDEN', 'path escapes the repository');
       if (found === 'missing') continue;
       res.writeHead(200, { 'content-type': MIME[ext], 'cache-control': 'no-cache' });
@@ -873,7 +879,10 @@ async function connectedPlans(
       order.push(down);
       continue;
     }
-    for (const plan of identifyPlans(ws.plans)) {
+    // Ids come from the whole set, refused plans included, so fixing a bad
+    // code_root never renumbers its neighbours.
+    const refused = new Map(ws.rejected.map((r) => [path.resolve(r.plan.root), r.reason]));
+    for (const plan of identifyPlans([...ws.plans, ...ws.rejected.map((r) => r.plan)])) {
       const real = await realOr(plan.root);
       if (seen.has(real)) continue;
       seen.add(real);
@@ -882,6 +891,13 @@ async function connectedPlans(
         .map((alias) => `${base}-${alias}`)
         .filter((alias) => !used.has(alias));
       for (const alias of aliases) used.add(alias);
+      const reason = refused.get(path.resolve(plan.root));
+      if (reason) {
+        const down = { id, repo, reason };
+        unavailable.push(down);
+        order.push(down);
+        continue;
+      }
       try {
         const state = await planState({ ...plan, id, aliases }, repo, ws.scanRoot, ws.gitRoot);
         plans.push(state);
@@ -932,19 +948,29 @@ function containedPath(root: string, rel: string): string | null {
  * (`../`, absolute paths) or through a symlink, which a lexical check alone
  * would follow: the file's REAL path must sit inside the root's real path.
  * `missing` lets the caller try its next root; any other read failure is
- * reported as missing too, never as content.
+ * reported as missing too, never as content. With `bound`, the real path must
+ * also sit inside that directory's real path.
  */
-async function readContained(root: string, rel: string): Promise<Buffer | 'missing' | 'escape'> {
+async function readContained(
+  root: string,
+  rel: string,
+  bound?: string,
+): Promise<Buffer | 'missing' | 'escape'> {
   const candidate = containedPath(root, rel);
   if (!candidate) return 'escape';
   let real: string;
-  let realRoot: string;
+  let realRoots: string[];
   try {
-    [real, realRoot] = await Promise.all([realpath(candidate), realpath(root)]);
+    [real, ...realRoots] = await Promise.all([
+      realpath(candidate),
+      realpath(root),
+      ...(bound ? [realpath(bound)] : []),
+    ]);
   } catch {
     return 'missing';
   }
-  if (real !== realRoot && !real.startsWith(realRoot + path.sep)) return 'escape';
+  const inside = (r: string) => real === r || real.startsWith(r + path.sep);
+  if (!realRoots.every(inside)) return 'escape';
   try {
     return await readFile(real);
   } catch {

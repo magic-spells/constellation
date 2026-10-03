@@ -156,8 +156,15 @@ export type ConnectedWorkspace =
       /** Where its plans were discovered from; plan paths are relative to this. */
       scanRoot: string;
       plans: DiscoveredPlan[];
+      /** Real plans refused anyway (a `code_root` outside the repo). */
+      rejected: RejectedPlan[];
     }
   | { repo: ConnectedRepo; abs: string; available: false; reason: string };
+
+export interface RejectedPlan {
+  plan: DiscoveredPlan;
+  reason: string;
+}
 
 /**
  * Resolve every `connected_repos` entry on the home plan into a workspace.
@@ -199,9 +206,29 @@ export async function discoverConnectedWorkspaces(
         for (const plan of plans) {
           if (await isServablePlan(plan.root, realScan)) kept.push(plan);
         }
-        plans = kept;
-        if (plans.length === 0) return down(`No constellation/ plan in ${repo.path}`);
-        return { repo, abs, available: true, gitRoot, scanRoot, plans };
+        if (kept.length === 0) return down(`No constellation/ plan in ${repo.path}`);
+        // A plan's `code_root` is the connected repo's own, untrusted say-so,
+        // and every code read (style assets, metrics, drift) resolves under
+        // it. One whose real path leaves the repo is refused, reported rather
+        // than dropped so it never disappears silently.
+        const realGit = await realpath(gitRoot);
+        plans = [];
+        const rejected: RejectedPlan[] = [];
+        for (const plan of kept) {
+          const real = await realpath(plan.codeRoot).catch(() => null);
+          if (real && (real === realGit || real.startsWith(realGit + path.sep))) plans.push(plan);
+          else {
+            // Identified by its plan folder, so nothing outside the repo (the
+            // escaping code_root's name) shapes its id or paths.
+            const home = path.dirname(plan.root);
+            const relPath = path.relative(scanRoot, home).split(path.sep).join('/');
+            rejected.push({
+              plan: { ...plan, codeRoot: home, relPath },
+              reason: `code_root leaves the repo: ${repo.path}`,
+            });
+          }
+        }
+        return { repo, abs, available: true, gitRoot, scanRoot, plans, rejected };
       } catch (err) {
         return down(err instanceof Error ? err.message : String(err));
       }
