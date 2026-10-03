@@ -3,7 +3,7 @@ import { hashRouter } from '@magic-spells/puzzle/router-modes';
 import { enableMorph } from '@magic-spells/puzzle/morph';
 import { adapter } from '@magic-spells/puzzle/adapter';
 import { fetchPlans, loadDocs, loadPlan, loadPlans, loadSync, setActivePlan, startLive } from './lib/api.js';
-import { planFromHash, routerBaseFor } from './lib/plans.js';
+import { planFromHash, routerBaseFor, scopeHash } from './lib/plans.js';
 import { availablePlans } from './lib/workspaces.js';
 import models from './models/index.js';
 import routes from './routes.js';
@@ -68,7 +68,9 @@ async function boot() {
 	// visited, so it must not become a history entry they can press Back into
 	// and get bounced out of again.
 	if (multi && wanted !== active) {
-		location.replace(`${location.pathname}${location.search}#/p/${active}/`);
+		// Keep the route: `#/api/API-TICKETS` becomes `#/p/<active>/api/API-TICKETS`,
+		// so a link from before the repo had workspaces still opens its card.
+		location.replace(`${location.pathname}${location.search}${scopeHash(location.hash, active)}`);
 	}
 
 	// Point the API client at this plan before anything fetches. `null` here is

@@ -29,6 +29,7 @@ import {
   deleteCardFile,
   mutateCardFile,
   reservedFieldKeys,
+  PathEscapeError,
   StaleWriteError,
   type CardPatch,
 } from '../core/writer.js';
@@ -53,6 +54,28 @@ const MIME: Record<string, string> = {
   '.otf': 'font/otf',
   '.ico': 'image/x-icon',
 };
+
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+/** The Host values a loopback server on `port` answers to. */
+function loopbackHosts(port: number): string[] {
+  return [`localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`];
+}
+
+/** A `--dev-origin` as the Host values it allows; loopback http only. */
+function devOriginHosts(origin: string): string[] {
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    throw new Error(`Invalid dev origin "${origin}"`);
+  }
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'http:' || !loopback || !url.port) {
+    throw new Error(`Dev origin must be http://localhost:<port> (got "${origin}")`);
+  }
+  return loopbackHosts(Number(url.port));
+}
 
 // Font files a STYLE card may bind to via a token's `src:` path.
 const FONT_EXT = new Set(['.woff2', '.woff', '.ttf', '.otf']);
@@ -95,6 +118,12 @@ function issuesForFile(issues: Issue[], relPath: string): Issue[] {
 export type ServeOptions = {
   port: number;
   readonly?: boolean;
+  /**
+   * Extra loopback origins allowed past the Host/Origin guard, e.g. the
+   * `puzzle dev` server at `http://localhost:3000`, whose proxy forwards the
+   * browser's Host and Origin unchanged. Loopback http origins only.
+   */
+  devOrigins?: string[];
 } & (
   | {
       planRoot: string;
@@ -187,7 +216,7 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
   const unavailable = normalized.unavailable;
   const rosterOrder = normalized.order;
   const defaultPlan = normalized.defaultPlan;
-  const multi = plans.length > 1;
+  let multi = plans.length > 1;
   const scanRoot = normalized.scanRoot;
 
   // SECURITY INVARIANT: a request's plan id is a Map lookup built at startup —
@@ -200,6 +229,18 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
   }
   const defaultState = planById.get(defaultPlan);
   if (!defaultState) throw new Error(`Unknown default plan "${defaultPlan}"`);
+
+  /** Take a connected plan out of service, keeping its roster slot as unavailable. */
+  function dropConnectedPlan(plan: PlanState, reason: string): void {
+    plan.watcher?.close();
+    plan.watcher = null;
+    plans.splice(plans.indexOf(plan), 1);
+    for (const key of [plan.id, ...plan.aliases]) planById.delete(key);
+    const down: UnavailableWorkspace = { id: plan.id, repo: plan.repo, reason };
+    unavailable.push(down);
+    rosterOrder.splice(rosterOrder.indexOf(plan), 1, down);
+    multi = plans.length > 1;
+  }
 
   function json(res: http.ServerResponse, status: number, data: unknown): void {
     res.writeHead(status, { 'content-type': MIME['.json'] });
@@ -332,34 +373,15 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
         'path must be a repo-relative font file (woff2/woff/ttf/otf)',
       );
     }
-    const codeAsset = containedPath(plan.codeRoot, rel);
-    if (!codeAsset) {
-      return failure(res, 403, 'FORBIDDEN', 'path escapes the repository');
-    }
-    try {
-      const content = await readFile(codeAsset);
+    const roots = [plan.codeRoot];
+    if (path.resolve(plan.codeRoot) !== plan.assetRoot) roots.push(plan.assetRoot);
+    for (const root of roots) {
+      const found = await readContained(root, rel);
+      if (found === 'escape') return failure(res, 403, 'FORBIDDEN', 'path escapes the repository');
+      if (found === 'missing') continue;
       res.writeHead(200, { 'content-type': MIME[ext], 'cache-control': 'no-cache' });
-      res.end(content);
+      res.end(found);
       return;
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-        return failure(res, 404, 'NOT_FOUND', `No file at ${rel}`);
-      }
-    }
-
-    if (path.resolve(plan.codeRoot) !== plan.assetRoot) {
-      const sharedAsset = containedPath(plan.assetRoot, rel);
-      if (!sharedAsset) {
-        return failure(res, 403, 'FORBIDDEN', 'path escapes the repository');
-      }
-      try {
-        const content = await readFile(sharedAsset);
-        res.writeHead(200, { 'content-type': MIME[ext], 'cache-control': 'no-cache' });
-        res.end(content);
-        return;
-      } catch {
-        // Fall through to the stable not-found response below.
-      }
     }
     failure(res, 404, 'NOT_FOUND', `No file at ${rel}`);
   }
@@ -540,9 +562,37 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     req.on('close', () => plan.sse.delete(res));
   }
 
+  // THE REQUEST GUARD. The server listens on loopback, but a web page in the
+  // same browser can still reach it: a cross-site form POST (text/plain needs
+  // no preflight) or a DNS-rebound hostname. So every request must name this
+  // server in Host — a rebound name never does — and every write must carry a
+  // same-server Origin, which browsers send on every non-GET request and a
+  // cross-site page cannot forge.
+  const devHosts = (options.devOrigins ?? []).flatMap(devOriginHosts);
+  function guard(req: http.IncomingMessage, method: string): string | null {
+    const hosts = new Set([...loopbackHosts(boundPort()), ...devHosts]);
+    const host = (req.headers.host ?? '').toLowerCase();
+    if (!hosts.has(host)) return `Host "${host}" is not this server`;
+    if (WRITE_METHODS.has(method)) {
+      const origin = (req.headers.origin ?? '').toLowerCase();
+      if (!origin) return 'Writes need an Origin header';
+      if (![...hosts].some((h) => origin === `http://${h}`)) {
+        return `Origin "${origin}" may not write to this server`;
+      }
+    }
+    return null;
+  }
+  function boundPort(): number {
+    const address = server.address();
+    return typeof address === 'object' && address ? address.port : options.port;
+  }
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     const method = req.method ?? 'GET';
+
+    const refused = guard(req, method);
+    if (refused) return failure(res, 403, 'FORBIDDEN', refused);
 
     try {
       // Exact-match the roster first. The prefix regex below requires /api/p/
@@ -627,6 +677,9 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
       }
       await serveStatic(route, res);
     } catch (err) {
+      if (err instanceof PathEscapeError) {
+        return failure(res, 403, 'FORBIDDEN', err.message);
+      }
       if (err instanceof RequestBodyError) {
         return failure(res, err.status, err.code, err.message);
       }
@@ -639,8 +692,9 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     server.listen(options.port, '127.0.0.1', () => resolve());
   });
   try {
-    for (const plan of plans) {
-      plan.watcher = watch(plan.root, { recursive: true }, () => {
+    for (const plan of [...plans]) {
+      try {
+        plan.watcher = watch(plan.root, { recursive: true }, () => {
         plan.metrics = null;
         plan.cardCount = null;
         if (plan.debounce) clearTimeout(plan.debounce);
@@ -652,6 +706,13 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
       plan.watcher.on('error', (err) => {
         console.error(`constellation serve: file watcher error: ${err.message}`);
       });
+      } catch (err) {
+        // This repo's own plans must watch or serve fails, as before. A
+        // connected repo that can't be watched (EMFILE, EACCES) becomes an
+        // unavailable row rather than taking the whole server down.
+        if (plan.repo.kind !== 'connected') throw err;
+        dropConnectedPlan(plan, `Cannot watch ${plan.repo.path}: ${errMessage(err)}`);
+      }
     }
   } catch (err) {
     for (const plan of plans) plan.watcher?.close();
@@ -821,12 +882,24 @@ async function connectedPlans(
         .map((alias) => `${base}-${alias}`)
         .filter((alias) => !used.has(alias));
       for (const alias of aliases) used.add(alias);
-      const state = await planState({ ...plan, id, aliases }, repo, ws.scanRoot, ws.gitRoot);
-      plans.push(state);
-      order.push(state);
+      try {
+        const state = await planState({ ...plan, id, aliases }, repo, ws.scanRoot, ws.gitRoot);
+        plans.push(state);
+        order.push(state);
+      } catch (err) {
+        // An unreadable plan (EACCES on a card folder) costs its own row, never
+        // the server start.
+        const down = { id, repo, reason: `Cannot read ${repo.path}: ${errMessage(err)}` };
+        unavailable.push(down);
+        order.push(down);
+      }
     }
   }
   return { plans, unavailable, order };
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 async function realOr(p: string): Promise<string> {
@@ -852,6 +925,31 @@ function containedPath(root: string, rel: string): string | null {
   const resolvedRoot = path.resolve(root);
   const abs = path.resolve(resolvedRoot, rel);
   return abs === resolvedRoot || abs.startsWith(resolvedRoot + path.sep) ? abs : null;
+}
+
+/**
+ * Read `rel` under `root`, refusing anything that leaves it — lexically
+ * (`../`, absolute paths) or through a symlink, which a lexical check alone
+ * would follow: the file's REAL path must sit inside the root's real path.
+ * `missing` lets the caller try its next root; any other read failure is
+ * reported as missing too, never as content.
+ */
+async function readContained(root: string, rel: string): Promise<Buffer | 'missing' | 'escape'> {
+  const candidate = containedPath(root, rel);
+  if (!candidate) return 'escape';
+  let real: string;
+  let realRoot: string;
+  try {
+    [real, realRoot] = await Promise.all([realpath(candidate), realpath(root)]);
+  } catch {
+    return 'missing';
+  }
+  if (real !== realRoot && !real.startsWith(realRoot + path.sep)) return 'escape';
+  try {
+    return await readFile(real);
+  } catch {
+    return 'missing';
+  }
 }
 
 function publicPlan(plan: PlanState): ServedPlan {

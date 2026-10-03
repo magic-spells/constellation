@@ -15,8 +15,8 @@
               style={ repo.style }
               @click={ open(repo.id, event) }>
               <span class={ repo.tileClass } aria-hidden="true">{ repo.letter }</span>
-              <span class="text-sm font-semibold text-ink">{ repo.name }</span>
-              <code class="font-mono text-xs text-muted">{ repo.path }</code>
+              <span class="text-sm font-semibold text-ink">{ repo.label }</span>
+              <code class="font-mono text-xs text-muted">{ repo.detail }</code>
               <span class="ml-auto shrink-0 text-xs tabular-nums text-muted">{ repo.status }</span>
               {#if repo.description}<span class="basis-full text-sm text-body">{ repo.description }</span>{/if}
             </a>
@@ -30,7 +30,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
-import { monogram, monogramTone, rosterMatch, switchWorkspace, workspaceHref } from '../lib/workspaces.js';
+import { monogram, monogramTone, repoDetail, rosterMatch, switchWorkspace, workspaceHref } from '../lib/workspaces.js';
 
 // ConnectedRepos — the sibling repos PLAN-PROJECT declares in
 // `connected_repos:`. Each is its own plan, and when the server serves it (the
@@ -58,6 +58,7 @@ export default class ConnectedRepos extends PuzzleView {
 			repos: list.map((repo, i) => {
 				const match = rosterMatch(repo, props.plans, props.active || '');
 				const current = match?.id === props.active;
+				const label = (match?.available && match.name) || repo.name;
 				const open = !!match?.available && !current;
 				const status = current
 					? 'This workspace'
@@ -70,9 +71,12 @@ export default class ConnectedRepos extends PuzzleView {
 					open,
 					href: open ? workspaceHref(match.id, loc) : false,
 					status,
-					// The served project's monogram, so the tile matches the switcher's.
-					letter: monogram(match?.name || repo.name),
-					tileClass: `${TILE} ${monogramTone(match?.name || repo.name)}`,
+					// One source for the label and the monogram — the served project's
+					// name, as in the switcher — with the declared repo as the detail.
+					label,
+					detail: repoDetail(repo, '', label),
+					letter: monogram(label),
+					tileClass: `${TILE} ${monogramTone(label)}`,
 					rowClass: [ROW, open ? ROW_OPEN : ROW_DOWN].join(' '),
 					style: `--i: ${i}`,
 				};

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { discoverPlans } from '../src/core/resolve.js';
+import { sameOrigin } from './same-origin.js';
 import { startServer, type RunningServer } from '../src/serve/server.js';
 
 // Workspaces: `serve` adds the launching repo's PLAN-PROJECT `connected_repos`
@@ -48,7 +49,7 @@ async function serveHome(): Promise<RunningServer> {
 }
 
 function api(server: RunningServer, route: string, init?: RequestInit): Promise<Response> {
-  return fetch(`http://localhost:${server.port}${route}`, init);
+  return fetch(`http://localhost:${server.port}${route}`, sameOrigin(server.port, init));
 }
 
 beforeAll(async () => {

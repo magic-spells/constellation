@@ -48,6 +48,19 @@ export function availablePlans(plans) {
 }
 
 /**
+ * The muted line under a connected workspace, shared by the switcher and Home
+ * so both name it the same way: the PROJECT name is the label (and the
+ * monogram); this says which repo it came from — `beta · ../beta`, plus the
+ * package path for a nested plan. The repo name is left out when it is
+ * already the label.
+ */
+export function repoDetail(repo, codePath = '', label = '') {
+	const where = [repo?.path, codePath].filter(Boolean).join('/');
+	const name = repo?.name && repo.name !== label ? repo.name : '';
+	return [name, where].filter(Boolean).join(' · ');
+}
+
+/**
  * The switcher's whole view model.
  *
  *   plans        the roster's `plans`
@@ -65,22 +78,13 @@ export function workspaceModel(plans, active, projectName) {
 	const list = Array.isArray(plans) ? plans : [];
 	const self = list.filter(isSelf);
 	const connected = list.filter((p) => !isSelf(p));
-	const multiPlanRepos = new Set(
-		connected
-			.filter(isAvailable)
-			.map((p) => p.repo?.root)
-			.filter((root, i, all) => all.indexOf(root) !== i),
-	);
-
 	const row = (plan) => {
 		const isActive = isAvailable(plan) && plan.id === active;
 		const name = isActive && projectName ? projectName : plan.name || plan.id;
 		let detail;
 		if (!isAvailable(plan)) detail = plan.reason || 'Unavailable';
 		else if (isSelf(plan)) detail = plan.code_path || '';
-		else if (multiPlanRepos.has(plan.repo?.root) || plan.code_path)
-			detail = [plan.repo?.path, plan.code_path].filter(Boolean).join('/');
-		else detail = plan.repo?.description || plan.repo?.path || '';
+		else detail = repoDetail(plan.repo, plan.code_path, name);
 		return {
 			id: plan.id,
 			name,
@@ -126,40 +130,37 @@ function normalize(p) {
  * connected repo's own connections are not followed, so from inside one, most
  * of its siblings are out of reach.
  *
- * By path first: the entry's path against the current workspace's repo root,
- * compared with each roster entry's `repo.root` (so a connected repo naming
- * this one back finds it). Then, from the launching repo only, by name — the
- * roster's connected names are that repo's own `connected_repos` names.
+ * By path only, resolved exactly as the server resolves `connected_repos`:
+ * against the directory holding the current plan's `constellation/` folder
+ * (repos.ts `repoRootOf`), never its code_root. The path names a repo — whose
+ * `constellation/` is the plan — or the plan folder itself. A declared repo the
+ * server could not open matches its unavailable row (`repo.root` is the
+ * resolved path). So a connected repo naming this one back finds it too.
  *
  * Returns `{ id, name?, available, reason, cards }` — `name` is the served
- * plan's project name, which its monogram is drawn from everywhere.
+ * plan's project name.
  */
 export function rosterMatch(entry, plans, active) {
 	const list = Array.isArray(plans) ? plans : [];
-	const current = list.find((p) => p.id === active);
-	const pick = (candidates) => {
-		const open = candidates.filter(isAvailable);
-		const target = open.find((p) => !p.code_path) ?? open[0];
-		if (target) {
-			return { id: target.id, name: target.name, available: true, reason: '', cards: target.cards ?? 0 };
-		}
-		const down = candidates[0];
-		return down
-			? { id: down.id, available: false, reason: down.reason || 'Unavailable', cards: null }
-			: null;
-	};
+	const planDir = (p) =>
+		p?.repo?.root && p.plan_path ? normalize(`${p.repo.root}/${p.plan_path}`) : null;
+	const currentDir = planDir(list.find((p) => p.id === active));
+	if (!currentDir || !entry?.path) return null;
 
-	const base = current?.repo?.root;
-	if (base && entry?.path) {
-		const target = normalize(entry.path.startsWith('/') ? entry.path : `${base}/${entry.path}`);
-		const hit = pick(list.filter((p) => p.repo?.root && normalize(p.repo.root) === target));
-		if (hit) return hit;
+	const base = currentDir.slice(0, currentDir.lastIndexOf('/')) || '/';
+	const target = normalize(entry.path.startsWith('/') ? entry.path : `${base}/${entry.path}`);
+	const hits = list.filter((p) => {
+		const dir = planDir(p);
+		if (dir) return dir === target || dir === `${target}/constellation`;
+		return !isAvailable(p) && !!p.repo?.root && normalize(p.repo.root) === target;
+	});
+
+	const open = hits.find(isAvailable);
+	if (open) {
+		return { id: open.id, name: open.name, available: true, reason: '', cards: open.cards ?? 0 };
 	}
-	if (current && isSelf(current) && entry?.name) {
-		const hit = pick(list.filter((p) => !isSelf(p) && p.repo?.name === entry.name));
-		if (hit) return hit;
-	}
-	return null;
+	const down = hits[0];
+	return down ? { id: down.id, available: false, reason: down.reason || 'Unavailable', cards: null } : null;
 }
 
 /** The URL a workspace lives at, from the current page's location. */

@@ -22,12 +22,22 @@ const sibling = {
 };
 
 const ROSTER = [
-	{ id: 'root', name: 'Home', code_path: '', cards: 12, available: true, repo: self },
-	{ id: 'sibling', name: 'Sibling', code_path: '', cards: 4, available: true, repo: sibling },
+	{ id: 'root', name: 'Home', code_path: '', plan_path: 'constellation', cards: 12, available: true, repo: self },
+	{
+		id: 'docs',
+		name: 'Home Docs',
+		code_path: 'packages/docs',
+		plan_path: 'packages/docs/constellation',
+		cards: 3,
+		available: true,
+		repo: self,
+	},
+	{ id: 'sibling', name: 'Sibling', code_path: '', plan_path: 'constellation', cards: 4, available: true, repo: sibling },
 	{
 		id: 'ghost',
 		name: 'ghost',
 		code_path: '',
+		plan_path: '',
 		cards: 0,
 		available: false,
 		reason: 'Path not found: ../ghost',
@@ -55,15 +65,17 @@ describe('workspaceModel', () => {
 		expect(model.switchable).toBe(true);
 		expect(model.current).toMatchObject({ name: 'Home Live', letter: 'H' });
 		expect(model.groups.map((g) => g.label)).toEqual(['This repo', 'Connected repos']);
-		const [home] = model.groups[0].items;
+		const [home, docs] = model.groups[0].items;
+		expect(docs).toMatchObject({ id: 'docs', detail: 'packages/docs' });
 		expect(home).toMatchObject({ id: 'root', name: 'Home Live', active: true, cards: 12 });
 		const [sib, ghost] = model.groups[1].items;
-		expect(sib).toMatchObject({ id: 'sibling', detail: 'The sibling repo.', cards: 4, active: false });
+		expect(sib).toMatchObject({ id: 'sibling', detail: 'sibling · ../sibling', cards: 4, active: false });
 		expect(ghost).toMatchObject({ available: false, detail: 'Path not found: ../ghost', cards: null });
 	});
 
 	it('is not switchable with one plan and no connected repos', () => {
 		const model = workspaceModel([ROSTER[0]], 'root', 'Home');
+		// (one plan, no connected repos)
 		expect(model.switchable).toBe(false);
 		expect(model.groups).toHaveLength(1);
 	});
@@ -83,7 +95,7 @@ describe('workspaceModel', () => {
 	});
 
 	it('only counts available plans as routable', () => {
-		expect(availablePlans(ROSTER).map((p) => p.id)).toEqual(['root', 'sibling']);
+		expect(availablePlans(ROSTER).map((p) => p.id)).toEqual(['root', 'docs', 'sibling']);
 	});
 });
 
@@ -101,6 +113,23 @@ describe('rosterMatch', () => {
 			id: 'root',
 			available: true,
 		});
+	});
+
+	it("resolves against the plan folder's parent, as the server does", () => {
+		// From the nested docs plan, ../../../sibling is the sibling repo.
+		expect(rosterMatch({ name: 'x', path: '../../../sibling' }, ROSTER, 'docs')).toMatchObject({
+			id: 'sibling',
+		});
+		// …and ../sibling from there is not.
+		expect(rosterMatch({ name: 'sibling', path: '../sibling' }, ROSTER, 'docs')).toBeNull();
+		// A path naming the plan folder itself matches too.
+		expect(rosterMatch({ name: 'x', path: '../sibling/constellation' }, ROSTER, 'root')).toMatchObject({
+			id: 'sibling',
+		});
+	});
+
+	it('never matches by name alone', () => {
+		expect(rosterMatch({ name: 'sibling', path: '../moved-sibling' }, ROSTER, 'root')).toBeNull();
 	});
 
 	it('reports an unavailable repo with its reason, and null when not served', () => {
@@ -145,10 +174,10 @@ describe('WorkspaceSwitcher', () => {
 		await view.click('[data-workspace-trigger]');
 		expect(trigger.getAttribute('aria-expanded')).toBe('true');
 		const rows = view.findAll('[data-workspace-item]');
-		expect(rows.map((r) => r.dataset.id)).toEqual(['root', 'sibling', 'ghost']);
+		expect(rows.map((r) => r.dataset.id)).toEqual(['root', 'docs', 'sibling', 'ghost']);
 		expect(rows[0].getAttribute('aria-selected')).toBe('true');
-		expect(rows[2].getAttribute('aria-disabled')).toBe('true');
-		expect(rows[2].textContent).toContain('Path not found');
+		expect(rows[3].getAttribute('aria-disabled')).toBe('true');
+		expect(rows[3].textContent).toContain('Path not found');
 		expect(view.findAll('[role="group"]').map((g) => g.getAttribute('aria-label'))).toEqual([
 			'This repo',
 			'Connected repos',
@@ -176,12 +205,14 @@ describe('WorkspaceSwitcher', () => {
 		});
 		document.body.append(view.container);
 		await view.click('[data-workspace-trigger]');
-		const [first, second] = view.findAll('[data-workspace-item]');
+		const [first, second, third] = view.findAll('[data-workspace-item]');
 		first.focus();
 		first.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 		expect(document.activeElement).toBe(second);
-		// The unavailable row is skipped: down from the last enabled row wraps.
 		second.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		expect(document.activeElement).toBe(third);
+		// The unavailable row is skipped: down from the last enabled row wraps.
+		third.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 		expect(document.activeElement).toBe(first);
 		view.container.remove();
 	});
@@ -203,6 +234,11 @@ describe('ConnectedRepos', () => {
 		const rows = view.findAll('.repo');
 		expect(rows[0].getAttribute('href')).toMatch(/#\/p\/sibling\/$/);
 		expect(rows[0].textContent).toContain('4 cards');
+		// The project name labels the row and draws its monogram, like the
+		// switcher; the declared repo is the detail.
+		expect(rows[0].querySelector('.text-ink').textContent).toBe('Sibling');
+		expect(rows[0].querySelector('[aria-hidden]').textContent).toBe('S');
+		expect(rows[0].querySelector('code').textContent).toBe('sibling · ../sibling');
 		expect(rows[1].hasAttribute('href')).toBe(false);
 		expect(rows[1].getAttribute('aria-disabled')).toBe('true');
 		expect(rows[1].textContent).toContain('Path not found');

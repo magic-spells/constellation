@@ -1,4 +1,4 @@
-import { link, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as yaml from 'js-yaml';
 import { TYPE_FOLDERS, typeForHandle } from './handles.js';
@@ -250,8 +250,29 @@ export async function createCardFile(
   const relPath = relPathForHandle(handle);
   const filePath = path.join(planRoot, relPath);
   await mkdir(path.dirname(filePath), { recursive: true });
+  await assertInsidePlan(planRoot, path.dirname(filePath));
   await writeAtomicExclusive(filePath, composeCard(fm, body));
   return relPath;
+}
+
+/** A write whose real target lies outside the plan folder (a symlinked type folder). */
+export class PathEscapeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PathEscapeError';
+  }
+}
+
+/**
+ * Refuse to write through a symlinked type folder: the folder's REAL path must
+ * sit inside the plan root's real path. The indexer already skips symlinked
+ * entries, so this is only reachable for a new card in such a folder.
+ */
+async function assertInsidePlan(planRoot: string, dir: string): Promise<void> {
+  const [realRoot, realDir] = await Promise.all([realpath(planRoot), realpath(dir)]);
+  if (realDir !== realRoot && !realDir.startsWith(realRoot + path.sep)) {
+    throw new PathEscapeError(`${path.relative(planRoot, dir)} resolves outside the plan folder`);
+  }
 }
 
 /**
@@ -267,6 +288,7 @@ export async function createRawCardFile(
   const relPath = relPathForHandle(handle);
   const filePath = path.join(planRoot, relPath);
   await mkdir(path.dirname(filePath), { recursive: true });
+  await assertInsidePlan(planRoot, path.dirname(filePath));
   await writeAtomicExclusive(filePath, raw);
   return relPath;
 }

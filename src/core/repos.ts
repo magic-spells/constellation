@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { readFile, stat } from 'node:fs/promises';
+import { lstat, readFile, realpath, stat } from 'node:fs/promises';
 import { parseFile } from './parse.js';
 import {
   discoverPlans,
@@ -190,6 +190,16 @@ export async function discoverConnectedWorkspaces(
         const scanRoot = direct && path.resolve(direct) === abs ? path.dirname(abs) : abs;
         let plans = await discoverPlans(scanRoot);
         if (direct) plans = await includeDiscoveredPlan(plans, scanRoot, direct);
+        // Stricter than local discovery, because these plans are served and
+        // written from another repo's viewer: a plan needs a real plan.md, and
+        // its folder must be a real directory whose real path stays inside the
+        // connected repo — no symlink out to node_modules or anywhere else.
+        const realScan = await realpath(scanRoot);
+        const kept: DiscoveredPlan[] = [];
+        for (const plan of plans) {
+          if (await isServablePlan(plan.root, realScan)) kept.push(plan);
+        }
+        plans = kept;
         if (plans.length === 0) return down(`No constellation/ plan in ${repo.path}`);
         return { repo, abs, available: true, gitRoot, scanRoot, plans };
       } catch (err) {
@@ -197,6 +207,17 @@ export async function discoverConnectedWorkspaces(
       }
     }),
   );
+}
+
+async function isServablePlan(planRoot: string, realRepoRoot: string): Promise<boolean> {
+  try {
+    if ((await lstat(planRoot)).isSymbolicLink()) return false;
+    if (!(await stat(path.join(planRoot, 'plan.md'))).isFile()) return false;
+    const real = await realpath(planRoot);
+    return real.startsWith(realRepoRoot + path.sep);
+  } catch {
+    return false;
+  }
 }
 
 /** Upsert an entry by name (replacing any existing entry with the same name). */

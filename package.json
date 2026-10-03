@@ -52,8 +52,8 @@
     "lint:examples": "tsx src/cli/index.ts lint examples",
     "build:viewer": "npm run copy:vendor && cd viewer && puzzle build --mode production",
     "demo": "tsx scripts/demo.ts",
-    "dev:viewer": "npm run copy:vendor && cd viewer && puzzle dev",
-    "serve:examples": "tsx src/cli/index.ts serve examples --no-open",
+    "dev:viewer": "npm run copy:vendor && cd viewer && puzzle dev --port 3000 --strict-port",
+    "serve:examples": "tsx src/cli/index.ts serve examples --no-open --dev-origin http://localhost:3000",
     "serve:multi": "tsx src/cli/index.ts serve --no-open",
     "copy:vendor": "node scripts/copy-mermaid.mjs && node scripts/copy-three.mjs"
   },

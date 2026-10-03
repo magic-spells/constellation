@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { sameOrigin } from './same-origin.js';
 import { startServer, type RunningServer } from '../src/serve/server.js';
 
 // POST /api/sync-point — stamping the sync marker from the viewer, the same
@@ -23,7 +24,10 @@ let bare: string;
 let bareServer: RunningServer;
 
 function post(server: RunningServer) {
-  return fetch(`http://localhost:${server.port}/api/sync-point`, { method: 'POST' });
+  return fetch(
+    `http://localhost:${server.port}/api/sync-point`,
+    sameOrigin(server.port, { method: 'POST' }),
+  );
 }
 
 beforeAll(async () => {

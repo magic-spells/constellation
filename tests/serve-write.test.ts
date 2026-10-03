@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { sameOrigin } from './same-origin.js';
 import { startServer, type RunningServer } from '../src/serve/server.js';
 
 const GOLDEN = fileURLToPath(new URL('../examples/constellation', import.meta.url));
@@ -13,10 +14,10 @@ let running: RunningServer;
 let readonlyServer: RunningServer;
 
 function api(p: string, init?: RequestInit) {
-  return fetch(`http://localhost:${running.port}${p}`, {
-    headers: { 'content-type': 'application/json' },
-    ...init,
-  });
+  return fetch(
+    `http://localhost:${running.port}${p}`,
+    sameOrigin(running.port, { headers: { 'content-type': 'application/json' }, ...init }),
+  );
 }
 
 async function getCard(handle: string) {
@@ -181,11 +182,11 @@ describe('write endpoints', () => {
     expect((await plan.json()).editable).toBe(false);
     const res = await fetch(
       `http://localhost:${readonlyServer.port}/api/card/DB-TICKETS`,
-      {
+      sameOrigin(readonlyServer.port, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name: 'nope' }),
-      },
+      }),
     );
     expect(res.status).toBe(405);
   });

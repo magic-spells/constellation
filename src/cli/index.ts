@@ -302,10 +302,14 @@ program
   .option('--plan <id>', 'set the default plan without filtering the served set')
   .option('--no-open', 'do not open the browser')
   .option('--readonly', 'disable editing from the browser')
+  .option(
+    '--dev-origin <origin>',
+    'also accept requests from this loopback origin (the puzzle dev server), e.g. http://localhost:3000',
+  )
   .description('Serve a website rendering the plan, editable in place')
   .action(async (
     target: string | null | undefined,
-    opts: { port: string; plan?: string; open: boolean; readonly?: boolean },
+    opts: { port: string; plan?: string; open: boolean; readonly?: boolean; devOrigin?: string },
   ) => {
     const explicit = target !== null && target !== undefined;
     let root: string;
@@ -380,6 +384,7 @@ program
               planRoot: root,
               port,
               readonly: opts.readonly ?? false,
+              devOrigins: opts.devOrigin ? [opts.devOrigin] : undefined,
             })
           : await startServer({
               plans: discovered as DiscoveredPlan[],
@@ -387,6 +392,7 @@ program
               defaultPlan,
               port,
               readonly: opts.readonly ?? false,
+              devOrigins: opts.devOrigin ? [opts.devOrigin] : undefined,
             });
       } catch (err) {
         const code = (err as NodeJS.ErrnoException)?.code;
@@ -469,7 +475,7 @@ program
     // Declared connected repos that could not be served stay visible here and
     // as disabled rows in the viewer's workspace switcher.
     for (const down of running.unavailable) {
-      line('Skipped:', pc.yellow(down.repo.name) + pc.dim(`  ${down.reason}`));
+      line('Skip:', pc.yellow(down.repo.name) + pc.dim(`  ${down.reason}`));
     }
     if (opts.readonly) line('Mode:', pc.dim('read-only (browser edits disabled)'));
 
