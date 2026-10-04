@@ -1,5 +1,15 @@
 export default {
 	styles: { use: ['tailwindcss'] },
+	// Translations (puzzle D175). One app/locales/<tag>.json per tag; the build
+	// fills each locale's missing keys from `en` (one warning per locale) and
+	// emits a hashed table per locale, of which the browser fetches only the
+	// active one. `pt-BR` sits before `pt-PT` so a browser asking for plain `pt`
+	// lands on Brazilian Portuguese. Keep in step with LANGUAGES in
+	// app/lib/locale.js (tests/viewer/i18n-locales.test.js checks).
+	i18n: {
+		locales: ['en', 'es', 'de', 'fr', 'it', 'ja', 'zh-Hans', 'pt-BR', 'pt-PT', 'nl', 'ko'],
+		defaultLocale: 'en',
+	},
 	dev: {
 		// The Constellation dev API (`npm run serve:examples`) listens on 4747.
 		//

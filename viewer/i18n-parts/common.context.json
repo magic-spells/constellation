@@ -1,0 +1,8 @@
+{
+	"common.action.retry": "Button that repeats an action that failed.",
+	"time.justNow": "Relative time for something that happened under a minute ago, in the same lowercase style as '5m ago' (which the browser formats).",
+	"sync.state.inSync": "The plan's freshness verdict: the plan cards were reviewed against the latest code. Shown in a small badge in the header and on the dashboard. Short.",
+	"sync.state.drifted": "Freshness verdict: code changed since the plan was last synced to it. Short.",
+	"sync.state.dirty": "Freshness verdict: the plan folder has edits not yet committed to git. Short.",
+	"sync.state.neverSynced": "Freshness verdict: nobody has ever marked the plan as synced to the code. Short."
+}

@@ -1,0 +1,187 @@
+{
+	"common": {
+		"action": {
+			"save": "Save",
+			"saving": "Saving…",
+			"cancel": "Cancel",
+			"delete": "Delete",
+			"close": "Close",
+			"edit": "Edit",
+			"create": "Create",
+			"open": "Open",
+			"retry": "Try again",
+			"copy": "Copy",
+			"copied": "Copied",
+			"clear": "Clear",
+			"dismiss": "Dismiss"
+		},
+		"state": {
+			"loading": "Loading…"
+		},
+		"error": {
+			"generic": "Something went wrong."
+		}
+	},
+	"appearance": {
+		"trigger": {
+			"title": "Appearance — scheme, mode and language",
+			"srLabel": "Appearance: {scheme}, {mode}"
+		},
+		"title": "Appearance",
+		"summary": "{scheme} · {mode}",
+		"schemeLegend": "Scheme",
+		"modeLegend": "Mode",
+		"languageLabel": "Language",
+		"languageError": "Couldn't switch the language. Try again.",
+		"scheme": {
+			"observatory": {
+				"label": "Observatory",
+				"description": "Constellation’s own — a deep-navy night sky, or a cool daybreak in light."
+			},
+			"default": {
+				"label": "Default",
+				"description": "Cool near-black with a navy tint and an indigo accent — balanced, classy, premium."
+			},
+			"dim": {
+				"label": "Dim",
+				"description": "Blue-grey at half chroma with softer type — the low-contrast palette."
+			},
+			"warm": {
+				"label": "Warm",
+				"description": "Ivory, tan and brown with a clay-orange accent — the Claude palette."
+			},
+			"void": {
+				"label": "Void",
+				"description": "Monochrome from white to true black — borderless, high contrast, Vercel-like."
+			}
+		},
+		"mode": {
+			"light": {
+				"label": "Light",
+				"description": "Everything lit — a light-grey frame with a white panel on it."
+			},
+			"medium": {
+				"label": "Medium",
+				"description": "Soft dark — dark structure with the grounds lifted to mid grey and the type dimmed a stop."
+			},
+			"dark": {
+				"label": "Dark",
+				"description": "Everything dark, the frame a step darker than the panel."
+			},
+			"system": {
+				"label": "System",
+				"description": "Follow the operating system between light and dark."
+			}
+		}
+	},
+	"status": {
+		"planned": "planned",
+		"building": "building",
+		"built": "built",
+		"verified": "verified",
+		"none": "no status"
+	},
+	"sync": {
+		"state": {
+			"inSync": "In sync",
+			"drifted": "Drifted",
+			"dirty": "Uncommitted edits",
+			"neverSynced": "Not synced"
+		}
+	},
+	"time": {
+		"justNow": "just now"
+	},
+	"types": {
+		"plan": {
+			"name": "Plans",
+			"single": "plan"
+		},
+		"feature": {
+			"name": "Features",
+			"single": "feature"
+		},
+		"release": {
+			"name": "Releases",
+			"single": "release"
+		},
+		"diagram": {
+			"name": "Architecture",
+			"single": "diagram"
+		},
+		"doc": {
+			"name": "Docs",
+			"single": "doc"
+		},
+		"decision": {
+			"name": "Decisions",
+			"single": "decision"
+		},
+		"agent": {
+			"name": "Agent rules",
+			"single": "agent rule"
+		},
+		"api": {
+			"name": "API endpoints",
+			"single": "API endpoint"
+		},
+		"db": {
+			"name": "Database",
+			"single": "database table"
+		},
+		"datatype": {
+			"name": "Data types",
+			"single": "data type"
+		},
+		"event": {
+			"name": "Events",
+			"single": "event"
+		},
+		"job": {
+			"name": "Jobs",
+			"single": "job"
+		},
+		"flow": {
+			"name": "Flows",
+			"single": "flow"
+		},
+		"state": {
+			"name": "State machines",
+			"single": "state machine"
+		},
+		"role": {
+			"name": "Roles",
+			"single": "role"
+		},
+		"external": {
+			"name": "External services",
+			"single": "external service"
+		},
+		"page": {
+			"name": "Pages",
+			"single": "page"
+		},
+		"component": {
+			"name": "Components",
+			"single": "component"
+		},
+		"style": {
+			"name": "Style guide",
+			"single": "style"
+		},
+		"file": {
+			"name": "Repo files",
+			"single": "repo file"
+		},
+		"test": {
+			"name": "Tests",
+			"single": "test"
+		},
+		"group": {
+			"overview": "Overview",
+			"system": "System",
+			"interface": "Interface",
+			"code": "Code & tests"
+		}
+	}
+}

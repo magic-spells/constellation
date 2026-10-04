@@ -1,3 +1,5 @@
+import { t } from './i18n.js';
+
 /**
  * Card status vocabulary shared by the views that render a status chip.
  *
@@ -17,6 +19,16 @@ export const STATUS = {
 	built: { variant: 'brand', tint: '' },
 	verified: { variant: 'default', tint: 'bg-success-tint! text-success!' },
 };
+
+/**
+ * A status value's display word in the active locale (`status.<value>`). The
+ * four canonical values are translated; anything else is plan data and prints
+ * as written. '' / null is "no status".
+ */
+export function statusLabel(status) {
+	if (!status) return t('status.none');
+	return Object.hasOwn(STATUS, status) ? t(`status.${status}`) : String(status);
+}
 
 /** Badge variant + tint for a status, with the neutral fallback for unknowns. */
 export function statusMeta(status) {

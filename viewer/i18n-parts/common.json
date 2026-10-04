@@ -1,0 +1,36 @@
+{
+	"common": {
+		"action": {
+			"save": "Save",
+			"saving": "Saving…",
+			"cancel": "Cancel",
+			"delete": "Delete",
+			"close": "Close",
+			"edit": "Edit",
+			"create": "Create",
+			"open": "Open",
+			"retry": "Try again",
+			"copy": "Copy",
+			"copied": "Copied",
+			"clear": "Clear",
+			"dismiss": "Dismiss"
+		},
+		"state": {
+			"loading": "Loading…"
+		},
+		"error": {
+			"generic": "Something went wrong."
+		}
+	},
+	"time": {
+		"justNow": "just now"
+	},
+	"sync": {
+		"state": {
+			"inSync": "In sync",
+			"drifted": "Drifted",
+			"dirty": "Uncommitted edits",
+			"neverSynced": "Not synced"
+		}
+	}
+}

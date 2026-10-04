@@ -1,35 +1,58 @@
+import { t } from './i18n.js';
+
 /**
- * Card-type metadata for the viewer: display label, plan folder, and the
- * sidebar group each of the 21 types belongs to. Ported from the Svelte
- * viewer's `lib/types.ts` (TypeScript interfaces dropped — the runtime values
- * are unchanged).
+ * Card-type metadata for the viewer: plan folder and the sidebar group each of
+ * the 21 types belongs to. Ported from the Svelte viewer's `lib/types.ts`.
+ *
+ * Words are not here: a type's display name is the locale key
+ * `types.<folder>.name` ("API endpoints"), its in-sentence noun is
+ * `types.<folder>.single` ("API endpoint"), and a group's heading is
+ * `types.group.<id>`. Read them through typeLabel() / typeSingular() /
+ * groupLabel() below, at render time — never at module load.
  */
 export const TYPE_META = {
-  PLAN: { label: 'Plans', folder: 'plan', group: 'Overview' },
-  FEATURE: { label: 'Features', folder: 'feature', group: 'Overview' },
-  RELEASE: { label: 'Releases', folder: 'release', group: 'Overview' },
-  DIAGRAM: { label: 'Architecture', folder: 'diagram', group: 'Overview' },
-  DOC: { label: 'Docs', folder: 'doc', group: 'Overview' },
-  DECISION: { label: 'Decisions', folder: 'decision', group: 'Overview' },
-  AGENT: { label: 'Agent rules', folder: 'agent', group: 'Overview' },
-  API: { label: 'API endpoints', folder: 'api', group: 'System' },
-  DB: { label: 'Database', folder: 'db', group: 'System' },
-  DATATYPE: { label: 'Data types', folder: 'datatype', group: 'System' },
-  EVENT: { label: 'Events', folder: 'event', group: 'System' },
-  JOB: { label: 'Jobs', folder: 'job', group: 'System' },
-  FLOW: { label: 'Flows', folder: 'flow', group: 'System' },
-  STATE: { label: 'State machines', folder: 'state', group: 'System' },
-  ROLE: { label: 'Roles', folder: 'role', group: 'System' },
-  EXTERNAL: { label: 'External services', folder: 'external', group: 'System' },
-  PAGE: { label: 'Pages', folder: 'page', group: 'Interface' },
-  COMPONENT: { label: 'Components', folder: 'component', group: 'Interface' },
-  STYLE: { label: 'Style guide', folder: 'style', group: 'Interface' },
-  FILE: { label: 'Repo files', folder: 'file', group: 'Code & tests' },
-  TEST: { label: 'Tests', folder: 'test', group: 'Code & tests' },
+  PLAN: { folder: 'plan', group: 'overview' },
+  FEATURE: { folder: 'feature', group: 'overview' },
+  RELEASE: { folder: 'release', group: 'overview' },
+  DIAGRAM: { folder: 'diagram', group: 'overview' },
+  DOC: { folder: 'doc', group: 'overview' },
+  DECISION: { folder: 'decision', group: 'overview' },
+  AGENT: { folder: 'agent', group: 'overview' },
+  API: { folder: 'api', group: 'system' },
+  DB: { folder: 'db', group: 'system' },
+  DATATYPE: { folder: 'datatype', group: 'system' },
+  EVENT: { folder: 'event', group: 'system' },
+  JOB: { folder: 'job', group: 'system' },
+  FLOW: { folder: 'flow', group: 'system' },
+  STATE: { folder: 'state', group: 'system' },
+  ROLE: { folder: 'role', group: 'system' },
+  EXTERNAL: { folder: 'external', group: 'system' },
+  PAGE: { folder: 'page', group: 'interface' },
+  COMPONENT: { folder: 'component', group: 'interface' },
+  STYLE: { folder: 'style', group: 'interface' },
+  FILE: { folder: 'file', group: 'code' },
+  TEST: { folder: 'test', group: 'code' },
 };
 
-/** Sidebar group order. */
-export const GROUPS = ['Overview', 'System', 'Interface', 'Code & tests'];
+/** Sidebar group order (ids; `groupLabel(id)` is the heading). */
+export const GROUPS = ['overview', 'system', 'interface', 'code'];
+
+/** A type's display name in the active locale ("API endpoints"); the type itself when unknown. */
+export function typeLabel(type) {
+  const folder = TYPE_META[type]?.folder;
+  return folder ? t(`types.${folder}.name`) : String(type ?? '');
+}
+
+/** One card of a type as an in-sentence noun ("API endpoint"); the type itself when unknown. */
+export function typeSingular(type) {
+  const folder = TYPE_META[type]?.folder;
+  return folder ? t(`types.${folder}.single`) : String(type ?? '');
+}
+
+/** A sidebar group's heading in the active locale. */
+export function groupLabel(group) {
+  return t(`types.group.${group}`);
+}
 
 /**
  * Building silhouette per card type, for the atlas. A city is only readable if
