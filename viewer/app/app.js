@@ -8,6 +8,8 @@ import { availablePlans } from './lib/workspaces.js';
 import models from './models/index.js';
 import routes from './routes.js';
 import { boot as bootAppearance } from './lib/appearance.js';
+import { bindI18n, installPseudoLocale } from './lib/i18n.js';
+import { bindLocaleService } from './lib/locale.js';
 
 // The pre-paint script in public/index.html has already painted the stored
 // scheme + mode; boot() makes the appearance module agree with that paint.
@@ -127,7 +129,34 @@ async function boot() {
 		hide: { attraction: 0.12, friction: 0.39 },
 	});
 
-	app.mount();
+	const mounting = app.mount();
+
+	// TRANSLATIONS. Bound right after mount() starts: like the store, app.i18n
+	// is created synchronously at the start of mount() and is undefined before
+	// it. mount() awaits the locale table before the first data() runs, so
+	// nothing translates unbound. Templates reach the service as t(); plain
+	// modules translate through lib/i18n.js, and the language picker switches
+	// through lib/locale.js — both take the same service here.
+	bindI18n(app.i18n);
+	bindLocaleService(app.i18n);
+
+	// DEV ONLY: the pseudo-locale. `?pseudo=1` turns it on (remembered on this
+	// device), `?pseudo=0` off. Every translated string renders accented, ~35%
+	// longer and bracketed, so untranslated English and clipping stand out.
+	// The hash router owns the fragment, so the flag rides in the query string:
+	// `/?pseudo=1#/`.
+	if (typeof __PUZZLE_DEV__ !== 'undefined' && __PUZZLE_DEV__) {
+		try {
+			const flag = new URLSearchParams(window.location.search).get('pseudo');
+			if (flag === '1') localStorage.setItem('constellation:dev-pseudo', '1');
+			if (flag === '0') localStorage.removeItem('constellation:dev-pseudo');
+			if (localStorage.getItem('constellation:dev-pseudo') === '1') installPseudoLocale(app.i18n);
+		} catch {
+			/* storage unavailable — no pseudo-locale */
+		}
+	}
+
+	await mounting;
 	return app;
 }
 

@@ -43,14 +43,15 @@ describe('viewer markdown rendering', () => {
 
 describe('viewer type metadata', () => {
   it('maps folders back to types and types to folders', async () => {
-    const { TYPE_META, GROUPS, typeForFolder, folderForType, isHandle } = await import(
+    const { TYPE_META, GROUPS, groupLabel, typeForFolder, folderForType, isHandle } = await import(
       '../../viewer/app/lib/types.js'
     );
     expect(Object.keys(TYPE_META)).toHaveLength(21);
     expect(typeForFolder('api')).toBe('API');
     expect(typeForFolder('nope')).toBeUndefined();
     expect(folderForType('DATATYPE')).toBe('datatype');
-    expect(GROUPS).toEqual(['Overview', 'System', 'Interface', 'Code & tests']);
+    expect(GROUPS).toEqual(['overview', 'system', 'interface', 'code']);
+    expect(GROUPS.map(groupLabel)).toEqual(['Overview', 'System', 'Interface', 'Code & tests']);
     expect(isHandle('API-TICKETS')).toBe(true);
     expect(isHandle('NOPE-THING')).toBe(false);
     expect(isHandle('lowercase-thing')).toBe(false);

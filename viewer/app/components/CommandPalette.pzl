@@ -3,9 +3,9 @@
     open={ open }
     morphSource={ morphSource }
     items={ items }
-    label="Command palette"
-    placeholder="Search cards, pages and actions…"
-    emptyText="Nothing matches that."
+    label={ t('palette.label') }
+    placeholder={ t('palette.placeholder') }
+    emptyText={ t('palette.empty') }
     @input={ onQuery }
     @select={ run }
     @close={ close }/>
@@ -15,7 +15,8 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import Command from './ui/Command.pzl';
 import { planIndex } from '../lib/plan-index.js';
-import { GROUPS, hrefForHandle, TYPE_META } from '../lib/types.js';
+import { GROUPS, hrefForHandle, TYPE_META, typeLabel } from '../lib/types.js';
+import { t } from '../lib/i18n.js';
 import { SCHEMES, current as currentAppearance, set as setAppearance } from '../lib/appearance.js';
 
 // CommandPalette — everything in the plan, one ⌘K away: every card (grouped by
@@ -46,6 +47,11 @@ import { SCHEMES, current as currentAppearance, set as setAppearance } from '../
 // kinds of row; a card's label is its name with the handle as the right-hand
 // hint, and the handle also rides along in `keywords` so typing "API-TIC"
 // matches a card whose name says nothing of the sort.
+//
+// Labels are locale keys, translated in data(). Command matches label +
+// keywords, so the label already matches in the reader's language; the
+// English keywords stay, and each row also carries its translated kind word
+// ("page", "scheme") so those searches work in the reader's language too.
 
 const PER_GROUP = 8;
 
@@ -54,19 +60,19 @@ const PER_GROUP = 8;
 const SEARCH_SOURCE = '[data-morph-source="search"]';
 
 const PAGES = [
-	{ path: '/', label: 'Overview' },
+	{ path: '/', labelKey: 'nav.overview' },
 	// Both Tasks views are listed rather than the destination alone: the palette
 	// is a jump-to, and "list" is the word someone reaches for when they want the
 	// shipped/ahead reading. Unconditional, matching the sidebar's Tasks row —
 	// the empty state is what teaches FEATURE cards.
-	{ path: '/tasks/board', label: 'Tasks — Board' },
-	{ path: '/tasks/list', label: 'Tasks — List' },
+	{ path: '/tasks/board', labelKey: 'palette.page.tasksBoard' },
+	{ path: '/tasks/list', labelKey: 'palette.page.tasksList' },
 	// Both readings, for the same reason as Tasks: "atlas" and "graph" are the
 	// words people reach for, not the destination name.
-	{ path: '/constellation/graph', label: 'Constellation — Graph' },
-	{ path: '/constellation/atlas', label: 'Constellation — Atlas' },
+	{ path: '/constellation/graph', labelKey: 'palette.page.graph' },
+	{ path: '/constellation/atlas', labelKey: 'palette.page.atlas' },
 	// Shown only when the plan has cards behind them, exactly like the sidebar.
-	{ path: '/style-guide', label: 'Style guide', needs: 'STYLE' },
+	{ path: '/style-guide', labelKey: 'nav.styleGuide', needs: 'STYLE' },
 ];
 
 // Types in sidebar order: group by group, and within a group the order they are
@@ -87,16 +93,19 @@ export default class CommandPalette extends PuzzleView {
 		const q = query.trim().toLowerCase();
 		const index = planIndex(this.ctx.store);
 		const items = [];
+		const goTo = t('palette.group.goTo');
+		const pageWord = t('palette.keyword.page');
+		const schemeGroup = t('palette.group.scheme');
 
 		for (const page of PAGES) {
 			if (page.needs && !(index.byType.get(page.needs)?.length > 0)) continue;
 			items.push({
 				value: `page:${page.path}`,
-				label: page.label,
+				label: t(page.labelKey),
 				// Not "Pages": that is the PAGE type's own label, and two groups of
 				// the same name would merge into one list.
-				group: 'Go to',
-				keywords: ['page', page.path],
+				group: goTo,
+				keywords: ['page', page.path, pageWord],
 			});
 		}
 
@@ -113,7 +122,7 @@ export default class CommandPalette extends PuzzleView {
 					value: `card:${card.handle}`,
 					label: card.name || card.handle,
 					hint: card.handle,
-					group: TYPE_META[type].label,
+					group: typeLabel(type),
 					keywords: [card.handle],
 				});
 			}
@@ -123,10 +132,10 @@ export default class CommandPalette extends PuzzleView {
 		for (const option of SCHEMES) {
 			items.push({
 				value: `scheme:${option.value}`,
-				label: option.label,
-				group: 'Scheme',
-				hint: option.value === scheme ? 'Active' : '',
-				keywords: ['scheme', 'theme', 'palette', 'appearance', option.value],
+				label: t(option.labelKey),
+				group: schemeGroup,
+				hint: option.value === scheme ? t('palette.hint.active') : '',
+				keywords: ['scheme', 'theme', 'palette', 'appearance', option.value, schemeGroup, t('appearance.title')],
 			});
 		}
 

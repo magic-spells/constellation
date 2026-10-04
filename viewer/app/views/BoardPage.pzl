@@ -6,8 +6,8 @@
     {#if empty}
       <Empty
         class="rounded-xl border border-dashed border-border"
-        title="No FEATURE cards yet"
-        description="A FEATURE groups a coherent slice of future work. Create one in feature/FEATURE-*.md, connect the cards it touches, and it lands on this board.">
+        title={ t('board.empty.title') }
+        description={ t('board.empty.description', { path: 'feature/FEATURE-*.md' }) }>
         <svg slot="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="3" y="4" width="5" height="16" rx="1"/>
           <rect x="9.5" y="4" width="5" height="11" rx="1"/>
@@ -15,7 +15,7 @@
         </svg>
       </Empty>
     {:else}
-      <Kanban columns={ columns } label="Feature board" empty="Nothing here yet."/>
+      <Kanban columns={ columns } label={ t('board.label') } empty={ t('board.column.emptyFallback') }/>
     {/if}
     </div>
   </div>
@@ -30,7 +30,9 @@ import { PuzzleView } from '@magic-spells/puzzle';
 import Empty from '../components/ui/Empty.pzl';
 import Kanban from '../components/ui/Kanban.pzl';
 import TasksHeader from '../components/TasksHeader.pzl';
+import { t } from '../lib/i18n.js';
 import { planIndex } from '../lib/plan-index.js';
+import { statusLabel } from '../lib/status.js';
 
 // BoardPage — `#/board`: every FEATURE card in the four status-enum columns.
 // Read-only: a card's column IS its `status:` frontmatter, so drag-to-move must
@@ -55,17 +57,13 @@ import { planIndex } from '../lib/plan-index.js';
 const DOT = 'size-1.5 shrink-0 rounded-full';
 
 // Enum order — planned → verified reads as the life of a feature. Tone dots
-// match CardList's status dots so a status is one colour everywhere.
+// match CardList's status dots so a status is one colour everywhere. Title and
+// empty hint are `board.column.<id>.*`, translated in data().
 const COLUMNS = [
-	{ id: 'planned', title: 'Planned', dotClass: `${DOT} bg-faint`, empty: 'Nothing queued.' },
-	{ id: 'building', title: 'Building', dotClass: `${DOT} bg-warning`, empty: 'Nothing in flight.' },
-	{ id: 'built', title: 'Built', dotClass: `${DOT} bg-brand`, empty: 'Nothing built yet.' },
-	{
-		id: 'verified',
-		title: 'Verified',
-		dotClass: `${DOT} bg-success`,
-		empty: 'Nothing verified yet.',
-	},
+	{ id: 'planned', dotClass: `${DOT} bg-faint` },
+	{ id: 'building', dotClass: `${DOT} bg-warning` },
+	{ id: 'built', dotClass: `${DOT} bg-brand` },
+	{ id: 'verified', dotClass: `${DOT} bg-success` },
 ];
 
 // Planned, Building and Built all drain — a card leaves them. Verified never
@@ -142,7 +140,7 @@ function cardRow(card) {
 		handle: card.handle,
 		accent: 'var(--color-ink)',
 		summary: summaryOf(card.body),
-		note: card.status ? '' : 'no status',
+		note: card.status ? '' : statusLabel(''),
 	};
 }
 
@@ -176,9 +174,14 @@ export default class BoardPage extends PuzzleView {
 
 			return {
 				...column,
+				title: t(`board.column.${column.id}.title`),
+				empty: t(`board.column.${column.id}.empty`),
 				total: cards.length,
 				cards: shown.map(cardRow),
-				overflow: hidden > 0 ? { text: `+${hidden} more verified`, href: '/tasks/list' } : null,
+				overflow:
+					hidden > 0
+						? { text: t('board.overflow', { count: hidden }), href: '/tasks/list' }
+						: null,
 			};
 		});
 

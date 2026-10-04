@@ -2,7 +2,7 @@
   <div class="contents">
     {#if repos.length > 0}
       <div class="home-section">
-        <h3>Connected repos</h3>
+        <h3>{ t('home.repos.title') }</h3>
         <div class="flex flex-col gap-2">
           {#for repo in repos}
             <!-- A real href when it opens, so ⌘-click still gets a new tab and a
@@ -22,7 +22,7 @@
             </a>
           {/for}
         </div>
-        <p class="mt-2.5 text-xs text-muted">Separate plans, each its own workspace — open one here or from the switcher at the top of the sidebar.</p>
+        <p class="mt-2.5 text-xs text-muted">{ t('home.repos.hint') }</p>
       </div>
     {/if}
   </div>
@@ -30,6 +30,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { t } from '../lib/i18n.js';
 import { monogram, monogramTone, repoDetail, rosterMatch, switchWorkspace, workspaceHref } from '../lib/workspaces.js';
 
 // ConnectedRepos — the sibling repos PLAN-PROJECT declares in
@@ -60,11 +61,12 @@ export default class ConnectedRepos extends PuzzleView {
 				const current = match?.id === props.active;
 				const label = (match?.available && match.name) || repo.name;
 				const open = !!match?.available && !current;
+				// `reason` is the server's own text, shown as sent.
 				const status = current
-					? 'This workspace'
+					? t('home.repos.current')
 					: open
-						? `${match.cards} cards`
-						: match?.reason || 'Not served by this viewer';
+						? t('home.repos.cardCount', { count: match.cards ?? 0 })
+						: match?.reason || t('home.repos.notServed');
 				return {
 					...repo,
 					id: match?.id ?? '',

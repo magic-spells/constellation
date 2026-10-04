@@ -11,7 +11,7 @@
             @input={ onInput(event) }
             @keydown={ onKey(event) }
             @blur={ onBlur }></textarea>
-          <span class="edit-hint">⌘↩ save · esc cancel</span>
+          <span class="edit-hint">{ t('edit.hint') }</span>
         </span>
       {:else}
         <input
@@ -40,6 +40,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { t } from '../lib/i18n.js';
 
 // Editable — click-to-edit text, ported from the Svelte viewer's
 // Editable.svelte. Click (or Enter on the focused text) swaps the rendered
@@ -95,14 +96,14 @@ export default class Editable extends PuzzleView {
 			multiline,
 			draft: this._draft,
 			value: String(props.value ?? ''),
-			placeholder: props.placeholder ?? 'empty — click to edit',
+			placeholder: props.placeholder ?? t('edit.emptyPlaceholder'),
 			rootClass: `editable-root${block}`,
 			fieldClass: `inline-edit${props.mono ? ' is-mono' : ''}`,
 			viewClass:
 				(canEdit ? 'editable' : 'editable-static') + block + (editing ? ' is-editing' : ''),
 			viewRole: canEdit ? 'button' : false,
 			viewTabIndex: canEdit ? 0 : false,
-			viewTitle: canEdit ? 'Click to edit' : false,
+			viewTitle: canEdit ? t('edit.clickToEdit') : false,
 		};
 	}
 

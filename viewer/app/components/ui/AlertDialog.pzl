@@ -24,6 +24,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { t } from '../../lib/i18n.js';
 
 // AlertDialog — a confirm/cancel modal for destructive or consequential actions,
 // built on the native <dialog role="alertdialog"> element. An independent thin
@@ -104,8 +105,8 @@ export default class AlertDialog extends PuzzleView {
       labelledby: title ? `${id}-title` : false,
       describedby: description ? `${id}-desc` : false,
       panelClass: [PANEL, props.class || ''].filter(Boolean).join(' '),
-      confirmLabel: props.confirmLabel || 'Continue',
-      cancelLabel: props.cancelLabel || 'Cancel',
+      confirmLabel: props.confirmLabel || t('ui.alertDialog.confirm'),
+      cancelLabel: props.cancelLabel || t('common.action.cancel'),
       cancelClass: [BTN_BASE, BTN_OUTLINE].join(' '),
       confirmClass: [BTN_BASE, props.destructive ? BTN_DESTRUCTIVE : BTN_PRIMARY].join(' '),
     };

@@ -1,10 +1,10 @@
 <puzzle-view>
   <div class="style-guide">
-    <h1>Style Guide</h1>
+    <h1>{ t('style.guide.title') }</h1>
     {#if cards.length === 0}
       <Empty
-        title="No STYLE cards yet"
-        description="Add a card under style/ with a category and a tokens list — colors, fonts, a type scale, spacing, radii or shadows — and it renders here."
+        title={ t('style.guide.emptyTitle') }
+        description={ t('style.guide.emptyDescription') }
         class="min-h-[18rem]"
       />
     {:else}

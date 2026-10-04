@@ -1,4 +1,5 @@
 import { toast } from '../components/ui/toast.js';
+import { t } from './i18n.js';
 import { ApiError, createCard, deleteCard, loadPlan, patchCard, setSyncPoint } from './api.js';
 
 // edit.js — the one place a viewer write turns into user-visible feedback.
@@ -29,11 +30,11 @@ function report(error, quietCodes) {
 	if (quietCodes.includes(code)) return false;
 
 	if (code === 'STALE') {
-		toast({ message: 'Card changed on disk — reloaded', variant: 'danger' });
+		toast({ message: t('edit.toast.stale'), variant: 'danger' });
 	} else if (code === 'READONLY') {
-		toast({ message: 'Viewer is read-only', variant: 'danger' });
+		toast({ message: t('edit.toast.readonly'), variant: 'danger' });
 	} else {
-		toast({ message: error?.message || 'Save failed', variant: 'danger' });
+		toast({ message: error?.message || t('edit.toast.saveFailed'), variant: 'danger' });
 	}
 	return true;
 }
@@ -77,7 +78,7 @@ export async function stampSyncPoint(store) {
 	try {
 		const value = await setSyncPoint(store);
 		toast({
-			message: `Sync point set at ${value.marker.synced_sha.slice(0, 8)}`,
+			message: t('edit.toast.syncPoint', { sha: value.marker.synced_sha.slice(0, 8) }),
 			variant: 'success',
 		});
 		return { ok: true, value };

@@ -5,7 +5,7 @@
         <div class="card-eyebrow">
           <span class="card-handle" style={ typeStyle }>{ card.handle }</span>
           {#if editable && card.handle !== 'PLAN-PROJECT'}
-            <button type="button" class="card-delete" @click={ askDelete }>delete</button>
+            <button type="button" class="card-delete" @click={ askDelete }>{ t('card.page.delete') }</button>
           {/if}
         </div>
         <h1>
@@ -15,7 +15,7 @@
           <StatusSelect handle={ card.handle } status={ status } mtime={ card.mtime }/>
           {#if editable}
             <span class="card-kind">
-              <Editable mono value={ kind } placeholder="+ kind" @save={ saveKind }/>
+              <Editable mono value={ kind } placeholder={ t('card.page.kindPlaceholder') } @save={ saveKind }/>
             </span>
           {:else if kind}
             <span class="card-kind">{ kind }</span>
@@ -31,7 +31,7 @@
 
       {#if showFields}
         <section class="card-section">
-          <h2>Fields</h2>
+          <h2>{ t('card.section.fields') }</h2>
           <div class="field-list">
             {#for field in fields}
               <div class="field-row">
@@ -55,14 +55,14 @@
                     <input
                       ref="fieldInput"
                       class="inline-edit is-mono"
-                      placeholder="key: value"
+                      placeholder={ t('card.fields.addPlaceholder') }
                       spellcheck="false"
                       value={ fieldDraft }
                       @input={ onFieldInput(event) }
                       @keydown={ onFieldKey(event) }
                       @blur={ onFieldBlur }/>
                   {:else}
-                    <button type="button" class="ghost-add" @click={ startField }>+ field</button>
+                    <button type="button" class="ghost-add" @click={ startField }>{ t('card.fields.add') }</button>
                   {/if}
                 </div>
               </div>
@@ -85,13 +85,13 @@
         </section>
       {:else if editable}
         <section class="card-section card-body">
-          <Editable multiline value="" placeholder="+ write something" @save={ saveBody }/>
+          <Editable multiline value="" placeholder={ t('card.page.bodyPlaceholder') } @save={ saveBody }/>
         </section>
       {/if}
 
       {#if showConnections}
         <section class="card-section">
-          <h2>Connections</h2>
+          <h2>{ t('card.section.connections') }</h2>
           <ConnectionChips
             handles={ neighbors }
             removable={ removableConnections }
@@ -102,7 +102,7 @@
                 <input
                   ref="connInput"
                   class="inline-edit is-mono"
-                  placeholder="HANDLE…"
+                  placeholder={ t('card.connections.addPlaceholder') }
                   spellcheck="false"
                   list={ candidateListId }
                   value={ connectionDraft }
@@ -113,7 +113,7 @@
                   {#for candidate in connectionCandidates}<option value={ candidate }></option>{/for}
                 </datalist>
               {:else}
-                <button type="button" class="ghost-add" @click={ startConnection }>+ connect</button>
+                <button type="button" class="ghost-add" @click={ startConnection }>{ t('card.connections.add') }</button>
               {/if}
             </div>
           {/if}
@@ -125,7 +125,7 @@
       {/if}
     {:else}
       <Empty
-        title="Card not found"
+        title={ t('card.notFound.title') }
         description={ emptyDescription }
         class="min-h-[22rem]"
       />
@@ -147,6 +147,7 @@ import MarkdownBlock from '../components/MarkdownBlock.pzl';
 import StatusSelect from '../components/StatusSelect.pzl';
 import StyleTokens from '../components/StyleTokens.pzl';
 import { toast } from '../components/ui/toast.js';
+import { t } from '../lib/i18n.js';
 import { savePatch } from '../lib/edit.js';
 import { extractFlowSteps } from '../lib/markdown.js';
 import { planIndex } from '../lib/plan-index.js';
@@ -184,7 +185,9 @@ export default class CardPage extends PuzzleView {
 			return {
 				card: null,
 				handle,
-				emptyDescription: `${handle || 'This card'} is not in this plan.`,
+				emptyDescription: handle
+					? t('card.notFound.description', { handle })
+					: t('card.notFound.descriptionNoHandle'),
 			};
 		}
 
@@ -311,7 +314,7 @@ export default class CardPage extends PuzzleView {
 			const parsed = yaml.load(raw);
 			return parsed === undefined ? null : parsed;
 		} catch {
-			toast({ message: 'invalid YAML — not saved', variant: 'danger' });
+			toast({ message: t('card.fields.invalidYaml'), variant: 'danger' });
 			return undefined;
 		}
 	}
@@ -356,7 +359,7 @@ export default class CardPage extends PuzzleView {
 		// Checked here rather than left to the server: a bad handle would be
 		// written to the file and only come back as an E005 lint issue.
 		if (!isHandle(target) || !this.ctx.store.findOne('card', target)) {
-			toast({ message: `${target} is not an existing card`, variant: 'danger' });
+			toast({ message: t('card.connections.unknownTarget', { handle: target }), variant: 'danger' });
 			return;
 		}
 		const own = this.getData().ownConnections ?? [];

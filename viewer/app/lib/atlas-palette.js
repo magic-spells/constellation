@@ -85,11 +85,11 @@ export function atlasPalette(types = []) {
 		routeDot: paper ? ink : cssColor('--t-FLOW', brand),
 		routeCasing: page,
 
-		districtFont: '700 11px ui-monospace, SFMono-Regular, Menlo, monospace',
-		buildingFont: '600 10px ui-monospace, SFMono-Regular, Menlo, monospace',
+		districtFont: '700 11px ui-monospace, SFMono-Regular, Menlo, monospace', // i18n-ok: canvas font shorthand
+		buildingFont: '600 10px ui-monospace, SFMono-Regular, Menlo, monospace', // i18n-ok: canvas font shorthand
 		// Literal stacks: a canvas font shorthand is not CSS and does not resolve
 		// var(), so a `var(--font-sans)` here would silently fall back to serif.
-		summaryFont: "400 11px 'Inter Variable', Inter, system-ui, sans-serif",
+		summaryFont: "400 11px 'Inter Variable', Inter, system-ui, sans-serif", // i18n-ok: canvas font shorthand
 
 		/**
 		 * A building's three faces plus its outline. `tone` from the lens wins over

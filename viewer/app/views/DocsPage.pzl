@@ -34,7 +34,7 @@
               <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M7 9V4h10v5M7 17v3h10v-3M5 9h14a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1v-5a1 1 0 011-1M8 12.5h.01"/>
               </svg>
-              Export as PDF
+              { t('docs.export.button') }
             </Button>
           </DocsDocument>
         </div>
@@ -51,6 +51,7 @@ import DocsDocument from '../components/DocsDocument.pzl';
 import DocsToc from '../components/DocsToc.pzl';
 import { toast } from '../components/ui/toast.js';
 import { anchorAt, docModel, printHref, setActiveDocAnchor } from '../lib/docs.js';
+import { t } from '../lib/i18n.js';
 
 // DocsPage — `#/docs` and `#/docs/:section`: every sectioned card compiled into
 // one document, read top to bottom.
@@ -94,10 +95,14 @@ export default class DocsPage extends PuzzleView {
 
 		return {
 			...model,
-			emptyTitle: model.unknownSection ? 'No such section' : 'No documentation yet',
+			emptyTitle: model.unknownSection ? t('docs.empty.unknownTitle') : t('docs.empty.title'),
 			emptyDescription: model.unknownSection
-				? `No card declares section: ${solo}.`
-				: 'Give a card a section: slug and it joins this document. Register the slugs in order on PLAN-PROJECT as doc_sections: to name them and set how they read.',
+				? t('docs.empty.unknownSection', { field: 'section:', section: solo })
+				: t('docs.empty.description', {
+						field: 'section:',
+						handle: 'PLAN-PROJECT',
+						listField: 'doc_sections:',
+					}),
 		};
 	}
 
@@ -196,8 +201,8 @@ export default class DocsPage extends PuzzleView {
 				return;
 			}
 			toast({
-				title: 'Pop-up blocked',
-				message: 'Allow pop-ups for this site, or press ⌘P and choose “Save as PDF”.',
+				title: t('docs.export.blockedTitle'),
+				message: t('docs.export.blockedMessage', { shortcut: '⌘P' }),
 				variant: 'danger',
 			});
 		},

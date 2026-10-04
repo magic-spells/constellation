@@ -1,0 +1,700 @@
+{
+	"common": {
+		"action": {
+			"cancel": "취소",
+			"close": "닫기",
+			"dismiss": "닫기"
+		},
+		"state": {
+			"loading": "불러오는 중…"
+		}
+	},
+	"api": {
+		"error": {
+			"requestFailed": "요청이 실패했어요(상태 코드 {status})"
+		}
+	},
+	"appearance": {
+		"trigger": {
+			"title": "모양 — 색 구성, 모드, 언어",
+			"srLabel": "모양: {scheme}, {mode}"
+		},
+		"title": "모양",
+		"summary": "{scheme} · {mode}",
+		"schemeLegend": "색 구성",
+		"modeLegend": "모드",
+		"languageLabel": "언어",
+		"languageError": "언어를 바꾸지 못했어요. 다시 시도해 주세요.",
+		"scheme": {
+			"observatory": {
+				"label": "천문대",
+				"description": "Constellation 고유의 색 구성이에요. 다크에서는 짙은 남색 밤하늘, 라이트에서는 서늘한 새벽이에요."
+			},
+			"default": {
+				"label": "기본",
+				"description": "남색 기운이 도는 차가운 블랙에 인디고 강조색 — 균형 잡히고 세련된 고급스러운 느낌이에요."
+			},
+			"dim": {
+				"label": "은은함",
+				"description": "채도를 절반으로 낮춘 블루 그레이와 부드러운 글자색 — 대비가 낮은 색 구성이에요."
+			},
+			"warm": {
+				"label": "따뜻함",
+				"description": "아이보리, 탠, 브라운에 클레이 오렌지 강조색 — Claude의 색 구성이에요."
+			},
+			"void": {
+				"label": "보이드",
+				"description": "화이트부터 완전한 블랙까지 흑백 — 테두리 없이 대비가 높은 Vercel 스타일이에요."
+			}
+		},
+		"mode": {
+			"light": {
+				"label": "라이트",
+				"description": "모두 밝게 — 밝은 회색 프레임 위에 흰색 패널이 올라가요."
+			},
+			"medium": {
+				"label": "미디엄",
+				"description": "부드러운 다크 — 구조는 어둡게 두고 바탕은 중간 회색으로 밝히며 글자는 한 단계 어둡게 해요."
+			},
+			"dark": {
+				"label": "다크",
+				"description": "모두 어둡게, 프레임은 패널보다 한 단계 더 어두워요."
+			},
+			"system": {
+				"label": "시스템",
+				"description": "운영체제 설정에 따라 라이트와 다크를 전환해요."
+			}
+		}
+	},
+	"atlas": {
+		"empty": {
+			"title": "이 계획에는 아직 카드가 없어요.",
+			"hint": "아틀라스는 계획에 담긴 내용을 그려요. 카드를 작성하면 건물이 나타나요."
+		},
+		"canvasLabel": {
+			"other": "아키텍처 아틀라스 — 카드 {count}개를 도시로 표현"
+		},
+		"lens": {
+			"label": "렌즈",
+			"status": {
+				"label": "상태",
+				"hint": "상태별 색상: 각 카드가 지금 어느 단계에 있는지 보여줘요."
+			},
+			"degree": {
+				"label": "연결",
+				"hint": "연결된 카드 수에 따라 높이가 정해져요. 허브는 타워가 돼요."
+			},
+			"drift": {
+				"label": "드리프트",
+				"hint": "카드를 검증한 뒤 바뀐 연결된 코드예요. 비계가 둘러진 건물 = 드리프트 발생."
+			},
+			"recency": {
+				"label": "최근 변경",
+				"hint": "카드가 최근에 바뀔수록 높아져요. 높을수록 최신이에요."
+			},
+			"size": {
+				"label": "코드 크기",
+				"hint": "연결된 코드의 줄 수에 따라 높이가 정해져요. FILE 연결이 필요해요."
+			}
+		},
+		"engine": {
+			"group": "음영",
+			"flat": {
+				"label": "평면",
+				"title": "거리 지도 — 위에서 내려다보며 데이터가 흐르는 길을 보여줘요"
+			},
+			"lit": {
+				"label": "3D",
+				"title": "같은 계획을 블록으로 된 3D 도시로 보여줘요"
+			}
+		},
+		"control": {
+			"zoomIn": "확대",
+			"zoomOut": "축소",
+			"fit": "도시 전체 보기",
+			"export": "아틀라스를 PNG로 다운로드"
+		},
+		"inside": {
+			"back": "← 밖으로 나가기"
+		},
+		"legend": "→ 안으로 · ← 밖으로 · 드래그로 이동 · 스크롤로 확대/축소 · 마우스를 올려 보기",
+		"readout": {
+			"parts": {
+				"other": "부분 {count}개 · {names}"
+			},
+			"partsMore": {
+				"other": "부분 {count}개 · {names}…"
+			},
+			"drifted": "검증 후 드리프트 발생",
+			"driftedWithParts": "검증 후 드리프트 발생 · {parts}"
+		},
+		"trace": {
+			"region": "플로우 추적",
+			"close": "추적 종료",
+			"prev": "이전 단계",
+			"next": "다음 단계",
+			"play": "재생",
+			"pause": "일시정지",
+			"step": "{step}/{total}",
+			"at": "위치: {handle}"
+		}
+	},
+	"board": {
+		"label": "기능 보드",
+		"empty": {
+			"title": "아직 FEATURE 카드가 없어요",
+			"description": "FEATURE는 앞으로 할 작업의 한 덩어리를 묶어요. {path}에 하나 만들고 관련 카드를 연결하면 이 보드에 나타나요."
+		},
+		"column": {
+			"planned": {
+				"title": "계획됨",
+				"empty": "대기 중인 항목이 없어요."
+			},
+			"building": {
+				"title": "구현 중",
+				"empty": "진행 중인 항목이 없어요."
+			},
+			"built": {
+				"title": "구현됨",
+				"empty": "아직 구현된 항목이 없어요."
+			},
+			"verified": {
+				"title": "검증됨",
+				"empty": "아직 검증된 항목이 없어요."
+			},
+			"emptyFallback": "아직 아무것도 없어요."
+		},
+		"overflow": {
+			"other": "검증된 항목 {count}개 더 보기"
+		},
+		"kanban": {
+			"defaultLabel": "보드"
+		},
+		"tasks": {
+			"title": "작업",
+			"tab": {
+				"board": "보드",
+				"list": "목록"
+			},
+			"blurb": {
+				"board": "모든 FEATURE 카드를 {field} 기준으로 보여줘요. 상태가 바뀌면 카드도 열을 옮겨요. 읽기 전용이에요.",
+				"list": "모든 FEATURE 카드를 남은 작업과 출시된 작업으로 나누고, 어느 릴리스에서 출시됐는지 함께 보여줘요."
+			}
+		},
+		"dialog": {
+			"close": "미리보기 닫기",
+			"noBody": "이 카드에는 아직 본문이 없어요.",
+			"connections": "연결",
+			"connectionCount": {
+				"other": "연결 {count}개"
+			},
+			"openCard": "전체 카드 열기 →",
+			"notFound": "이 계획에 {handle} 카드가 없어요."
+		}
+	},
+	"card": {
+		"page": {
+			"delete": "삭제",
+			"kindPlaceholder": "+ kind",
+			"bodyPlaceholder": "+ 내용 작성"
+		},
+		"section": {
+			"fields": "필드",
+			"connections": "연결"
+		},
+		"fields": {
+			"add": "+ 필드",
+			"addPlaceholder": "키: 값",
+			"invalidYaml": "YAML이 올바르지 않아 저장하지 않았어요"
+		},
+		"connections": {
+			"add": "+ 연결",
+			"addPlaceholder": "HANDLE…",
+			"unknownTarget": "{handle} 카드가 존재하지 않아요",
+			"removeTitle": "연결 삭제",
+			"removeLabel": "{handle} 연결 삭제"
+		},
+		"notFound": {
+			"title": "카드를 찾을 수 없어요",
+			"description": "이 계획에 {handle} 카드가 없어요.",
+			"descriptionNoHandle": "이 카드는 이 계획에 없어요."
+		},
+		"unknownType": "알 수 없는 유형: {folder}",
+		"typeIntro": {
+			"hint": "목록에서 카드를 선택하면 볼 수 있어요.",
+			"count": {
+				"other": "카드 {count}개"
+			}
+		},
+		"list": {
+			"filterPlaceholder": "필터…",
+			"new": "+ 새 {type}",
+			"noMatches": "일치하는 항목 없음",
+			"empty": "아직 아무것도 없어요"
+		},
+		"create": {
+			"title": "새 {type} 카드",
+			"titleNoType": "새 카드",
+			"description": "핸들은 대문자로 써요. 유형 접두사는 지금 있는 폴더에 따라 정해져요.",
+			"handleLabel": "핸들",
+			"handlePlaceholder": "TICKETS",
+			"nameLabel": "이름",
+			"optional": "선택 사항",
+			"namePlaceholder": "이 카드가 무엇인지",
+			"preview": "{handle} 생성",
+			"submit": "카드 만들기",
+			"errorEmpty": "핸들을 입력하세요.",
+			"errorInvalid": "핸들에는 A–Z, 0–9, 대시만 쓸 수 있어요.",
+			"errorFailed": "카드를 만들지 못했어요."
+		},
+		"delete": {
+			"title": "{handle} 카드를 삭제할까요?",
+			"titleNoHandle": "카드를 삭제할까요?",
+			"confirm": "카드 삭제",
+			"referenced": {
+				"single": "{handle} 카드를 삭제해요. {handles} 카드가 이 카드를 참조하고 있어서 그 연결은 대상을 잃게 돼요.",
+				"multiple": "{handle} 카드를 삭제해요. {handles} 카드가 이 카드를 참조하고 있어서 그 연결들은 대상을 잃게 돼요."
+			},
+			"referencedAt": {
+				"single": "{handle} 카드({path})를 삭제해요. {handles} 카드가 이 카드를 참조하고 있어서 그 연결은 대상을 잃게 돼요.",
+				"multiple": "{handle} 카드({path})를 삭제해요. {handles} 카드가 이 카드를 참조하고 있어서 그 연결들은 대상을 잃게 돼요."
+			},
+			"unreferenced": "{handle} 카드를 삭제해요. 계획에서 이 카드를 가리키는 곳은 없어요.",
+			"unreferencedAt": "{handle} 카드({path})를 삭제해요. 계획에서 이 카드를 가리키는 곳은 없어요.",
+			"done": "{handle} 카드를 삭제했어요.",
+			"doneDangling": {
+				"single": "{handle} 카드를 삭제했어요. 이제 {handles} 카드의 연결은 아무것도 가리키지 않아요.",
+				"multiple": "{handle} 카드를 삭제했어요. 이제 {handles} 카드의 연결은 아무것도 가리키지 않아요."
+			}
+		}
+	},
+	"docs": {
+		"eyebrow": "문서",
+		"defaultTitle": "문서",
+		"imprint": "v{version} · {date}",
+		"card": {
+			"openSource": "{handle} 열기"
+		},
+		"toc": {
+			"heading": "목차",
+			"navLabel": "문서 목차",
+			"jumpLabel": "섹션으로 이동",
+			"jumpPlaceholder": "목차…",
+			"wholeDocument": "← 전체 문서",
+			"empty": "아직 {field} 값이 있는 카드가 없어요."
+		},
+		"empty": {
+			"title": "아직 문서가 없어요",
+			"description": "카드에 {field} 슬러그를 지정하면 이 문서에 포함돼요. {handle}의 {listField}에 슬러그를 순서대로 등록하면 이름을 붙이고 읽는 순서를 정할 수 있어요.",
+			"unknownTitle": "해당 섹션이 없어요",
+			"unknownSection": "{field} {section}을(를) 선언한 카드가 없어요."
+		},
+		"export": {
+			"button": "PDF로 내보내기",
+			"blockedTitle": "팝업이 차단됨",
+			"blockedMessage": "이 사이트의 팝업을 허용하거나, {shortcut}을(를) 누르고 “PDF로 저장”을 선택하세요."
+		},
+		"print": {
+			"action": "인쇄",
+			"preparing": "준비 중…",
+			"windowTitle": "인쇄",
+			"empty": "아직 인쇄할 내용이 없어요. {field} 슬러그가 있는 카드가 없어요.",
+			"hint": {
+				"waiting": "다이어그램을 렌더링하고 있어요. 잠시 후 문서가 준비돼요.",
+				"ready": "인쇄 대화상자에서 대상으로 “PDF로 저장”을 선택하세요.",
+				"partial": "일부 다이어그램을 렌더링하지 못했어요. 그대로 인쇄하거나 창을 새로고침하세요."
+			}
+		}
+	},
+	"edit": {
+		"hint": "⌘↩ 저장 · esc 취소",
+		"emptyPlaceholder": "비어 있음 — 클릭해서 편집",
+		"clickToEdit": "클릭해서 편집",
+		"toast": {
+			"stale": "디스크에서 카드가 변경되어 다시 불러왔어요",
+			"readonly": "뷰어가 읽기 전용이에요",
+			"saveFailed": "저장하지 못했어요",
+			"syncPoint": "동기화 지점을 {sha}(으)로 설정했어요"
+		}
+	},
+	"features": {
+		"empty": "아직 FEATURE 카드가 없어요. FEATURE는 앞으로 할 작업의 한 덩어리를 묶어요. {path}에 하나 만들고 관련 카드를 연결하면 여기에 나타나요.",
+		"sectionEmpty": "아직 아무것도 없어요.",
+		"section": {
+			"upNext": "다음 작업",
+			"shipped": "출시됨"
+		},
+		"pr": {
+			"link": "PR ↗",
+			"number": "PR {pr}"
+		}
+	},
+	"graph": {
+		"empty": {
+			"title": "이 계획에는 아직 카드가 없어요."
+		},
+		"canvasLabel": {
+			"other": "Constellation 그래프 — 카드 {count}개. 검색창으로 노드를 찾고, 드래그해서 이동하고, 스크롤해서 확대/축소하세요. Escape를 누르면 선택이 해제돼요."
+		},
+		"search": {
+			"placeholder": "노드 검색…",
+			"label": "그래프에서 노드 검색"
+		},
+		"control": {
+			"zoomIn": "확대",
+			"zoomOut": "축소",
+			"fit": "화면에 맞추기",
+			"reset": "초기화",
+			"resetLabel": "보기 초기화"
+		},
+		"panel": {
+			"open": "카드 열기 →"
+		},
+		"tabs": {
+			"group": "Constellation 보기",
+			"graph": {
+				"label": "그래프",
+				"hint": "힘 기반으로 묶인 노드 — 무엇이 무엇과 연결되는지"
+			},
+			"atlas": {
+				"label": "아틀라스",
+				"hint": "아이소메트릭 도시 — 시스템이 어떤 모양인지"
+			}
+		}
+	},
+	"home": {
+		"noPlan": "아직 {file} 파일이 없어요. `{command}`을(를) 실행하세요.",
+		"countValue": "{count}",
+		"health": {
+			"lastSynced": "마지막 동기화 {when}",
+			"noSyncPoint": "아직 동기화 지점 없음",
+			"sinceMarker": "이후 {commits} / {changes}",
+			"codeCommits": {
+				"other": "코드 커밋 {count}개"
+			},
+			"planChanges": {
+				"other": "계획 변경 {count}개"
+			},
+			"planDirty": "커밋하지 않은 계획 편집",
+			"setSyncPoint": "동기화 지점 설정",
+			"updateSyncPoint": "동기화 지점 업데이트",
+			"chip": {
+				"cards": "카드",
+				"connections": "연결",
+				"errors": {
+					"other": "{count} 오류"
+				},
+				"warnings": {
+					"other": "{count} 경고"
+				},
+				"clean": "정상",
+				"integrity": "무결성",
+				"drifted": "드리프트",
+				"untracked": "추적 안 됨",
+				"noDrift": "드리프트 없음",
+				"code": "코드"
+			}
+		},
+		"releases": {
+			"title": "릴리스",
+			"latestTag": "{tag} 태그됨",
+			"packageVersion": "{file}의 {version}",
+			"noTags": "아직 태그 없음",
+			"empty": "아직 RELEASE 카드가 없어요. RELEASE는 버전 마일스톤을 표시하고, FEATURE 카드는 {releaseField}로 릴리스를 지정하고 {changeField}로 묶여요.",
+			"tagged": "태그됨",
+			"breakingCount": {
+				"other": "호환성 깨짐 {count}개"
+			},
+			"noFeatures": "아직 이 릴리스를 대상으로 하는 FEATURE 카드가 없어요.",
+			"open": "{handle} 열기 →",
+			"summary": {
+				"shipped": "출시됨",
+				"noFeatures": "아직 기능 없음",
+				"features": {
+					"other": "기능 {count}개"
+				},
+				"progress": {
+					"other": "기능 {count}개 중 {shipped}개 출시"
+				}
+			},
+			"group": {
+				"breaking": "호환성 깨짐",
+				"feature": "기능",
+				"fix": "수정",
+				"chore": "유지 보수"
+			}
+		},
+		"activity": {
+			"title": "활동",
+			"kind": {
+				"plan": "계획",
+				"code": "코드"
+			},
+			"syncTag": "동기화",
+			"moreCards": "+{count}",
+			"empty": "아직 커밋이 없어요. 저장소에 기록이 생기면 활동이 표시돼요."
+		},
+		"drift": {
+			"title": "코드 드리프트",
+			"nothingTracked": "아직 추적 중인 항목 없음",
+			"claimsHold": {
+				"other": "설명 {count}개가 모두 유효해요"
+			},
+			"claimsDrifted": {
+				"other": "설명 {count}개 중 {drifted}개에 드리프트 발생"
+			},
+			"filesChanged": {
+				"other": "파일 {count}개 변경"
+			},
+			"baseline": {
+				"verified": "검증 이후",
+				"cardCommit": "카드의 마지막 커밋 이후",
+				"syncMarker": "동기화 지점 이후",
+				"argument": "기준 커밋 이후",
+				"fallback": "기준선 이후"
+			},
+			"overflow": {
+				"other": "오래된 카드 {count}개 더 있음"
+			},
+			"untracked": {
+				"other": "기준선이 없는 설명 {count}개 — {hint}"
+			},
+			"untrackedHint": "코드를 추적하려면 커밋하거나 {tool}(으)로 기록하세요"
+		},
+		"notes": {
+			"title": "노트",
+			"kind": {
+				"decision": "결정",
+				"gotcha": "주의점",
+				"state": "상태",
+				"deviation": "차이",
+				"verified": "검증됨"
+			},
+			"empty": "아직 노트가 없어요. {tool}은(는) 오래 남길 결정과 주의점을 카드에 기록하고, 최신 노트가 여기에 표시돼요."
+		},
+		"repos": {
+			"title": "연결된 저장소",
+			"hint": "각각 별도의 계획이자 독립된 워크스페이스예요. 여기서 열거나 사이드바 상단의 전환 메뉴에서 열 수 있어요.",
+			"current": "현재 워크스페이스",
+			"cardCount": {
+				"other": "카드 {count}개"
+			},
+			"notServed": "이 뷰어에서 열 수 없음"
+		}
+	},
+	"nav": {
+		"planLabel": "계획 탐색",
+		"overview": "개요",
+		"tasks": "작업",
+		"docs": "문서",
+		"constellation": "Constellation",
+		"styleGuide": "스타일 가이드",
+		"drawer": {
+			"title": "탐색",
+			"close": "탐색 닫기"
+		}
+	},
+	"palette": {
+		"label": "명령 팔레트",
+		"placeholder": "카드, 페이지, 동작 검색…",
+		"empty": "일치하는 항목이 없어요.",
+		"page": {
+			"tasksBoard": "작업 — 보드",
+			"tasksList": "작업 — 목록",
+			"graph": "Constellation — 그래프",
+			"atlas": "Constellation — 아틀라스"
+		},
+		"group": {
+			"goTo": "이동",
+			"scheme": "색 구성"
+		},
+		"hint": {
+			"active": "사용 중"
+		},
+		"keyword": {
+			"page": "페이지"
+		}
+	},
+	"shell": {
+		"header": {
+			"openNav": "탐색 열기",
+			"searchLabel": "카드, 페이지, 동작 검색",
+			"searchPlaceholder": "검색…",
+			"openRepo": "GitHub에서 저장소 열기"
+		}
+	},
+	"status": {
+		"planned": "계획됨",
+		"building": "구현 중",
+		"built": "구현됨",
+		"verified": "검증됨",
+		"none": "상태 없음"
+	},
+	"style": {
+		"guide": {
+			"title": "스타일 가이드",
+			"emptyTitle": "아직 STYLE 카드가 없어요",
+			"emptyDescription": "style/ 아래에 category와 tokens 목록(색상, 글꼴, 타입 스케일, 간격, 모서리, 그림자)이 있는 카드를 추가하면 여기에 표시돼요."
+		},
+		"fontStyles": "글꼴 스타일",
+		"specimen": {
+			"uppercase": "대문자",
+			"lowercase": "소문자",
+			"numbers": "숫자",
+			"characters": "기호"
+		},
+		"typeScale": {
+			"sample": "다람쥐 헌 쳇바퀴에 타고파"
+		}
+	},
+	"sync": {
+		"state": {
+			"inSync": "동기화됨",
+			"drifted": "드리프트",
+			"dirty": "커밋 안 된 편집",
+			"neverSynced": "동기화 안 됨"
+		},
+		"badge": {
+			"title": "계획 최신 상태 — git에서 실시간으로 계산해요. 클릭하면 활동 대시보드가 열려요.",
+			"markerUnreachable": "동기화 지점을 찾을 수 없음",
+			"commitsBehind": {
+				"other": "커밋 {count}개 뒤처짐"
+			},
+			"cardsAhead": {
+				"other": "카드 {count}개 앞섬"
+			}
+		}
+	},
+	"time": {
+		"justNow": "방금"
+	},
+	"types": {
+		"plan": {
+			"name": "계획",
+			"single": "계획"
+		},
+		"feature": {
+			"name": "기능",
+			"single": "기능"
+		},
+		"release": {
+			"name": "릴리스",
+			"single": "릴리스"
+		},
+		"diagram": {
+			"name": "아키텍처",
+			"single": "다이어그램"
+		},
+		"doc": {
+			"name": "문서",
+			"single": "문서"
+		},
+		"decision": {
+			"name": "결정",
+			"single": "결정"
+		},
+		"agent": {
+			"name": "에이전트 규칙",
+			"single": "에이전트 규칙"
+		},
+		"api": {
+			"name": "API 엔드포인트",
+			"single": "API 엔드포인트"
+		},
+		"db": {
+			"name": "데이터베이스",
+			"single": "데이터베이스 테이블"
+		},
+		"datatype": {
+			"name": "데이터 타입",
+			"single": "데이터 타입"
+		},
+		"event": {
+			"name": "이벤트",
+			"single": "이벤트"
+		},
+		"job": {
+			"name": "잡",
+			"single": "잡"
+		},
+		"flow": {
+			"name": "플로우",
+			"single": "플로우"
+		},
+		"state": {
+			"name": "상태 머신",
+			"single": "상태 머신"
+		},
+		"role": {
+			"name": "역할",
+			"single": "역할"
+		},
+		"external": {
+			"name": "외부 서비스",
+			"single": "외부 서비스"
+		},
+		"page": {
+			"name": "페이지",
+			"single": "페이지"
+		},
+		"component": {
+			"name": "컴포넌트",
+			"single": "컴포넌트"
+		},
+		"style": {
+			"name": "스타일 가이드",
+			"single": "스타일"
+		},
+		"file": {
+			"name": "저장소 파일",
+			"single": "저장소 파일"
+		},
+		"test": {
+			"name": "테스트",
+			"single": "테스트"
+		},
+		"group": {
+			"overview": "개요",
+			"system": "시스템",
+			"interface": "인터페이스",
+			"code": "코드 및 테스트"
+		}
+	},
+	"ui": {
+		"sidebar": {
+			"defaultLabel": "메인",
+			"expand": "사이드바 펼치기",
+			"collapse": "사이드바 접기"
+		},
+		"command": {
+			"label": "명령 팔레트",
+			"placeholder": "명령을 입력하거나 검색…",
+			"empty": "결과가 없어요."
+		},
+		"search": {
+			"placeholder": "검색…",
+			"clear": "검색어 지우기"
+		},
+		"select": {
+			"placeholder": "선택…"
+		},
+		"alertDialog": {
+			"confirm": "계속"
+		},
+		"toaster": {
+			"label": "알림"
+		},
+		"splitPanel": {
+			"resize": "패널 크기 조절"
+		}
+	},
+	"workspace": {
+		"listLabel": "워크스페이스",
+		"group": {
+			"self": "이 저장소",
+			"connected": "연결된 저장소"
+		},
+		"unavailable": "사용할 수 없음",
+		"fallbackName": "계획"
+	}
+}

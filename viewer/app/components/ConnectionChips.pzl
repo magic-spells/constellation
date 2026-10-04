@@ -13,7 +13,7 @@
                 <button
                   type="button"
                   class="connection-remove"
-                  title="remove connection"
+                  title={ removeTitle }
                   aria-label={ chip.removeLabel }
                   @click={ remove(chip.handle) }>×</button>
               {/if}
@@ -27,7 +27,8 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
-import { hrefForHandle, TYPE_META } from '../lib/types.js';
+import { t } from '../lib/i18n.js';
+import { hrefForHandle, typeLabel } from '../lib/types.js';
 
 // ConnectionChips — a card's neighbours as type-tinted chips.
 //
@@ -52,15 +53,16 @@ export default class ConnectionChips extends PuzzleView {
 		}
 
 		return {
+			removeTitle: t('card.connections.removeTitle'),
 			groups: [...grouped.entries()].map(([type, handles]) => ({
 				type,
-				label: TYPE_META[type]?.label ?? type,
+				label: typeLabel(type),
 				chips: handles.map((handle) => ({
 					handle,
 					href: hrefForHandle(handle),
 					style: `--c: var(--t-${type})`,
 					removable: removable.has(handle),
-					removeLabel: `Remove connection to ${handle}`,
+					removeLabel: t('card.connections.removeLabel', { handle }),
 				})),
 			})),
 		};

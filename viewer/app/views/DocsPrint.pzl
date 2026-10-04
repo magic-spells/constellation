@@ -31,6 +31,7 @@ import { PuzzleView } from '@magic-spells/puzzle';
 import Button from '../components/ui/Button.pzl';
 import DocsDocument from '../components/DocsDocument.pzl';
 import { diagramsDrawn, docModel } from '../lib/docs.js';
+import { t } from '../lib/i18n.js';
 
 // DocsPrint — `#/print` and `#/print/:section`: the compiled document on a
 // sheet, in a window of its own, next to the button that opens the print
@@ -78,15 +79,11 @@ export default class DocsPrint extends PuzzleView {
 		return {
 			...model,
 			waiting,
-			action: waiting ? 'Preparing…' : 'Print',
-			hint: {
-				waiting: 'Rendering the diagrams — the document will be ready in a moment.',
-				ready: 'Choose “Save as PDF” as the destination in the print dialog.',
-				partial: 'Some diagrams did not render. Print anyway, or reload the window.',
-			}[state],
+			action: waiting ? t('docs.print.preparing') : t('docs.print.action'),
+			hint: t(`docs.print.hint.${state}`),
 			emptyText: model.unknownSection
-				? `No card declares section: ${solo}.`
-				: 'Nothing to print yet — no card carries a section: slug.',
+				? t('docs.empty.unknownSection', { field: 'section:', section: solo })
+				: t('docs.print.empty', { field: 'section:' }),
 		};
 	}
 
@@ -94,7 +91,7 @@ export default class DocsPrint extends PuzzleView {
 		document.documentElement.setAttribute('data-paper', '');
 		// No AppShell here to own the tab title (routes carry none), and it is the
 		// default PDF file name, so name the project.
-		document.title = [this.getData().title, 'Print'].filter(Boolean).join(' · ');
+		document.title = [this.getData().title, t('docs.print.windowTitle')].filter(Boolean).join(' · ');
 		// A preview opens at page one. Chrome will otherwise restore whatever this
 		// window was scrolled to the last time it held this URL, which in a named
 		// window (see DocsPage) is a real possibility. Only when it has to: a

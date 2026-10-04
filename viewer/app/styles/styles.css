@@ -48,6 +48,13 @@
 	/* The workspace popover (components/WorkspaceSwitcher.pzl) never runs past
 	   a phone's 16px gutters. */
 	--spacing-workspace-max: calc(100vw - 2rem);
+
+	/* Overview row lists (components/ActivityPanel.pzl, NotesPanel.pzl): the
+	   leading label columns size to their widest entry in the active language
+	   (a Korean date, German "Entscheidung"), so every row's text starts on one
+	   line without a fixed width that clips. The note kind stops at 8rem. */
+	--grid-template-columns-activity: max-content max-content minmax(0, 1fr);
+	--grid-template-columns-notes: max-content fit-content(8rem) minmax(0, 1fr);
 }
 
 @layer base {

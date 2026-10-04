@@ -179,6 +179,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { t } from '../../lib/i18n.js';
 
 // Sidebar — a config-first app-shell navigation rail done the Puzzle way: ONE
 // component driven by an `items` array, no compound subcomponents.
@@ -240,7 +241,7 @@ import { PuzzleView } from '@magic-spells/puzzle';
 //                       width for good — no icon-only mode and no flyouts. For a shell
 //                       whose rail is simply always open; every existing consumer is
 //                       unchanged by the default.
-//   label       string  accessible <nav> label (default 'Main').
+//   label       string  accessible <nav> label (default: ui.sidebar.defaultLabel, "Main").
 //   class       string  appended to the root <nav>.
 //
 // SLOTS
@@ -374,7 +375,7 @@ const BADGE = 'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium';
 // could peek into the 0.75rem gutter.
 const ROW_PAD = 'px-3 py-2';
 const LABEL_BASE =
-  'min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left transition-opacity duration-200 ease-out motion-reduce:transition-none';
+  'min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left transition-opacity duration-200 ease-out motion-reduce:transition-none';
 const CHEVRON_BASE =
   'size-4 shrink-0 transition-[rotate,opacity] duration-200 ease-out motion-reduce:transition-none';
 // Local: pb-1.5 pt-7 — more air above each section heading than the piece's pb-1 pt-4.
@@ -637,14 +638,14 @@ export default class Sidebar extends PuzzleView {
       }
     });
 
-    const toggleLabel = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    const toggleLabel = t(collapsed ? 'ui.sidebar.expand' : 'ui.sidebar.collapse');
 
     return {
       items,
       collapsed,
       collapsible,
       labelClass,
-      navLabel: props.label || 'Main',
+      navLabel: props.label || t('ui.sidebar.defaultLabel'),
       // Badges ride the same fade as labels — kept mounted, clipped by the row.
       badgeClass: [
         BADGE,

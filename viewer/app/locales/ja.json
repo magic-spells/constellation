@@ -1,0 +1,700 @@
+{
+	"common": {
+		"action": {
+			"cancel": "キャンセル",
+			"close": "閉じる",
+			"dismiss": "閉じる"
+		},
+		"state": {
+			"loading": "読み込み中…"
+		}
+	},
+	"api": {
+		"error": {
+			"requestFailed": "リクエストに失敗しました（ステータス{status}）"
+		}
+	},
+	"appearance": {
+		"trigger": {
+			"title": "外観（配色・モード・言語）",
+			"srLabel": "外観：{scheme}、{mode}"
+		},
+		"title": "外観",
+		"summary": "{scheme}・{mode}",
+		"schemeLegend": "配色",
+		"modeLegend": "モード",
+		"languageLabel": "言語",
+		"languageError": "言語を切り替えられませんでした。もう一度お試しください。",
+		"scheme": {
+			"observatory": {
+				"label": "オブザーバトリー",
+				"description": "Constellation独自の配色。ダークは深い紺色の夜空、ライトはひんやりとした夜明けです。"
+			},
+			"default": {
+				"label": "デフォルト",
+				"description": "ネイビーがかったほぼ黒にインディゴのアクセント。バランスがよく、上品で高級感があります。"
+			},
+			"dim": {
+				"label": "ディム",
+				"description": "彩度を半分に抑えたブルーグレーと柔らかな文字色。低コントラストの配色です。"
+			},
+			"warm": {
+				"label": "ウォーム",
+				"description": "アイボリー、タン、ブラウンにクレイオレンジのアクセント。Claudeの配色です。"
+			},
+			"void": {
+				"label": "ヴォイド",
+				"description": "白から真っ黒までのモノクロ。枠線がなく高コントラストな、Vercel風の配色です。"
+			}
+		},
+		"mode": {
+			"light": {
+				"label": "ライト",
+				"description": "すべてが明るいモード。ライトグレーの枠に白いパネルが載ります。"
+			},
+			"medium": {
+				"label": "ミディアム",
+				"description": "柔らかなダーク。構造は暗いまま、背景を中間のグレーまで明るくし、文字を一段暗くします。"
+			},
+			"dark": {
+				"label": "ダーク",
+				"description": "すべてが暗いモード。枠はパネルより一段暗くなります。"
+			},
+			"system": {
+				"label": "システム",
+				"description": "OSの設定に合わせてライトとダークを切り替えます。"
+			}
+		}
+	},
+	"atlas": {
+		"empty": {
+			"title": "このプランにはまだカードがありません。",
+			"hint": "アトラスはプランの中身を描きます。カードを書くと建物が現れます。"
+		},
+		"canvasLabel": {
+			"other": "アーキテクチャアトラス：{count}枚のカードを都市として表示"
+		},
+		"lens": {
+			"label": "レンズ",
+			"status": {
+				"label": "ステータス",
+				"hint": "ステータスで色分け：各カードが今どの段階にあるかを示します。"
+			},
+			"degree": {
+				"label": "接続",
+				"hint": "接続しているカードの数で高さが決まります。ハブはタワーになります。"
+			},
+			"drift": {
+				"label": "ドリフト",
+				"hint": "カードの検証後に変更された紐付きコード。足場付き＝ドリフトあり。"
+			},
+			"recency": {
+				"label": "更新の新しさ",
+				"hint": "カードが最近変更されたほど高くなります。高い＝新しい。"
+			},
+			"size": {
+				"label": "コード量",
+				"hint": "紐付いたコードの行数で高さが決まります。FILEとの紐付けが必要です。"
+			}
+		},
+		"engine": {
+			"group": "陰影",
+			"flat": {
+				"label": "フラット",
+				"title": "ストリートマップ：上から見下ろし、データが流れる道路を表示"
+			},
+			"lit": {
+				"label": "3D",
+				"title": "同じプランをブロックの3D都市として表示"
+			}
+		},
+		"control": {
+			"zoomIn": "拡大",
+			"zoomOut": "縮小",
+			"fit": "都市全体を表示",
+			"export": "アトラスをPNGでダウンロード"
+		},
+		"inside": {
+			"back": "← 外に戻る"
+		},
+		"legend": "→ 中に入る・← 外に戻る・ドラッグで移動・スクロールでズーム・ホバーで表示",
+		"readout": {
+			"parts": {
+				"other": "{count}個のパーツ・{names}"
+			},
+			"partsMore": {
+				"other": "{count}個のパーツ・{names}…"
+			},
+			"drifted": "検証後にドリフト",
+			"driftedWithParts": "検証後にドリフト・{parts}"
+		},
+		"trace": {
+			"region": "フロートレース",
+			"close": "トレースを終了",
+			"prev": "前のステップ",
+			"next": "次のステップ",
+			"play": "再生",
+			"pause": "一時停止",
+			"step": "{step}/{total}",
+			"at": "{handle}にて"
+		}
+	},
+	"board": {
+		"label": "機能ボード",
+		"empty": {
+			"title": "FEATUREカードはまだありません",
+			"description": "FEATUREは今後の作業のまとまった一部分をまとめるカードです。{path}に作成し、関係するカードと接続すると、このボードに表示されます。"
+		},
+		"column": {
+			"planned": {
+				"title": "計画中",
+				"empty": "待機中の項目はありません。"
+			},
+			"building": {
+				"title": "実装中",
+				"empty": "進行中の項目はありません。"
+			},
+			"built": {
+				"title": "実装済み",
+				"empty": "実装済みの項目はまだありません。"
+			},
+			"verified": {
+				"title": "検証済み",
+				"empty": "検証済みの項目はまだありません。"
+			},
+			"emptyFallback": "まだ何もありません。"
+		},
+		"overflow": {
+			"other": "検証済みをあと{count}件表示"
+		},
+		"kanban": {
+			"defaultLabel": "ボード"
+		},
+		"tasks": {
+			"title": "タスク",
+			"tab": {
+				"board": "ボード",
+				"list": "リスト"
+			},
+			"blurb": {
+				"board": "すべてのFEATUREカードを{field}ごとに表示します。ステータスが変わるとカードの列も移動します。読み取り専用です。",
+				"list": "すべてのFEATUREカードを、これからの予定と出荷済みに分けて、どのリリースで出荷されたかとともに表示します。"
+			}
+		},
+		"dialog": {
+			"close": "プレビューを閉じる",
+			"noBody": "このカードにはまだ本文がありません。",
+			"connections": "接続",
+			"connectionCount": {
+				"other": "{count}件の接続"
+			},
+			"openCard": "カード全体を開く →",
+			"notFound": "{handle}はこのプランにありません。"
+		}
+	},
+	"card": {
+		"page": {
+			"delete": "削除",
+			"kindPlaceholder": "+ kind",
+			"bodyPlaceholder": "+ 本文を書く"
+		},
+		"section": {
+			"fields": "フィールド",
+			"connections": "接続"
+		},
+		"fields": {
+			"add": "+ フィールド",
+			"addPlaceholder": "キー: 値",
+			"invalidYaml": "YAMLが不正なため保存されません"
+		},
+		"connections": {
+			"add": "+ 接続",
+			"addPlaceholder": "HANDLE…",
+			"unknownTarget": "{handle}という既存のカードはありません",
+			"removeTitle": "接続を削除",
+			"removeLabel": "{handle}への接続を削除"
+		},
+		"notFound": {
+			"title": "カードが見つかりません",
+			"description": "{handle}はこのプランにありません。",
+			"descriptionNoHandle": "このカードはこのプランにありません。"
+		},
+		"unknownType": "不明なタイプ：{folder}",
+		"typeIntro": {
+			"hint": "一覧からカードを選択すると表示されます。",
+			"count": {
+				"other": "{count}枚のカード"
+			}
+		},
+		"list": {
+			"filterPlaceholder": "絞り込み…",
+			"new": "+ 新しい{type}",
+			"noMatches": "一致する項目はありません",
+			"empty": "まだ何もありません"
+		},
+		"create": {
+			"title": "新しい{type}カード",
+			"titleNoType": "新しいカード",
+			"description": "ハンドルは大文字です。タイプの接頭辞は今いるフォルダーで決まります。",
+			"handleLabel": "ハンドル",
+			"handlePlaceholder": "TICKETS",
+			"nameLabel": "名前",
+			"optional": "任意",
+			"namePlaceholder": "このカードが表すもの",
+			"preview": "{handle}を作成します",
+			"submit": "カードを作成",
+			"errorEmpty": "ハンドルを入力してください。",
+			"errorInvalid": "ハンドルに使えるのはA–Z、0–9、ダッシュのみです。",
+			"errorFailed": "カードを作成できませんでした。"
+		},
+		"delete": {
+			"title": "{handle}を削除しますか？",
+			"titleNoHandle": "カードを削除しますか？",
+			"confirm": "カードを削除",
+			"referenced": {
+				"single": "{handle}を削除します。{handles}から参照されているため、その接続は宙に浮いた状態になります。",
+				"multiple": "{handle}を削除します。{handles}から参照されているため、それらの接続は宙に浮いた状態になります。"
+			},
+			"referencedAt": {
+				"single": "{handle}（{path}）を削除します。{handles}から参照されているため、その接続は宙に浮いた状態になります。",
+				"multiple": "{handle}（{path}）を削除します。{handles}から参照されているため、それらの接続は宙に浮いた状態になります。"
+			},
+			"unreferenced": "{handle}を削除します。プラン内でこのカードにリンクしているものはありません。",
+			"unreferencedAt": "{handle}（{path}）を削除します。プラン内でこのカードにリンクしているものはありません。",
+			"done": "{handle}を削除しました。",
+			"doneDangling": {
+				"single": "{handle}を削除しました。{handles}のリンク先はなくなりました。",
+				"multiple": "{handle}を削除しました。{handles}のリンク先はなくなりました。"
+			}
+		}
+	},
+	"docs": {
+		"eyebrow": "ドキュメント",
+		"defaultTitle": "ドキュメント",
+		"imprint": "v{version}・{date}",
+		"card": {
+			"openSource": "{handle}を開く"
+		},
+		"toc": {
+			"heading": "目次",
+			"navLabel": "ドキュメントの目次",
+			"jumpLabel": "セクションへ移動",
+			"jumpPlaceholder": "目次…",
+			"wholeDocument": "← ドキュメント全体",
+			"empty": "{field}を持つカードはまだありません。"
+		},
+		"empty": {
+			"title": "ドキュメントはまだありません",
+			"description": "カードに{field}のスラッグを付けると、このドキュメントに加わります。スラッグを{handle}の{listField}に順番に登録すると、名前と並び順を設定できます。",
+			"unknownTitle": "該当するセクションはありません",
+			"unknownSection": "{field} {section}を宣言しているカードはありません。"
+		},
+		"export": {
+			"button": "PDFとして書き出す",
+			"blockedTitle": "ポップアップがブロックされました",
+			"blockedMessage": "このサイトのポップアップを許可するか、{shortcut}を押して「PDFに保存」を選択してください。"
+		},
+		"print": {
+			"action": "印刷",
+			"preparing": "準備中…",
+			"windowTitle": "印刷",
+			"empty": "まだ印刷するものがありません。{field}のスラッグを持つカードがありません。",
+			"hint": {
+				"waiting": "ダイアグラムを描画しています。まもなくドキュメントの準備が整います。",
+				"ready": "印刷ダイアログの送信先で「PDFに保存」を選択してください。",
+				"partial": "一部のダイアグラムを描画できませんでした。このまま印刷するか、ウィンドウを再読み込みしてください。"
+			}
+		}
+	},
+	"edit": {
+		"hint": "⌘↩ 保存・esc キャンセル",
+		"emptyPlaceholder": "空です。クリックして編集",
+		"clickToEdit": "クリックして編集",
+		"toast": {
+			"stale": "ディスク上のカードが変更されたため、再読み込みしました",
+			"readonly": "ビューアーは読み取り専用です",
+			"saveFailed": "保存に失敗しました",
+			"syncPoint": "同期ポイントを{sha}に設定しました"
+		}
+	},
+	"features": {
+		"empty": "FEATUREカードはまだありません。FEATUREは今後の作業のまとまった一部分をまとめるカードです。{path}に作成し、関係するカードと接続すると、ここに表示されます。",
+		"sectionEmpty": "まだ何もありません。",
+		"section": {
+			"upNext": "次の予定",
+			"shipped": "出荷済み"
+		},
+		"pr": {
+			"link": "PR ↗",
+			"number": "PR {pr}"
+		}
+	},
+	"graph": {
+		"empty": {
+			"title": "このプランにはまだカードがありません。"
+		},
+		"canvasLabel": {
+			"other": "Constellationグラフ：{count}枚のカード。検索ボックスでノードを探せます。ドラッグで移動、スクロールでズーム、Escapeで選択を解除します。"
+		},
+		"search": {
+			"placeholder": "ノードを検索…",
+			"label": "グラフ内のノードを検索"
+		},
+		"control": {
+			"zoomIn": "拡大",
+			"zoomOut": "縮小",
+			"fit": "全体を表示",
+			"reset": "リセット",
+			"resetLabel": "表示をリセット"
+		},
+		"panel": {
+			"open": "カードを開く →"
+		},
+		"tabs": {
+			"group": "Constellationの表示",
+			"graph": {
+				"label": "グラフ",
+				"hint": "力学的にクラスター化したノード：何が何とつながっているか"
+			},
+			"atlas": {
+				"label": "アトラス",
+				"hint": "アイソメトリックの都市：システムがどんな形をしているか"
+			}
+		}
+	},
+	"home": {
+		"noPlan": "{file}がまだありません。`{command}`を実行してください。",
+		"countValue": "{count}",
+		"health": {
+			"lastSynced": "{when}に最終同期",
+			"noSyncPoint": "同期ポイントはまだありません",
+			"sinceMarker": "同期以降：{commits} / {changes}",
+			"codeCommits": {
+				"other": "コードのコミット{count}件"
+			},
+			"planChanges": {
+				"other": "プランの変更{count}件"
+			},
+			"planDirty": "プランに未コミットの編集あり",
+			"setSyncPoint": "同期ポイントを設定",
+			"updateSyncPoint": "同期ポイントを更新",
+			"chip": {
+				"cards": "カード",
+				"connections": "接続",
+				"errors": {
+					"other": "{count}件のエラー"
+				},
+				"warnings": {
+					"other": "{count}件の警告"
+				},
+				"clean": "問題なし",
+				"integrity": "整合性",
+				"drifted": "ドリフト",
+				"untracked": "未追跡",
+				"noDrift": "ドリフトなし",
+				"code": "コード"
+			}
+		},
+		"releases": {
+			"title": "リリース",
+			"latestTag": "{tag}をタグ付け済み",
+			"packageVersion": "{file}のバージョン：{version}",
+			"noTags": "タグはまだありません",
+			"empty": "RELEASEカードはまだありません。RELEASEはバージョンのマイルストーンを表します。FEATUREカードは{releaseField}でリリースを指定し、{changeField}でグループ分けされます。",
+			"tagged": "タグ済み",
+			"breakingCount": {
+				"other": "破壊的変更{count}件"
+			},
+			"noFeatures": "このリリースを対象とするFEATUREカードはまだありません。",
+			"open": "{handle}を開く →",
+			"summary": {
+				"shipped": "出荷済み",
+				"noFeatures": "機能はまだありません",
+				"features": {
+					"other": "{count}件の機能"
+				},
+				"progress": {
+					"other": "{count}件中{shipped}件の機能を出荷済み"
+				}
+			},
+			"group": {
+				"breaking": "破壊的変更",
+				"feature": "機能",
+				"fix": "修正",
+				"chore": "メンテナンス"
+			}
+		},
+		"activity": {
+			"title": "アクティビティ",
+			"kind": {
+				"plan": "プラン",
+				"code": "コード"
+			},
+			"syncTag": "同期",
+			"moreCards": "+{count}",
+			"empty": "コミットはまだありません。リポジトリに履歴ができるとアクティビティが表示されます。"
+		},
+		"drift": {
+			"title": "コードのドリフト",
+			"nothingTracked": "追跡しているものはまだありません",
+			"claimsHold": {
+				"other": "{count}件の記述がすべて有効です"
+			},
+			"claimsDrifted": {
+				"other": "{count}件中{drifted}件の記述がドリフトしています"
+			},
+			"filesChanged": {
+				"other": "{count}ファイル変更"
+			},
+			"baseline": {
+				"verified": "検証以降",
+				"cardCommit": "カード最終コミット以降",
+				"syncMarker": "同期ポイント以降",
+				"argument": "ベース以降",
+				"fallback": "ベースライン以降"
+			},
+			"overflow": {
+				"other": "古くなったカードがあと{count}枚"
+			},
+			"untracked": {
+				"other": "ベースラインのない記述が{count}件あります。{hint}"
+			},
+			"untrackedHint": "コードを追跡するには、コミットするか{tool}で記録してください。"
+		},
+		"notes": {
+			"title": "ノート",
+			"kind": {
+				"decision": "決定",
+				"gotcha": "注意点",
+				"state": "状況",
+				"deviation": "乖離",
+				"verified": "検証済み"
+			},
+			"empty": "ノートはまだありません。{tool}で長く残る決定事項や注意点をカードに書き込むと、最新のものがここに表示されます。"
+		},
+		"repos": {
+			"title": "接続されたリポジトリ",
+			"hint": "それぞれ独立したプランで、個別のワークスペースです。ここから、またはサイドバー上部の切り替えメニューから開けます。",
+			"current": "このワークスペース",
+			"cardCount": {
+				"other": "{count}枚のカード"
+			},
+			"notServed": "このビューアーでは開けません"
+		}
+	},
+	"nav": {
+		"planLabel": "プランのナビゲーション",
+		"overview": "概要",
+		"tasks": "タスク",
+		"docs": "ドキュメント",
+		"constellation": "Constellation",
+		"styleGuide": "スタイルガイド",
+		"drawer": {
+			"title": "ナビゲーション",
+			"close": "ナビゲーションを閉じる"
+		}
+	},
+	"palette": {
+		"label": "コマンドパレット",
+		"placeholder": "カード、ページ、アクションを検索…",
+		"empty": "一致する項目はありません。",
+		"page": {
+			"tasksBoard": "タスク：ボード",
+			"tasksList": "タスク：リスト",
+			"graph": "Constellation：グラフ",
+			"atlas": "Constellation：アトラス"
+		},
+		"group": {
+			"goTo": "移動",
+			"scheme": "配色"
+		},
+		"hint": {
+			"active": "使用中"
+		},
+		"keyword": {
+			"page": "ページ"
+		}
+	},
+	"shell": {
+		"header": {
+			"openNav": "ナビゲーションを開く",
+			"searchLabel": "カード、ページ、アクションを検索",
+			"searchPlaceholder": "検索…",
+			"openRepo": "GitHubでリポジトリを開く"
+		}
+	},
+	"status": {
+		"planned": "計画中",
+		"building": "実装中",
+		"built": "実装済み",
+		"verified": "検証済み",
+		"none": "ステータスなし"
+	},
+	"style": {
+		"guide": {
+			"title": "スタイルガイド",
+			"emptyTitle": "STYLEカードはまだありません",
+			"emptyDescription": "style/にcategoryとtokensのリスト（カラー、フォント、タイプスケール、余白、角丸、影）を持つカードを追加すると、ここに表示されます。"
+		},
+		"fontStyles": "フォントスタイル",
+		"specimen": {
+			"uppercase": "大文字",
+			"lowercase": "小文字",
+			"numbers": "数字",
+			"characters": "記号"
+		},
+		"typeScale": {
+			"sample": "いろはにほへと ちりぬるを わかよたれそ つねならむ"
+		}
+	},
+	"sync": {
+		"state": {
+			"inSync": "同期済み",
+			"drifted": "ドリフト",
+			"dirty": "未コミットの編集",
+			"neverSynced": "未同期"
+		},
+		"badge": {
+			"title": "プランの鮮度（gitからリアルタイムに算出）。クリックするとアクティビティのダッシュボードを開きます。",
+			"markerUnreachable": "同期ポイントが見つかりません",
+			"commitsBehind": {
+				"other": "{count}コミット遅れ"
+			},
+			"cardsAhead": {
+				"other": "{count}枚のカードが先行"
+			}
+		}
+	},
+	"time": {
+		"justNow": "たった今"
+	},
+	"types": {
+		"plan": {
+			"name": "プラン",
+			"single": "プラン"
+		},
+		"feature": {
+			"name": "機能",
+			"single": "機能"
+		},
+		"release": {
+			"name": "リリース",
+			"single": "リリース"
+		},
+		"diagram": {
+			"name": "アーキテクチャ",
+			"single": "ダイアグラム"
+		},
+		"doc": {
+			"name": "ドキュメント",
+			"single": "ドキュメント"
+		},
+		"decision": {
+			"name": "決定事項",
+			"single": "決定事項"
+		},
+		"agent": {
+			"name": "エージェントルール",
+			"single": "エージェントルール"
+		},
+		"api": {
+			"name": "APIエンドポイント",
+			"single": "APIエンドポイント"
+		},
+		"db": {
+			"name": "データベース",
+			"single": "データベーステーブル"
+		},
+		"datatype": {
+			"name": "データ型",
+			"single": "データ型"
+		},
+		"event": {
+			"name": "イベント",
+			"single": "イベント"
+		},
+		"job": {
+			"name": "ジョブ",
+			"single": "ジョブ"
+		},
+		"flow": {
+			"name": "フロー",
+			"single": "フロー"
+		},
+		"state": {
+			"name": "ステートマシン",
+			"single": "ステートマシン"
+		},
+		"role": {
+			"name": "ロール",
+			"single": "ロール"
+		},
+		"external": {
+			"name": "外部サービス",
+			"single": "外部サービス"
+		},
+		"page": {
+			"name": "ページ",
+			"single": "ページ"
+		},
+		"component": {
+			"name": "コンポーネント",
+			"single": "コンポーネント"
+		},
+		"style": {
+			"name": "スタイルガイド",
+			"single": "スタイル"
+		},
+		"file": {
+			"name": "リポジトリのファイル",
+			"single": "リポジトリのファイル"
+		},
+		"test": {
+			"name": "テスト",
+			"single": "テスト"
+		},
+		"group": {
+			"overview": "概要",
+			"system": "システム",
+			"interface": "インターフェース",
+			"code": "コードとテスト"
+		}
+	},
+	"ui": {
+		"sidebar": {
+			"defaultLabel": "メイン",
+			"expand": "サイドバーを展開",
+			"collapse": "サイドバーを折りたたむ"
+		},
+		"command": {
+			"label": "コマンドパレット",
+			"placeholder": "コマンドを入力または検索…",
+			"empty": "結果が見つかりません。"
+		},
+		"search": {
+			"placeholder": "検索…",
+			"clear": "検索をクリア"
+		},
+		"select": {
+			"placeholder": "選択…"
+		},
+		"alertDialog": {
+			"confirm": "続行"
+		},
+		"toaster": {
+			"label": "通知"
+		},
+		"splitPanel": {
+			"resize": "パネルのサイズを変更"
+		}
+	},
+	"workspace": {
+		"listLabel": "ワークスペース",
+		"group": {
+			"self": "このリポジトリ",
+			"connected": "接続されたリポジトリ"
+		},
+		"unavailable": "利用できません",
+		"fallbackName": "プラン"
+	}
+}

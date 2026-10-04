@@ -79,7 +79,7 @@ describe('CardList', () => {
 
 		const writable = await mount({ editable: true });
 		expect(writable.find('.clist-new')).toBeTruthy();
-		expect(writable.find('.clist-new').textContent).toContain('api endpoint');
+		expect(writable.find('.clist-new').textContent).toContain('+ new API endpoint');
 		writable.destroy();
 	});
 

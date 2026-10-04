@@ -7,7 +7,7 @@
     @click={ onBackdrop(event) }>
     <div class="flex h-full flex-col">
       <div class="flex h-14 shrink-0 items-center gap-2 pl-2 pr-2">
-        <h2 id={ titleId } class="sr-only">Navigation</h2>
+        <h2 id={ titleId } class="sr-only">{ t('nav.drawer.title') }</h2>
         <!-- The same switcher as the rail's, at the drawer's head. -->
         <div class="min-w-0 flex-1">
           <WorkspaceSwitcher variant="drawer" plans={ plans } active={ activePlan } projectName={ projectName }/>
@@ -15,7 +15,7 @@
         <button
           type="button"
           class="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-rail-muted transition-colors hover:bg-rail-active hover:text-rail-ink outline-ring focus-visible:outline-2"
-          aria-label="Close navigation"
+          aria-label={ t('nav.drawer.close') }
           @click={ dismiss }>
           <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18"/>
@@ -23,12 +23,12 @@
         </button>
       </div>
 
-      <nav class="min-h-0 flex-1 overflow-y-auto p-2" aria-label="Plan navigation">
+      <nav class="min-h-0 flex-1 overflow-y-auto p-2" aria-label={ t('nav.planLabel') }>
         <ul class="space-y-0.5">
           {#for row in rows}
             <li key={ row.key }>
               {#if row.group}
-                <p class="px-3 pb-1.5 pt-7 text-xs font-semibold uppercase tracking-wide text-rail-muted">{ row.group }</p>
+                <p class="truncate px-3 pb-1.5 pt-7 text-xs font-semibold uppercase tracking-wide text-rail-muted">{ row.group }</p>
               {:else}
                 <!-- A real href, so middle- and ⌘-click still open a tab. A plain
                      click is taken over: the drawer closes first and the shell

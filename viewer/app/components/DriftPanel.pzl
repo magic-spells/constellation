@@ -2,7 +2,7 @@
   <div class="contents">
     {#if show}
       <section class="panel panel-drift">
-        <h3><Icon name="pulse" size="0.85rem"/> Code drift</h3>
+        <h3><Icon name="pulse" size="0.85rem"/> { t('home.drift.title') }</h3>
 
         <p class={ headClass }>
           <Icon name={ headIcon } size="1.05rem"/>
@@ -14,18 +14,18 @@
             {#for row in rows}
               <li key={ row.handle } class="drift-row">
                 <a class="d-handle" href="{ link(row.path) }">{ row.handle }</a>
-                <Badge variant={ row.statusVariant } class={ row.statusTint }>{ row.status }</Badge>
-                <span class="d-meta">{ row.changedCount } file{ row.plural } changed · { row.baselineSource }</span>
+                <Badge variant={ row.statusVariant } class={ row.statusTint }>{ row.statusText }</Badge>
+                <span class="d-meta min-w-0">{ row.meta }</span>
               </li>
             {/for}
           </ul>
-          {#if overflow}<p class="d-overflow">+{ overflow } more stale card{ overflowPlural }</p>{/if}
+          {#if overflow}<p class="d-overflow">{ t('home.drift.overflow', { count: overflow }) }</p>{/if}
         {/if}
 
         {#if hasUntracked}
           <p class="d-untracked">
             <Icon name="target" size="0.9rem"/>
-            <span><b>{ untrackedCount }</b> claim{ untrackedPlural } with no baseline — { untrackedHint }</span>
+            <span>{#for p in untrackedParts}<span>{#if p.name === 'count'}<b>{ p.value }</b>{:else if p.name}{ p.value }{:else}{ p.text }{/if}</span>{/for}</span>
           </p>
         {/if}
       </section>
@@ -37,6 +37,8 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import Icon from './Icon.pzl';
 import Badge from './ui/Badge.pzl';
+import { countParts } from '../lib/dashboard.js';
+import { t } from '../lib/i18n.js';
 
 // DriftPanel — the reverse-drift verdict: cards whose bound code moved since
 // the baseline they were verified against. Presentational only: one `model`
@@ -56,11 +58,11 @@ import Badge from './ui/Badge.pzl';
 // into one sheet, so the frame resolves there.
 
 // `baseline_source` is a wire token — say what it means instead.
-const BASELINE_COPY = {
-	verified_sha: 'since verify',
-	'card-commit': 'since the card was last committed',
-	'sync-marker': 'since sync point',
-	argument: 'since base',
+const BASELINE_KEY = {
+	verified_sha: 'home.drift.baseline.verified',
+	'card-commit': 'home.drift.baseline.cardCommit',
+	'sync-marker': 'home.drift.baseline.syncMarker',
+	argument: 'home.drift.baseline.argument',
 };
 
 export default class DriftPanel extends PuzzleView {
@@ -84,18 +86,23 @@ export default class DriftPanel extends PuzzleView {
 				path: row.path ?? '',
 				name: row.name ?? '',
 				status: row.status ?? '',
+				statusText: row.statusText ?? row.status ?? '',
 				statusVariant: row.statusVariant ?? 'default',
 				statusTint: row.statusTint ?? '',
 				changedCount: row.changedCount ?? 0,
-				plural: row.changedCount === 1 ? '' : 's',
-				baselineSource: BASELINE_COPY[row.baselineSource] ?? 'since baseline',
+				meta: [
+					t('home.drift.filesChanged', { count: row.changedCount ?? 0 }),
+					t(BASELINE_KEY[row.baselineSource] ?? 'home.drift.baseline.fallback'),
+				].join(' · '),
 			})),
 			overflow: model.overflow ?? 0,
-			overflowPlural: model.overflow === 1 ? '' : 's',
 			hasUntracked: !!untracked && untracked.count > 0,
-			untrackedCount: untracked?.count ?? 0,
-			untrackedPlural: untracked?.count === 1 ? '' : 's',
-			untrackedHint: untracked?.hint ?? '',
+			// The count is bold inside the sentence, so the sentence comes back in
+			// parts rather than as two keys.
+			untrackedParts: countParts('home.drift.untracked', {
+				count: untracked?.count ?? 0,
+				hint: untracked?.hint ?? '',
+			}),
 		};
 	}
 }
@@ -119,7 +126,9 @@ export default class DriftPanel extends PuzzleView {
 	white-space: nowrap;
 }
 .drift-row .d-handle:hover { color: var(--color-ink); text-decoration: underline; }
-.drift-row .d-meta { margin-left: auto; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; white-space: nowrap; }
+/* Beside the handle on a wide panel; on a narrow one the row wraps it onto its
+   own line, and a phrase longer than that line wraps too rather than clip. */
+.drift-row .d-meta { margin-left: auto; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
 .panel-drift .d-overflow { margin: 0.35rem 0 0; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
 
 /* The untracked bucket is a footnote with a fix in it, never a list. */

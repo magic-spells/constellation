@@ -4,6 +4,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { formatNumber } from '../lib/i18n.js';
 
 // FlowSteps — a FLOW card's numbered body list rendered as a vertical stepper:
 // one tinted box per step with a number badge, arrow connectors between them,
@@ -20,23 +21,30 @@ export default class FlowSteps extends PuzzleView {
 		const key = JSON.stringify(steps);
 		if (key === this._renderedKey) return;
 		this._renderedKey = key;
-		host.innerHTML = steps
-			.map((step, i) => {
-				const branches = (step.branches ?? [])
-					.map((b) => `<div class="flow-branch">${b}</div>`)
-					.join('');
-				const arrow =
-					i < steps.length - 1
-						? '<div class="flow-arrow" aria-hidden="true">↓</div>'
-						: '';
-				return (
-					`<div class="flow-step">` +
-					`<span class="flow-step-num" aria-hidden="true">${i + 1}</span>` +
-					`<div class="flow-step-body">${step.html}${branches}</div>` +
-					`</div>${arrow}`
-				);
-			})
-			.join('');
+		// Built as nodes rather than one HTML string: only the step and branch
+		// bodies are markup; the frame around them is structure.
+		const el = (tag, className, html) => {
+			const node = document.createElement(tag);
+			node.className = className;
+			if (html !== undefined) node.innerHTML = html;
+			return node;
+		};
+		host.replaceChildren(
+			...steps.flatMap((step, i) => {
+				const box = el('div', 'flow-step');
+				const num = el('span', 'flow-step-num');
+				num.setAttribute('aria-hidden', 'true');
+				num.textContent = formatNumber(i + 1);
+				const body = el('div', 'flow-step-body', step.html);
+				for (const branch of step.branches ?? []) body.append(el('div', 'flow-branch', branch));
+				box.append(num, body);
+				if (i === steps.length - 1) return [box];
+				const arrow = el('div', 'flow-arrow');
+				arrow.setAttribute('aria-hidden', 'true');
+				arrow.textContent = '↓';
+				return [box, arrow];
+			}),
+		);
 	}
 
 	mounted() {

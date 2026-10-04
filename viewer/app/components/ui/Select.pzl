@@ -94,6 +94,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { t } from '../../lib/i18n.js';
 import { MorphEngine } from '@magic-spells/morph-engine';
 
 // Select — a listbox-pattern custom select, ported from the select-dropdown
@@ -277,7 +278,7 @@ export default class Select extends PuzzleView {
       options,
       value,
       selected,
-      triggerLabel: selected ? selected.label : props.placeholder || 'Select…',
+      triggerLabel: selected ? selected.label : props.placeholder || t('ui.select.placeholder'),
       placeholderClass: selected ? 'text-ink' : 'text-muted',
       hiddenValue: selected ? selected.value : '',
       rootId: props.id || false,

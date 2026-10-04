@@ -35,20 +35,24 @@
  * CHANGE THEM HERE.
  */
 
-/** The palettes, in picker order. */
+/**
+ * The palettes, in picker order. Label and description are LOCALE KEYS, never
+ * words (`t(scheme.labelKey)` where shown): this module runs before the locale
+ * table loads.
+ */
 export const SCHEMES = [
-	{ value: 'observatory', label: 'Observatory', description: 'Constellation’s own — a deep-navy night sky, or a cool daybreak in light.' },
-	{ value: 'default', label: 'Default', description: 'Cool near-black with a navy tint and an indigo accent — balanced, classy, premium.' },
-	{ value: 'dim', label: 'Dim', description: 'Blue-grey at half chroma with softer type — the low-contrast palette.' },
-	{ value: 'warm', label: 'Warm', description: 'Ivory, tan and brown with a clay-orange accent — the Claude palette.' },
-	{ value: 'void', label: 'Void', description: 'Monochrome from white to true black — borderless, high contrast, Vercel-like.' },
+	{ value: 'observatory', labelKey: 'appearance.scheme.observatory.label', descriptionKey: 'appearance.scheme.observatory.description' },
+	{ value: 'default', labelKey: 'appearance.scheme.default.label', descriptionKey: 'appearance.scheme.default.description' },
+	{ value: 'dim', labelKey: 'appearance.scheme.dim.label', descriptionKey: 'appearance.scheme.dim.description' },
+	{ value: 'warm', labelKey: 'appearance.scheme.warm.label', descriptionKey: 'appearance.scheme.warm.description' },
+	{ value: 'void', labelKey: 'appearance.scheme.void.label', descriptionKey: 'appearance.scheme.void.description' },
 ];
 
-/** The modes, in picker order — lightest first, the way a dimmer reads. */
+/** The modes, in picker order — lightest first, the way a dimmer reads. Keys, as above. */
 export const MODES = [
-	{ value: 'light', label: 'Light', description: 'Everything lit — a light-grey frame with a white panel on it.' },
-	{ value: 'medium', label: 'Medium', description: 'Soft dark — dark structure with the grounds lifted to mid grey and the type dimmed a stop.' },
-	{ value: 'dark', label: 'Dark', description: 'Everything dark, the frame a step darker than the panel.' },
+	{ value: 'light', labelKey: 'appearance.mode.light.label', descriptionKey: 'appearance.mode.light.description' },
+	{ value: 'medium', labelKey: 'appearance.mode.medium.label', descriptionKey: 'appearance.mode.medium.description' },
+	{ value: 'dark', labelKey: 'appearance.mode.dark.label', descriptionKey: 'appearance.mode.dark.description' },
 ];
 
 export const SCHEME_VALUES = SCHEMES.map((s) => s.value);

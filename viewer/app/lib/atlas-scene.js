@@ -19,7 +19,7 @@
 // NOTHING DERIVED IS STORED. This runs on load and its output is cached in the
 // browser against the plan generation. It is never written back into a card.
 
-import { shapeForType, TYPE_META } from './types.js';
+import { shapeForType, typeLabel } from './types.js';
 
 /**
  * One ground cell, in world units.
@@ -228,7 +228,8 @@ export function assignDistricts(cards, neighbors) {
 			continue;
 		}
 
-		const label = TYPE_META[card.type]?.label ?? card.type;
+		// Translated here, so the scene is deterministic for a fixed locale.
+		const label = typeLabel(card.type);
 		ensure(`type:${card.type}`, label, null, 'type').cards.push(card.handle);
 	}
 

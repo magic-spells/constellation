@@ -110,6 +110,7 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import { MorphEngine } from '@magic-spells/morph-engine';
 import { MORPH_SPRINGS, reducedMotion } from '../../lib/motion.js';
+import { t } from '../../lib/i18n.js';
 
 // PROVENANCE. Not the registry's 0.8 Command (which moved onto the
 // dialog-panel web component): this is the org app-template's copy of the
@@ -288,9 +289,9 @@ export default class Command extends PuzzleView {
       if (!q || !localFilter) {
         tier = 0;
       } else {
-        const hay = [label, ...keywords].map((t) => t.toLowerCase());
-        if (hay.some((t) => wordPrefix(t, q))) tier = 0;
-        else if (hay.some((t) => t.includes(q))) tier = 1;
+        const hay = [label, ...keywords].map((s) => s.toLowerCase());
+        if (hay.some((s) => wordPrefix(s, q))) tier = 0;
+        else if (hay.some((s) => s.includes(q))) tier = 1;
         else return; // no match — drop it
       }
       matched.push({
@@ -423,11 +424,11 @@ export default class Command extends PuzzleView {
       empty: options.length === 0,
       inputId: `${this._base}-input`,
       listId: `${this._base}-list`,
-      placeholder: props.placeholder || 'Type a command or search…',
-      emptyText: props.emptyText || 'No results found.',
+      placeholder: props.placeholder || t('ui.command.placeholder'),
+      emptyText: props.emptyText || t('ui.command.empty'),
       // Local: optional second line under emptyText (see the template).
       emptyHint: props.emptyHint || '',
-      ariaLabel: props.label || 'Command palette',
+      ariaLabel: props.label || t('ui.command.label'),
       panelClass: [PANEL_BASE, props.class || ''].join(' '),
     };
   }
