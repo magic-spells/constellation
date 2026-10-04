@@ -1,1 +1,744 @@
-{}
+{
+	"common": {
+		"action": {
+			"cancel": "Annulla",
+			"close": "Chiudi",
+			"dismiss": "Ignora"
+		},
+		"state": {
+			"loading": "Caricamento…"
+		}
+	},
+	"api": {
+		"error": {
+			"requestFailed": "Richiesta non riuscita con stato {status}"
+		}
+	},
+	"appearance": {
+		"trigger": {
+			"title": "Aspetto: schema, modalità e lingua",
+			"srLabel": "Aspetto: {scheme}, {mode}"
+		},
+		"title": "Aspetto",
+		"summary": "{scheme} · {mode}",
+		"schemeLegend": "Schema",
+		"modeLegend": "Modalità",
+		"languageLabel": "Lingua",
+		"languageError": "Impossibile cambiare la lingua. Riprova.",
+		"scheme": {
+			"observatory": {
+				"label": "Osservatorio",
+				"description": "Quello di Constellation: un cielo notturno blu notte, o un'alba fredda in modalità chiara."
+			},
+			"default": {
+				"label": "Predefinito",
+				"description": "Quasi nero e freddo, con una sfumatura blu notte e un accento indaco: equilibrato, elegante, premium."
+			},
+			"dim": {
+				"label": "Tenue",
+				"description": "Grigio-blu a metà saturazione con testo più morbido: la palette a basso contrasto."
+			},
+			"warm": {
+				"label": "Caldo",
+				"description": "Avorio, beige e marrone con un accento arancio argilla: la palette di Claude."
+			},
+			"void": {
+				"label": "Vuoto",
+				"description": "Monocromatico dal bianco al nero puro: senza bordi, alto contrasto, in stile Vercel."
+			}
+		},
+		"mode": {
+			"light": {
+				"label": "Chiaro",
+				"description": "Tutto illuminato: una cornice grigio chiaro con sopra un pannello bianco."
+			},
+			"medium": {
+				"label": "Medio",
+				"description": "Scuro morbido: struttura scura con gli sfondi alzati a grigio medio e il testo un tono più attenuato."
+			},
+			"dark": {
+				"label": "Scuro",
+				"description": "Tutto scuro, con la cornice un tono più scura del pannello."
+			},
+			"system": {
+				"label": "Sistema",
+				"description": "Segue il sistema operativo tra chiaro e scuro."
+			}
+		}
+	},
+	"atlas": {
+		"empty": {
+			"title": "Questo piano non ha ancora schede.",
+			"hint": "L'atlante disegna ciò che contiene il piano: scrivi una scheda e compare un edificio."
+		},
+		"canvasLabel": {
+			"one": "Atlante dell'architettura: {count} scheda come una città",
+			"many": "Atlante dell'architettura: {count} schede come una città",
+			"other": "Atlante dell'architettura: {count} schede come una città"
+		},
+		"lens": {
+			"label": "Lente",
+			"status": {
+				"label": "Stato",
+				"hint": "Colore per stato: — a che punto è ogni scheda."
+			},
+			"degree": {
+				"label": "Collegamenti",
+				"hint": "Altezza in base a quante schede sono collegate. Gli hub sono torri."
+			},
+			"drift": {
+				"label": "Disallineamento",
+				"hint": "Codice collegato cambiato da quando la scheda è stata verificata. Con impalcature = disallineata."
+			},
+			"recency": {
+				"label": "Ultima modifica",
+				"hint": "Altezza in base a quanto di recente è cambiata la scheda. Alto = recente."
+			},
+			"size": {
+				"label": "Dimensione codice",
+				"hint": "Altezza in base alle righe di codice collegato. Richiede collegamenti FILE."
+			}
+		},
+		"engine": {
+			"group": "Ombreggiatura",
+			"flat": {
+				"label": "Piatto",
+				"title": "Mappa stradale: vista dall'alto, con le strade lungo cui scorrono i dati"
+			},
+			"lit": {
+				"label": "3D",
+				"title": "Lo stesso piano come una città 3D di blocchi"
+			}
+		},
+		"control": {
+			"zoomIn": "Aumenta zoom",
+			"zoomOut": "Riduci zoom",
+			"fit": "Inquadra tutta la città",
+			"export": "Scarica un PNG dell'atlante"
+		},
+		"inside": {
+			"back": "← Torna fuori"
+		},
+		"legend": "→ entra · ← esci · trascina per spostare · scorri per lo zoom · passa sopra per leggere",
+		"readout": {
+			"parts": {
+				"one": "{count} parte · {names}",
+				"many": "{count} parti · {names}",
+				"other": "{count} parti · {names}"
+			},
+			"partsMore": {
+				"one": "{count} parte · {names}…",
+				"many": "{count} parti · {names}…",
+				"other": "{count} parti · {names}…"
+			},
+			"drifted": "disallineata dalla verifica",
+			"driftedWithParts": "disallineata dalla verifica · {parts}"
+		},
+		"trace": {
+			"region": "Percorso del flusso",
+			"close": "Esci dal percorso",
+			"prev": "Passo precedente",
+			"next": "Passo successivo",
+			"play": "Riproduci",
+			"pause": "Pausa",
+			"step": "{step}/{total}",
+			"at": "su {handle}"
+		}
+	},
+	"board": {
+		"label": "Bacheca delle funzionalità",
+		"empty": {
+			"title": "Ancora nessuna scheda FEATURE",
+			"description": "Una FEATURE raggruppa una parte coerente del lavoro futuro. Creane una in {path}, collega le schede che tocca e comparirà su questa bacheca."
+		},
+		"column": {
+			"planned": {
+				"title": "Pianificata",
+				"empty": "Niente in coda."
+			},
+			"building": {
+				"title": "In corso",
+				"empty": "Niente in lavorazione."
+			},
+			"built": {
+				"title": "Implementata",
+				"empty": "Ancora niente di implementato."
+			},
+			"verified": {
+				"title": "Verificata",
+				"empty": "Ancora niente di verificato."
+			},
+			"emptyFallback": "Ancora niente qui."
+		},
+		"overflow": {
+			"one": "+{count} altra verificata",
+			"many": "+{count} altre verificate",
+			"other": "+{count} altre verificate"
+		},
+		"kanban": {
+			"defaultLabel": "Bacheca"
+		},
+		"tasks": {
+			"title": "Attività",
+			"tab": {
+				"board": "Bacheca",
+				"list": "Elenco"
+			},
+			"blurb": {
+				"board": "Ogni scheda FEATURE per {field} — una scheda cambia colonna quando cambia il suo stato. Sola lettura.",
+				"list": "Ogni scheda FEATURE per ciò che è in arrivo e ciò che è stato rilasciato, con la release di provenienza."
+			}
+		},
+		"dialog": {
+			"close": "Chiudi l'anteprima",
+			"noBody": "Questa scheda non ha ancora contenuto.",
+			"connections": "Collegamenti",
+			"connectionCount": {
+				"one": "{count} collegamento",
+				"many": "{count} collegamenti",
+				"other": "{count} collegamenti"
+			},
+			"openCard": "Apri la scheda completa →",
+			"notFound": "{handle} non è in questo piano."
+		}
+	},
+	"card": {
+		"page": {
+			"delete": "elimina",
+			"kindPlaceholder": "+ sottotipo",
+			"bodyPlaceholder": "+ scrivi qualcosa"
+		},
+		"section": {
+			"fields": "Campi",
+			"connections": "Collegamenti"
+		},
+		"fields": {
+			"add": "+ campo",
+			"addPlaceholder": "chiave: valore",
+			"invalidYaml": "YAML non valido: non salvato"
+		},
+		"connections": {
+			"add": "+ collega",
+			"addPlaceholder": "HANDLE…",
+			"unknownTarget": "{handle} non è una scheda esistente",
+			"removeTitle": "rimuovi collegamento",
+			"removeLabel": "Rimuovi il collegamento a {handle}"
+		},
+		"notFound": {
+			"title": "Scheda non trovata",
+			"description": "{handle} non è in questo piano.",
+			"descriptionNoHandle": "Questa scheda non è in questo piano."
+		},
+		"unknownType": "Tipo sconosciuto: {folder}",
+		"typeIntro": {
+			"hint": "Seleziona una scheda dall'elenco per visualizzarla.",
+			"count": {
+				"one": "{count} scheda",
+				"many": "{count} schede",
+				"other": "{count} schede"
+			}
+		},
+		"list": {
+			"filterPlaceholder": "Filtra…",
+			"new": "+ crea {type}",
+			"noMatches": "Nessuna corrispondenza",
+			"empty": "Ancora niente qui"
+		},
+		"create": {
+			"title": "Nuova scheda {type}",
+			"titleNoType": "Nuova scheda",
+			"description": "Gli identificativi sono in maiuscolo. Il prefisso del tipo è fissato dalla cartella in cui ti trovi.",
+			"handleLabel": "Identificativo",
+			"handlePlaceholder": "TICKETS",
+			"nameLabel": "Nome",
+			"optional": "facoltativo",
+			"namePlaceholder": "Che cos'è questa scheda",
+			"preview": "Crea {handle}",
+			"submit": "Crea scheda",
+			"errorEmpty": "Inserisci un identificativo.",
+			"errorInvalid": "Gli identificativi usano solo A–Z, 0–9 e trattini.",
+			"errorFailed": "Impossibile creare la scheda."
+		},
+		"delete": {
+			"title": "Eliminare {handle}?",
+			"titleNoHandle": "Eliminare la scheda?",
+			"confirm": "Elimina scheda",
+			"referenced": {
+				"single": "Elimina {handle}. È citata da {handles}: quel collegamento resterà sospeso.",
+				"multiple": "Elimina {handle}. È citata da {handles}: quei collegamenti resteranno sospesi."
+			},
+			"referencedAt": {
+				"single": "Elimina {handle} ({path}). È citata da {handles}: quel collegamento resterà sospeso.",
+				"multiple": "Elimina {handle} ({path}). È citata da {handles}: quei collegamenti resteranno sospesi."
+			},
+			"unreferenced": "Elimina {handle}. Nient'altro nel piano vi rimanda.",
+			"unreferencedAt": "Elimina {handle} ({path}). Nient'altro nel piano vi rimanda.",
+			"done": "{handle} eliminata.",
+			"doneDangling": {
+				"single": "{handle} eliminata: ora {handles} non punta a niente.",
+				"multiple": "{handle} eliminata: ora {handles} non puntano a niente."
+			}
+		}
+	},
+	"docs": {
+		"eyebrow": "Documentazione",
+		"defaultTitle": "Documentazione",
+		"imprint": "v{version} · {date}",
+		"card": {
+			"openSource": "Apri {handle}"
+		},
+		"toc": {
+			"heading": "Indice",
+			"navLabel": "Indice della documentazione",
+			"jumpLabel": "Vai a una sezione",
+			"jumpPlaceholder": "Indice…",
+			"wholeDocument": "← Documento completo",
+			"empty": "Nessuna scheda ha ancora un {field}."
+		},
+		"empty": {
+			"title": "Ancora nessuna documentazione",
+			"description": "Assegna a una scheda uno slug {field} ed entra in questo documento. Registra gli slug in ordine su {handle} come {listField} per dar loro un nome e stabilire come si leggono.",
+			"unknownTitle": "Sezione inesistente",
+			"unknownSection": "Nessuna scheda dichiara {field} {section}."
+		},
+		"export": {
+			"button": "Esporta in PDF",
+			"blockedTitle": "Pop-up bloccato",
+			"blockedMessage": "Consenti i pop-up per questo sito, oppure premi {shortcut} e scegli “Salva come PDF”."
+		},
+		"print": {
+			"action": "Stampa",
+			"preparing": "Preparazione…",
+			"windowTitle": "Stampa",
+			"empty": "Ancora niente da stampare: nessuna scheda ha uno slug {field}.",
+			"hint": {
+				"waiting": "Rendering dei diagrammi in corso: il documento sarà pronto tra un attimo.",
+				"ready": "Scegli “Salva come PDF” come destinazione nella finestra di stampa.",
+				"partial": "Alcuni diagrammi non sono stati generati. Stampa comunque o ricarica la finestra."
+			}
+		}
+	},
+	"edit": {
+		"hint": "⌘↩ salva · esc annulla",
+		"emptyPlaceholder": "vuoto: fai clic per modificare",
+		"clickToEdit": "Fai clic per modificare",
+		"toast": {
+			"stale": "La scheda è cambiata sul disco: ricaricata",
+			"readonly": "Il visualizzatore è in sola lettura",
+			"saveFailed": "Salvataggio non riuscito",
+			"syncPoint": "Punto di sincronizzazione impostato su {sha}"
+		}
+	},
+	"features": {
+		"empty": "Ancora nessuna scheda FEATURE. Una FEATURE raggruppa una parte coerente del lavoro futuro: creane una in {path}, collega le schede che tocca e comparirà qui.",
+		"sectionEmpty": "Ancora niente qui.",
+		"section": {
+			"upNext": "Prossime",
+			"shipped": "Rilasciate"
+		},
+		"pr": {
+			"link": "PR ↗",
+			"number": "PR {pr}"
+		}
+	},
+	"graph": {
+		"empty": {
+			"title": "Questo piano non ha ancora schede."
+		},
+		"canvasLabel": {
+			"one": "Grafo di Constellation: {count} scheda. Usa la casella di ricerca per trovare un nodo; trascina per spostare; scorri per lo zoom; Escape annulla la selezione.",
+			"many": "Grafo di Constellation: {count} schede. Usa la casella di ricerca per trovare un nodo; trascina per spostare; scorri per lo zoom; Escape annulla la selezione.",
+			"other": "Grafo di Constellation: {count} schede. Usa la casella di ricerca per trovare un nodo; trascina per spostare; scorri per lo zoom; Escape annulla la selezione."
+		},
+		"search": {
+			"placeholder": "Cerca nodi…",
+			"label": "Cerca nodi nel grafo"
+		},
+		"control": {
+			"zoomIn": "Aumenta zoom",
+			"zoomOut": "Riduci zoom",
+			"fit": "Adatta alla vista",
+			"reset": "Ripristina",
+			"resetLabel": "Ripristina la vista"
+		},
+		"panel": {
+			"open": "Apri scheda →"
+		},
+		"tabs": {
+			"group": "Vista di Constellation",
+			"graph": {
+				"label": "Grafo",
+				"hint": "Nodi raggruppati per forze: cosa si collega a cosa"
+			},
+			"atlas": {
+				"label": "Atlante",
+				"hint": "Una città isometrica: che forma ha il sistema"
+			}
+		}
+	},
+	"home": {
+		"noPlan": "Ancora nessun {file}: esegui `{command}`.",
+		"countValue": "{count}",
+		"health": {
+			"lastSynced": "sincronizzato {when}",
+			"noSyncPoint": "ancora nessun punto di sincronizzazione",
+			"sinceMarker": "{commits} / {changes} da allora",
+			"codeCommits": {
+				"one": "{count} commit di codice",
+				"many": "{count} commit di codice",
+				"other": "{count} commit di codice"
+			},
+			"planChanges": {
+				"one": "{count} modifica al piano",
+				"many": "{count} modifiche al piano",
+				"other": "{count} modifiche al piano"
+			},
+			"planDirty": "modifiche al piano senza commit",
+			"setSyncPoint": "Imposta punto di sincronizzazione",
+			"updateSyncPoint": "Aggiorna punto di sincronizzazione",
+			"chip": {
+				"cards": "schede",
+				"connections": "collegamenti",
+				"errors": {
+					"one": "{count} errore",
+					"many": "{count} errori",
+					"other": "{count} errori"
+				},
+				"warnings": {
+					"one": "{count} avviso",
+					"many": "{count} avvisi",
+					"other": "{count} avvisi"
+				},
+				"clean": "pulito",
+				"integrity": "integrità",
+				"drifted": "disallineate",
+				"untracked": "non tracciate",
+				"noDrift": "allineato",
+				"code": "codice"
+			}
+		},
+		"releases": {
+			"title": "Release",
+			"latestTag": "{tag} con tag",
+			"packageVersion": "{version} in {file}",
+			"noTags": "ancora nessun tag",
+			"empty": "Ancora nessuna scheda RELEASE. Una RELEASE segna una tappa di versione; le schede FEATURE la indicano con {releaseField} e si raggruppano per {changeField}.",
+			"tagged": "con tag",
+			"breakingCount": {
+				"one": "{count} incompatibile",
+				"many": "{count} incompatibili",
+				"other": "{count} incompatibili"
+			},
+			"noFeatures": "Ancora nessuna scheda FEATURE indica questa release.",
+			"open": "Apri {handle} →",
+			"summary": {
+				"shipped": "rilasciata",
+				"noFeatures": "ancora nessuna funzionalità",
+				"features": {
+					"one": "{count} funzionalità",
+					"many": "{count} funzionalità",
+					"other": "{count} funzionalità"
+				},
+				"progress": {
+					"one": "{shipped} di {count} funzionalità rilasciata",
+					"many": "{shipped} di {count} funzionalità rilasciate",
+					"other": "{shipped} di {count} funzionalità rilasciate"
+				}
+			},
+			"group": {
+				"breaking": "Incompatibili",
+				"feature": "Funzionalità",
+				"fix": "Correzioni",
+				"chore": "Manutenzione"
+			}
+		},
+		"activity": {
+			"title": "Attività",
+			"kind": {
+				"plan": "piano",
+				"code": "codice"
+			},
+			"syncTag": "sync",
+			"moreCards": "+{count}",
+			"empty": "Ancora nessun commit: l'attività compare quando il repository ha una cronologia."
+		},
+		"drift": {
+			"title": "Disallineamento del codice",
+			"nothingTracked": "ancora niente di tracciato",
+			"claimsHold": {
+				"one": "{count} affermazione è ancora valida",
+				"many": "{count} affermazioni sono ancora valide",
+				"other": "{count} affermazioni sono ancora valide"
+			},
+			"claimsDrifted": {
+				"one": "{drifted} affermazione su {count} disallineata",
+				"many": "{drifted} affermazioni su {count} disallineate",
+				"other": "{drifted} affermazioni su {count} disallineate"
+			},
+			"filesChanged": {
+				"one": "{count} file modificato",
+				"many": "{count} file modificati",
+				"other": "{count} file modificati"
+			},
+			"baseline": {
+				"verified": "dalla verifica",
+				"cardCommit": "dall'ultimo commit della scheda",
+				"syncMarker": "dal punto di sincronizzazione",
+				"argument": "dalla base",
+				"fallback": "dal riferimento"
+			},
+			"overflow": {
+				"one": "+{count} altra scheda non aggiornata",
+				"many": "+{count} altre schede non aggiornate",
+				"other": "+{count} altre schede non aggiornate"
+			},
+			"untracked": {
+				"one": "{count} affermazione senza riferimento: {hint}",
+				"many": "{count} affermazioni senza riferimento: {hint}",
+				"other": "{count} affermazioni senza riferimento: {hint}"
+			},
+			"untrackedHint": "fanne il commit, o marcale con {tool}, per tracciarne il codice"
+		},
+		"notes": {
+			"title": "Note",
+			"kind": {
+				"decision": "decisione",
+				"gotcha": "insidia",
+				"state": "stato",
+				"deviation": "deviazione",
+				"verified": "verificata"
+			},
+			"empty": "Ancora nessuna nota: {tool} scrive decisioni e insidie durature sulle schede; le più recenti compaiono qui."
+		},
+		"repos": {
+			"title": "Repository collegati",
+			"hint": "Piani separati, ognuno nel proprio spazio di lavoro: aprine uno da qui o dal selettore in cima alla barra laterale.",
+			"current": "Questo spazio di lavoro",
+			"cardCount": {
+				"one": "{count} scheda",
+				"many": "{count} schede",
+				"other": "{count} schede"
+			},
+			"notServed": "Non servito da questo visualizzatore"
+		}
+	},
+	"nav": {
+		"planLabel": "Navigazione del piano",
+		"overview": "Panoramica",
+		"tasks": "Attività",
+		"docs": "Documentazione",
+		"constellation": "Constellation",
+		"styleGuide": "Guida di stile",
+		"drawer": {
+			"title": "Navigazione",
+			"close": "Chiudi la navigazione"
+		}
+	},
+	"palette": {
+		"label": "Tavolozza dei comandi",
+		"placeholder": "Cerca schede, pagine e azioni…",
+		"empty": "Nessuna corrispondenza.",
+		"page": {
+			"tasksBoard": "Attività: bacheca",
+			"tasksList": "Attività: elenco",
+			"graph": "Constellation: grafo",
+			"atlas": "Constellation: atlante"
+		},
+		"group": {
+			"goTo": "Vai a",
+			"scheme": "Schema"
+		},
+		"hint": {
+			"active": "Attivo"
+		},
+		"keyword": {
+			"page": "pagina"
+		}
+	},
+	"shell": {
+		"header": {
+			"openNav": "Apri la navigazione",
+			"searchLabel": "Cerca schede, pagine e azioni",
+			"searchPlaceholder": "Cerca…",
+			"openRepo": "Apri il repository su GitHub"
+		}
+	},
+	"status": {
+		"planned": "pianificata",
+		"building": "in corso",
+		"built": "implementata",
+		"verified": "verificata",
+		"none": "senza stato"
+	},
+	"style": {
+		"guide": {
+			"title": "Guida di stile",
+			"emptyTitle": "Ancora nessuna scheda STYLE",
+			"emptyDescription": "Aggiungi una scheda in style/ con una category e un elenco di tokens (colori, font, una scala tipografica, spaziature, raggi o ombre) e comparirà qui."
+		},
+		"fontStyles": "Stili dei font",
+		"specimen": {
+			"uppercase": "Maiuscole",
+			"lowercase": "Minuscole",
+			"numbers": "Numeri",
+			"characters": "Caratteri"
+		},
+		"typeScale": {
+			"sample": "Pranzo d'acqua fa volti sghembi"
+		}
+	},
+	"sync": {
+		"state": {
+			"inSync": "Sincronizzato",
+			"drifted": "Disallineato",
+			"dirty": "Modifiche senza commit",
+			"neverSynced": "Non sincronizzato"
+		},
+		"badge": {
+			"title": "Aggiornamento del piano, calcolato dal vivo da git. Fai clic per aprire la dashboard dell'attività.",
+			"markerUnreachable": "marcatore irraggiungibile",
+			"commitsBehind": {
+				"one": "{count} commit indietro",
+				"many": "{count} commit indietro",
+				"other": "{count} commit indietro"
+			},
+			"cardsAhead": {
+				"one": "{count} scheda avanti",
+				"many": "{count} schede avanti",
+				"other": "{count} schede avanti"
+			}
+		}
+	},
+	"time": {
+		"justNow": "poco fa"
+	},
+	"types": {
+		"plan": {
+			"name": "Piani",
+			"single": "piano"
+		},
+		"feature": {
+			"name": "Funzionalità",
+			"single": "funzionalità"
+		},
+		"release": {
+			"name": "Release",
+			"single": "release"
+		},
+		"diagram": {
+			"name": "Architettura",
+			"single": "diagramma"
+		},
+		"doc": {
+			"name": "Documenti",
+			"single": "documento"
+		},
+		"decision": {
+			"name": "Decisioni",
+			"single": "decisione"
+		},
+		"agent": {
+			"name": "Regole per agenti",
+			"single": "regola per agenti"
+		},
+		"api": {
+			"name": "Endpoint API",
+			"single": "endpoint API"
+		},
+		"db": {
+			"name": "Database",
+			"single": "tabella del database"
+		},
+		"datatype": {
+			"name": "Tipi di dati",
+			"single": "tipo di dati"
+		},
+		"event": {
+			"name": "Eventi",
+			"single": "evento"
+		},
+		"job": {
+			"name": "Job",
+			"single": "job"
+		},
+		"flow": {
+			"name": "Flussi",
+			"single": "flusso"
+		},
+		"state": {
+			"name": "Macchine a stati",
+			"single": "macchina a stati"
+		},
+		"role": {
+			"name": "Ruoli",
+			"single": "ruolo"
+		},
+		"external": {
+			"name": "Servizi esterni",
+			"single": "servizio esterno"
+		},
+		"page": {
+			"name": "Pagine",
+			"single": "pagina"
+		},
+		"component": {
+			"name": "Componenti",
+			"single": "componente"
+		},
+		"style": {
+			"name": "Guida di stile",
+			"single": "stile"
+		},
+		"file": {
+			"name": "File del repo",
+			"single": "file del repo"
+		},
+		"test": {
+			"name": "Test",
+			"single": "test"
+		},
+		"group": {
+			"overview": "Panoramica",
+			"system": "Sistema",
+			"interface": "Interfaccia",
+			"code": "Codice e test"
+		}
+	},
+	"ui": {
+		"sidebar": {
+			"defaultLabel": "Principale",
+			"expand": "Espandi barra laterale",
+			"collapse": "Comprimi barra laterale"
+		},
+		"command": {
+			"label": "Tavolozza dei comandi",
+			"placeholder": "Digita un comando o cerca…",
+			"empty": "Nessun risultato trovato."
+		},
+		"search": {
+			"placeholder": "Cerca…",
+			"clear": "Cancella ricerca"
+		},
+		"select": {
+			"placeholder": "Seleziona…"
+		},
+		"alertDialog": {
+			"confirm": "Continua"
+		},
+		"toaster": {
+			"label": "Notifiche"
+		},
+		"splitPanel": {
+			"resize": "Ridimensiona i pannelli"
+		}
+	},
+	"workspace": {
+		"listLabel": "Spazi di lavoro",
+		"group": {
+			"self": "Questo repository",
+			"connected": "Repository collegati"
+		},
+		"unavailable": "Non disponibile",
+		"fallbackName": "Piano"
+	}
+}
