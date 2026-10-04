@@ -18,8 +18,7 @@ each other file is the same keys in one language. The conventions match Pyramid'
 | `nl.json` | Dutch | informal **je** |
 | `ko.json` | Korean | polite 해요체 for messages, nouns for labels |
 
-Until a language is translated its file is `{}`, and the build fills every key from English
-(one warning line per locale).
+Every file carries every key; a key missing from one falls back to English and the build warns.
 
 ## Tone
 
@@ -88,6 +87,8 @@ always the placeholder `{count}`:
   "other": "{count} cards"
 }
 ```
+
+Every form, `zero` and `one` included, prints `{count}`; the tests check it.
 
 Use the categories **your** language needs (Unicode CLDR plural rules):
 

@@ -5,13 +5,9 @@
 //   2. en.json has no key the code never names;
 //   3. every translated locale has exactly en.json's keys, and each value the
 //      same {placeholders} and, for plurals, a plural entry with `other`
-//      (a plural category may drop {count}: "one card");
+//      whose every form carries {count};
 //   4. the language picker (lib/locale.js) lists exactly puzzle.config.js's
 //      locales.
-//
-// PENDING lists the locales whose translation has not landed yet: their files
-// are empty `{}` placeholders, so check 3 skips them. Remove a tag from the
-// list in the same commit that fills its file.
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,8 +16,6 @@ import config from '../../viewer/puzzle.config.js';
 import { LANGUAGES } from '../../viewer/app/lib/locale.js';
 import { flattenLocale } from './support/i18n.js';
 import { literalKeys, stripComments } from '../../scripts/check-i18n.mjs';
-
-export const PENDING = ['es', 'de', 'fr', 'it', 'ja', 'zh-Hans', 'pt-BR', 'pt-PT', 'nl', 'ko'];
 
 const APP = join(process.cwd(), 'viewer', 'app');
 const SKIP_DIRS = new Set(['vendor', 'locales', 'public', 'styles']);
@@ -58,6 +52,11 @@ function usage() {
 
 const { literals, prefixes } = usage();
 
+/** A plural entry whose every form (zero and one included) prints {count}. */
+function countInEveryForm(entry) {
+	return Object.values(entry).every((form) => String(form).includes('{count}'));
+}
+
 function placeholders(value) {
 	const texts = typeof value === 'string' ? [value] : Object.values(value ?? {});
 	const names = new Set();
@@ -87,8 +86,8 @@ describe('en.json against the code', () => {
 		expect(unused).toEqual([]);
 	});
 
-	it('writes every plural entry with an `other` form and a {count}', () => {
-		const bad = KEYS.filter((k) => typeof EN[k] === 'object' && (!EN[k].other || !EN[k].other.includes('{count}')));
+	it('writes every plural entry with an `other` form and a {count} in every form', () => {
+		const bad = KEYS.filter((k) => typeof EN[k] === 'object' && (!EN[k].other || !countInEveryForm(EN[k])));
 		expect(bad).toEqual([]);
 	});
 });
@@ -105,16 +104,8 @@ describe('the locale files', () => {
 		expect(LANGUAGES.map((l) => l.value).sort()).toEqual([...tags].sort());
 	});
 
-	it('are listed as pending only while they are still empty', () => {
-		for (const tag of PENDING) {
-			const table = JSON.parse(readFileSync(join(APP, 'locales', `${tag}.json`), 'utf8'));
-			expect(Object.keys(table), `${tag} has strings: remove it from PENDING`).toEqual([]);
-		}
-	});
-
 	for (const tag of tags.filter((t) => t !== 'en')) {
-		const pending = PENDING.includes(tag);
-		(pending ? it.skip : it)(`${tag}: has en.json's keys and placeholders${pending ? ' (pending translation)' : ''}`, () => {
+		it(`${tag}: has en.json's keys and placeholders`, () => {
 			const table = flattenLocale(JSON.parse(readFileSync(join(APP, 'locales', `${tag}.json`), 'utf8')));
 			expect(Object.keys(table).filter((k) => !(k in EN))).toEqual([]);
 			expect(KEYS.filter((k) => !(k in table))).toEqual([]);
@@ -126,6 +117,7 @@ describe('the locale files', () => {
 					want.delete('count');
 					got.delete('count');
 					if (typeof table[k] !== 'object' || !table[k].other) mismatched.push(`${k}: not a plural entry with "other"`);
+					else if (!countInEveryForm(table[k])) mismatched.push(`${k}: a plural form without {count}`);
 					if (EN[k].zero !== undefined && table[k]?.zero === undefined) mismatched.push(`${k}: en has a "zero" form`);
 				}
 				const a = [...want].sort().join(',');

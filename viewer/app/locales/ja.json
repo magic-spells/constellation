@@ -27,7 +27,7 @@
 		"languageError": "言語を切り替えられませんでした。もう一度お試しください。",
 		"scheme": {
 			"observatory": {
-				"label": "天文台",
+				"label": "オブザーバトリー",
 				"description": "Constellation独自の配色。ダークは深い紺色の夜空、ライトはひんやりとした夜明けです。"
 			},
 			"default": {
