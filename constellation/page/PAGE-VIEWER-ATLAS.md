@@ -12,14 +12,19 @@ connections:
   - DECISION-ATLAS-TWO-ENGINES
   - DECISION-ATLAS-CONFIG-FILE
   - PAGE-VIEWER-CONSTELLATION
-verified_at: '2026-08-24T21:11:26.874Z'
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 notes:
   - kind: state
     text: >-
       The map's ground is `--color-surface-panel` (the 1.1 work panel), not `--color-page`, read by
       `atlas-palette.js` through the same `cssColor` probe as the graph, so the canvas is continuous
       with the panel in every scheme and mode.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 The isometric city: **what shape is this system, and where does data go**. The

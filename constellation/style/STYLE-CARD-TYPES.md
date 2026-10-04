@@ -1,7 +1,7 @@
 ---
 name: Card type hues
 kind: tokens
-status: built
+status: verified
 category: color
 code_refs:
   - viewer/app/styles/schemes.css
@@ -76,6 +76,14 @@ connections:
   - PAGE-VIEWER-CARD
 section: design-system
 order: 50
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+notes:
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 One hue per card type, and the reason the viewer is legible at a glance: a

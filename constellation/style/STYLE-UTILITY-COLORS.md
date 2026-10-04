@@ -1,7 +1,7 @@
 ---
 name: Utility colors
 kind: tokens
-status: built
+status: verified
 category: color
 code_refs:
   - viewer/app/styles/schemes.css
@@ -45,6 +45,13 @@ notes:
       its tints toward the hue, and default/dim/warm/void use the pieces palettes' own status
       colours (pieces.css, themes/*.css), so the borrowing from `--t-API` / `--t-DB` / `--t-TEST`
       holds only in Observatory dark.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 The three colours that carry meaning, each with a tint for backgrounds.

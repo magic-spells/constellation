@@ -6,8 +6,8 @@ language: typescript
 summary: Find the plan folder, bounded by the repo root
 connections:
   - FILE-MCP-SERVER
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:10:24.754Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
 notes:
   - kind: state
     text: >-
@@ -18,6 +18,11 @@ notes:
       past dirs that have plans. Assigns stable ids (root reserved for the repo-root plan; slug
       basename when unique; dashed relative path otherwise, always accepted as alias) with -2/-3
       dedupe, once at startup. findPlanUp/resolvePlanDir unchanged.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 Walks up from cwd to find `constellation/`, stopping at the first ancestor with `.git` and returning null rather than adopting a sibling repo's plan. Plan resolution never crosses a repo boundary.

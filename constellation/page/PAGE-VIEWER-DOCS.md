@@ -19,8 +19,13 @@ notes:
       STYLE cards render their tokens inline in the document — the same StyleTokens the style guide
       uses, above the card's prose. A palette described in words is not a palette, so DocCard now
       carries `frontmatter` and not just `body`.
-verified_at: '2026-08-24T21:11:31.970Z'
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 Every sectioned card compiled into ONE ordered document — the answer to "what is

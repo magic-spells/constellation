@@ -1,6 +1,6 @@
 ---
 name: Working memory (.constellation/)
-status: built
+status: verified
 change: feature
 branch: feat/working-memory
 connections:
@@ -32,7 +32,14 @@ notes:
       main's folder; .gitignore and .claude/settings.json go in the calling checkout); no plan and
       no git → reads quiet, init fails NO_WORKING_ROOT. Agents must not init_plan just to get
       working memory.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 release: RELEASE-V1-0-0
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 # Working memory (`.constellation/`)

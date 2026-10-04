@@ -12,8 +12,8 @@ connections:
   - FILE-SERVE
   - COMPONENT-STATUS-SELECT
   - PAGE-VIEWER-FEATURES
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:11:28.291Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
 notes:
   - kind: verified
     text: >-
@@ -32,6 +32,11 @@ notes:
       Verified the 20-card Verified cap, verified_at ordering with fallbacks, total badge, overflow
       link, preview route, and read-only drag state.
     sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 section: viewer
 order: 20
 ---

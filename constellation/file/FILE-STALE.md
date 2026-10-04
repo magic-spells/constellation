@@ -8,8 +8,8 @@ connections:
   - FILE-GIT
   - FILE-CODE
   - FILE-SYNC
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:10:23.372Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
 notes:
   - kind: state
     text: >-
@@ -25,6 +25,11 @@ notes:
       --others --exclude-standard, so set_verified's dirty warning and stale_report both see a
       never-added bound file. changedFilesSince deliberately does not (an untracked file bears no
       relation to a baseline sha).
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 `computeStaleCards` compares every claim card (status built/verified, or carrying a

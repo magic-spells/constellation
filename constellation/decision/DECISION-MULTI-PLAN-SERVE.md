@@ -22,8 +22,13 @@ notes:
       click-through: boots into #/p/root/ with the topbar PlanSwitcher, dropdown lists both plans
       with counts + check, switching reloads into #/p/examples/ with the whole app re-anchored, and
       a cold deep link #/p/examples/api/API-TICKETS opens that card in that plan.
-verified_at: '2026-08-24T21:13:27.099Z'
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 # One server, every plan in the repo and its connected repos, a switcher to change

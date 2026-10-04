@@ -4,8 +4,8 @@ status: verified
 path: src/core/git.ts
 language: typescript
 summary: Git plumbing for change tracking + drift
-verified_at: '2026-08-24T21:10:24.041Z'
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 notes:
   - kind: verified
     text: >-
@@ -32,6 +32,11 @@ notes:
       bound files count as uncommitted drift (matches the untracked-card special case in diffPlan).
       changedFilesSince deliberately does NOT: an untracked file bears no relation to the sha, and
       counting it would pin any directory-bound card stale with no way for set_verified to clear it.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 `diffPlan` (per-card delta), `planLog`, sync-marker read/write, `headSha`, `currentBranch`, `changedFilesSince`, `lastCommitByPath`, `dirtyFilesAmong`, `countCodeCommitsSince`, `recentPlanActivity`, `recentCodeActivity`, `latestTag`, `planRootsFor`, `repoRemoteUrl`. `safeRev` rejects a dash-leading revision at every entry point, so no caller string is parsed as a git option. `--end-of-options` backs it at most sites but not all: `countCodeCommitsSince`'s `rev-list --count` omits it, and `diffPlan`'s `git show` pair passes revisions raw — safe only because an earlier `safeRev` in the same function throws first. Ordering, not a guard.

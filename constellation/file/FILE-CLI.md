@@ -8,8 +8,8 @@ connections:
   - FILE-RESOLVE
   - FILE-SERVE
   - FILE-MCP-SERVER
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:13:23.070Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
 notes:
   - kind: verified
     text: >-
@@ -26,6 +26,11 @@ notes:
       (#/p/<id>/) + plan table with • on the default, counts from the shared .md count; single-plan
       banner byte-identical to before. New script serve:multi (dev target: this repo's own root +
       examples).
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 Commands: `init`, `lint`, `rename`, `mcp`, `serve`, `repos`, `working` (+ `install-hook`, `on`, `off`, `new-session`, `config`), `add skills`, `version`/`v`, `upgrade`. `lint` exits 1 on errors, 0 otherwise (warnings never fail), 2 when no plan is found. `rename OLD NEW` is the human-facing wrapper over [[FILE-RENAME]] — it prints the rewritten references and a lint-error count.

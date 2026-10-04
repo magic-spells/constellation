@@ -10,8 +10,8 @@ connections:
   - FILE-WRITER
   - FILE-SYNC
   - FILE-STALE
-verified_at: '2026-08-24T21:13:21.665Z'
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 notes:
   - kind: state
     text: >-
@@ -35,6 +35,11 @@ notes:
       refs (structuredReferrers) not graph neighbors; if_mtime checked inside mutateCardFile's lock;
       reciprocate target-write failures return reciprocated.ok:false instead of INTERNAL after the
       home write; INSTRUCTIONS leftover-edge cleanup is a field patch not edit_section.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 `constellation mcp` (stdio). Registers every tool, embeds the agent-facing `INSTRUCTIONS` string (one of the three guidance copies), and resolves the target plan — the home plan or, when `repo` is passed, a connected sibling. The server handshake version is the package version (same source as the CLI), not a hardcoded leftover.

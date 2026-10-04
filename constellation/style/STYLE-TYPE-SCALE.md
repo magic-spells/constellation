@@ -44,14 +44,19 @@ connections:
   - STYLE-FONTS
 section: design-system
 order: 20
-verified_at: '2026-08-18T17:56:53.735Z'
-verified_sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 notes:
   - kind: verified
     text: >-
       Matched the authored type tokens to DocsDocument.pzl: H1 650/1.05, H2 650/1.15, H3 640/1.25,
       and the overline's default 400/normal.
     sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 Seven steps. Heading steps are **numbered to match the element they set** —

@@ -8,8 +8,8 @@ connections:
   - FILE-WRITER
   - FILE-SYNC
   - PAGE-VIEWER-HOME
-verified_at: '2026-08-24T21:13:23.783Z'
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 notes:
   - kind: verified
     text: >-
@@ -47,6 +47,11 @@ notes:
     text: >-
       PATCH if_mtime is checked inside mutateCardFile's lock (same StaleWriteError as MCP
       update_card). DELETE uses deleteCardFile + structuredReferrers, matching MCP delete_card.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 Serves `viewer/dist`, a read API, and a PATCH/POST/DELETE write API (with `if_mtime` stale-write guard), watching files for live reload. Shares the byte-preserving writer with the MCP path. `DELETE /api/card/PLAN-PROJECT` is refused (400 `INVALID_HANDLE`) — same guard as MCP `delete_card`.

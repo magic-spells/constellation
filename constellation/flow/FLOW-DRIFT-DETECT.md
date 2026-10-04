@@ -8,8 +8,14 @@ connections:
   - FILE-STALE
 section: plan-and-code
 order: 30
-verified_at: '2026-08-24T20:08:41.105Z'
-verified_sha: 2757d7de40f8f234c01bd7369c6fbfa85f23bcbb
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+notes:
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 Makes a `built`/`verified` claim re-verifiable instead of taken on faith (reverse drift).

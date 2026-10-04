@@ -1,6 +1,6 @@
 ---
 name: v1.0.1 — MCP review fixes
-status: built
+status: verified
 version: 1.0.1
 connections:
   - RELEASE-V1-0-0
@@ -16,6 +16,13 @@ notes:
       survivor issues reported, PR #37). Bound-code drift: untracked bound files count as
       uncommitted (stale_report, set_verified's dirty warning via dirtyFilesAmong) but never as
       changed-since-a-sha, so a directory code_refs cannot go permanently stale.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 Theme: close the agent-facing holes found reviewing 1.0.0.

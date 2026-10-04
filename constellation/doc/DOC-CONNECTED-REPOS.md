@@ -1,7 +1,7 @@
 ---
 name: Connected repos (multi-repo)
 kind: spec
-status: built
+status: verified
 connections:
   - FILE-REPOS
   - FILE-RESOLVE
@@ -14,6 +14,13 @@ notes:
       repo: on a connected_repos name whose path has no plan is UNREACHABLE_REPO (lists the declared
       path, points at list_connected_repos reachable:false). UNKNOWN_REPO is only for names that
       were never declared.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 # Connected repos (multi-repo)

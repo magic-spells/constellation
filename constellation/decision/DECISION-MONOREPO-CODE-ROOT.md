@@ -1,6 +1,6 @@
 ---
 name: 'Plans can live below the git root: the code root'
-status: built
+status: verified
 connections:
   - FILE-CODE
   - FILE-STALE
@@ -32,6 +32,13 @@ notes:
       otherwise codeRootFor falls back to dirname(planRoot) and reports the escape. A cloned plan.md
       cannot steer .constellation/, the .gitignore write or code reads into another project. Serve
       refuses a connected plan whose code_root escapes, as an unavailable roster row.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 # Plans can live below the git root: the code root

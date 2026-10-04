@@ -8,8 +8,8 @@ connections:
   - FILE-LINT
   - FILE-INDEXER
   - FILE-MCP-SERVER
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:13:29.741Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
 notes:
   - kind: verified
     text: >-
@@ -38,6 +38,11 @@ notes:
       monorepo, so 12 viewer test files failed to LOAD and the suite still reported green — 162
       tests silently not running. A `.pzl` import failure is quiet; check the file/test counts
       against the last verified note before trusting a green run.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 The vitest suite (900+ tests, 70+ files): core unit tests, MCP integration via an in-memory client, git-backed drift/security tests, serve HTTP tests (request guard, symlink containment, connected workspaces — writes send an Origin via `tests/same-origin.ts`), and working-memory tests including settings, hostile repos, the git trust check and a cross-process lock stress test that spawns `tests/lock-worker.ts`. The golden plan `examples/constellation/` doubles as a fixture and must lint clean (0 errors). Exercises [[FILE-LINT]], [[FILE-INDEXER]], [[FILE-MCP-SERVER]].

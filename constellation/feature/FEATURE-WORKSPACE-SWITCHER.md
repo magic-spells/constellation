@@ -1,6 +1,6 @@
 ---
 name: Workspace switcher across connected repos
-status: built
+status: verified
 release: RELEASE-V1-1-0
 change: feature
 branch: feat/workspace-switcher
@@ -23,8 +23,15 @@ connections:
   - FILE-WRITER
   - PAGE-VIEWER-HOME
   - FEATURE-VIEWER-SHELL-1-1
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+notes:
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
-
 
 One `constellation serve` shows this repo's plans and its connected repos' plans, and the project name at the top of the rail switches between them.
 

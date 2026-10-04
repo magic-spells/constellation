@@ -6,8 +6,8 @@ language: typescript
 summary: Connected-repo declarations + repo selector resolution
 connections:
   - FILE-MCP-SERVER
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:10:24.908Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
 notes:
   - kind: state
     text: >-
@@ -16,6 +16,11 @@ notes:
       repoRootOf is deliberately NOT the code root — it resolves connected_repos paths and must stay
       dirname(planRoot) regardless of any code_root override; the comment now says so. See
       DECISION-MONOREPO-CODE-ROOT.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 Reads/writes `connected_repos` on PLAN-PROJECT and resolves the `repo` selector (name or path) to a sibling plan root. Repo-level links only — cards never connect across repos.

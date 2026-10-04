@@ -1,7 +1,7 @@
 ---
 name: File format
 kind: spec
-status: built
+status: verified
 connections:
   - FILE-INDEXER
   - FILE-EXTRACT
@@ -10,6 +10,14 @@ connections:
   - DOC-CONNECTED-REPOS
 section: format
 order: 10
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+notes:
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 # File format

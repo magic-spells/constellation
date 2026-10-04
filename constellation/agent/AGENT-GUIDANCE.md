@@ -10,8 +10,8 @@ connections:
   - FILE-MCP-SERVER
   - DOC-MCP-UPGRADES
   - FLOW-SYNC-PLAN
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:13:29.267Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
 section: agents
 order: 30
 notes:
@@ -40,6 +40,11 @@ notes:
       this repo?" and "clear it every new session?", pass the answers, and never change either
       setting yourself. NOT_TOOLS gained new_session and defaults_applied. Budget: INSTRUCTIONS
       still 68/68, SKILL.md 396/400 — trim before adding. See FEATURE-WORKING-MEMORY-SETTINGS.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 # Agent guidance

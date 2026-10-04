@@ -1,6 +1,6 @@
 ---
 name: v1.0.2 — working memory without a plan
-status: built
+status: verified
 version: 1.0.2
 connections:
   - RELEASE-V1-0-1
@@ -9,6 +9,14 @@ connections:
   - FILE-MCP-SERVER
   - DOC-MCP-SERVER
   - AGENT-GUIDANCE
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+notes:
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 Theme: working memory no longer needs a plan.
