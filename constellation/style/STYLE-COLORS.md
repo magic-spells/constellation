@@ -24,20 +24,23 @@ tokens:
     value: '#5a5f78'
     description: Placeholders, disabled, quiet meta
   - name: page
-    value: '#07080f'
-    description: The page behind everything
+    value: '#03040a'
+    description: The page behind everything — the darkest layer
   - name: surface-frame
-    value: '#0c0e18'
-    description: The window frame — rail and the margin around the work panel
-  - name: surface-panel
-    value: '#07080f'
-    description: The work panel's ground (Observatory aliases it to page); canvases paint it
-  - name: surface
-    value: '#0c0e18'
-    description: Panels and cards
+    value: '#03040a'
+    description: The window frame — rail and the margin around the work panel; the page in dark
   - name: surface-sunken
-    value: '#11131f'
-    description: Inset wells — board columns, code blocks
+    value: '#07080f'
+    description: The card-list pane and inset wells — board columns, code blocks
+  - name: surface-panel
+    value: '#0a0c15'
+    description: The work panel's ground (= surface-base); canvases paint it
+  - name: surface
+    value: '#0e101b'
+    description: Panels and cards
+  - name: surface-raised
+    value: '#121522'
+    description: The top step, above cards
   - name: border
     value: '#1b1e30'
     description: Default hairline
@@ -58,8 +61,18 @@ section: design-system
 order: 30
 ---
 
-The base palette: four text steps, five surfaces, two borders, one brand.
+The base palette: four text steps, six surfaces, two borders, one brand.
 Values shown are **observatory dark**, the default scheme.
+
+## Depth order
+
+Dark follows the pieces default order, every step on the navy axis: frame/page
+`#03040a` < sunken `#07080f` < panel/base `#0a0c15` < surface/card `#0e101b` <
+raised `#121522`. `bar-hover` is `color-mix(#03040a 85%, #8d93ad)`. In 1.0 the
+work panel was the page, the darkest layer, so the content read as a hole; 1.1
+changed the dark `page` value (it was `#07080f`). Light is unchanged. Medium
+keeps 1.0's aliases: `surface-panel: var(--color-page)` and
+`surface-raised: var(--color-surface)`.
 
 ## Two axes, not one
 

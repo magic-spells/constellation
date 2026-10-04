@@ -24,6 +24,13 @@ notes:
       1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
       (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
     sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+  - kind: state
+    text: >-
+      Layout for longer languages ([[FEATURE-VIEWER-I18N]]): the header's page title never shrinks,
+      and the sync badge beside it truncates instead. Activity and Notes rows are subgrids
+      (`grid-cols-activity`, `grid-cols-notes` in `styles.css`), so the date and kind columns are as
+      wide as their widest entry in the active language; a note kind stops at 8rem and truncates.
+      The health strip's verdict line keeps its width and the chips wrap below it as a group.
 section: viewer
 order: 10
 ---

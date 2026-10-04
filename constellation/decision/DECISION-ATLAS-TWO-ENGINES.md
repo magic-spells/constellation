@@ -41,7 +41,8 @@ reader would have paid for a view most never open.
 
 `scripts/copy-three.mjs` copies three's ESM build into the viewer's `public/`
 and `loadThree()` imports it through a variable URL, so esbuild leaves the import
-alone and the browser fetches it on the first switch. `app.js` is 458 KB. This is
+alone and the browser fetches it on the first switch. `app.js` was 458 KB when
+this shipped (0.6.0); it has grown since, but three is still not in it. This is
 exactly the trick mermaid already uses, and it is the reason the precedent was
 worth following rather than reinventing.
 

@@ -6,7 +6,7 @@ connections:
   - RELEASE-V1-0-2
 ---
 
-Theme: the viewer catches up with puzzle 0.8 — a framed shell, a search that grows into the palette, a three-mode appearance picker, and a layout that works on a phone. It also switches between connected repos' plans, and working memory gains per-repo settings.
+Theme: the viewer catches up with puzzle 0.8 — a framed shell, a search that grows into the palette, a three-mode appearance picker, a layout that works on a phone, and every label in eleven languages ([[FEATURE-VIEWER-I18N]]). It also switches between connected repos' plans, and working memory gains per-repo settings.
 
 ## Upgrade notes
 
@@ -20,7 +20,8 @@ Minor. The plan format is unchanged.
 - **`.gitignore`:** the 1.0 pair (`.constellation/*` + `!.constellation/CLAUDE.md`) becomes one `.constellation/` line, migrated in place by `working_init` or `constellation working install-hook`. `.constellation/CLAUDE.md` is no longer committed. If it is already tracked you get a warning with the `git rm --cached -r .constellation` command; nothing is untracked for you.
 - **`init_plan { working: false }`** still means "skip working memory" and writes no config. To record the user's answer, pass `working_enabled` (and `new_session`) instead.
 - **Workspaces:** `serve` also serves the plans of the root plan's `connected_repos`, one level deep ([[FEATURE-WORKSPACE-SWITCHER]]). The rail's project name is now the switcher, and the tab reads `<project> · <page>`.
+- **Languages:** the viewer speaks English, Spanish, German, French, Italian, Japanese, Simplified Chinese, Brazilian and European Portuguese, Dutch and Korean. On the first visit it picks from the browser's languages (else English); a choice in the Appearance popover's Language menu switches at once and is remembered. Plan content — names, bodies, handles, frontmatter — is never translated.
 - **Appearance choices carry over.** The old `constellation-scheme` / `constellation-theme` keys are migrated once into `constellation:appearance` and removed.
 - **New medium mode** beside light and dark; System still follows the OS between those two.
-- **Observatory is unchanged** — the same 30 values, still the default scheme.
+- **Observatory dark is retuned** to the pieces depth order: the frame and page are now the darkest layer (`#03040a`, was `#07080f`), with the card-list pane, work panel, cards and raised surfaces each a step lighter ([[STYLE-COLORS]]). Light and medium look the same; Observatory is still the default scheme.
 - **Phones:** below `md` a menu button opens the navigation drawer, and a folder shows its list or one card, never both.

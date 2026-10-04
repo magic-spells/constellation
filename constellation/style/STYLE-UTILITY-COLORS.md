@@ -73,5 +73,6 @@ white text reaches only about 3.3:1 while `#1a0e0f` reaches 5.9:1. Any "fix" tha
 makes it white for consistency is a contrast regression. Light mode deepens the
 red to `#c04840`, where white is the right ink and is what it uses.
 
-Tints are each hue at roughly 12% over the page, so they stay legible without
-becoming a second surface colour.
+Tints are each hue at 12% over `#07080f` — 1.0's dark page, which is
+`surface-sunken` since the 1.1 depth retune ([[STYLE-COLORS]]) — so they stay
+legible without becoming a second surface colour. The retune left them as they were.

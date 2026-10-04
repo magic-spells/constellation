@@ -33,6 +33,11 @@ Buildings within a district sort by handle — never by lens height — so chang
 lenses cannot rearrange the city under the reader. A test asserts the same plan
 produces a byte-identical scene.
 
+Type districts are labelled with `typeLabel`, in the active language
+([[FEATURE-VIEWER-I18N]]), so the scene is byte-identical only for a fixed
+locale. Districts sort by id, never by label, so switching language renames
+districts but does not move them.
+
 ## What it decides
 
 - **Districts** from FEATURE connections. Not a partition — a card may be claimed
