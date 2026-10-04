@@ -12,6 +12,8 @@
  * browser. The one impure export, `switchWorkspace`, takes the location.
  */
 
+import { t } from './i18n.js';
+
 // Monogram tiles: the first letter on a tinted chart hue, picked by name so a
 // workspace keeps its colour across reloads and machines. Literal strings so
 // Tailwind's scanner sees every class.
@@ -69,7 +71,8 @@ export function repoDetail(repo, codePath = '', label = '') {
  *                roster's, which was read once at server start)
  *
  * Returns `{ current, switchable, groups }`. `groups` is "This repo" then
- * "Connected repos", each `{ label, items }`, empty groups dropped. A row is
+ * "Connected repos", each `{ id, label, items }` (label translated), empty
+ * groups dropped. A row is
  * `{ id, name, letter, tone, detail, cards, active, available }`; an
  * unavailable connected repo is a row with `available: false` whose detail is
  * the reason. `switchable` is false when the only row is the current one.
@@ -82,7 +85,7 @@ export function workspaceModel(plans, active, projectName) {
 		const isActive = isAvailable(plan) && plan.id === active;
 		const name = isActive && projectName ? projectName : plan.name || plan.id;
 		let detail;
-		if (!isAvailable(plan)) detail = plan.reason || 'Unavailable';
+		if (!isAvailable(plan)) detail = plan.reason || t('workspace.unavailable');
 		else if (isSelf(plan)) detail = plan.code_path || '';
 		else detail = repoDetail(plan.repo, plan.code_path, name);
 		return {
@@ -98,12 +101,12 @@ export function workspaceModel(plans, active, projectName) {
 	};
 
 	const groups = [
-		{ label: 'This repo', items: self.map(row) },
-		{ label: 'Connected repos', items: connected.map(row) },
+		{ id: 'self', label: t('workspace.group.self'), items: self.map(row) },
+		{ id: 'connected', label: t('workspace.group.connected'), items: connected.map(row) },
 	].filter((group) => group.items.length > 0);
 
 	const activeRow = groups.flatMap((g) => g.items).find((item) => item.active);
-	const name = projectName || activeRow?.name || 'Plan';
+	const name = projectName || activeRow?.name || t('workspace.fallbackName');
 	const rows = groups.reduce((n, g) => n + g.items.length, 0);
 	return {
 		current: { name, letter: monogram(name), tone: monogramTone(name) },
@@ -160,7 +163,7 @@ export function rosterMatch(entry, plans, active) {
 		return { id: open.id, name: open.name, available: true, reason: '', cards: open.cards ?? 0 };
 	}
 	const down = hits[0];
-	return down ? { id: down.id, available: false, reason: down.reason || 'Unavailable', cards: null } : null;
+	return down ? { id: down.id, available: false, reason: down.reason || t('workspace.unavailable'), cards: null } : null;
 }
 
 /** The URL a workspace lives at, from the current page's location. */

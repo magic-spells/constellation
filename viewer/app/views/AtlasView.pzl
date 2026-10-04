@@ -3,8 +3,8 @@
     {#if empty}
       <div class="atlas-empty">
         <span class="star">▦</span>
-        <p>This plan has no cards yet.</p>
-        <p class="atlas-empty-hint">The atlas draws what the plan holds — write a card and a building appears.</p>
+        <p>{ t('atlas.empty.title') }</p>
+        <p class="atlas-empty-hint">{ t('atlas.empty.hint') }</p>
       </div>
     {:else}
       <!-- Two canvases, not one: a canvas keeps its context type for life, so a
@@ -38,7 +38,7 @@
       <ConstellationTabs active="atlas"/>
 
       <div class="at-lens">
-        <span class="at-lens-label">Lens</span>
+        <span class="at-lens-label">{ t('atlas.lens.label') }</span>
         <Select
           class="w-40"
           options={ lensOptions }
@@ -53,23 +53,23 @@
            flat per-face fills on canvas, versus real lights and shadows in WebGL.
            "Paper"/"Lit 3D" and "2D"/"3D" both promised a difference that is not
            there, and reasonable people read them as a change of viewpoint. -->
-      <div class="at-engine" role="group" aria-label="Shading">
-        <button type="button" title="Street map — seen from above, with the streets data runs along"
-          class={ engine === 'flat' ? 'is-on' : '' } @click={ useFlat }>Flat</button>
-        <button type="button" title="The same plan as a 3D city of blocks"
-          class={ engine === 'lit' ? 'is-on' : '' } @click={ useLit }>3D</button>
+      <div class="at-engine" role="group" aria-label={ t('atlas.engine.group') }>
+        <button type="button" title={ t('atlas.engine.flat.title') }
+          class={ engine === 'flat' ? 'is-on' : '' } @click={ useFlat }>{ t('atlas.engine.flat.label') }</button>
+        <button type="button" title={ t('atlas.engine.lit.title') }
+          class={ engine === 'lit' ? 'is-on' : '' } @click={ useLit }>{ t('atlas.engine.lit.label') }</button>
       </div>
 
       <div class="at-controls">
-        <button type="button" @click={ zoomIn } aria-label="Zoom in">+</button>
-        <button type="button" @click={ zoomOut } aria-label="Zoom out">−</button>
-        <button type="button" @click={ fitAll } aria-label="Fit the whole city">⤢</button>
-        <button type="button" @click={ exportPng } aria-label="Download a PNG of the atlas">⤓</button>
+        <button type="button" @click={ zoomIn } aria-label={ t('atlas.control.zoomIn') }>+</button>
+        <button type="button" @click={ zoomOut } aria-label={ t('atlas.control.zoomOut') }>−</button>
+        <button type="button" @click={ fitAll } aria-label={ t('atlas.control.fit') }>⤢</button>
+        <button type="button" @click={ exportPng } aria-label={ t('atlas.control.export') }>⤓</button>
       </div>
 
       {#if inside}
         <div class="at-inside">
-          <button type="button" @click={ goOutside }>← Come back out</button>
+          <button type="button" @click={ goOutside }>{ t('atlas.inside.back') }</button>
           <span class="card-handle card-handle--sm" style={ insideStyle }>{ inside }</span>
         </div>
       {/if}
@@ -95,7 +95,7 @@
         </div>
       {/if}
 
-      <p class="at-legend">→ go inside · ← come back out · drag to pan · scroll to zoom · hover to read</p>
+      <p class="at-legend right-3 truncate">{ t('atlas.legend') }</p>
     {/if}
   </div>
 </puzzle-view>
@@ -109,6 +109,7 @@ import { extractFlowSteps } from '../lib/markdown.js';
 import { planIndex } from '../lib/plan-index.js';
 import { loadAtlasConfig, loadAtlasMetrics } from '../lib/api.js';
 import { hrefForHandle } from '../lib/types.js';
+import { formatList, t } from '../lib/i18n.js';
 import { subscribe as onThemeChange } from '../lib/appearance.js';
 import { buildScene } from '../lib/atlas-scene.js';
 import { LENSES, lensModel, normalizeLens } from '../lib/atlas-lenses.js';
@@ -146,6 +147,12 @@ const ROUTE_PERIOD = 4200;
 
 /** How long a played trace rests on each step before moving on. */
 const STEP_DWELL = 2600;
+
+/** The picked lens's one-line explanation, in the active locale. */
+function lensHint(lens) {
+  const entry = LENSES.find((l) => l.id === lens);
+  return entry ? t(entry.hintKey) : '';
+}
 
 export default class AtlasView extends PuzzleView {
   created() {
@@ -211,14 +218,14 @@ export default class AtlasView extends PuzzleView {
       metrics: plan?.atlasMetrics ?? null,
       lens,
       engine: this.getData?.().engineChoice ?? (config?.engine === 'lit' ? 'lit' : 'flat'),
-      lensOptions: LENSES.map((l) => ({ value: l.id, label: l.label })),
-      lensHint: LENSES.find((l) => l.id === lens)?.hint ?? '',
+      lensOptions: LENSES.map((l) => ({ value: l.id, label: t(l.labelKey) })),
+      lensHint: lensHint(lens),
       inside,
       insideStyle: inside ? `--c: var(--t-${inside.split('-')[0]})` : '',
       hoverCard,
       hoverStyle: hoverCard ? `--c: var(--t-${hoverCard.type})` : '',
       trace: this.traceModel(cards),
-      canvasLabel: `Architecture atlas — ${cards.length} cards as a city`,
+      canvasLabel: t('atlas.canvasLabel', { count: cards.length }),
     };
   }
 
@@ -257,16 +264,21 @@ export default class AtlasView extends PuzzleView {
     const building = this.scene?.buildings.find((b) => b.handle === handle);
     if (!building) return null;
     const floors = building.floors.length;
+    // Floor names are plan data; the list joins the way the language does
+    // ("a, b, c" in English — a `unit` list adds no "and").
+    const names = formatList(
+      building.floors.slice(0, 3).map((f) => f.label),
+      { type: 'unit', style: 'short' },
+    );
     const parts = floors
-      ? `${floors} ${floors === 1 ? 'part' : 'parts'} · ${building.floors
-          .slice(0, 3)
-          .map((f) => f.label)
-          .join(', ')}${floors > 3 ? '…' : ''}`
+      ? t(floors > 3 ? 'atlas.readout.partsMore' : 'atlas.readout.parts', { count: floors, names })
       : null;
     // The red dashed cage is the drift lens marking a card whose bound code moved
     // since it was verified. Say so here, or it is a mystery you have to guess at.
     const detail = building.scaffolded
-      ? `drifted since verified${parts ? ` · ${parts}` : ''}`
+      ? parts
+        ? t('atlas.readout.driftedWithParts', { parts })
+        : t('atlas.readout.drifted')
       : parts;
     return {
       handle,
@@ -570,7 +582,7 @@ export default class AtlasView extends PuzzleView {
     this.setData({
       lensChoice: lens,
       lens,
-      lensHint: LENSES.find((l) => l.id === lens)?.hint ?? '',
+      lensHint: lensHint(lens),
     });
     this.syncScene();
   }

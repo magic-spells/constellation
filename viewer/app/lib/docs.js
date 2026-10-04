@@ -14,6 +14,7 @@
  * other exists.
  */
 
+import { formatDateTime, t } from './i18n.js';
 import { activePlanId, routerBaseFor } from './plans.js';
 import { hrefForHandle, typeForHandle } from './types.js';
 
@@ -129,12 +130,12 @@ export function printHref(solo = '') {
 /** Cover line: what this document is OF, so a printed copy dates itself. */
 function imprintOf(plan) {
 	const version = plan?.sync?.package_version;
-	const today = new Date().toLocaleDateString(undefined, {
+	const today = formatDateTime(new Date(), {
 		year: 'numeric',
 		month: 'long',
 		day: 'numeric',
 	});
-	return version ? `v${version} · ${today}` : today;
+	return version ? t('docs.imprint', { version, date: today }) : today;
 }
 
 /**
@@ -158,7 +159,7 @@ export function docModel(store, solo = '') {
 	return {
 		solo,
 		base: solo ? `/docs/${solo}` : '/docs',
-		title: docs?.title || 'Documentation',
+		title: docs?.title || t('docs.defaultTitle'),
 		imprint: imprintOf(plan),
 		// In-document link targets are the handles actually RENDERED here: on
 		// `/docs/:section` a card in another section is not on this page, so a
@@ -174,7 +175,7 @@ export function docModel(store, solo = '') {
 				name: card.name,
 				body: card.body,
 				cardHref: hrefForHandle(card.handle),
-				sourceTitle: `Open ${card.handle}`,
+				sourceTitle: t('docs.card.openSource', { handle: card.handle }),
 				// Same per-type token the connection chips and the graph use, so a
 				// handle is one colour everywhere in the app.
 				typeStyle: `--c: var(--t-${typeForHandle(card.handle) ?? 'DOC'})`,

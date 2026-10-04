@@ -1,14 +1,14 @@
 <puzzle-view>
   <section class="panel panel-release">
-    <h3><Icon name="tag" size="0.85rem"/> Releases</h3>
+    <h3><Icon name="tag" size="0.85rem"/> { t('home.releases.title') }</h3>
     <p class="rel-versions">
-      {#if latestTag}<span class="rel-tag"><Icon name="tag" size="0.8rem"/> { latestTag } tagged</span>{/if}
-      {#if packageVersion}<span class="rel-pkg"><Icon name="box" size="0.8rem"/> { packageVersion } in package.json</span>{/if}
-      {#if noVersions}<span class="rel-none">no tags yet</span>{/if}
+      {#if latestTag}<span class="rel-tag"><Icon name="tag" size="0.8rem"/> { t('home.releases.latestTag', { tag: latestTag }) }</span>{/if}
+      {#if packageVersion}<span class="rel-pkg"><Icon name="box" size="0.8rem"/> { t('home.releases.packageVersion', { version: packageVersion, file: 'package.json' }) }</span>{/if}
+      {#if noVersions}<span class="rel-none">{ t('home.releases.noTags') }</span>{/if}
     </p>
 
     {#if empty}
-      <p class="panel-empty">No RELEASE cards yet — a RELEASE marks a version milestone; FEATURE cards target it via <code>release:</code> and group by <code>change:</code>.</p>
+      <p class="panel-empty">{#for p in emptyParts}<span>{#if p.name}<code>{ p.value }</code>{:else}{ p.text }{/if}</span>{/for}</p>
     {:else}
       <ol class="rel-list">
         {#for r in releases}
@@ -17,9 +17,9 @@
               <span class="rel-caret">{ r.caret }</span>
               <span class="rel-title">{ r.name }</span>
               {#if r.version}<span class="rel-chip">{ r.version }</span>{/if}
-              {#if r.tagged}<span class="rel-tagged"><Icon name="check" size="0.7rem"/> tagged</span>{/if}
-              {#if r.hasBreaking}<span class="rel-breaking"><Icon name="alert" size="0.7rem"/> { r.breakingCount } breaking</span>{/if}
-              <span class="rel-summary">{ r.summary }</span>
+              {#if r.tagged}<span class="rel-tagged"><Icon name="check" size="0.7rem"/> { t('home.releases.tagged') }</span>{/if}
+              {#if r.hasBreaking}<span class="rel-breaking"><Icon name="alert" size="0.7rem"/> { t('home.releases.breakingCount', { count: r.breakingCount }) }</span>{/if}
+              <span class="rel-summary max-w-full truncate">{ r.summary }</span>
             </button>
 
             {#if r.expanded}
@@ -37,16 +37,16 @@
                         {#for f in group.items}
                           <li key={ f.handle }>
                             <a href="{ link(f.path) }">{ f.name }</a>
-                            <Badge variant={ f.statusVariant } class={ f.statusTint }>{ f.status }</Badge>
+                            <Badge variant={ f.statusVariant } class={ f.statusTint }>{ f.statusText }</Badge>
                           </li>
                         {/for}
                       </ul>
                     </div>
                   {/for}
                 {:else}
-                  <p class="panel-empty">No FEATURE cards target this release yet.</p>
+                  <p class="panel-empty">{ t('home.releases.noFeatures') }</p>
                 {/if}
-                <a class="rel-open" href="{ link(r.path) }">Open { r.handle } →</a>
+                <a class="rel-open" href="{ link(r.path) }">{ t('home.releases.open', { handle: r.handle }) }</a>
               </div>
             {/if}
           </li>
@@ -60,6 +60,7 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import Icon from './Icon.pzl';
 import Badge from './ui/Badge.pzl';
+import { formatNumber, t, tParts } from '../lib/i18n.js';
 
 // ReleasePanel — the release timeline. Every RELEASE card newest-first: the one
 // being pushed on right now expanded (progress bar + its features grouped
@@ -97,6 +98,7 @@ export default class ReleasePanel extends PuzzleView {
 			latestTag,
 			packageVersion,
 			noVersions: !latestTag && !packageVersion,
+			emptyParts: tParts('home.releases.empty', { releaseField: 'release:', changeField: 'change:' }),
 			empty: releases.length === 0,
 			releases: releases.map((r) => {
 				const expanded = this._open.has(r.handle);
@@ -144,13 +146,16 @@ export default class ReleasePanel extends PuzzleView {
 	};
 }
 
-/** "5 of 7 features" in flight; "9 features · 1 breaking" once shipped. */
+/** "5 of 7 features shipped" in flight; "9 features · 1 breaking" once shipped. */
 function summaryFor(release, shipped, total) {
-	if (total === 0) return release.shipped ? 'shipped' : 'no features yet';
-	const noun = total === 1 ? 'feature' : 'features';
-	const breaking = release.breakingCount > 0 ? ` · ${release.breakingCount} breaking` : '';
-	if (release.shipped) return `${total} ${noun}${breaking}`;
-	return `${shipped} of ${total} ${noun} shipped${breaking}`;
+	if (total === 0) return release.shipped ? t('home.releases.summary.shipped') : t('home.releases.summary.noFeatures');
+	const parts = [
+		release.shipped
+			? t('home.releases.summary.features', { count: total })
+			: t('home.releases.summary.progress', { shipped: formatNumber(shipped), count: total }),
+	];
+	if (release.breakingCount > 0) parts.push(t('home.releases.breakingCount', { count: release.breakingCount }));
+	return parts.join(' · ');
 }
 </script>
 

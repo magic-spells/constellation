@@ -21,7 +21,7 @@
         <button
           type="button"
           class="absolute inset-y-0 right-0 flex items-center rounded-r-lg px-3 text-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 outline-ring focus-visible:outline-ring disabled:opacity-50 disabled:pointer-events-none"
-          aria-label="Clear search"
+          aria-label={ t('ui.search.clear') }
           disabled={ disabled }
           @click={ handleClear(event) }>
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -36,6 +36,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { t } from '../../lib/i18n.js';
 
 // SearchField — a type="search" input with a leading (decorative) magnifier and
 // a trailing clear button that appears only while there's a value. Clearing
@@ -60,7 +61,7 @@ export default class SearchField extends PuzzleView {
     return {
       id: props.id || (this._fallbackId ??= `pp-search-${++uid}`),
       value,
-      placeholder: props.placeholder || 'Search…',
+      placeholder: props.placeholder || t('ui.search.placeholder'),
       name: props.name ?? null,
       disabled: !!props.disabled,
       hasValue: String(value).length > 0,

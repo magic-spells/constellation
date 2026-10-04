@@ -76,9 +76,9 @@ marked.use({
     },
     code({ text, lang }) {
       if (lang === 'mermaid') {
-        return `<div class="mermaid-block" data-src="${encodeURIComponent(text)}"></div>`;
+        return `<div class="mermaid-block" data-src="${encodeURIComponent(text)}"></div>`; // i18n-ok: markup
       }
-      return `<pre class="code"><code>${escapeHtml(text)}</code></pre>`;
+      return `<pre class="code"><code>${escapeHtml(text)}</code></pre>`; // i18n-ok: markup
     },
   },
 });
@@ -232,7 +232,7 @@ export async function renderMermaidBlocks(container) {
     startOnLoad: false,
     theme: 'base',
     securityLevel: 'strict',
-    fontFamily: 'ui-monospace, SF Mono, Menlo, monospace',
+    fontFamily: 'ui-monospace, SF Mono, Menlo, monospace', // i18n-ok: font stack
     themeVariables: {
       darkMode: isDark,
       background: 'transparent',
@@ -260,7 +260,7 @@ export async function renderMermaidBlocks(container) {
       const svgEl = el.querySelector('svg');
       if (svgEl) colorNodesByType(svgEl, panel);
     } catch {
-      el.innerHTML = `<pre class="code"><code>${escapeHtml(src)}</code></pre>`;
+      el.innerHTML = `<pre class="code"><code>${escapeHtml(src)}</code></pre>`; // i18n-ok: markup
     }
   }
 }

@@ -95,7 +95,7 @@
                 <path d="M8 20h8M12 16v4"/>
               </svg>
             {/if}
-            { opt.label }
+            <span class="min-w-0 truncate">{ opt.label }</span>
           </button>
         {/for}
       </div>
@@ -105,6 +105,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { t } from '../../lib/i18n.js';
 
 // AppearancePicker — the palette + mode form: four (or however many) theme
 // cards, each a live miniature of the app shell painted in the palette it
@@ -153,29 +154,36 @@ import { PuzzleView } from '@magic-spells/puzzle';
 //                              three bundled modes, lightest first.
 //   system       bool          show the "System" (follow OS) segment (default true).
 //                              Selecting it fires @change with mode: null.
-//   schemeLegend string        heading for the cards (default 'Theme')
-//   modeLegend   string        heading for the segments (default 'Mode')
+//   systemOption object        { label, description } for that segment (default:
+//                              the `appearance.mode.system.*` locale keys)
+//   schemeLegend string        heading for the cards (default `appearance.schemeLegend`)
+//   modeLegend   string        heading for the segments (default `appearance.modeLegend`)
 //   class        string        appended to the root
+//
+// WORDS. Local edit: the bundled defaults carry locale keys (`labelKey`,
+// `descriptionKey`) rather than English, translated in data(). Callers that
+// pass `schemes` / `modes` pass words they have already translated.
 //
 // EVENTS (callback props, value-first)
 //   @change({ scheme, mode })  every pick; the full choice, not just the axis that moved.
 //                              CONTROLLED means the parent must feed the new value back
 //                              in — arrow keys and clicks only visibly move once it does.
 
-export const DEFAULT_SCHEMES = [
-  { value: 'default', label: 'Default', description: 'Cool near-black with a navy tint and an indigo accent — balanced, classy, premium.' },
-  { value: 'dim', label: 'Dim', description: 'Blue-grey at half chroma with softer type — the low-contrast palette.' },
-  { value: 'warm', label: 'Warm', description: 'Ivory, tan and brown with a clay-orange accent — the Claude palette.' },
-  { value: 'void', label: 'Void', description: 'Monochrome from white to true black — borderless, high contrast, Vercel-like.' },
-];
+export const DEFAULT_SCHEMES = ['default', 'dim', 'warm', 'void'].map((value) => ({
+  value,
+  labelKey: `appearance.scheme.${value}.label`,
+  descriptionKey: `appearance.scheme.${value}.description`,
+}));
 
-export const DEFAULT_MODES = [
-  { value: 'light', label: 'Light', description: 'Everything lit — a light-grey frame with a white panel on it.' },
-  { value: 'medium', label: 'Medium', description: 'Soft dark — dark structure with the grounds lifted to mid grey and the type dimmed a stop.' },
-  { value: 'dark', label: 'Dark', description: 'Everything dark, the frame a step darker than the panel.' },
-];
+export const DEFAULT_MODES = ['light', 'medium', 'dark'].map((value) => ({
+  value,
+  labelKey: `appearance.mode.${value}.label`,
+  descriptionKey: `appearance.mode.${value}.description`,
+}));
 
-const SYSTEM = { value: null, key: 'system', label: 'System', description: 'Follow the operating system between light and dark.' };
+/** A default entry's words in the active locale; a caller's entry as given. */
+const words = (o) =>
+  o.labelKey ? { ...o, label: t(o.labelKey), description: t(o.descriptionKey) } : o;
 
 const CARD =
   'group block cursor-pointer select-none rounded-xl outline-ring ' +
@@ -199,19 +207,25 @@ export default class AppearancePicker extends PuzzleView {
   _radioName = `appearance-picker-${++uid}`;
 
   data(params, props) {
-    const schemes = Array.isArray(props.schemes) && props.schemes.length ? props.schemes : DEFAULT_SCHEMES;
-    const modes = Array.isArray(props.modes) && props.modes.length ? props.modes : DEFAULT_MODES;
+    const schemes = (Array.isArray(props.schemes) && props.schemes.length ? props.schemes : DEFAULT_SCHEMES).map(words);
+    const modes = (Array.isArray(props.modes) && props.modes.length ? props.modes : DEFAULT_MODES).map(words);
     const system = props.system !== false;
     const { scheme, mode } = this._current();
+    const systemSegment = {
+      value: null,
+      key: 'system',
+      label: props.systemOption?.label || t('appearance.mode.system.label'),
+      description: props.systemOption?.description ?? t('appearance.mode.system.description'),
+    };
 
-    const options = [...modes.map((m) => ({ ...m, key: m.value })), ...(system ? [SYSTEM] : [])];
+    const options = [...modes.map((m) => ({ ...m, key: m.value })), ...(system ? [systemSegment] : [])];
     const currentKey = mode === null ? 'system' : mode;
 
     return {
       rootClass: ['min-w-0', props.class || ''].join(' '),
       radioName: this._radioName,
-      schemeLegend: props.schemeLegend || 'Theme',
-      modeLegend: props.modeLegend || 'Mode',
+      schemeLegend: props.schemeLegend || t('appearance.schemeLegend'),
+      modeLegend: props.modeLegend || t('appearance.modeLegend'),
       cards: schemes.map((s) => {
         const selected = s.value === scheme;
         return {

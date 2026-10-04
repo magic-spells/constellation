@@ -4,7 +4,7 @@
       <!-- The eyebrow shares its line with whatever the host puts in the slot —
            on `/docs` the export button, in the print window nothing. -->
       <div class="docs-cover-top">
-        <p class="docs-eyebrow">Documentation</p>
+        <p class="docs-eyebrow">{ t('docs.eyebrow') }</p>
         <Slot/>
       </div>
       <h1 class="docs-title">{ title }</h1>
@@ -13,8 +13,8 @@
 
     <!-- The printed contents page. Same tree as the rail's TOC, no scroll-spy
          and no links to follow — on paper it is a map, not a control. -->
-    <nav class="docs-paper-toc" aria-label="Contents">
-      <h2>Contents</h2>
+    <nav class="docs-paper-toc" aria-label={ t('docs.toc.heading') }>
+      <h2>{ t('docs.toc.heading') }</h2>
       {#for section in sections}
         <div key={ section.id } class="ptoc-group">
           <p class="ptoc-section">{ section.name }</p>

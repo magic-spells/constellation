@@ -8,7 +8,7 @@
         </div>
         <!-- `name` is passed only because SearchField renders it unconditionally
              and an undefined template value is a dev warning. -->
-        <SearchField name="card-filter" value={ filter } placeholder="Filter…" @change={ setFilter }/>
+        <SearchField name="card-filter" value={ filter } placeholder={ t('card.list.filterPlaceholder') } @change={ setFilter }/>
       </div>
 
       <div class="min-h-0 flex-1 overflow-auto p-2">
@@ -18,7 +18,7 @@
               <span class="clist-name truncate text-sm text-ink">{ row.name }</span>
               <span class="clist-handle truncate font-mono text-[0.68rem] text-faint">{ row.handle }</span>
             </span>
-            {#if row.status}<span class={ row.dotClass } title={ row.status }></span>{/if}
+            {#if row.status}<span class={ row.dotClass } title={ row.statusTitle }></span>{/if}
           </a>
         {/for}
 
@@ -27,11 +27,11 @@
         {/if}
 
         {#if editable}
-          <button type="button" class="clist-new" @click={ create }>+ new { newLabel }</button>
+          <button type="button" class="clist-new" @click={ create }>{ t('card.list.new', { type: newLabel }) }</button>
         {/if}
       </div>
     {:else}
-      <p class="p-4 text-sm text-muted">Unknown type: { folder }</p>
+      <p class="p-4 text-sm text-muted">{ t('card.unknownType', { folder }) }</p>
     {/if}
   </aside>
 </puzzle-view>
@@ -40,7 +40,9 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import SearchField from './ui/SearchField.pzl';
 import { planIndex } from '../lib/plan-index.js';
-import { hrefForHandle, TYPE_META, typeForFolder } from '../lib/types.js';
+import { t } from '../lib/i18n.js';
+import { statusLabel } from '../lib/status.js';
+import { hrefForHandle, TYPE_META, typeForFolder, typeLabel, typeSingular } from '../lib/types.js';
 
 // CardList — the middle column: every card of ONE type, filterable, with the
 // active one highlighted. Ported from the Svelte viewer's CardList.svelte.
@@ -113,13 +115,13 @@ export default class CardList extends PuzzleView {
 			known: true,
 			folder,
 			filter,
-			label: meta.label,
+			label: typeLabel(type),
 			total: cards.length,
-			ariaLabel: `${meta.label} cards`,
-			// One dash-free singular for the ghost row: "Features" → "feature".
-			newLabel: meta.label.toLowerCase().replace(/s$/, ''),
+			ariaLabel: t('card.list.ariaLabel', { type: typeSingular(type) }),
+			// The in-sentence noun for the ghost row ("+ new feature").
+			newLabel: typeSingular(type),
 			hueStyle: `--c: var(--t-${type})`,
-			emptyText: query ? 'No matches' : 'Nothing here yet',
+			emptyText: query ? t('card.list.noMatches') : t('card.list.empty'),
 			editable: this.ctx.store.findOne('plan', 'plan')?.editable === true,
 			rows: shown.map((card) => {
 				const current = card.handle === active;
@@ -127,6 +129,7 @@ export default class CardList extends PuzzleView {
 					handle: card.handle,
 					name: card.name || card.handle,
 					status: card.status || '',
+					statusTitle: card.status ? statusLabel(card.status) : '',
 					path: hrefForHandle(card.handle),
 					current: current ? 'page' : false,
 					class: current ? `${ROW} is-active` : ROW,

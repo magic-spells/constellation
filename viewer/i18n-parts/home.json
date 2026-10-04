@@ -1,0 +1,135 @@
+{
+	"home": {
+		"noPlan": "No {file} yet — run `{command}`.",
+		"countValue": "{count}",
+		"health": {
+			"lastSynced": "last synced {when}",
+			"noSyncPoint": "no sync point yet",
+			"sinceMarker": "{commits} / {changes} since",
+			"codeCommits": {
+				"one": "{count} code commit",
+				"other": "{count} code commits"
+			},
+			"planChanges": {
+				"one": "{count} plan change",
+				"other": "{count} plan changes"
+			},
+			"planDirty": "uncommitted plan edits",
+			"setSyncPoint": "Set sync point",
+			"updateSyncPoint": "Update sync point",
+			"chip": {
+				"cards": "cards",
+				"connections": "connections",
+				"errors": {
+					"one": "{count} error",
+					"other": "{count} errors"
+				},
+				"warnings": {
+					"one": "{count} warning",
+					"other": "{count} warnings"
+				},
+				"clean": "clean",
+				"integrity": "integrity",
+				"drifted": "drifted",
+				"untracked": "untracked",
+				"noDrift": "no drift",
+				"code": "code"
+			}
+		},
+		"releases": {
+			"title": "Releases",
+			"latestTag": "{tag} tagged",
+			"packageVersion": "{version} in {file}",
+			"noTags": "no tags yet",
+			"empty": "No RELEASE cards yet — a RELEASE marks a version milestone; FEATURE cards target it via {releaseField} and group by {changeField}.",
+			"tagged": "tagged",
+			"breakingCount": {
+				"one": "{count} breaking",
+				"other": "{count} breaking"
+			},
+			"noFeatures": "No FEATURE cards target this release yet.",
+			"open": "Open {handle} →",
+			"summary": {
+				"shipped": "shipped",
+				"noFeatures": "no features yet",
+				"features": {
+					"one": "{count} feature",
+					"other": "{count} features"
+				},
+				"progress": {
+					"one": "{shipped} of {count} feature shipped",
+					"other": "{shipped} of {count} features shipped"
+				}
+			},
+			"group": {
+				"breaking": "Breaking",
+				"feature": "Features",
+				"fix": "Fixes",
+				"chore": "Chores"
+			}
+		},
+		"activity": {
+			"title": "Activity",
+			"kind": {
+				"plan": "plan",
+				"code": "code"
+			},
+			"syncTag": "sync",
+			"moreCards": "+{count}",
+			"empty": "No commits yet — activity appears once the repo has history."
+		},
+		"drift": {
+			"title": "Code drift",
+			"nothingTracked": "nothing tracked yet",
+			"claimsHold": {
+				"one": "{count} claim still holds",
+				"other": "{count} claims still hold"
+			},
+			"claimsDrifted": {
+				"one": "{drifted} of {count} claim drifted",
+				"other": "{drifted} of {count} claims drifted"
+			},
+			"filesChanged": {
+				"one": "{count} file changed",
+				"other": "{count} files changed"
+			},
+			"baseline": {
+				"verified": "since verify",
+				"cardCommit": "since the card was last committed",
+				"syncMarker": "since sync point",
+				"argument": "since base",
+				"fallback": "since baseline"
+			},
+			"overflow": {
+				"one": "+{count} more stale card",
+				"other": "+{count} more stale cards"
+			},
+			"untracked": {
+				"one": "{count} claim with no baseline — {hint}",
+				"other": "{count} claims with no baseline — {hint}"
+			},
+			"untrackedHint": "commit them, or stamp them with {tool}, to track their code"
+		},
+		"notes": {
+			"title": "Notes",
+			"kind": {
+				"decision": "decision",
+				"gotcha": "gotcha",
+				"state": "state",
+				"deviation": "deviation",
+				"verified": "verified"
+			},
+			"empty": "No notes yet — {tool} writes durable decisions and gotchas onto cards; the latest land here."
+		},
+		"repos": {
+			"title": "Connected repos",
+			"hint": "Separate plans, each its own workspace — open one here or from the switcher at the top of the sidebar.",
+			"current": "This workspace",
+			"cardCount": {
+				"one": "{count} card",
+				"other": "{count} cards"
+			},
+			"notServed": "Not served by this viewer"
+		}
+	}
+}

@@ -7,19 +7,19 @@
       <div class="docs-compact">
         <Select
           class="w-full"
-          label="Jump to a section"
+          label={ t('docs.toc.jumpLabel') }
           options={ flat }
           value={ current }
-          placeholder="Contents…"
+          placeholder={ t('docs.toc.jumpPlaceholder') }
           indicator="chevrons"
           @change={ jump }/>
       </div>
     {:else}
-      <nav class="dtoc" aria-label="Documentation contents">
-        <p class="dtoc-head">Contents</p>
+      <nav class="dtoc" aria-label={ t('docs.toc.navLabel') }>
+        <p class="dtoc-head">{ t('docs.toc.heading') }</p>
         {#if solo}
           <!-- The way out of a soloed section: without it the rail is a dead end. -->
-          <a class="dtoc-all" href="{ link('/docs') }">← Whole document</a>
+          <a class="dtoc-all" href="{ link('/docs') }">{ t('docs.toc.wholeDocument') }</a>
         {/if}
 
         <!-- Rows truncate in a 13rem gutter, so each carries its full name as a
@@ -45,6 +45,7 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import Select from './ui/Select.pzl';
 import { onActiveDocAnchor, activeDocAnchor, tocTree } from '../lib/docs.js';
+import { t } from '../lib/i18n.js';
 
 // DocsToc — the compiled document's table of contents.
 //
@@ -127,7 +128,7 @@ export default class DocsToc extends PuzzleView {
 					...row(card.anchor, 'dtoc-card pl-3 text-[0.8rem] text-muted'),
 				})),
 			})),
-			emptyText: docs ? 'No card carries a section: yet.' : 'Loading…',
+			emptyText: docs ? t('docs.toc.empty', { field: 'section:' }) : t('common.state.loading'),
 		};
 	}
 

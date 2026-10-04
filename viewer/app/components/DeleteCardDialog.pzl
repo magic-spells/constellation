@@ -4,7 +4,7 @@
       open={ open }
       title={ title }
       description={ description }
-      confirmLabel="Delete card"
+      confirmLabel={ confirmLabel }
       destructive
       @confirm={ confirm }
       @cancel={ cancel }/>
@@ -16,6 +16,7 @@ import { PuzzleView } from '@magic-spells/puzzle';
 import AlertDialog from './ui/AlertDialog.pzl';
 import { toast } from './ui/toast.js';
 import { removeCard } from '../lib/edit.js';
+import { t } from '../lib/i18n.js';
 import { planIndex } from '../lib/plan-index.js';
 import { folderForType } from '../lib/types.js';
 
@@ -40,16 +41,23 @@ export default class DeleteCardDialog extends PuzzleView {
 		const card = handle ? store.findOne('card', handle) : null;
 		const neighbors = handle ? (planIndex(store).neighbors.get(handle) ?? []) : [];
 
-		const where = card?.relPath ? ` (${card.relPath})` : '';
-		const description = neighbors.length
-			? `Deletes ${handle}${where}. Referenced by ${neighbors.join(', ')} — ` +
-				`${neighbors.length === 1 ? 'that connection' : 'those connections'} will dangle.`
-			: `Deletes ${handle}${where}. Nothing else in the plan links to it.`;
+		// Whole sentences rather than spliced fragments: with/without the file
+		// path, and no / one / several neighbours. One-vs-several is grammatical
+		// number ("that connection" / "those connections"), not a printed count,
+		// so it is two keys rather than a CLDR plural entry.
+		const path = card?.relPath || '';
+		const vars = { handle, path, handles: neighbors.join(', ') };
+		let key;
+		if (neighbors.length === 0) key = path ? 'card.delete.unreferencedAt' : 'card.delete.unreferenced';
+		else if (neighbors.length === 1) key = path ? 'card.delete.referencedAt.single' : 'card.delete.referenced.single';
+		else key = path ? 'card.delete.referencedAt.multiple' : 'card.delete.referenced.multiple';
+		const description = t(key, vars);
 
 		return {
 			open: !!props.open,
 			handle,
-			title: handle ? `Delete ${handle}?` : 'Delete card?',
+			title: handle ? t('card.delete.title', { handle }) : t('card.delete.titleNoHandle'),
+			confirmLabel: t('card.delete.confirm'),
 			description,
 			folder: folderForType(card?.type) || '',
 		};
@@ -66,10 +74,16 @@ export default class DeleteCardDialog extends PuzzleView {
 			if (!result.ok) return;
 
 			const dangling = result.value?.referenced_by ?? [];
+			const handles = dangling.join(', ');
 			toast(
 				dangling.length
-					? { message: `Deleted ${handle} — ${dangling.join(', ')} now link to nothing.` }
-					: { message: `Deleted ${handle}.`, variant: 'success' },
+					? {
+							message: t(
+								dangling.length === 1 ? 'card.delete.doneDangling.single' : 'card.delete.doneDangling.multiple',
+								{ handle, handles },
+							),
+						}
+					: { message: t('card.delete.done', { handle }), variant: 'success' },
 			);
 			void this.ctx.router.push(folder ? `/${folder}` : '/');
 		},

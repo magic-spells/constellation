@@ -1,9 +1,9 @@
 <puzzle-view>
-  <div class="at-trace" role="region" aria-label="Flow trace">
+  <div class="at-trace" role="region" aria-label={ t('atlas.trace.region') }>
     <div class="at-trace-head">
       <span class="card-handle card-handle--sm" style={ handleStyle }>{ flow }</span>
-      <span class="at-trace-name">{ name }</span>
-      <button type="button" class="at-trace-close" @click={ close } aria-label="Leave the trace">✕</button>
+      <span class="at-trace-name min-w-0 truncate">{ name }</span>
+      <button type="button" class="at-trace-close" @click={ close } aria-label={ t('atlas.trace.close') }>✕</button>
     </div>
 
     <div class="at-trace-step">
@@ -12,13 +12,13 @@
     </div>
 
     <div class="at-trace-controls">
-      <button type="button" @click={ prev } disabled={ atStart } aria-label="Previous step">←</button>
-      <button type="button" @click={ next } disabled={ atEnd } aria-label="Next step">→</button>
+      <button type="button" @click={ prev } disabled={ atStart } aria-label={ t('atlas.trace.prev') }>←</button>
+      <button type="button" @click={ next } disabled={ atEnd } aria-label={ t('atlas.trace.next') }>→</button>
       <button type="button" class="at-trace-play" @click={ toggle } aria-pressed={ playing ? 'true' : 'false' }>
-        { playing ? 'Pause' : 'Play' }
+        { playing ? t('atlas.trace.pause') : t('atlas.trace.play') }
       </button>
       {#if stop}
-        <span class="at-trace-stop">at <span class="card-handle card-handle--sm card-handle--bare" style={ stopStyle }>{ stop }</span></span>
+        <span class="at-trace-stop">{#for p in stopParts}<span>{#if p.name}<span class="card-handle card-handle--sm card-handle--bare" style={ stopStyle }>{ p.value }</span>{:else}{ p.text }{/if}</span>{/for}</span>
       {/if}
     </div>
   </div>
@@ -26,6 +26,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { formatNumber, t, tParts } from '../lib/i18n.js';
 
 // AtlasTrace — the step-through panel for one FLOW, walked on the map.
 //
@@ -59,7 +60,10 @@ export default class AtlasTrace extends PuzzleView {
 			branches: props.branches ?? [],
 			stop,
 			playing: Boolean(props.playing),
-			stepLabel: total ? `${index + 1}/${total}` : '',
+			stepLabel: total
+				? t('atlas.trace.step', { step: formatNumber(index + 1), total: formatNumber(total) })
+				: '',
+			stopParts: stop ? tParts('atlas.trace.at', { handle: stop }) : [],
 			atStart: index <= 0,
 			atEnd: total === 0 || index >= total - 1,
 			handleStyle: props.flow ? `--c: var(--t-FLOW)` : '',
@@ -78,7 +82,7 @@ export default class AtlasTrace extends PuzzleView {
 		if (!host) return;
 		const data = this.getData();
 		const branches = (data.branches ?? [])
-			.map((b) => `<div class="at-trace-branch">${b}</div>`)
+			.map((b) => `<div class="at-trace-branch">${b}</div>`) // i18n-ok: HTML wrapper around sanitized plan markup
 			.join('');
 		const key = `${data.stepHtml}${branches}`;
 		if (key === this._renderedKey) return;

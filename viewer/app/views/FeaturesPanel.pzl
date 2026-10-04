@@ -7,17 +7,13 @@
 
     <div role="tabpanel" id="tasks-panel-list" aria-labelledby="tasks-tab-list" tabindex="0">
     {#if empty}
-      <p class="empty">
-        No FEATURE cards yet. A FEATURE groups a coherent slice of future work —
-        create one in <code>feature/FEATURE-*.md</code>, connect the cards it
-        touches, and it shows up here.
-      </p>
+      <p class="empty">{#for p in emptyParts}<span>{#if p.name}<code>{ p.value }</code>{:else}{ p.text }{/if}</span>{/for}</p>
     {:else}
       {#for section in sections}
-        <section key={ section.title } class="feat-section">
+        <section key={ section.id } class="feat-section">
           <h3>{ section.title } <span class="feat-count">{ section.count }</span></h3>
           {#if section.cards.length === 0}
-            <p class="empty sm">Nothing here yet.</p>
+            <p class="empty sm">{ t('features.sectionEmpty') }</p>
           {:else}
             {#for card in section.cards}
               <div key={ card.handle } class="feat-row">
@@ -32,13 +28,13 @@
                   {#if card.branch}<span class="feat-chip mono">⎇ { card.branch }</span>{/if}
                   {#if card.pr}
                     {#if card.prIsUrl}
-                      <a class="feat-chip mono" href={ card.pr } target="_blank" rel="noopener noreferrer">PR ↗</a>
+                      <a class="feat-chip mono" href={ card.pr } target="_blank" rel="noopener noreferrer">{ t('features.pr.link') }</a>
                     {:else}
-                      <span class="feat-chip mono">PR { card.pr }</span>
+                      <span class="feat-chip mono">{ t('features.pr.number', { pr: card.pr }) }</span>
                     {/if}
                   {/if}
                   {#if card.status}
-                    <Badge variant={ card.statusVariant } class={ card.statusTint }>{ card.status }</Badge>
+                    <Badge variant={ card.statusVariant } class={ card.statusTint }>{ card.statusText }</Badge>
                   {/if}
                   <span class="feat-when">{ card.when }</span>
                 </span>
@@ -58,7 +54,8 @@ import Badge from '../components/ui/Badge.pzl';
 import TasksHeader from '../components/TasksHeader.pzl';
 import { relTime } from '../lib/format.js';
 import { planIndex } from '../lib/plan-index.js';
-import { SHIPPED, STATUS } from '../lib/status.js';
+import { t, tParts } from '../lib/i18n.js';
+import { SHIPPED, STATUS, statusLabel } from '../lib/status.js';
 import { hrefForHandle } from '../lib/types.js';
 
 // FeaturesPanel — every FEATURE card, split into what is still ahead and what
@@ -93,6 +90,7 @@ function rowFor(card) {
 		pr,
 		prIsUrl: isUrl(pr),
 		status,
+		statusText: statusLabel(status),
 		statusVariant: statusMeta.variant,
 		statusTint: statusMeta.tint,
 		when: relTime(card.mtime),
@@ -108,12 +106,23 @@ export default class FeaturesPanel extends PuzzleView {
 		const upNext = features.filter((card) => !SHIPPED.has(card.status ?? '')).map(rowFor);
 		const shipped = features.filter((card) => SHIPPED.has(card.status ?? '')).map(rowFor);
 
-		const sections = [{ title: 'Up next', count: upNext.length, cards: upNext }];
+		const sections = [
+			{ id: 'upNext', title: t('features.section.upNext'), count: upNext.length, cards: upNext },
+		];
 		if (shipped.length > 0) {
-			sections.push({ title: 'Shipped', count: shipped.length, cards: shipped });
+			sections.push({
+				id: 'shipped',
+				title: t('features.section.shipped'),
+				count: shipped.length,
+				cards: shipped,
+			});
 		}
 
-		return { empty: features.length === 0, sections };
+		return {
+			empty: features.length === 0,
+			emptyParts: tParts('features.empty', { path: 'feature/FEATURE-*.md' }),
+			sections,
+		};
 	}
 }
 </script>

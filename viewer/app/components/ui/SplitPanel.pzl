@@ -15,7 +15,7 @@
       data-split-divider
       role="separator"
       tabindex={ dividerTabindex }
-      aria-label="Resize panels"
+      aria-label={ t('ui.splitPanel.resize') }
       aria-valuemin="0"
       aria-valuemax="100"
       aria-valuenow={ ariaValueNow }

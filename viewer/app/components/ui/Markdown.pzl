@@ -81,7 +81,7 @@ function inlineDom(tokens, newTab = false) {
 				if (tok.title) a.title = decodeEntities(tok.title);
 				if (newTab && href !== '#' && isExternal(tok.href)) {
 					a.target = '_blank';
-					a.rel = 'noopener noreferrer';
+					a.rel = 'noopener noreferrer'; // i18n-ok: rel attribute tokens
 				}
 				a.appendChild(inlineDom(tok.tokens, newTab));
 				frag.appendChild(a);

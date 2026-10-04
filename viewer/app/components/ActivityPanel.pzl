@@ -1,17 +1,17 @@
 <puzzle-view>
   <section class="panel panel-activity">
-    <h3><Icon name="history" size="0.85rem"/> Activity</h3>
+    <h3><Icon name="history" size="0.85rem"/> { t('home.activity.title') }</h3>
     {#if hasRows}
       <ul class="act-rows">
         {#for row in rows}
           <li key={ row.key } class={ row.rowClass }>
-            <span class="a-when">{ row.when }</span>
-            <span class={ row.kindClass } title={ row.kind }>
+            <span class="a-when truncate" title={ row.when }>{ row.when }</span>
+            <span class={ row.kindClass } title={ row.kindLabel }>
               <Icon name={ row.icon } size="0.85rem"/>
-              <span class="a-kind-text">{ row.kind }</span>
+              <span class="a-kind-text min-w-0 truncate">{ row.kindLabel }</span>
             </span>
             <span class="a-subject">{ row.subject }</span>
-            {#if row.isSyncPoint}<span class="a-tag">sync</span>{/if}
+            {#if row.isSyncPoint}<span class="a-tag">{ t('home.activity.syncTag') }</span>{/if}
             {#if row.hasCards}
               <span class="a-cards">
                 {#for chip in row.cards}
@@ -24,7 +24,7 @@
         {/for}
       </ul>
     {:else}
-      <p class="panel-empty">No commits yet — activity appears once the repo has history.</p>
+      <p class="panel-empty">{ t('home.activity.empty') }</p>
     {/if}
   </section>
 </puzzle-view>
@@ -54,6 +54,7 @@ export default class ActivityPanel extends PuzzleView {
 				return {
 					key: row.key ?? i,
 					kind: row.kind ?? '',
+					kindLabel: row.kindLabel ?? row.kind ?? '',
 					icon: row.icon ?? 'commit',
 					kindClass: `a-kind ${row.kind ?? ''}`,
 					rowClass: row.isSyncPoint ? 'act-row sync' : 'act-row',

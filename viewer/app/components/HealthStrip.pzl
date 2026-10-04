@@ -30,6 +30,7 @@
 import { PuzzleView } from '@magic-spells/puzzle';
 import Icon from './Icon.pzl';
 import Button from './ui/Button.pzl';
+import { t } from '../lib/i18n.js';
 
 // HealthStrip — the plan's state in one line: freshness verdict, the counts
 // that qualify it, and the one action that changes it. It replaces the old
@@ -65,7 +66,7 @@ export default class HealthStrip extends PuzzleView {
 				class: `hs-chip ${TONE[chip.tone] ?? ''}`,
 			})),
 			canSync: !!model.canSync,
-			syncLabel: model.syncLabel ?? 'Set sync point',
+			syncLabel: model.syncLabel ?? t('home.health.setSyncPoint'),
 			syncing: this.getData()?.syncing ?? false,
 		};
 	}

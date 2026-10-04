@@ -15,7 +15,7 @@
           <MarkdownBlock src={ planBody } />
         </Editable>
       {:else}
-        <p class="empty">No plan.md yet — run `constellation init`.</p>
+        <p class="empty">{ noPlan }</p>
       {/if}
     </div>
 
@@ -35,6 +35,7 @@ import NotesPanel from '../components/NotesPanel.pzl';
 import ReleasePanel from '../components/ReleasePanel.pzl';
 import { activityModel, driftModel, healthModel, notesModel, releasesModel } from '../lib/dashboard.js';
 import { savePatch, stampSyncPoint } from '../lib/edit.js';
+import { t } from '../lib/i18n.js';
 import { planIndex } from '../lib/plan-index.js';
 
 // Home — the Overview dashboard: a status board for the plan, in four blocks.
@@ -94,6 +95,7 @@ export default class Home extends PuzzleView {
 			drift: driftModel(sync),
 			notes: notesModel(index),
 			hasPlanCard: !!planCard,
+			noPlan: t('home.noPlan', { file: 'plan.md', command: 'constellation init' }), // i18n-ok: a CLI command, not prose
 			planBody: planCard?.body ?? '',
 			repos: reposOf(planCard),
 			// The served workspaces, so each connected repo can link into its own.

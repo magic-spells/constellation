@@ -2,7 +2,7 @@
   <div
     class={ containerClasses }
     role="region"
-    aria-label="Notifications"
+    aria-label={ t('ui.toaster.label') }
     @pointerenter={ pauseTimers(event) }
     @pointerleave={ resumeTimers(event) }>
     {#for item in items}
@@ -33,7 +33,7 @@
         <button
           type="button"
           class="-m-1 shrink-0 rounded p-1 text-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 outline-ring focus-visible:outline-ring"
-          aria-label="Dismiss"
+          aria-label={ t('common.action.dismiss') }
           @click={ close(item.id) }>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="h-3.5 w-3.5" aria-hidden="true"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7"/></svg>
         </button>

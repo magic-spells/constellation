@@ -3,7 +3,7 @@
     {#if empty}
       <div class="constellation-empty">
         <span class="star">✦</span>
-        <p>This plan has no cards yet.</p>
+        <p>{ t('graph.empty.title') }</p>
       </div>
     {:else}
       <canvas
@@ -21,10 +21,10 @@
       <div class="cn-search">
         <input
           type="search"
-          placeholder="Search nodes…"
+          placeholder={ t('graph.search.placeholder') }
           value={ query }
           @keydown={ onSearchKey(event) }
-          aria-label="Search nodes in the graph" />
+          aria-label={ t('graph.search.label') } />
         {#if results.length}
           <ul class="cn-search-results">
             {#for result in results, i}
@@ -58,19 +58,19 @@
       </div>
 
       <div class="cn-controls">
-        <button type="button" title="Zoom in" aria-label="Zoom in" @click={ zoomIn }>+</button>
-        <button type="button" title="Zoom out" aria-label="Zoom out" @click={ zoomOut }>−</button>
-        <button type="button" title="Fit to view" aria-label="Fit to view" @click={ fitAll }>⤢</button>
-        <button type="button" title="Reset" aria-label="Reset view" @click={ resetView }>⟲</button>
+        <button type="button" title={ t('graph.control.zoomIn') } aria-label={ t('graph.control.zoomIn') } @click={ zoomIn }>+</button>
+        <button type="button" title={ t('graph.control.zoomOut') } aria-label={ t('graph.control.zoomOut') } @click={ zoomOut }>−</button>
+        <button type="button" title={ t('graph.control.fit') } aria-label={ t('graph.control.fit') } @click={ fitAll }>⤢</button>
+        <button type="button" title={ t('graph.control.reset') } aria-label={ t('graph.control.resetLabel') } @click={ resetView }>⟲</button>
       </div>
 
       {#if focusedCard}
         <div class="cn-panel">
           <span class="cn-panel-type" style={ focusedCard.typeStyle }>{ focusedCard.type }</span>
-          <strong>{ focusedCard.displayName }</strong>
+          <strong class="min-w-0 truncate">{ focusedCard.displayName }</strong>
           <span class="cn-panel-handle">{ focusedCard.handle }</span>
           {#if focusedCard.status}<span class="cn-panel-status">{ focusedCard.status }</span>{/if}
-          <a href="{ link(focusedCard.href) }">Open card →</a>
+          <a href="{ link(focusedCard.href) }">{ t('graph.panel.open') }</a>
         </div>
       {/if}
     {/if}
@@ -80,7 +80,9 @@
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
 import ConstellationTabs from '../components/ConstellationTabs.pzl';
-import { hrefForHandle, TYPE_META } from '../lib/types.js';
+import { hrefForHandle, TYPE_META, typeLabel } from '../lib/types.js';
+import { statusLabel } from '../lib/status.js';
+import { t } from '../lib/i18n.js';
 import { planIndex } from '../lib/plan-index.js';
 import { cssColor, darken as darkenHex, mix as mixHex, luminance as relLum } from '../lib/colors.js';
 import { subscribe as onThemeChange } from '../lib/appearance.js';
@@ -225,7 +227,7 @@ export default class ConstellationView extends PuzzleView {
           handle: focusedRecord.handle,
           type: focusedRecord.type,
           name: focusedRecord.name,
-          status: focusedRecord.status,
+          status: focusedRecord.status ? statusLabel(focusedRecord.status) : null,
           displayName: focusedRecord.name ?? focusedRecord.handle,
           typeStyle: `color: var(--t-${focusedRecord.type})`,
           href: hrefForHandle(focusedRecord.handle),
@@ -234,7 +236,7 @@ export default class ConstellationView extends PuzzleView {
 
     const presentTypes = this.orderedTypes(cards).map((type) => ({
       type,
-      label: TYPE_META[type]?.label ?? type,
+      label: typeLabel(type),
       swatchStyle: `background: var(--t-${type})`,
     }));
 
@@ -245,7 +247,7 @@ export default class ConstellationView extends PuzzleView {
       activeResult: local.activeResult ?? -1,
       empty: !!plan && cards.length === 0,
       nodeCount: cards.length,
-      canvasLabel: `Constellation graph — ${cards.length} cards. Use the search box to find a node; drag to pan; scroll to zoom; Escape clears the selection.`,
+      canvasLabel: t('graph.canvasLabel', { count: cards.length }),
       results,
       resultsKey: `${q}\u0001${results.map((result) => result.handle).join('\u0000')}`,
       searchMatches,
@@ -971,7 +973,7 @@ export default class ConstellationView extends PuzzleView {
           : Math.max(7, Math.min(10, sh * 0.18));
         const textX = sx + padX + Math.max(3, 5 * this.scale);
         const maxText = sw - padX * 2 - Math.max(6, 8 * this.scale);
-        context.font = `600 ${handleSize}px ui-monospace, Menlo, monospace`;
+        context.font = `600 ${handleSize}px ui-monospace, Menlo, monospace`; // i18n-ok: canvas font shorthand
         context.fillStyle = this.colors.label[graphNode.type] ?? this.colors.textStrong;
         context.fillText(this.fitText(context, graphNode.handle, maxText), textX, sy + topPad);
         if (
@@ -980,7 +982,7 @@ export default class ConstellationView extends PuzzleView {
           graphNode.name !== graphNode.handle &&
           sh >= 42
         ) {
-          context.font = '10px Avenir Next, Seravek, Segoe UI, sans-serif';
+          context.font = '10px Avenir Next, Seravek, Segoe UI, sans-serif'; // i18n-ok: canvas font shorthand
           context.fillStyle = this.colors.sub[graphNode.type] ?? this.colors.text;
           context.fillText(
             this.fitText(context, graphNode.name, maxText),

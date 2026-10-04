@@ -1,0 +1,105 @@
+{
+	"card": {
+		"page": {
+			"delete": "delete",
+			"kindPlaceholder": "+ kind",
+			"bodyPlaceholder": "+ write something"
+		},
+		"section": {
+			"fields": "Fields",
+			"connections": "Connections"
+		},
+		"fields": {
+			"add": "+ field",
+			"addPlaceholder": "key: value",
+			"invalidYaml": "invalid YAML — not saved"
+		},
+		"connections": {
+			"add": "+ connect",
+			"addPlaceholder": "HANDLE…",
+			"unknownTarget": "{handle} is not an existing card",
+			"removeTitle": "remove connection",
+			"removeLabel": "Remove connection to {handle}"
+		},
+		"notFound": {
+			"title": "Card not found",
+			"description": "{handle} is not in this plan.",
+			"descriptionNoHandle": "This card is not in this plan."
+		},
+		"unknownType": "Unknown type: {folder}",
+		"typeIntro": {
+			"hint": "Select a card from the list to view it.",
+			"count": { "one": "{count} card", "other": "{count} cards" }
+		},
+		"list": {
+			"ariaLabel": "{type} cards",
+			"filterPlaceholder": "Filter…",
+			"new": "+ new {type}",
+			"noMatches": "No matches",
+			"empty": "Nothing here yet"
+		},
+		"create": {
+			"title": "New {type} card",
+			"titleNoType": "New card",
+			"description": "Handles are uppercase. The type prefix is fixed by the folder you are in.",
+			"handleLabel": "Handle",
+			"handlePlaceholder": "TICKETS",
+			"nameLabel": "Name",
+			"optional": "optional",
+			"namePlaceholder": "What this card is",
+			"preview": "Creates {handle}",
+			"submit": "Create card",
+			"errorEmpty": "Enter a handle.",
+			"errorInvalid": "Handles use A–Z, 0–9 and dashes only.",
+			"errorFailed": "Could not create the card."
+		},
+		"delete": {
+			"title": "Delete {handle}?",
+			"titleNoHandle": "Delete card?",
+			"confirm": "Delete card",
+			"referenced": {
+				"single": "Deletes {handle}. Referenced by {handles} — that connection will dangle.",
+				"multiple": "Deletes {handle}. Referenced by {handles} — those connections will dangle."
+			},
+			"referencedAt": {
+				"single": "Deletes {handle} ({path}). Referenced by {handles} — that connection will dangle.",
+				"multiple": "Deletes {handle} ({path}). Referenced by {handles} — those connections will dangle."
+			},
+			"unreferenced": "Deletes {handle}. Nothing else in the plan links to it.",
+			"unreferencedAt": "Deletes {handle} ({path}). Nothing else in the plan links to it.",
+			"done": "Deleted {handle}.",
+			"doneDangling": {
+				"single": "Deleted {handle} — {handles} now link to nothing.",
+				"multiple": "Deleted {handle} — {handles} now link to nothing."
+			}
+		}
+	},
+	"edit": {
+		"hint": "⌘↩ save · esc cancel",
+		"emptyPlaceholder": "empty — click to edit",
+		"clickToEdit": "Click to edit",
+		"toast": {
+			"stale": "Card changed on disk — reloaded",
+			"readonly": "Viewer is read-only",
+			"saveFailed": "Save failed",
+			"syncPoint": "Sync point set at {sha}"
+		}
+	},
+	"style": {
+		"guide": {
+			"title": "Style Guide",
+			"emptyTitle": "No STYLE cards yet",
+			"emptyDescription": "Add a card under style/ with a category and a tokens list — colors, fonts, a type scale, spacing, radii or shadows — and it renders here."
+		},
+		"fontStyles": "Font Styles",
+		"specimen": {
+			"uppercase": "Uppercase",
+			"lowercase": "Lowercase",
+			"numbers": "Numbers",
+			"characters": "Characters"
+		},
+		"typeScale": {
+			"sample": "The quick brown fox jumps over the lazy dog"
+		}
+	}
+}

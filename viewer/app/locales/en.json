@@ -1,25 +1,17 @@
 {
 	"common": {
 		"action": {
-			"save": "Save",
-			"saving": "Saving…",
 			"cancel": "Cancel",
-			"delete": "Delete",
 			"close": "Close",
-			"edit": "Edit",
-			"create": "Create",
-			"open": "Open",
-			"retry": "Try again",
-			"copy": "Copy",
-			"copied": "Copied",
-			"clear": "Clear",
 			"dismiss": "Dismiss"
 		},
 		"state": {
 			"loading": "Loading…"
-		},
+		}
+	},
+	"api": {
 		"error": {
-			"generic": "Something went wrong."
+			"requestFailed": "Request failed with status {status}"
 		}
 	},
 	"appearance": {
@@ -74,6 +66,484 @@
 			}
 		}
 	},
+	"atlas": {
+		"empty": {
+			"title": "This plan has no cards yet.",
+			"hint": "The atlas draws what the plan holds — write a card and a building appears."
+		},
+		"canvasLabel": {
+			"one": "Architecture atlas — {count} card as a city",
+			"other": "Architecture atlas — {count} cards as a city"
+		},
+		"lens": {
+			"label": "Lens",
+			"status": {
+				"label": "Status",
+				"hint": "Colour by status: — where each card is in its life."
+			},
+			"degree": {
+				"label": "Connections",
+				"hint": "Height by how many cards connect. Hubs are towers."
+			},
+			"drift": {
+				"label": "Drift",
+				"hint": "Bound code that moved since the card was verified. Scaffolded = drifted."
+			},
+			"recency": {
+				"label": "Recency",
+				"hint": "Height by how recently the card changed. Tall = fresh."
+			},
+			"size": {
+				"label": "Code size",
+				"hint": "Height by lines of bound code. Needs FILE bindings."
+			}
+		},
+		"engine": {
+			"group": "Shading",
+			"flat": {
+				"label": "Flat",
+				"title": "Street map — seen from above, with the streets data runs along"
+			},
+			"lit": {
+				"label": "3D",
+				"title": "The same plan as a 3D city of blocks"
+			}
+		},
+		"control": {
+			"zoomIn": "Zoom in",
+			"zoomOut": "Zoom out",
+			"fit": "Fit the whole city",
+			"export": "Download a PNG of the atlas"
+		},
+		"inside": {
+			"back": "← Come back out"
+		},
+		"legend": "→ go inside · ← come back out · drag to pan · scroll to zoom · hover to read",
+		"readout": {
+			"parts": {
+				"one": "{count} part · {names}",
+				"other": "{count} parts · {names}"
+			},
+			"partsMore": {
+				"one": "{count} part · {names}…",
+				"other": "{count} parts · {names}…"
+			},
+			"drifted": "drifted since verified",
+			"driftedWithParts": "drifted since verified · {parts}"
+		},
+		"trace": {
+			"region": "Flow trace",
+			"close": "Leave the trace",
+			"prev": "Previous step",
+			"next": "Next step",
+			"play": "Play",
+			"pause": "Pause",
+			"step": "{step}/{total}",
+			"at": "at {handle}"
+		}
+	},
+	"board": {
+		"label": "Feature board",
+		"empty": {
+			"title": "No FEATURE cards yet",
+			"description": "A FEATURE groups a coherent slice of future work. Create one in {path}, connect the cards it touches, and it lands on this board."
+		},
+		"column": {
+			"planned": {
+				"title": "Planned",
+				"empty": "Nothing queued."
+			},
+			"building": {
+				"title": "Building",
+				"empty": "Nothing in flight."
+			},
+			"built": {
+				"title": "Built",
+				"empty": "Nothing built yet."
+			},
+			"verified": {
+				"title": "Verified",
+				"empty": "Nothing verified yet."
+			},
+			"emptyFallback": "Nothing here yet."
+		},
+		"overflow": {
+			"one": "+{count} more verified",
+			"other": "+{count} more verified"
+		},
+		"kanban": {
+			"defaultLabel": "Board"
+		},
+		"tasks": {
+			"title": "Tasks",
+			"tab": {
+				"board": "Board",
+				"list": "List"
+			},
+			"blurb": {
+				"board": "Every FEATURE card by {field} — a card moves column when its status does. Read-only.",
+				"list": "Every FEATURE card by what is ahead and what has shipped, with release provenance."
+			}
+		},
+		"dialog": {
+			"close": "Close preview",
+			"noBody": "This card has no body yet.",
+			"connections": "Connections",
+			"connectionCount": {
+				"one": "{count} connection",
+				"other": "{count} connections"
+			},
+			"openCard": "Open full card →",
+			"notFound": "{handle} is not in this plan."
+		}
+	},
+	"card": {
+		"page": {
+			"delete": "delete",
+			"kindPlaceholder": "+ kind",
+			"bodyPlaceholder": "+ write something"
+		},
+		"section": {
+			"fields": "Fields",
+			"connections": "Connections"
+		},
+		"fields": {
+			"add": "+ field",
+			"addPlaceholder": "key: value",
+			"invalidYaml": "invalid YAML — not saved"
+		},
+		"connections": {
+			"add": "+ connect",
+			"addPlaceholder": "HANDLE…",
+			"unknownTarget": "{handle} is not an existing card",
+			"removeTitle": "remove connection",
+			"removeLabel": "Remove connection to {handle}"
+		},
+		"notFound": {
+			"title": "Card not found",
+			"description": "{handle} is not in this plan.",
+			"descriptionNoHandle": "This card is not in this plan."
+		},
+		"unknownType": "Unknown type: {folder}",
+		"typeIntro": {
+			"hint": "Select a card from the list to view it.",
+			"count": {
+				"one": "{count} card",
+				"other": "{count} cards"
+			}
+		},
+		"list": {
+			"ariaLabel": "{type} cards",
+			"filterPlaceholder": "Filter…",
+			"new": "+ new {type}",
+			"noMatches": "No matches",
+			"empty": "Nothing here yet"
+		},
+		"create": {
+			"title": "New {type} card",
+			"titleNoType": "New card",
+			"description": "Handles are uppercase. The type prefix is fixed by the folder you are in.",
+			"handleLabel": "Handle",
+			"handlePlaceholder": "TICKETS",
+			"nameLabel": "Name",
+			"optional": "optional",
+			"namePlaceholder": "What this card is",
+			"preview": "Creates {handle}",
+			"submit": "Create card",
+			"errorEmpty": "Enter a handle.",
+			"errorInvalid": "Handles use A–Z, 0–9 and dashes only.",
+			"errorFailed": "Could not create the card."
+		},
+		"delete": {
+			"title": "Delete {handle}?",
+			"titleNoHandle": "Delete card?",
+			"confirm": "Delete card",
+			"referenced": {
+				"single": "Deletes {handle}. Referenced by {handles} — that connection will dangle.",
+				"multiple": "Deletes {handle}. Referenced by {handles} — those connections will dangle."
+			},
+			"referencedAt": {
+				"single": "Deletes {handle} ({path}). Referenced by {handles} — that connection will dangle.",
+				"multiple": "Deletes {handle} ({path}). Referenced by {handles} — those connections will dangle."
+			},
+			"unreferenced": "Deletes {handle}. Nothing else in the plan links to it.",
+			"unreferencedAt": "Deletes {handle} ({path}). Nothing else in the plan links to it.",
+			"done": "Deleted {handle}.",
+			"doneDangling": {
+				"single": "Deleted {handle} — {handles} now link to nothing.",
+				"multiple": "Deleted {handle} — {handles} now link to nothing."
+			}
+		}
+	},
+	"docs": {
+		"eyebrow": "Documentation",
+		"defaultTitle": "Documentation",
+		"imprint": "v{version} · {date}",
+		"card": {
+			"openSource": "Open {handle}"
+		},
+		"toc": {
+			"heading": "Contents",
+			"navLabel": "Documentation contents",
+			"jumpLabel": "Jump to a section",
+			"jumpPlaceholder": "Contents…",
+			"wholeDocument": "← Whole document",
+			"empty": "No card carries a {field} yet."
+		},
+		"empty": {
+			"title": "No documentation yet",
+			"description": "Give a card a {field} slug and it joins this document. Register the slugs in order on {handle} as {listField} to name them and set how they read.",
+			"unknownTitle": "No such section",
+			"unknownSection": "No card declares {field} {section}."
+		},
+		"export": {
+			"button": "Export as PDF",
+			"blockedTitle": "Pop-up blocked",
+			"blockedMessage": "Allow pop-ups for this site, or press {shortcut} and choose “Save as PDF”."
+		},
+		"print": {
+			"action": "Print",
+			"preparing": "Preparing…",
+			"windowTitle": "Print",
+			"empty": "Nothing to print yet — no card carries a {field} slug.",
+			"hint": {
+				"waiting": "Rendering the diagrams — the document will be ready in a moment.",
+				"ready": "Choose “Save as PDF” as the destination in the print dialog.",
+				"partial": "Some diagrams did not render. Print anyway, or reload the window."
+			}
+		}
+	},
+	"edit": {
+		"hint": "⌘↩ save · esc cancel",
+		"emptyPlaceholder": "empty — click to edit",
+		"clickToEdit": "Click to edit",
+		"toast": {
+			"stale": "Card changed on disk — reloaded",
+			"readonly": "Viewer is read-only",
+			"saveFailed": "Save failed",
+			"syncPoint": "Sync point set at {sha}"
+		}
+	},
+	"features": {
+		"empty": "No FEATURE cards yet. A FEATURE groups a coherent slice of future work — create one in {path}, connect the cards it touches, and it shows up here.",
+		"sectionEmpty": "Nothing here yet.",
+		"section": {
+			"upNext": "Up next",
+			"shipped": "Shipped"
+		},
+		"pr": {
+			"link": "PR ↗",
+			"number": "PR {pr}"
+		}
+	},
+	"graph": {
+		"empty": {
+			"title": "This plan has no cards yet."
+		},
+		"canvasLabel": {
+			"one": "Constellation graph — {count} card. Use the search box to find a node; drag to pan; scroll to zoom; Escape clears the selection.",
+			"other": "Constellation graph — {count} cards. Use the search box to find a node; drag to pan; scroll to zoom; Escape clears the selection."
+		},
+		"search": {
+			"placeholder": "Search nodes…",
+			"label": "Search nodes in the graph"
+		},
+		"control": {
+			"zoomIn": "Zoom in",
+			"zoomOut": "Zoom out",
+			"fit": "Fit to view",
+			"reset": "Reset",
+			"resetLabel": "Reset view"
+		},
+		"panel": {
+			"open": "Open card →"
+		},
+		"tabs": {
+			"group": "Constellation view",
+			"graph": {
+				"label": "Graph",
+				"hint": "Force-clustered nodes — what connects to what"
+			},
+			"atlas": {
+				"label": "Atlas",
+				"hint": "An isometric city — what shape the system is"
+			}
+		}
+	},
+	"home": {
+		"noPlan": "No {file} yet — run `{command}`.",
+		"countValue": "{count}",
+		"health": {
+			"lastSynced": "last synced {when}",
+			"noSyncPoint": "no sync point yet",
+			"sinceMarker": "{commits} / {changes} since",
+			"codeCommits": {
+				"one": "{count} code commit",
+				"other": "{count} code commits"
+			},
+			"planChanges": {
+				"one": "{count} plan change",
+				"other": "{count} plan changes"
+			},
+			"planDirty": "uncommitted plan edits",
+			"setSyncPoint": "Set sync point",
+			"updateSyncPoint": "Update sync point",
+			"chip": {
+				"cards": "cards",
+				"connections": "connections",
+				"errors": {
+					"one": "{count} error",
+					"other": "{count} errors"
+				},
+				"warnings": {
+					"one": "{count} warning",
+					"other": "{count} warnings"
+				},
+				"clean": "clean",
+				"integrity": "integrity",
+				"drifted": "drifted",
+				"untracked": "untracked",
+				"noDrift": "no drift",
+				"code": "code"
+			}
+		},
+		"releases": {
+			"title": "Releases",
+			"latestTag": "{tag} tagged",
+			"packageVersion": "{version} in {file}",
+			"noTags": "no tags yet",
+			"empty": "No RELEASE cards yet — a RELEASE marks a version milestone; FEATURE cards target it via {releaseField} and group by {changeField}.",
+			"tagged": "tagged",
+			"breakingCount": {
+				"one": "{count} breaking",
+				"other": "{count} breaking"
+			},
+			"noFeatures": "No FEATURE cards target this release yet.",
+			"open": "Open {handle} →",
+			"summary": {
+				"shipped": "shipped",
+				"noFeatures": "no features yet",
+				"features": {
+					"one": "{count} feature",
+					"other": "{count} features"
+				},
+				"progress": {
+					"one": "{shipped} of {count} feature shipped",
+					"other": "{shipped} of {count} features shipped"
+				}
+			},
+			"group": {
+				"breaking": "Breaking",
+				"feature": "Features",
+				"fix": "Fixes",
+				"chore": "Chores"
+			}
+		},
+		"activity": {
+			"title": "Activity",
+			"kind": {
+				"plan": "plan",
+				"code": "code"
+			},
+			"syncTag": "sync",
+			"moreCards": "+{count}",
+			"empty": "No commits yet — activity appears once the repo has history."
+		},
+		"drift": {
+			"title": "Code drift",
+			"nothingTracked": "nothing tracked yet",
+			"claimsHold": {
+				"one": "{count} claim still holds",
+				"other": "{count} claims still hold"
+			},
+			"claimsDrifted": {
+				"one": "{drifted} of {count} claim drifted",
+				"other": "{drifted} of {count} claims drifted"
+			},
+			"filesChanged": {
+				"one": "{count} file changed",
+				"other": "{count} files changed"
+			},
+			"baseline": {
+				"verified": "since verify",
+				"cardCommit": "since the card was last committed",
+				"syncMarker": "since sync point",
+				"argument": "since base",
+				"fallback": "since baseline"
+			},
+			"overflow": {
+				"one": "+{count} more stale card",
+				"other": "+{count} more stale cards"
+			},
+			"untracked": {
+				"one": "{count} claim with no baseline — {hint}",
+				"other": "{count} claims with no baseline — {hint}"
+			},
+			"untrackedHint": "commit them, or stamp them with {tool}, to track their code"
+		},
+		"notes": {
+			"title": "Notes",
+			"kind": {
+				"decision": "decision",
+				"gotcha": "gotcha",
+				"state": "state",
+				"deviation": "deviation",
+				"verified": "verified"
+			},
+			"empty": "No notes yet — {tool} writes durable decisions and gotchas onto cards; the latest land here."
+		},
+		"repos": {
+			"title": "Connected repos",
+			"hint": "Separate plans, each its own workspace — open one here or from the switcher at the top of the sidebar.",
+			"current": "This workspace",
+			"cardCount": {
+				"one": "{count} card",
+				"other": "{count} cards"
+			},
+			"notServed": "Not served by this viewer"
+		}
+	},
+	"nav": {
+		"planLabel": "Plan navigation",
+		"overview": "Overview",
+		"tasks": "Tasks",
+		"docs": "Documentation",
+		"constellation": "Constellation",
+		"styleGuide": "Style guide",
+		"drawer": {
+			"title": "Navigation",
+			"close": "Close navigation"
+		}
+	},
+	"palette": {
+		"label": "Command palette",
+		"placeholder": "Search cards, pages and actions…",
+		"empty": "Nothing matches that.",
+		"page": {
+			"tasksBoard": "Tasks — Board",
+			"tasksList": "Tasks — List",
+			"graph": "Constellation — Graph",
+			"atlas": "Constellation — Atlas"
+		},
+		"group": {
+			"goTo": "Go to",
+			"scheme": "Scheme"
+		},
+		"hint": {
+			"active": "Active"
+		},
+		"keyword": {
+			"page": "page"
+		}
+	},
+	"shell": {
+		"header": {
+			"openNav": "Open navigation",
+			"searchLabel": "Search cards, pages and actions",
+			"searchPlaceholder": "Search…",
+			"openRepo": "Open the repository on GitHub"
+		}
+	},
 	"status": {
 		"planned": "planned",
 		"building": "building",
@@ -81,12 +551,41 @@
 		"verified": "verified",
 		"none": "no status"
 	},
+	"style": {
+		"guide": {
+			"title": "Style Guide",
+			"emptyTitle": "No STYLE cards yet",
+			"emptyDescription": "Add a card under style/ with a category and a tokens list — colors, fonts, a type scale, spacing, radii or shadows — and it renders here."
+		},
+		"fontStyles": "Font Styles",
+		"specimen": {
+			"uppercase": "Uppercase",
+			"lowercase": "Lowercase",
+			"numbers": "Numbers",
+			"characters": "Characters"
+		},
+		"typeScale": {
+			"sample": "The quick brown fox jumps over the lazy dog"
+		}
+	},
 	"sync": {
 		"state": {
 			"inSync": "In sync",
 			"drifted": "Drifted",
 			"dirty": "Uncommitted edits",
 			"neverSynced": "Not synced"
+		},
+		"badge": {
+			"title": "Plan freshness — derived live from git. Click for the activity dashboard.",
+			"markerUnreachable": "marker unreachable",
+			"commitsBehind": {
+				"one": "{count} commit behind",
+				"other": "{count} commits behind"
+			},
+			"cardsAhead": {
+				"one": "{count} card ahead",
+				"other": "{count} cards ahead"
+			}
 		}
 	},
 	"time": {
@@ -183,5 +682,42 @@
 			"interface": "Interface",
 			"code": "Code & tests"
 		}
+	},
+	"ui": {
+		"sidebar": {
+			"defaultLabel": "Main",
+			"expand": "Expand sidebar",
+			"collapse": "Collapse sidebar"
+		},
+		"command": {
+			"label": "Command palette",
+			"placeholder": "Type a command or search…",
+			"empty": "No results found."
+		},
+		"search": {
+			"placeholder": "Search…",
+			"clear": "Clear search"
+		},
+		"select": {
+			"placeholder": "Select…"
+		},
+		"alertDialog": {
+			"confirm": "Continue"
+		},
+		"toaster": {
+			"label": "Notifications"
+		},
+		"splitPanel": {
+			"resize": "Resize panels"
+		}
+	},
+	"workspace": {
+		"listLabel": "Workspaces",
+		"group": {
+			"self": "This repo",
+			"connected": "Connected repos"
+		},
+		"unavailable": "Unavailable",
+		"fallbackName": "Plan"
 	}
 }

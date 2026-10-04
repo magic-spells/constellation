@@ -10,7 +10,7 @@
   <div class="cnav hidden h-full shrink-0 md:block">
     <Sidebar
       variant="rail"
-      label="Plan navigation"
+      label={ t('nav.planLabel') }
       items={ navItems }
       activePath={ activePath }>
       <!--
@@ -46,7 +46,7 @@
         <button
           type="button"
           class="-ml-2 inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-sunken hover:text-ink outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 md:hidden"
-          aria-label="Open navigation"
+          aria-label={ t('shell.header.openNav') }
           aria-expanded={ drawerOpen ? 'true' : 'false' }
           @click={ openDrawer }>
           <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
@@ -56,8 +56,9 @@
         <!-- The page, not the project: the project names itself at the top of
              the rail, in the workspace switcher. -->
         <h1 class="min-w-0 truncate text-sm font-semibold text-ink">{ pageTitle }</h1>
-        <!-- Below sm the page title needs the room; Overview still shows sync. -->
-        <div class="hidden shrink-0 sm:block">
+        <!-- Below sm the page title needs the room; Overview still shows sync.
+             min-w-0, not shrink-0: a long translated state truncates. -->
+        <div class="hidden min-w-0 sm:block">
           <SyncBadge/>
         </div>
       </div>
@@ -73,17 +74,17 @@
         type="button"
         data-morph-source="search"
         class="flex h-8 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface-sunken px-2 text-sm text-muted transition-colors hover:text-ink outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 sm:w-64 sm:justify-start sm:px-3 lg:w-96"
-        aria-label="Search cards, pages and actions"
+        aria-label={ t('shell.header.searchLabel') }
         aria-keyshortcuts="Meta+K Control+K"
         @click={ openPalette(event) }>
         <svg class="size-4 shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
           <circle cx="9" cy="9" r="6"/>
           <path d="M14 14l4 4" stroke-linecap="round"/>
         </svg>
-        <span class="hidden min-w-0 flex-1 truncate text-left sm:block">Search…</span>
+        <span class="hidden min-w-0 flex-1 truncate text-left sm:block">{ t('shell.header.searchPlaceholder') }</span>
         <span class="hidden shrink-0 items-center gap-0.5 sm:flex" aria-hidden="true">
           <Kbd>⌘</Kbd>
-          <Kbd>K</Kbd>
+          <Kbd>K</Kbd><!-- i18n-ok: keyboard shortcut key -->
         </span>
       </button>
 
@@ -96,7 +97,7 @@
             target="_blank"
             rel="noopener noreferrer"
             class="grid size-8 shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-surface-sunken hover:text-ink outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            aria-label="Open the repository on GitHub">
+            aria-label={ t('shell.header.openRepo') }>
             <svg class="size-4.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path fill-rule="evenodd" clip-rule="evenodd" d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.69 1.25 3.35.96.1-.75.4-1.25.72-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 2.87-.39c.97 0 1.95.13 2.87.39 2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.73.81 1.18 1.83 1.18 3.09 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.14 0 1.54-.01 2.78-.01 3.16 0 .31.21.67.8.56A10.52 10.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"/>
             </svg>
@@ -154,7 +155,8 @@ import AppearanceSwitcher from '../components/AppearanceSwitcher.pzl';
 import NavDrawer from '../components/NavDrawer.pzl';
 import { NARROW } from '../lib/narrow.js';
 import { planIndex } from '../lib/plan-index.js';
-import { GROUPS, TYPE_META, typeForFolder } from '../lib/types.js';
+import { GROUPS, TYPE_META, groupLabel, typeForFolder, typeLabel } from '../lib/types.js';
+import { t } from '../lib/i18n.js';
 
 /** The routes under the one Constellation destination: both readings + the drill-down. */
 const CONSTELLATION_ROUTES = new Set(['graph', 'atlas', 'atlas-card']);
@@ -275,11 +277,11 @@ export default class AppShell extends PuzzleView {
 		// "what is in flight", and it is a view of many types at once rather than
 		// of one folder.
 		const navItems = [
-			{ label: 'Overview', href: url('/'), path: '/', icon: PAGE_ICON.overview },
-			{ label: 'Tasks', href: url('/tasks/board'), path: '/tasks/board', icon: PAGE_ICON.board },
-			{ label: 'Documentation', href: url('/docs'), path: '/docs', icon: PAGE_ICON.docs },
+			{ label: t('nav.overview'), href: url('/'), path: '/', icon: PAGE_ICON.overview },
+			{ label: t('nav.tasks'), href: url('/tasks/board'), path: '/tasks/board', icon: PAGE_ICON.board },
+			{ label: t('nav.docs'), href: url('/docs'), path: '/docs', icon: PAGE_ICON.docs },
 			{
-				label: 'Constellation',
+				label: t('nav.constellation'),
 				href: url('/constellation/graph'),
 				path: '/constellation/graph',
 				icon: PAGE_ICON.constellation,
@@ -287,7 +289,7 @@ export default class AppShell extends PuzzleView {
 		];
 		if (count('STYLE') > 0) {
 			navItems.push({
-				label: 'Style guide',
+				label: t('nav.styleGuide'),
 				href: url('/style-guide'),
 				path: '/style-guide',
 				icon: PAGE_ICON.style,
@@ -299,10 +301,10 @@ export default class AppShell extends PuzzleView {
 				(type) => TYPE_META[type].group === group && count(type) > 0,
 			);
 			if (types.length === 0) continue;
-			navItems.push({ group });
+			navItems.push({ group: groupLabel(group) });
 			for (const type of types) {
 				navItems.push({
-					label: TYPE_META[type].label,
+					label: typeLabel(type),
 					href: url(`/${TYPE_META[type].folder}`),
 					path: `/${TYPE_META[type].folder}`,
 					icon: TYPE_ICON[type],
@@ -327,7 +329,7 @@ export default class AppShell extends PuzzleView {
 		// A type with no cards has no row, so its folder names it instead.
 		const pageTitle =
 			navItems.find((item) => item.href && item.href === activePath)?.label ??
-			(region.folder ? TYPE_META[typeForFolder(region.folder)]?.label : '') ??
+			(region.folder ? typeLabel(typeForFolder(region.folder)) : '') ??
 			'';
 		// No product wordmark: the project is the name. Its live PLAN-PROJECT
 		// name, else the roster's, read at server start.

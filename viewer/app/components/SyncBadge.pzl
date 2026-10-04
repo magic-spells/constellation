@@ -3,12 +3,12 @@
     {#if visible}
       <a
         href={ homeHref }
-        title="Plan freshness — derived live from git. Click for the activity dashboard."
-        class="inline-flex rounded-full outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+        title={ t('sync.badge.title') }
+        class="inline-flex max-w-full rounded-full outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
         <Badge variant={ variant } class={ tint }>
           <span aria-hidden="true">{ icon }</span>
-          <span>{ label }</span>
-          {#if detail}<span class="font-normal opacity-70">{ detail }</span>{/if}
+          <span class="truncate">{ label }</span>
+          {#if detail}<span class="truncate font-normal opacity-70">{ detail }</span>{/if}
         </Badge>
       </a>
     {/if}
@@ -18,7 +18,8 @@
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
 import Badge from './ui/Badge.pzl';
-import { relTime } from '../lib/format.js';
+import { relTime, SYNC_META, syncLabel } from '../lib/format.js';
+import { t } from '../lib/i18n.js';
 
 // SyncBadge — the topbar freshness pill, ported from the Svelte viewer's
 // SyncPill.svelte. It reads the `sync` object the plan singleton carries
@@ -32,14 +33,8 @@ import { relTime } from '../lib/format.js';
 // `no-git` (and a missing sync object, i.e. the request failed) render nothing:
 // a plan outside a git repo has no freshness to report.
 
-// Glyph + label per state — the same pairs the Svelte viewer used, so the two
-// read identically while both exist.
-const META = {
-	'in-sync': { icon: '✓', label: 'In sync' },
-	drifted: { icon: '⚠', label: 'Drifted' },
-	dirty: { icon: '●', label: 'Uncommitted edits' },
-	'never-synced': { icon: '○', label: 'Not synced' },
-};
+// Glyph + label per state come from SYNC_META (lib/format.js), shared with the
+// Overview dashboard; `no-git` has no label there, so it renders nothing.
 
 // Badge exposes brand/danger/outline/default variants only, so success and
 // warning arrive as token utilities. The `!` suffix is load-bearing: without it
@@ -61,12 +56,12 @@ const VARIANT = {
 /** Secondary text: what drifted, or how long ago the sync point was stamped. */
 function detailFor(sync) {
 	if (sync.state === 'drifted') {
-		if (sync.marker_error) return 'marker unreachable';
+		if (sync.marker_error) return t('sync.badge.markerUnreachable');
 		const parts = [];
 		const commits = sync.code_commits_since_marker ?? 0;
 		const cards = sync.plan_changes_since_marker ?? 0;
-		if (commits > 0) parts.push(`${commits} commit${commits === 1 ? '' : 's'} behind`);
-		if (cards > 0) parts.push(`${cards} card${cards === 1 ? '' : 's'} ahead`);
+		if (commits > 0) parts.push(t('sync.badge.commitsBehind', { count: commits }));
+		if (cards > 0) parts.push(t('sync.badge.cardsAhead', { count: cards }));
 		return parts.join(' · ');
 	}
 	if (sync.state === 'in-sync' && sync.marker) return relTime(sync.marker.synced_at);
@@ -76,16 +71,17 @@ function detailFor(sync) {
 export default class SyncBadge extends PuzzleView {
 	data() {
 		const sync = this.ctx.store.findOne('plan', 'plan')?.sync ?? null;
-		const meta = sync ? META[sync.state] : null;
-		if (!meta) return { visible: false };
+		const meta = sync ? SYNC_META[sync.state] : null;
+		if (!meta?.labelKey) return { visible: false };
 
 		return {
 			visible: true,
 			icon: meta.icon,
-			label: meta.label,
+			label: syncLabel(sync.state),
 			detail: detailFor(sync),
 			variant: VARIANT[sync.state],
-			tint: TINT[sync.state],
+			// max-w-full lets a long translation truncate instead of pushing the header.
+			tint: `${TINT[sync.state]} max-w-full`,
 			homeHref: this.ctx.router.url('/'),
 		};
 	}

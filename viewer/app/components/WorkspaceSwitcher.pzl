@@ -35,12 +35,12 @@
         id={ panelId }
         ref="panel"
         role="listbox"
-        aria-label="Workspaces"
+        aria-label={ t('workspace.listLabel') }
         class="fixed z-50 max-h-96 w-72 max-w-workspace-max overflow-y-auto rounded-xl border border-border bg-surface-raised p-1.5 text-body shadow-popover"
         style={ panelStyle }>
         {#for group in groups}
-          <div key={ group.label } role="group" aria-label={ group.label }>
-            <p class="px-2 pb-1 pt-2 text-xs font-medium text-muted" aria-hidden="true">{ group.label }</p>
+          <div key={ group.id } role="group" aria-label={ group.label }>
+            <p class="truncate px-2 pb-1 pt-2 text-xs font-medium text-muted" aria-hidden="true">{ group.label }</p>
             {#for item in group.items}
               <div
                 key={ item.id }
@@ -60,7 +60,7 @@
                   {/if}
                 </span>
                 {#if item.available}
-                  <span class="shrink-0 text-xs tabular-nums text-muted">{ item.cards }</span>
+                  <span class="shrink-0 text-xs tabular-nums text-muted">{ number_with_delimiter(item.cards) }</span>
                 {/if}
                 {#if item.active}
                   <svg class="size-4 shrink-0 text-brand" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -144,6 +144,7 @@ export default class WorkspaceSwitcher extends PuzzleView {
       labelClass: LABEL,
       chevronClass: CHEVRON,
       groups: model.groups.map((group) => ({
+        id: group.id,
         label: group.label,
         items: group.items.map((item) => ({
           ...item,
