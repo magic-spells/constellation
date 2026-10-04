@@ -38,7 +38,7 @@
       <ConstellationTabs active="atlas"/>
 
       <div class="at-lens">
-        <span class="at-lens-label">{ t('atlas.lens.label') }</span>
+        <span class="at-lens-label whitespace-nowrap">{ t('atlas.lens.label') }</span>
         <Select
           class="w-40"
           options={ lensOptions }

@@ -117,7 +117,9 @@ export default class CardList extends PuzzleView {
 			filter,
 			label: typeLabel(type),
 			total: cards.length,
-			ariaLabel: t('card.list.ariaLabel', { type: typeSingular(type) }),
+			// The type's own name ("API endpoints") names the column for a screen
+			// reader; "API endpoints cards" read as a typo.
+			ariaLabel: typeLabel(type),
 			// The in-sentence noun for the ghost row ("+ new feature").
 			newLabel: typeSingular(type),
 			hueStyle: `--c: var(--t-${type})`,

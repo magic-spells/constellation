@@ -149,13 +149,23 @@ export function formatDateTime(when, options = {}) {
 }
 
 /**
- * Format a number in the format locale (grouping, decimals, percent).
+ * Format a number (grouping, decimals, percent). Unlike dates, numbers use the
+ * bare LANGUAGE tag, not the format locale: Puzzle prints a plural's `{count}`
+ * in the language tag, and a sentence holding `{count}` beside another number
+ * must group both the same way.
  * @param {number} value
  * @param {Intl.NumberFormatOptions} [options]
  * @returns {string}
  */
 export function formatNumber(value, options = {}) {
-	return cached('nf', options, (l) => new Intl.NumberFormat(l, options)).format(value);
+	const lang = language();
+	const id = 'nf\u0000' + lang + '\u0000' + JSON.stringify(options);
+	let f = cache.get(id);
+	if (!f) {
+		f = new Intl.NumberFormat(lang, options);
+		cache.set(id, f);
+	}
+	return f.format(value);
 }
 
 /**
@@ -169,13 +179,15 @@ export function formatList(items, options = { type: 'conjunction' }) {
 }
 
 /**
- * A relative time: "5m ago", "2h ago", "3d ago" (English narrow).
+ * A relative time: "5m ago", "2h ago", "1d ago" (English narrow). `numeric:
+ * 'always'` keeps "1d ago" rather than "yesterday", matching the minutes and
+ * hours beside it.
  * @param {number} value
  * @param {Intl.RelativeTimeFormatUnit} unit
- * @param {Intl.RelativeTimeFormatOptions} [options] default narrow + numeric auto
+ * @param {Intl.RelativeTimeFormatOptions} [options] default narrow + numeric always
  * @returns {string}
  */
-export function formatRelative(value, unit, options = { style: 'narrow', numeric: 'auto' }) {
+export function formatRelative(value, unit, options = { style: 'narrow', numeric: 'always' }) {
 	return cached('rt', options, (l) => new Intl.RelativeTimeFormat(l, options)).format(value, unit);
 }
 
@@ -245,7 +257,12 @@ export function installPseudoLocale(svc) {
 			}
 		}
 		const text = original(key, marked);
-		// A miss prints the key: leave it bare so it stands out as one.
-		return text === key ? text : pseudoize(text);
+		// A miss prints the key: leave it bare so it stands out as one. A value
+		// with no letters (a bare `{count}`) has nothing to translate, and code
+		// that looks a formatted number up by key must still find it.
+		if (text === key || !/[A-Za-z]/.test(text.replace(/\u0001[^\u0002]*\u0002/g, ''))) {
+			return text.replace(/[\u0001\u0002]/g, '');
+		}
+		return pseudoize(text);
 	};
 }

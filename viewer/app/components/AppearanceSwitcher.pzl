@@ -66,7 +66,7 @@
             options={ languages }
             value={ language }
             indicator="chevrons"
-            position="top"
+            position="up"
             @change={ pickLanguage }/>
           {#if languageError}
             <p class="mt-2 text-xs text-danger" role="alert">{ t('appearance.languageError') }</p>
@@ -156,8 +156,11 @@ export default class AppearanceSwitcher extends PuzzleView {
       this.refresh();
       if (open) requestAnimationFrame(() => this.refs.panel?.focus());
     },
-    close: () => {
+    close: (event) => {
       if (!this.getData().open) return;
+      // Escape inside the open Language menu closes only the menu: Select
+      // marks the key handled, and the popover leaves it alone.
+      if (event?.type === 'keydown' && event.defaultPrevented) return;
       this.setData({ open: false });
       this.refresh();
       this.refs.trigger?.focus();

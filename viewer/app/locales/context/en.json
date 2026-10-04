@@ -96,7 +96,6 @@
 	"card.fields.add": "Small dashed ghost button that adds a frontmatter field. The leading + means \"add\". Monospace.",
 	"card.fields.addPlaceholder": "Placeholder of a one-line input where the user types a new field as YAML `key: value`. Keep the colon syntax; translate only the words key/value if your language would.",
 	"card.fields.invalidYaml": "Error toast: the typed field value is not valid YAML, so nothing was saved. YAML is a format name — do not translate.",
-	"card.list.ariaLabel": "Screen-reader label for the list column of one card type. {type} is the type as an in-sentence noun, e.g. \"API endpoint\" → \"API endpoint cards\".",
 	"card.list.empty": "Shown in a card list that has no cards of this type yet.",
 	"card.list.filterPlaceholder": "Placeholder of the search box that filters the card list. Narrow column (~16rem).",
 	"card.list.new": "Button at the bottom of a card list that creates a card. {type} is the type as an in-sentence lowercase-ish noun (\"feature\", \"API endpoint\"). The leading + means \"add\".",

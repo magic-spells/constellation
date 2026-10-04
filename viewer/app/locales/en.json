@@ -233,7 +233,6 @@
 			}
 		},
 		"list": {
-			"ariaLabel": "{type} cards",
 			"filterPlaceholder": "Filter…",
 			"new": "+ new {type}",
 			"noMatches": "No matches",
