@@ -80,23 +80,23 @@
 			"label": "Prisme",
 			"status": {
 				"label": "Statut",
-				"hint": "Couleur selon le statut : — où en est chaque carte dans son cycle de vie."
+				"hint": "Couleur selon le statut : — où en est chaque carte."
 			},
 			"degree": {
 				"label": "Connexions",
-				"hint": "Hauteur selon le nombre de cartes connectées. Les hubs sont des tours."
+				"hint": "Hauteur selon le nombre de connexions. Hubs = tours."
 			},
 			"drift": {
 				"label": "Dérive",
-				"hint": "Code lié modifié depuis la vérification de la carte. Échafaudage = en dérive."
+				"hint": "Code lié modifié depuis la vérification. Échafaudage = en dérive."
 			},
 			"recency": {
 				"label": "Récence",
-				"hint": "Hauteur selon la date de la dernière modification. Haut = récent."
+				"hint": "Hauteur selon la dernière modification. Haut = récent."
 			},
 			"size": {
 				"label": "Taille du code",
-				"hint": "Hauteur selon les lignes de code lié. Nécessite des liaisons FILE."
+				"hint": "Hauteur selon le code lié. Liaisons FILE requises."
 			}
 		},
 		"engine": {

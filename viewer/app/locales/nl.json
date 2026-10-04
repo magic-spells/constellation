@@ -79,7 +79,7 @@
 			"label": "Lens",
 			"status": {
 				"label": "Status",
-				"hint": "Kleur op status: – waar elke kaart in haar levenscyclus staat."
+				"hint": "Kleur op status: – waar elke kaart nu staat."
 			},
 			"degree": {
 				"label": "Verbindingen",
@@ -87,7 +87,7 @@
 			},
 			"drift": {
 				"label": "Drift",
-				"hint": "Gekoppelde code die veranderd is sinds de kaart werd geverifieerd. Steigers = afgedreven."
+				"hint": "Gekoppelde code gewijzigd sinds verificatie. Steigers = afgedreven."
 			},
 			"recency": {
 				"label": "Recentheid",
@@ -95,7 +95,7 @@
 			},
 			"size": {
 				"label": "Codeomvang",
-				"hint": "Hoogte op regels gekoppelde code. Vereist FILE-koppelingen."
+				"hint": "Hoogte op regels code. Vereist FILE-koppelingen."
 			}
 		},
 		"engine": {

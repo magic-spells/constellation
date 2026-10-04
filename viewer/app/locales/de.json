@@ -79,7 +79,7 @@
 			"label": "Linse",
 			"status": {
 				"label": "Status",
-				"hint": "Farbe nach Status: – wo jede Karte in ihrem Lebenszyklus steht."
+				"hint": "Farbe nach Status: – wo jede Karte gerade steht."
 			},
 			"degree": {
 				"label": "Verbindungen",
@@ -87,15 +87,15 @@
 			},
 			"drift": {
 				"label": "Drift",
-				"hint": "Gebundener Code, der sich seit der Prüfung der Karte geändert hat. Gerüst = abgedriftet."
+				"hint": "Gebundener Code, seit der Prüfung geändert. Gerüst = abgedriftet."
 			},
 			"recency": {
 				"label": "Aktualität",
-				"hint": "Höhe danach, wie kürzlich sich die Karte geändert hat. Hoch = frisch."
+				"hint": "Höhe nach letzter Änderung der Karte. Hoch = frisch."
 			},
 			"size": {
 				"label": "Codeumfang",
-				"hint": "Höhe nach Zeilen gebundenen Codes. Braucht FILE-Bindungen."
+				"hint": "Höhe nach Codezeilen. Braucht FILE-Bindungen."
 			}
 		},
 		"engine": {
