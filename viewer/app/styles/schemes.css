@@ -13,9 +13,11 @@
  *     root palette, and a scoped card would inherit the wrong value.
  *
  * The first block of 30 is Observatory as it shipped in 1.0 — do not change
- * these values. Pieces 0.8 added the rest (shell roles, raised/base surfaces,
- * on-tint text, wells, shadows); each is derived from the 30, or is the pieces
- * default where a value carries no palette (the alpha family).
+ * these values, except the dark grounds, which 1.1 retuned to the pieces depth
+ * order (see "Surfaces" below). Pieces 0.8 added the rest (shell roles,
+ * raised/base surfaces, on-tint text, wells, shadows); each is derived from the
+ * 30, or is the pieces default where a value carries no palette (the alpha
+ * family).
  *
  * Dark is a deep-navy night sky; light is "daybreak observatory" — cool
  * blue-leaning greys, navy ink, the periwinkle deepened to #3d6bd0 so it clears
@@ -35,10 +37,14 @@
 	--color-faint: light-dark(#9ba3bc, #5a5f78);
 
 	/* Surfaces. Old --bg / --bg-panel / --bg-inset. In light the page is a cool
-	   blue-grey, sunken (#f2f4fa) sits a hair off it, and panels are near white. */
-	--color-page: light-dark(#f2f4f9, #07080f);
-	--color-surface: light-dark(#fcfdff, #0c0e18);
-	--color-surface-sunken: light-dark(#f2f4fa, #11131f);
+	   blue-grey, sunken (#f2f4fa) sits a hair off it, and panels are near white.
+	   Dark follows the pieces depth order (1.1): page/frame darkest, then sunken
+	   (the card-list pane), then the work panel, then cards, then raised — every
+	   step on the navy axis. 1.0 had it inverted: the panel was the page, the
+	   darkest layer, and sunken the lightest. */
+	--color-page: light-dark(#f2f4f9, #03040a);
+	--color-surface: light-dark(#fcfdff, #0e101b);
+	--color-surface-sunken: light-dark(#f2f4fa, #07080f);
 
 	/* Brand. Old --accent (#8ab4ff); -dark/-tint/-ink derived. The dark tint
 	   echoes the starfield's own #1b2240 glow. */
@@ -78,28 +84,25 @@
 	/* ── Pieces 0.8 tokens, derived from the palette above. ── */
 
 	--color-label-ink: var(--color-ink);
-	--color-surface-raised: var(--color-surface);
-	--color-surface-base: light-dark(
-		color-mix(in oklab, #f2f4f9 50%, #fcfdff),
-		color-mix(in oklab, #07080f 50%, #0c0e18)
-	);
+	--color-surface-raised: light-dark(#fcfdff, #121522);
+	--color-surface-base: light-dark(color-mix(in oklab, #f2f4f9 50%, #fcfdff), #0a0c15);
 	--color-brand-on-tint: var(--color-brand-dark);
 	--color-danger-on-tint: var(--color-danger-dark);
 	/* A dashed outline needs 3:1; faint is below that on every ground. */
 	--color-border-dashed: var(--color-muted);
 
-	/* Shell. The frame (bar + rail) is the old sidebar's surface in dark, so the
-	   work panel keeps the page ground every view was designed on and sits a
-	   step deeper than its frame — the night sky through a window. In light the
-	   frame is the page pulled toward the border, a step darker than the panel. */
-	--color-surface-frame: light-dark(color-mix(in oklab, #f2f4f9 60%, #c9cfdf), #0c0e18);
+	/* Shell. The frame (bar + rail) is the darkest layer in dark, the page itself,
+	   and the work panel stands a step lighter than both it and the card-list
+	   pane — the pieces order. In light the frame is the page pulled toward the
+	   border, a step darker than the panel. */
+	--color-surface-frame: light-dark(color-mix(in oklab, #f2f4f9 60%, #c9cfdf), #03040a);
 	--color-frame-light: color-mix(in oklab, #f2f4f9 60%, #c9cfdf);
 	--color-bar: var(--color-surface-frame);
 	--color-bar-ink: var(--color-ink);
 	--color-bar-muted: var(--color-muted);
-	--color-bar-hover: light-dark(#fcfdff, color-mix(in oklab, #0c0e18 88%, #8d93ad));
+	--color-bar-hover: light-dark(#fcfdff, color-mix(in oklab, #03040a 85%, #8d93ad));
 	--color-bar-line: var(--color-border);
-	--color-surface-panel: var(--color-page);
+	--color-surface-panel: light-dark(#f2f4f9, #0a0c15);
 	--color-surface-card: var(--color-surface);
 	--color-rail: var(--color-surface-frame);
 	--color-rail-ink: var(--color-bar-ink);
@@ -138,7 +141,7 @@
  * MEDIUM — soft dark. `data-theme="medium"` already resolves every pair to its
  * dark half; this lifts the grounds toward Observatory's own muted blue-grey
  * (#8d93ad) and dims the type a stop, so medium reads as the same night sky at
- * dusk rather than falling back to plain dark. Aliases (bar, rail, panel, card)
+ * dusk rather than falling back to plain dark. Aliases (bar, rail, card)
  * follow the values here on their own.
  */
 [data-scheme='observatory'][data-theme='medium'],
@@ -154,6 +157,9 @@
 	--color-surface: color-mix(in oklab, #0c0e18 76%, #8d93ad);
 	--color-surface-sunken: color-mix(in oklab, #07080f 86%, #8d93ad);
 	--color-surface-base: color-mix(in oklab, #07080f 79%, #8d93ad);
+	/* Dark gives panel and raised their own values; medium keeps 1.0's aliases. */
+	--color-surface-panel: var(--color-page);
+	--color-surface-raised: var(--color-surface);
 
 	--color-brand-tint: color-mix(in oklab, #1b2440 82%, #8ab4ff);
 	--color-danger-tint: color-mix(in oklab, #211318 82%, #e0635d);
