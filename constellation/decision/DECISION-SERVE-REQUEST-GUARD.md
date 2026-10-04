@@ -6,8 +6,14 @@ connections:
   - FILE-CLI
   - FILE-WRITER
   - FEATURE-WORKSPACE-SWITCHER
+notes:
+  - kind: state
+    text: >-
+      #45 bounds `code_root` for every reader, not just connected plans: `resolveCodeRoot` falls
+      back to the default root when `code_root` realpaths outside the plan's repo, so style assets,
+      code attach, stale_report, assemble and sync can't be steered out of the repo by a cloned
+      plan.md (FILE-REPOS).
 ---
-
 
 # The local server checks Host and Origin, not a token
 

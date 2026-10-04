@@ -40,9 +40,13 @@ no anchor — reads are quiet, `working_init` / `install-hook` refuse (`NO_WORKI
 State lives in files, not MCP process memory. A `SessionStart` hook (matchers
 `startup|resume|compact|clear`) running `constellation working` prints it back into
 context; the tools are the ergonomics, the hook is the guarantee. IDs are per type (`G1`,
-`C3`, `T12`). Every `working.md` write takes a cross-process `working.md.lock`, re-checks the
-file is unchanged before an atomic temp-and-rename, and logs before the rename. The folder
-resolves through `git rev-parse --git-common-dir`, so linked worktrees share one scratchpad.
+`C3`, `T12`). Every `working.md` write takes a cross-process lock, re-checks the file is
+unchanged before an atomic temp-and-rename, and logs before the rename. The lock is a folder,
+`working.md.lock/`, holding one `<16-hex token>.json`, taken by renaming a temp folder into
+place; release and stale-break each unlink one exact token record, then `rmdir`. Tokens are
+never reused, so a late breaker gets `ENOENT` and can never free a successor's lock — exactly
+one winner. The folder resolves through `git rev-parse --git-common-dir`, so linked worktrees
+share one scratchpad.
 
 ## Alternatives
 
@@ -77,5 +81,3 @@ resolves through `git rev-parse --git-common-dir`, so linked worktrees share one
   re-read after every compaction, and past ~25 items it says so.
 - `.constellation` joins the code-metrics walk skip list so a FILE card bound to `path: .`
   never counts scratchpad files.
-- Breaking a stale lock still has a known race; the fix is in progress on
-  `fix/working-lock-break`.
