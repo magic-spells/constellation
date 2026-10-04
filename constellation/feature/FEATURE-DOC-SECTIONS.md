@@ -169,14 +169,13 @@ Settled while building:
   `section: Getting Started` shows up in the document where you can see and fix
   it, rather than silently vanishing. W002 is what says it isn't a slug.
 - **Per-plan.** `/docs` does not span connected repos.
+- **The card.json tension.** card.json holds two kinds of cross-type key:
+  tool-managed provenance and authored placement (`section`/`order`). The schema
+  descriptions, [[DOC-FILE-FORMAT]] and the `CLAUDE.md` invariant all name both.
 
 Still open:
 
 - **`doc_title` on PLAN-PROJECT** — not shipped; the H1 is the project name.
-- **The card.json tension is real and unresolved.** `section`/`order` are
-  *authored*, while every other cross-type key there is tool-managed provenance.
-  The schema descriptions distinguish them and so does [[DOC-FILE-FORMAT]], but
-  the invariant in `CLAUDE.md` still calls card.json tool-managed wholesale.
 
 ## Acceptance
 

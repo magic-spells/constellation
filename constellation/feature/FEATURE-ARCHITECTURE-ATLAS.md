@@ -140,9 +140,10 @@ buffer, not per-pixel geometry math — cheap and exact at any zoom.
 
 ## Prerequisite gap
 
-`viewer/app/views/ConstellationView.pzl` (1400+ lines, route `#/constellation`)
-has **no PAGE card**. Write one before this feature starts, or the atlas has
-nothing to connect to and the existing renderer's decisions stay undocumented.
+`viewer/app/views/ConstellationView.pzl` (1400+ lines, now `#/constellation/graph`)
+had **no PAGE card** when this was proposed, so the atlas would have had nothing to
+connect to. Closed before the build: [[PAGE-VIEWER-CONSTELLATION]] records that
+renderer's decisions.
 
 ## Scope
 

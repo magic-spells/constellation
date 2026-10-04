@@ -8,6 +8,14 @@ connections:
   - FILE-WRITER
   - FILE-GIT
   - DOC-MCP-SERVER
+notes:
+  - kind: state
+    text: >-
+      Also shipped in the v1.0.1 tag, missing from the list above: remove_connection strips a
+      dangling handle after delete_card (one missing handle allowed; a typo'd one is NOT_FOUND;
+      survivor issues reported, PR #37). Bound-code drift: untracked bound files count as
+      uncommitted (stale_report, set_verified's dirty warning via dirtyFilesAmong) but never as
+      changed-since-a-sha, so a directory code_refs cannot go permanently stale.
 ---
 
 Theme: close the agent-facing holes found reviewing 1.0.0.

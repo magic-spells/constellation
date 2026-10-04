@@ -21,8 +21,10 @@ notes:
       DECISION-MONOREPO-CODE-ROOT.
   - kind: state
     text: >-
-      Untracked bound files now count: dirtyFilesAmong/changedFilesSince include git ls-files
-      --others. set_verified's dirty warning and stale_report both see a never-added bound file.
+      Untracked bound files now count as uncommitted drift: dirtyFilesAmong includes git ls-files
+      --others --exclude-standard, so set_verified's dirty warning and stale_report both see a
+      never-added bound file. changedFilesSince deliberately does not (an untracked file bears no
+      relation to a baseline sha).
 ---
 
 `computeStaleCards` compares every claim card (status built/verified, or carrying a

@@ -25,6 +25,13 @@ notes:
       installed 0.6.0 and the patched build — exact no-op. Suite 656/656, build + lint:examples
       clean, existing tests unedited except the intentional orient-shape and skip-reason-string
       assertions.
+  - kind: state
+    text: >-
+      1.1.0: code_root is bounded. resolveCodeRoot (src/core/repos.ts) accepts it only when its real
+      path stays inside the plan's git repo (outside git: inside the folder holding the plan);
+      otherwise codeRootFor falls back to dirname(planRoot) and reports the escape. A cloned plan.md
+      cannot steer .constellation/, the .gitignore write or code reads into another project. Serve
+      refuses a connected plan whose code_root escapes, as an unavailable roster row.
 ---
 
 # Plans can live below the git root: the code root

@@ -37,6 +37,14 @@ connections:
   - PAGE-VIEWER-BOARD
 section: design-system
 order: 40
+notes:
+  - kind: state
+    text: >-
+      The token values above are Observatory's dark halves (`schemes.css`). Observatory light
+      deepens each hue (success #45803d, warning #8f6a1a, danger #c04840, pale tints), medium mixes
+      its tints toward the hue, and default/dim/warm/void use the pieces palettes' own status
+      colours (pieces.css, themes/*.css), so the borrowing from `--t-API` / `--t-DB` / `--t-TEST`
+      holds only in Observatory dark.
 ---
 
 The three colours that carry meaning, each with a tint for backgrounds.
@@ -53,9 +61,10 @@ is `--t-TEST` — which is why status and type never clash on the same screen.
 
 ## The one that looks like a mistake
 
-`danger-ink` is **dark**, not white. On a salmon red that light, white text
-reaches only about 3.3:1 while `#1a0e0f` reaches 5.9:1. Any "fix" that makes it
-white for consistency is a contrast regression.
+`danger-ink` is **dark**, not white, in dark mode. On a salmon red that light,
+white text reaches only about 3.3:1 while `#1a0e0f` reaches 5.9:1. Any "fix" that
+makes it white for consistency is a contrast regression. Light mode deepens the
+red to `#c04840`, where white is the right ink and is what it uses.
 
 Tints are each hue at roughly 12% over the page, so they stay legible without
 becoming a second surface colour.

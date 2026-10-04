@@ -40,6 +40,6 @@ notes:
       against the last verified note before trusting a green run.
 ---
 
-The vitest suite (600+ tests): core unit tests, MCP integration via an in-memory client, and git-backed drift/security tests. The golden plan `examples/constellation/` doubles as a fixture and must lint clean (0 errors). Exercises [[FILE-LINT]], [[FILE-INDEXER]], [[FILE-MCP-SERVER]].
+The vitest suite (900+ tests, 70+ files): core unit tests, MCP integration via an in-memory client, git-backed drift/security tests, serve HTTP tests (request guard, symlink containment, connected workspaces — writes send an Origin via `tests/same-origin.ts`), and working-memory tests including settings, hostile repos, the git trust check and a cross-process lock stress test that spawns `tests/lock-worker.ts`. The golden plan `examples/constellation/` doubles as a fixture and must lint clean (0 errors). Exercises [[FILE-LINT]], [[FILE-INDEXER]], [[FILE-MCP-SERVER]].
 
 `tests/viewer/` covers the Puzzle viewer: plain-JS lib tests plus a `.pzl` component lane — `tests/viewer/pzl-vitest-plugin.js` runs the local Puzzle checkout's `pzlc` compiler through Go for each imported `.pzl`. The lane therefore requires both Go and that checkout (`PUZZLE_REPO` overrides its location); without the compiler the plugin is inert and `.pzl` imports fail at load time — not as red tests.

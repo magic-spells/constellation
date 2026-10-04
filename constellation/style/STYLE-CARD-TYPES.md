@@ -100,9 +100,10 @@ uncoloured.
 plan and a 21st bright hue would make the graph read as noise; grey lets code
 recede behind the things that describe it.
 
-Eight of these are re-exported as `--color-chart-1..8`, ordered to mirror the
-base palette's hue sequence so any chart keeps its slot semantics across
-schemes. Three more are the status colours in [[STYLE-UTILITY-COLORS]].
+Observatory re-exports eight of these as `--color-chart-1..8`, ordered to mirror
+the base palette's hue sequence so any chart keeps its slot semantics when the
+scheme changes (default, dim, warm and void keep the pieces chart palette). Three
+more are Observatory's dark-mode status colours in [[STYLE-UTILITY-COLORS]].
 
 The hues are shared across every scheme rather than re-tuned per scheme — they
 are identity, not palette.
