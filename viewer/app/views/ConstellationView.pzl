@@ -1223,7 +1223,7 @@ export default class ConstellationView extends PuzzleView {
   color: var(--color-ink);
   background: color-mix(in oklab, var(--color-surface) 90%, transparent);
   border: 1px solid var(--color-border);
-  border-radius: 99px;
+  border-radius: var(--radius-lg);
   outline: none;
   backdrop-filter: blur(6px);
   box-shadow: 0 12px 32px color-mix(in oklab, var(--color-page) 55%, transparent);
