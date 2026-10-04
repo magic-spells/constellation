@@ -1,1 +1,744 @@
-{}
+{
+	"common": {
+		"action": {
+			"cancel": "Cancelar",
+			"close": "Cerrar",
+			"dismiss": "Descartar"
+		},
+		"state": {
+			"loading": "Cargando…"
+		}
+	},
+	"api": {
+		"error": {
+			"requestFailed": "La solicitud falló con el estado {status}"
+		}
+	},
+	"appearance": {
+		"trigger": {
+			"title": "Apariencia: esquema, modo e idioma",
+			"srLabel": "Apariencia: {scheme}, {mode}"
+		},
+		"title": "Apariencia",
+		"summary": "{scheme} · {mode}",
+		"schemeLegend": "Esquema",
+		"modeLegend": "Modo",
+		"languageLabel": "Idioma",
+		"languageError": "No se pudo cambiar el idioma. Inténtalo de nuevo.",
+		"scheme": {
+			"observatory": {
+				"label": "Observatorio",
+				"description": "El propio de Constellation: un cielo nocturno azul marino, o un amanecer frío en modo claro."
+			},
+			"default": {
+				"label": "Predeterminado",
+				"description": "Casi negro y frío, con un tinte azul marino y un acento índigo: equilibrado, elegante, premium."
+			},
+			"dim": {
+				"label": "Tenue",
+				"description": "Gris azulado a media saturación con texto más suave: la paleta de bajo contraste."
+			},
+			"warm": {
+				"label": "Cálido",
+				"description": "Marfil, canela y marrón con un acento naranja arcilla: la paleta de Claude."
+			},
+			"void": {
+				"label": "Vacío",
+				"description": "Monocromo del blanco al negro puro: sin bordes, alto contraste, al estilo de Vercel."
+			}
+		},
+		"mode": {
+			"light": {
+				"label": "Claro",
+				"description": "Todo iluminado: un marco gris claro con un panel blanco encima."
+			},
+			"medium": {
+				"label": "Medio",
+				"description": "Oscuro suave: estructura oscura con los fondos subidos a gris medio y el texto un punto más apagado."
+			},
+			"dark": {
+				"label": "Oscuro",
+				"description": "Todo oscuro, con el marco un tono más oscuro que el panel."
+			},
+			"system": {
+				"label": "Sistema",
+				"description": "Sigue al sistema operativo entre claro y oscuro."
+			}
+		}
+	},
+	"atlas": {
+		"empty": {
+			"title": "Este plan aún no tiene tarjetas.",
+			"hint": "El atlas dibuja lo que contiene el plan: escribe una tarjeta y aparece un edificio."
+		},
+		"canvasLabel": {
+			"one": "Atlas de la arquitectura: {count} tarjeta como una ciudad",
+			"many": "Atlas de la arquitectura: {count} tarjetas como una ciudad",
+			"other": "Atlas de la arquitectura: {count} tarjetas como una ciudad"
+		},
+		"lens": {
+			"label": "Lente",
+			"status": {
+				"label": "Estado",
+				"hint": "Color por estado: — en qué punto está cada tarjeta."
+			},
+			"degree": {
+				"label": "Conexiones",
+				"hint": "Altura según cuántas tarjetas se conectan. Los nodos centrales son torres."
+			},
+			"drift": {
+				"label": "Desfase",
+				"hint": "Código vinculado que cambió desde que se verificó la tarjeta. Con andamios = desfasada."
+			},
+			"recency": {
+				"label": "Último cambio",
+				"hint": "Altura según lo reciente del último cambio. Alto = reciente."
+			},
+			"size": {
+				"label": "Tamaño del código",
+				"hint": "Altura según las líneas de código vinculado. Requiere vínculos FILE."
+			}
+		},
+		"engine": {
+			"group": "Sombreado",
+			"flat": {
+				"label": "Plano",
+				"title": "Plano de calles: visto desde arriba, con las calles por las que circulan los datos"
+			},
+			"lit": {
+				"label": "3D",
+				"title": "El mismo plan como una ciudad 3D de bloques"
+			}
+		},
+		"control": {
+			"zoomIn": "Acercar",
+			"zoomOut": "Alejar",
+			"fit": "Encuadrar toda la ciudad",
+			"export": "Descargar un PNG del atlas"
+		},
+		"inside": {
+			"back": "← Volver a salir"
+		},
+		"legend": "→ entrar · ← salir · arrastra para mover · rueda para zoom · pasa el cursor para leer",
+		"readout": {
+			"parts": {
+				"one": "{count} parte · {names}",
+				"many": "{count} partes · {names}",
+				"other": "{count} partes · {names}"
+			},
+			"partsMore": {
+				"one": "{count} parte · {names}…",
+				"many": "{count} partes · {names}…",
+				"other": "{count} partes · {names}…"
+			},
+			"drifted": "desfasada desde la verificación",
+			"driftedWithParts": "desfasada desde la verificación · {parts}"
+		},
+		"trace": {
+			"region": "Recorrido del flujo",
+			"close": "Salir del recorrido",
+			"prev": "Paso anterior",
+			"next": "Paso siguiente",
+			"play": "Reproducir",
+			"pause": "Pausa",
+			"step": "{step}/{total}",
+			"at": "en {handle}"
+		}
+	},
+	"board": {
+		"label": "Tablero de funcionalidades",
+		"empty": {
+			"title": "Aún no hay tarjetas FEATURE",
+			"description": "Una FEATURE agrupa una parte coherente del trabajo futuro. Crea una en {path}, conecta las tarjetas que toca y aparecerá en este tablero."
+		},
+		"column": {
+			"planned": {
+				"title": "Planificada",
+				"empty": "Nada en cola."
+			},
+			"building": {
+				"title": "En curso",
+				"empty": "Nada en marcha."
+			},
+			"built": {
+				"title": "Implementada",
+				"empty": "Aún no hay nada implementado."
+			},
+			"verified": {
+				"title": "Verificada",
+				"empty": "Aún no hay nada verificado."
+			},
+			"emptyFallback": "Aún no hay nada aquí."
+		},
+		"overflow": {
+			"one": "+{count} verificada más",
+			"many": "+{count} verificadas más",
+			"other": "+{count} verificadas más"
+		},
+		"kanban": {
+			"defaultLabel": "Tablero"
+		},
+		"tasks": {
+			"title": "Tareas",
+			"tab": {
+				"board": "Tablero",
+				"list": "Lista"
+			},
+			"blurb": {
+				"board": "Cada tarjeta FEATURE según {field} — una tarjeta cambia de columna cuando cambia su estado. Solo lectura.",
+				"list": "Cada tarjeta FEATURE según lo pendiente y lo publicado, con el lanzamiento de origen."
+			}
+		},
+		"dialog": {
+			"close": "Cerrar la vista previa",
+			"noBody": "Esta tarjeta aún no tiene contenido.",
+			"connections": "Conexiones",
+			"connectionCount": {
+				"one": "{count} conexión",
+				"many": "{count} conexiones",
+				"other": "{count} conexiones"
+			},
+			"openCard": "Abrir la tarjeta completa →",
+			"notFound": "{handle} no está en este plan."
+		}
+	},
+	"card": {
+		"page": {
+			"delete": "eliminar",
+			"kindPlaceholder": "+ subtipo",
+			"bodyPlaceholder": "+ escribe algo"
+		},
+		"section": {
+			"fields": "Campos",
+			"connections": "Conexiones"
+		},
+		"fields": {
+			"add": "+ campo",
+			"addPlaceholder": "clave: valor",
+			"invalidYaml": "YAML no válido: no se guardó"
+		},
+		"connections": {
+			"add": "+ conectar",
+			"addPlaceholder": "HANDLE…",
+			"unknownTarget": "{handle} no es una tarjeta existente",
+			"removeTitle": "quitar conexión",
+			"removeLabel": "Quitar la conexión con {handle}"
+		},
+		"notFound": {
+			"title": "Tarjeta no encontrada",
+			"description": "{handle} no está en este plan.",
+			"descriptionNoHandle": "Esta tarjeta no está en este plan."
+		},
+		"unknownType": "Tipo desconocido: {folder}",
+		"typeIntro": {
+			"hint": "Selecciona una tarjeta de la lista para verla.",
+			"count": {
+				"one": "{count} tarjeta",
+				"many": "{count} tarjetas",
+				"other": "{count} tarjetas"
+			}
+		},
+		"list": {
+			"filterPlaceholder": "Filtrar…",
+			"new": "+ crear {type}",
+			"noMatches": "Sin coincidencias",
+			"empty": "Aún no hay nada aquí"
+		},
+		"create": {
+			"title": "Nueva tarjeta de {type}",
+			"titleNoType": "Nueva tarjeta",
+			"description": "Los identificadores van en mayúsculas. El prefijo del tipo lo fija la carpeta en la que estás.",
+			"handleLabel": "Identificador",
+			"handlePlaceholder": "TICKETS",
+			"nameLabel": "Nombre",
+			"optional": "opcional",
+			"namePlaceholder": "Qué es esta tarjeta",
+			"preview": "Crea {handle}",
+			"submit": "Crear tarjeta",
+			"errorEmpty": "Escribe un identificador.",
+			"errorInvalid": "Los identificadores solo admiten A–Z, 0–9 y guiones.",
+			"errorFailed": "No se pudo crear la tarjeta."
+		},
+		"delete": {
+			"title": "¿Eliminar {handle}?",
+			"titleNoHandle": "¿Eliminar la tarjeta?",
+			"confirm": "Eliminar tarjeta",
+			"referenced": {
+				"single": "Elimina {handle}. {handles} hace referencia a ella: esa conexión quedará colgando.",
+				"multiple": "Elimina {handle}. {handles} hacen referencia a ella: esas conexiones quedarán colgando."
+			},
+			"referencedAt": {
+				"single": "Elimina {handle} ({path}). {handles} hace referencia a ella: esa conexión quedará colgando.",
+				"multiple": "Elimina {handle} ({path}). {handles} hacen referencia a ella: esas conexiones quedarán colgando."
+			},
+			"unreferenced": "Elimina {handle}. Nada más en el plan enlaza a ella.",
+			"unreferencedAt": "Elimina {handle} ({path}). Nada más en el plan enlaza a ella.",
+			"done": "Se eliminó {handle}.",
+			"doneDangling": {
+				"single": "Se eliminó {handle}: {handles} ahora no enlaza a nada.",
+				"multiple": "Se eliminó {handle}: {handles} ahora no enlazan a nada."
+			}
+		}
+	},
+	"docs": {
+		"eyebrow": "Documentación",
+		"defaultTitle": "Documentación",
+		"imprint": "v{version} · {date}",
+		"card": {
+			"openSource": "Abrir {handle}"
+		},
+		"toc": {
+			"heading": "Contenido",
+			"navLabel": "Contenido de la documentación",
+			"jumpLabel": "Ir a una sección",
+			"jumpPlaceholder": "Contenido…",
+			"wholeDocument": "← Documento completo",
+			"empty": "Ninguna tarjeta tiene aún un {field}."
+		},
+		"empty": {
+			"title": "Aún no hay documentación",
+			"description": "Dale a una tarjeta un slug {field} y se une a este documento. Registra los slugs en orden en {handle} como {listField} para ponerles nombre y definir cómo se leen.",
+			"unknownTitle": "No existe esa sección",
+			"unknownSection": "Ninguna tarjeta declara {field} {section}."
+		},
+		"export": {
+			"button": "Exportar como PDF",
+			"blockedTitle": "Ventana emergente bloqueada",
+			"blockedMessage": "Permite las ventanas emergentes en este sitio, o pulsa {shortcut} y elige «Guardar como PDF»."
+		},
+		"print": {
+			"action": "Imprimir",
+			"preparing": "Preparando…",
+			"windowTitle": "Imprimir",
+			"empty": "Aún no hay nada que imprimir: ninguna tarjeta tiene un slug {field}.",
+			"hint": {
+				"waiting": "Dibujando los diagramas: el documento estará listo en un momento.",
+				"ready": "Elige «Guardar como PDF» como destino en el cuadro de impresión.",
+				"partial": "Algunos diagramas no se dibujaron. Imprime de todos modos o recarga la ventana."
+			}
+		}
+	},
+	"edit": {
+		"hint": "⌘↩ guardar · esc cancelar",
+		"emptyPlaceholder": "vacío: haz clic para editar",
+		"clickToEdit": "Haz clic para editar",
+		"toast": {
+			"stale": "La tarjeta cambió en el disco: se recargó",
+			"readonly": "El visor es de solo lectura",
+			"saveFailed": "Error al guardar",
+			"syncPoint": "Punto de sincronización fijado en {sha}"
+		}
+	},
+	"features": {
+		"empty": "Aún no hay tarjetas FEATURE. Una FEATURE agrupa una parte coherente del trabajo futuro: crea una en {path}, conecta las tarjetas que toca y aparecerá aquí.",
+		"sectionEmpty": "Aún no hay nada aquí.",
+		"section": {
+			"upNext": "A continuación",
+			"shipped": "Publicadas"
+		},
+		"pr": {
+			"link": "PR ↗",
+			"number": "PR {pr}"
+		}
+	},
+	"graph": {
+		"empty": {
+			"title": "Este plan aún no tiene tarjetas."
+		},
+		"canvasLabel": {
+			"one": "Grafo de Constellation: {count} tarjeta. Usa el cuadro de búsqueda para encontrar un nodo; arrastra para mover; usa la rueda para hacer zoom; Escape borra la selección.",
+			"many": "Grafo de Constellation: {count} tarjetas. Usa el cuadro de búsqueda para encontrar un nodo; arrastra para mover; usa la rueda para hacer zoom; Escape borra la selección.",
+			"other": "Grafo de Constellation: {count} tarjetas. Usa el cuadro de búsqueda para encontrar un nodo; arrastra para mover; usa la rueda para hacer zoom; Escape borra la selección."
+		},
+		"search": {
+			"placeholder": "Buscar nodos…",
+			"label": "Buscar nodos en el grafo"
+		},
+		"control": {
+			"zoomIn": "Acercar",
+			"zoomOut": "Alejar",
+			"fit": "Ajustar a la vista",
+			"reset": "Restablecer",
+			"resetLabel": "Restablecer la vista"
+		},
+		"panel": {
+			"open": "Abrir tarjeta →"
+		},
+		"tabs": {
+			"group": "Vista de Constellation",
+			"graph": {
+				"label": "Grafo",
+				"hint": "Nodos agrupados por fuerzas: qué se conecta con qué"
+			},
+			"atlas": {
+				"label": "Atlas",
+				"hint": "Una ciudad isométrica: qué forma tiene el sistema"
+			}
+		}
+	},
+	"home": {
+		"noPlan": "Aún no hay {file}: ejecuta `{command}`.",
+		"countValue": "{count}",
+		"health": {
+			"lastSynced": "sincronizado {when}",
+			"noSyncPoint": "sin punto de sincronización",
+			"sinceMarker": "{commits} / {changes} desde entonces",
+			"codeCommits": {
+				"one": "{count} commit de código",
+				"many": "{count} commits de código",
+				"other": "{count} commits de código"
+			},
+			"planChanges": {
+				"one": "{count} cambio en el plan",
+				"many": "{count} cambios en el plan",
+				"other": "{count} cambios en el plan"
+			},
+			"planDirty": "cambios del plan sin commit",
+			"setSyncPoint": "Fijar punto de sincronización",
+			"updateSyncPoint": "Actualizar punto de sincronización",
+			"chip": {
+				"cards": "tarjetas",
+				"connections": "conexiones",
+				"errors": {
+					"one": "{count} error",
+					"many": "{count} errores",
+					"other": "{count} errores"
+				},
+				"warnings": {
+					"one": "{count} aviso",
+					"many": "{count} avisos",
+					"other": "{count} avisos"
+				},
+				"clean": "limpio",
+				"integrity": "integridad",
+				"drifted": "desfasadas",
+				"untracked": "sin seguimiento",
+				"noDrift": "sin desfase",
+				"code": "código"
+			}
+		},
+		"releases": {
+			"title": "Lanzamientos",
+			"latestTag": "{tag} etiquetado",
+			"packageVersion": "{version} en {file}",
+			"noTags": "aún no hay etiquetas",
+			"empty": "Aún no hay tarjetas RELEASE. Una RELEASE marca un hito de versión; las tarjetas FEATURE la apuntan con {releaseField} y se agrupan por {changeField}.",
+			"tagged": "etiquetado",
+			"breakingCount": {
+				"one": "{count} incompatible",
+				"many": "{count} incompatibles",
+				"other": "{count} incompatibles"
+			},
+			"noFeatures": "Aún no hay tarjetas FEATURE que apunten a este lanzamiento.",
+			"open": "Abrir {handle} →",
+			"summary": {
+				"shipped": "publicado",
+				"noFeatures": "aún sin funcionalidades",
+				"features": {
+					"one": "{count} funcionalidad",
+					"many": "{count} funcionalidades",
+					"other": "{count} funcionalidades"
+				},
+				"progress": {
+					"one": "{shipped} de {count} funcionalidad publicada",
+					"many": "{shipped} de {count} funcionalidades publicadas",
+					"other": "{shipped} de {count} funcionalidades publicadas"
+				}
+			},
+			"group": {
+				"breaking": "Incompatibles",
+				"feature": "Funcionalidades",
+				"fix": "Correcciones",
+				"chore": "Mantenimiento"
+			}
+		},
+		"activity": {
+			"title": "Actividad",
+			"kind": {
+				"plan": "plan",
+				"code": "código"
+			},
+			"syncTag": "sinc.",
+			"moreCards": "+{count}",
+			"empty": "Aún no hay commits: la actividad aparece cuando el repositorio tiene historial."
+		},
+		"drift": {
+			"title": "Desfase del código",
+			"nothingTracked": "aún no hay nada con seguimiento",
+			"claimsHold": {
+				"one": "{count} afirmación sigue vigente",
+				"many": "{count} afirmaciones siguen vigentes",
+				"other": "{count} afirmaciones siguen vigentes"
+			},
+			"claimsDrifted": {
+				"one": "{drifted} de {count} afirmación desfasada",
+				"many": "{drifted} de {count} afirmaciones desfasadas",
+				"other": "{drifted} de {count} afirmaciones desfasadas"
+			},
+			"filesChanged": {
+				"one": "{count} archivo cambiado",
+				"many": "{count} archivos cambiados",
+				"other": "{count} archivos cambiados"
+			},
+			"baseline": {
+				"verified": "desde la verificación",
+				"cardCommit": "desde el último commit de la tarjeta",
+				"syncMarker": "desde el punto de sincronización",
+				"argument": "desde la base",
+				"fallback": "desde la referencia"
+			},
+			"overflow": {
+				"one": "+{count} tarjeta desactualizada más",
+				"many": "+{count} tarjetas desactualizadas más",
+				"other": "+{count} tarjetas desactualizadas más"
+			},
+			"untracked": {
+				"one": "{count} afirmación sin referencia: {hint}",
+				"many": "{count} afirmaciones sin referencia: {hint}",
+				"other": "{count} afirmaciones sin referencia: {hint}"
+			},
+			"untrackedHint": "haz commit de ellas, o márcalas con {tool}, para seguir su código"
+		},
+		"notes": {
+			"title": "Notas",
+			"kind": {
+				"decision": "decisión",
+				"gotcha": "trampa",
+				"state": "estado",
+				"deviation": "desvío",
+				"verified": "verificada"
+			},
+			"empty": "Aún no hay notas: {tool} escribe decisiones y trampas duraderas en las tarjetas; las últimas aparecen aquí."
+		},
+		"repos": {
+			"title": "Repositorios conectados",
+			"hint": "Planes separados, cada uno en su propio espacio de trabajo: abre uno aquí o desde el selector de la parte superior de la barra lateral.",
+			"current": "Este espacio de trabajo",
+			"cardCount": {
+				"one": "{count} tarjeta",
+				"many": "{count} tarjetas",
+				"other": "{count} tarjetas"
+			},
+			"notServed": "Este visor no lo sirve"
+		}
+	},
+	"nav": {
+		"planLabel": "Navegación del plan",
+		"overview": "Resumen",
+		"tasks": "Tareas",
+		"docs": "Documentación",
+		"constellation": "Constellation",
+		"styleGuide": "Guía de estilo",
+		"drawer": {
+			"title": "Navegación",
+			"close": "Cerrar la navegación"
+		}
+	},
+	"palette": {
+		"label": "Paleta de comandos",
+		"placeholder": "Busca tarjetas, páginas y acciones…",
+		"empty": "Nada coincide con eso.",
+		"page": {
+			"tasksBoard": "Tareas: tablero",
+			"tasksList": "Tareas: lista",
+			"graph": "Constellation: grafo",
+			"atlas": "Constellation: atlas"
+		},
+		"group": {
+			"goTo": "Ir a",
+			"scheme": "Esquema"
+		},
+		"hint": {
+			"active": "Activo"
+		},
+		"keyword": {
+			"page": "página"
+		}
+	},
+	"shell": {
+		"header": {
+			"openNav": "Abrir la navegación",
+			"searchLabel": "Buscar tarjetas, páginas y acciones",
+			"searchPlaceholder": "Buscar…",
+			"openRepo": "Abrir el repositorio en GitHub"
+		}
+	},
+	"status": {
+		"planned": "planificada",
+		"building": "en curso",
+		"built": "implementada",
+		"verified": "verificada",
+		"none": "sin estado"
+	},
+	"style": {
+		"guide": {
+			"title": "Guía de estilo",
+			"emptyTitle": "Aún no hay tarjetas STYLE",
+			"emptyDescription": "Añade una tarjeta en style/ con una category y una lista de tokens (colores, fuentes, una escala tipográfica, espaciados, radios o sombras) y se mostrará aquí."
+		},
+		"fontStyles": "Estilos de fuente",
+		"specimen": {
+			"uppercase": "Mayúsculas",
+			"lowercase": "Minúsculas",
+			"numbers": "Números",
+			"characters": "Caracteres"
+		},
+		"typeScale": {
+			"sample": "El veloz murciélago hindú comía feliz cardillo y kiwi"
+		}
+	},
+	"sync": {
+		"state": {
+			"inSync": "Sincronizado",
+			"drifted": "Desfasado",
+			"dirty": "Cambios sin commit",
+			"neverSynced": "Sin sincronizar"
+		},
+		"badge": {
+			"title": "Actualidad del plan, calculada en vivo a partir de git. Haz clic para ver el panel de actividad.",
+			"markerUnreachable": "marcador inaccesible",
+			"commitsBehind": {
+				"one": "{count} commit por detrás",
+				"many": "{count} commits por detrás",
+				"other": "{count} commits por detrás"
+			},
+			"cardsAhead": {
+				"one": "{count} tarjeta por delante",
+				"many": "{count} tarjetas por delante",
+				"other": "{count} tarjetas por delante"
+			}
+		}
+	},
+	"time": {
+		"justNow": "ahora mismo"
+	},
+	"types": {
+		"plan": {
+			"name": "Planes",
+			"single": "plan"
+		},
+		"feature": {
+			"name": "Funcionalidades",
+			"single": "funcionalidad"
+		},
+		"release": {
+			"name": "Lanzamientos",
+			"single": "lanzamiento"
+		},
+		"diagram": {
+			"name": "Arquitectura",
+			"single": "diagrama"
+		},
+		"doc": {
+			"name": "Documentos",
+			"single": "documento"
+		},
+		"decision": {
+			"name": "Decisiones",
+			"single": "decisión"
+		},
+		"agent": {
+			"name": "Reglas para agentes",
+			"single": "regla para agentes"
+		},
+		"api": {
+			"name": "Endpoints de API",
+			"single": "endpoint de API"
+		},
+		"db": {
+			"name": "Base de datos",
+			"single": "tabla de base de datos"
+		},
+		"datatype": {
+			"name": "Tipos de datos",
+			"single": "tipo de datos"
+		},
+		"event": {
+			"name": "Eventos",
+			"single": "evento"
+		},
+		"job": {
+			"name": "Trabajos",
+			"single": "trabajo"
+		},
+		"flow": {
+			"name": "Flujos",
+			"single": "flujo"
+		},
+		"state": {
+			"name": "Máquinas de estado",
+			"single": "máquina de estado"
+		},
+		"role": {
+			"name": "Roles",
+			"single": "rol"
+		},
+		"external": {
+			"name": "Servicios externos",
+			"single": "servicio externo"
+		},
+		"page": {
+			"name": "Páginas",
+			"single": "página"
+		},
+		"component": {
+			"name": "Componentes",
+			"single": "componente"
+		},
+		"style": {
+			"name": "Guía de estilo",
+			"single": "estilo"
+		},
+		"file": {
+			"name": "Archivos del repo",
+			"single": "archivo del repo"
+		},
+		"test": {
+			"name": "Pruebas",
+			"single": "prueba"
+		},
+		"group": {
+			"overview": "Resumen",
+			"system": "Sistema",
+			"interface": "Interfaz",
+			"code": "Código y pruebas"
+		}
+	},
+	"ui": {
+		"sidebar": {
+			"defaultLabel": "Principal",
+			"expand": "Mostrar barra lateral",
+			"collapse": "Ocultar barra lateral"
+		},
+		"command": {
+			"label": "Paleta de comandos",
+			"placeholder": "Escribe un comando o busca…",
+			"empty": "No se encontraron resultados."
+		},
+		"search": {
+			"placeholder": "Buscar…",
+			"clear": "Borrar búsqueda"
+		},
+		"select": {
+			"placeholder": "Selecciona…"
+		},
+		"alertDialog": {
+			"confirm": "Continuar"
+		},
+		"toaster": {
+			"label": "Notificaciones"
+		},
+		"splitPanel": {
+			"resize": "Redimensionar paneles"
+		}
+	},
+	"workspace": {
+		"listLabel": "Espacios de trabajo",
+		"group": {
+			"self": "Este repositorio",
+			"connected": "Repositorios conectados"
+		},
+		"unavailable": "No disponible",
+		"fallbackName": "Plan"
+	}
+}
