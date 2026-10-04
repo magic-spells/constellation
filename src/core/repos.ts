@@ -30,19 +30,67 @@ function repoRootOf(planRoot: string): string {
 /**
  * The folder whose code this plan describes. PLAN-PROJECT may override the
  * default (the directory containing constellation/) with a relative or absolute
- * `code_root` path.
+ * `code_root` path — but only one that stays inside the plan's repository (see
+ * resolveCodeRoot). One that leaves it falls back to the default, so no reader
+ * or writer downstream can be steered outside the repo by a cloned plan.md.
  */
 export async function codeRootFor(planRoot: string): Promise<string> {
-  const defaultRoot = path.dirname(planRoot);
-  try {
-    const raw = await readFile(path.join(planRoot, 'plan.md'), 'utf8');
-    const configured = parseFile(raw).frontmatter.code_root;
-    return typeof configured === 'string'
-      ? path.resolve(defaultRoot, configured)
-      : defaultRoot;
-  } catch {
-    return defaultRoot;
+  return (await resolveCodeRoot(planRoot)).codeRoot;
+}
+
+export interface CodeRootResolution {
+  /** The code root to use: `code_root` when it stays inside, else the default. */
+  codeRoot: string;
+  /** Why a configured `code_root` was refused, or null. */
+  escape: string | null;
+}
+
+/** realpath of `p`, or of its deepest existing ancestor with the rest re-joined. */
+async function realpathLoose(p: string): Promise<string> {
+  const abs = path.resolve(p);
+  const rest: string[] = [];
+  let dir = abs;
+  for (;;) {
+    try {
+      return path.join(await realpath(dir), ...rest.reverse());
+    } catch {
+      const parent = path.dirname(dir);
+      if (parent === dir) return abs;
+      rest.push(path.basename(dir));
+      dir = parent;
+    }
   }
+}
+
+/**
+ * Resolve `code_root`, bounded. plan.md is repo content, so a cloned repo
+ * controls it: `code_root: ../victim` must not move `.constellation/`, the
+ * `.gitignore` write or any code read into another project. Its real path must
+ * lie inside the plan's git repository — or, outside git, inside the folder
+ * that contains the plan. Otherwise the default root is used and `escape` says
+ * why. Never throws.
+ */
+export async function resolveCodeRoot(planRoot: string): Promise<CodeRootResolution> {
+  const defaultRoot = path.dirname(planRoot);
+  let configured: unknown;
+  try {
+    configured = parseFile(await readFile(path.join(planRoot, 'plan.md'), 'utf8')).frontmatter.code_root;
+  } catch {
+    return { codeRoot: defaultRoot, escape: null };
+  }
+  if (typeof configured !== 'string') return { codeRoot: defaultRoot, escape: null };
+  const resolved = path.resolve(defaultRoot, configured);
+  const realPlan = await realpathLoose(planRoot);
+  const repo = await findRepoRoot(realPlan);
+  const bound = await realpathLoose(repo ?? path.dirname(realPlan));
+  const real = await realpathLoose(resolved);
+  if (real === bound || real.startsWith(bound + path.sep)) return { codeRoot: resolved, escape: null };
+  return {
+    codeRoot: defaultRoot,
+    escape:
+      `code_root ${JSON.stringify(configured)} in ${JSON.stringify(path.join(planRoot, 'plan.md'))} ` +
+      `leaves ${repo ? 'the repository' : 'the folder that holds the plan'} (${JSON.stringify(bound)})`,
+  };
 }
 
 /**
@@ -215,8 +263,11 @@ export async function discoverConnectedWorkspaces(
         plans = [];
         const rejected: RejectedPlan[] = [];
         for (const plan of kept) {
+          // plan.codeRoot is already bounded (codeRootFor falls back when
+          // code_root escapes), so ask resolveCodeRoot whether it had to.
           const real = await realpath(plan.codeRoot).catch(() => null);
-          if (real && (real === realGit || real.startsWith(realGit + path.sep))) plans.push(plan);
+          const { escape } = await resolveCodeRoot(plan.root);
+          if (!escape && real && (real === realGit || real.startsWith(realGit + path.sep))) plans.push(plan);
           else {
             // Identified by its plan folder, so nothing outside the repo (the
             // escaping code_root's name) shapes its id or paths.

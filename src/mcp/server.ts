@@ -65,6 +65,7 @@ import {
   upsertConnectedRepo,
 } from '../core/repos.js';
 import type { ConnectedRepo } from '../core/types.js';
+import { showPath } from '../core/no-follow.js';
 import {
   appendLog,
   dropItems,
@@ -78,6 +79,7 @@ import {
   resolveWorkingAnchor,
   setItems,
   trackedWorkingWarning,
+  workingFolderProblem,
   WorkingError,
   type WorkingAnchor,
   type WorkingSetItem,
@@ -778,9 +780,14 @@ async function orientReport(root: string): Promise<Record<string, unknown>> {
   let working: Record<string, unknown> | null = null;
   try {
     const anchor = await anchorForPlan(root);
+    // A folder that is a link or that the repo ships is refused: none of it is
+    // handed to the agent, only why (workingFolderProblem in working.ts).
+    const problem = await workingFolderProblem(anchor);
     const settings = await readWorkingConfig(anchor);
-    const set = settings.config.enabled ? await readWorking(anchor) : null;
-    if (set?.exists) {
+    const set = !problem && settings.config.enabled ? await readWorking(anchor) : null;
+    if (problem) {
+      working = { refused: problem.code, warnings: [problem.message] };
+    } else if (set?.exists) {
       working = { header: set.header, items: set.items };
       const warnings = [...settings.warnings];
       const tracked = await trackedWorkingWarning(anchor);
@@ -2933,7 +2940,7 @@ export function buildServer(options: ServerOptions = {}): McpServer {
         if (anchor && !(await readWorkingConfig(anchor)).config.enabled) {
           return fail(
             'WORKING_DISABLED',
-            `Working memory is switched off for ${path.dirname(anchor.dir)} ` +
+            `Working memory is switched off for ${showPath(path.dirname(anchor.dir))} ` +
               '(.constellation/config.json "enabled": false). That is the user\'s choice — do not ' +
               'change it; they can turn it back on with `constellation working on`.',
           );

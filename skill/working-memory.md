@@ -56,8 +56,10 @@ Dropping with a reason writes the reason to `log/YYYY-MM-DD.md`, which is the hi
 
 Errors: `NO_WORKING_FOLDER` (call `working_init`), `NO_WORKING_ROOT` (no plan and no git
 repo), `WORKING_DISABLED` (the user switched it off for that repo), `NOT_FOUND`,
-`TYPE_IMMUTABLE`, `BAD_ID`, `BAD_TYPE`, `BAD_TEXT` (a newline). Long lines and crowded sets
-come back as `warnings`, not errors.
+`TYPE_IMMUTABLE`, `BAD_ID`, `BAD_TYPE`, `BAD_TEXT` (a newline), `UNSAFE_PATH` (something in
+`.constellation/` is a symbolic link), `UNTRUSTED_WORKING` (git tracks files there, so the
+repo shipped them). Relay the last two to the user and never work around them. Long lines
+and crowded sets come back as `warnings`, not errors.
 
 ## Settings
 
