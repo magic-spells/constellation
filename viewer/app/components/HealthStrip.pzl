@@ -103,7 +103,10 @@ export default class HealthStrip extends PuzzleView {
 	padding: 0.85rem 1.2rem;
 	animation: cst-rise 0.35s ease both;
 }
-.health .hs-main { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.6rem; min-width: 0; }
+/* flex-basis auto, not 0: the verdict and its meta line keep their one-line
+   width, so in a longer language the chips wrap below them as a group instead
+   of squeezing the meta onto a second line under the verdict. */
+.health .hs-main { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.6rem; min-width: 0; }
 
 /* Tone is set once on the wrapper and the icon inherits it through
    currentColor — that is why there is no per-state icon colour anywhere. */

@@ -2,24 +2,26 @@
   <section class="panel panel-activity">
     <h3><Icon name="history" size="0.85rem"/> { t('home.activity.title') }</h3>
     {#if hasRows}
-      <ul class="act-rows">
+      <ul class="act-rows m-0 grid list-none grid-cols-activity gap-x-2.5 gap-y-0.5 p-0">
         {#for row in rows}
           <li key={ row.key } class={ row.rowClass }>
-            <span class="a-when truncate" title={ row.when }>{ row.when }</span>
+            <span class="a-when whitespace-nowrap">{ row.when }</span>
             <span class={ row.kindClass } title={ row.kindLabel }>
               <Icon name={ row.icon } size="0.85rem"/>
-              <span class="a-kind-text min-w-0 truncate">{ row.kindLabel }</span>
+              <span class="a-kind-text whitespace-nowrap">{ row.kindLabel }</span>
             </span>
-            <span class="a-subject">{ row.subject }</span>
-            {#if row.isSyncPoint}<span class="a-tag">{ t('home.activity.syncTag') }</span>{/if}
-            {#if row.hasCards}
-              <span class="a-cards">
-                {#for chip in row.cards}
-                  <a key={ chip.handle } class="a-card" href="{ link(chip.path) }">{ chip.handle }</a>
-                {/for}
-                {#if row.more}<span class="a-more whitespace-nowrap">{ row.more }</span>{/if}
-              </span>
-            {/if}
+            <span class="flex min-w-0 items-baseline gap-2.5">
+              <span class="a-subject">{ row.subject }</span>
+              {#if row.isSyncPoint}<span class="a-tag">{ t('home.activity.syncTag') }</span>{/if}
+              {#if row.hasCards}
+                <span class="a-cards">
+                  {#for chip in row.cards}
+                    <a key={ chip.handle } class="a-card" href="{ link(chip.path) }">{ chip.handle }</a>
+                  {/for}
+                  {#if row.more}<span class="a-more whitespace-nowrap">{ row.more }</span>{/if}
+                </span>
+              {/if}
+            </span>
           </li>
         {/for}
       </ul>
@@ -57,7 +59,10 @@ export default class ActivityPanel extends PuzzleView {
 					kindLabel: row.kindLabel ?? row.kind ?? '',
 					icon: row.icon ?? 'commit',
 					kindClass: `a-kind ${row.kind ?? ''}`,
-					rowClass: row.isSyncPoint ? 'act-row sync' : 'act-row',
+					// Each row is a subgrid of the list, so the date and kind columns are
+					// as wide as their widest entry in the active language and every
+					// subject still starts on one line.
+					rowClass: `act-row col-span-full grid grid-cols-subgrid items-baseline${row.isSyncPoint ? ' sync' : ''}`,
 					when: row.when ?? '',
 					subject: row.subject ?? '',
 					isSyncPoint: !!row.isSyncPoint,
@@ -72,17 +77,14 @@ export default class ActivityPanel extends PuzzleView {
 </script>
 
 <style>
-.act-rows { display: flex; flex-direction: column; gap: 0.1rem; margin: 0; padding: 0; list-style: none; }
-.act-row { display: flex; align-items: baseline; gap: 0.6rem; min-width: 0; padding: 0.3rem 0; font-size: 0.85rem; }
-.act-row .a-when { flex: none; width: 4.6rem; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
-/* The kind tag is the whole point of merging the two streams — keep it a fixed
-   width so the subjects still line up into a readable column. */
+.act-row { min-width: 0; padding: 0.3rem 0; font-size: 0.85rem; }
+.act-row .a-when { color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
+/* The kind tag is the whole point of merging the two streams. Its grid column
+   keeps the subjects lined up into a readable column. */
 .act-row .a-kind {
-	flex: none;
 	display: inline-flex;
 	align-items: center;
 	gap: 0.28rem;
-	width: 3.6rem;
 	color: var(--color-faint);
 	font-family: var(--font-mono);
 	font-size: 0.62rem;

@@ -49,7 +49,8 @@ import { t } from '../../lib/i18n.js';
 // tabindex / aria-grabbed semantics fight the plain links a read-only board
 // wants. To restore drag when status-flip-on-drop lands:
 // `puzzle add piece kanban --overwrite`, then re-merge the read-only additions
-// (per-column empty hints, the column dot, the anchor-based KanbanCard).
+// (per-column empty hints, the column dot, the anchor-based KanbanCard,
+// the shared-width columns).
 //
 // DATA SHAPE (cards live inside their column):
 //   columns: [
@@ -99,7 +100,11 @@ export default class Kanban extends PuzzleView {
     return {
       rootClass: ['w-full', props.class || ''].filter(Boolean).join(' '),
       boardClass: 'flex items-start gap-4 overflow-x-auto pb-2',
-      columnClass: 'flex w-72 shrink-0 flex-col rounded-xl border border-border bg-surface-sunken',
+      // The registry piece fixes columns at w-72 and scrolls the board sideways
+      // (it is built for any number of columns). This board always has four, so
+      // the columns share the width instead, down to min-w-52; only below that
+      // (a phone, a narrow window) does the piece's overflow-x-auto scroll.
+      columnClass: 'flex min-w-52 max-w-96 flex-1 basis-0 flex-col rounded-xl border border-border bg-surface-sunken',
       boardLabel: props.label || t('board.kanban.defaultLabel'),
       viewColumns,
     };

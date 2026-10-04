@@ -15,7 +15,7 @@
               <li key={ row.handle } class="drift-row">
                 <a class="d-handle" href="{ link(row.path) }">{ row.handle }</a>
                 <Badge variant={ row.statusVariant } class={ row.statusTint }>{ row.statusText }</Badge>
-                <span class="d-meta max-w-full truncate">{ row.meta }</span>
+                <span class="d-meta min-w-0">{ row.meta }</span>
               </li>
             {/for}
           </ul>
@@ -126,7 +126,9 @@ export default class DriftPanel extends PuzzleView {
 	white-space: nowrap;
 }
 .drift-row .d-handle:hover { color: var(--color-ink); text-decoration: underline; }
-.drift-row .d-meta { margin-left: auto; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; white-space: nowrap; }
+/* Beside the handle on a wide panel; on a narrow one the row wraps it onto its
+   own line, and a phrase longer than that line wraps too rather than clip. */
+.drift-row .d-meta { margin-left: auto; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
 .panel-drift .d-overflow { margin: 0.35rem 0 0; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
 
 /* The untracked bucket is a footnote with a fix in it, never a list. */

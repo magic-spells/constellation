@@ -2,14 +2,16 @@
   <section class="panel panel-notes">
     <h3>{ t('home.notes.title') }</h3>
     {#if hasRows}
-      <ul class="note-rows">
+      <ul class="note-rows m-0 grid list-none grid-cols-notes gap-x-2 gap-y-0.5 p-0">
         {#for row in rows}
-          <li key={ row.key } class="note-row">
+          <li key={ row.key } class="note-row col-span-full grid grid-cols-subgrid items-baseline">
             <span class={ row.glyphClass }>{ row.glyph }</span>
             <span class={ row.kindClass } title={ row.kindLabel }>{ row.kindLabel }</span>
-            <span class="n-text">{ row.text }</span>
-            <a class="n-card" href="{ link(row.path) }">{ row.handle }</a>
-            <span class="n-when">{ row.when }</span>
+            <span class="flex min-w-0 items-baseline gap-2">
+              <span class="n-text">{ row.text }</span>
+              <a class="n-card" href="{ link(row.path) }">{ row.handle }</a>
+              <span class="n-when">{ row.when }</span>
+            </span>
           </li>
         {/for}
       </ul>
@@ -59,10 +61,12 @@ export default class NotesPanel extends PuzzleView {
 </script>
 
 <style>
-.note-rows { display: flex; flex-direction: column; gap: 0.1rem; margin: 0; padding: 0; list-style: none; }
-.note-row { display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; padding: 0.3rem 0; font-size: 0.85rem; }
-.note-row .n-glyph { flex: none; color: var(--color-faint); font-size: 0.72rem; }
-.note-row .n-kind { flex: none; width: 4.6rem; color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
+/* Each row is a subgrid of the list: the kind column is as wide as the widest
+   kind in the active language (German "Entscheidung"), up to the cap in
+   --grid-template-columns-notes, past which a kind truncates. */
+.note-row { min-width: 0; padding: 0.3rem 0; font-size: 0.85rem; }
+.note-row .n-glyph { color: var(--color-faint); font-size: 0.72rem; }
+.note-row .n-kind { color: var(--color-faint); font-family: var(--font-mono); font-size: 0.72rem; }
 .note-row .n-glyph.brand, .note-row .n-kind.brand { color: var(--color-brand); }
 .note-row .n-glyph.warn, .note-row .n-kind.warn { color: var(--color-warning); }
 .note-row .n-glyph.good, .note-row .n-kind.good { color: var(--color-success); }

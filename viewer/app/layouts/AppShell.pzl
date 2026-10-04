@@ -55,7 +55,7 @@
         </button>
         <!-- The page, not the project: the project names itself at the top of
              the rail, in the workspace switcher. -->
-        <h1 class="min-w-0 truncate text-sm font-semibold text-ink">{ pageTitle }</h1>
+        <h1 class="shrink-0 text-sm font-semibold text-ink">{ pageTitle }</h1>
         <!-- Below sm the page title needs the room; Overview still shows sync.
              min-w-0, not shrink-0: a long translated state truncates. -->
         <div class="hidden min-w-0 sm:block">
