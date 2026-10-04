@@ -1,1 +1,722 @@
-{}
+{
+	"common": {
+		"action": {
+			"cancel": "Annuleren",
+			"close": "Sluiten",
+			"dismiss": "Negeren"
+		},
+		"state": {
+			"loading": "Laden…"
+		}
+	},
+	"api": {
+		"error": {
+			"requestFailed": "Verzoek mislukt met status {status}"
+		}
+	},
+	"appearance": {
+		"trigger": {
+			"title": "Weergave – kleurenschema, modus en taal",
+			"srLabel": "Weergave: {scheme}, {mode}"
+		},
+		"title": "Weergave",
+		"summary": "{scheme} · {mode}",
+		"schemeLegend": "Kleurenschema",
+		"modeLegend": "Modus",
+		"languageLabel": "Taal",
+		"languageError": "Kan de taal niet wijzigen. Probeer het opnieuw.",
+		"scheme": {
+			"observatory": {
+				"label": "Observatorium",
+				"description": "Het eigen schema van Constellation – een diepblauwe nachthemel, of een koele dageraad in licht."
+			},
+			"default": {
+				"label": "Standaard",
+				"description": "Koel bijna-zwart met een marineblauwe tint en een indigo accent – evenwichtig, stijlvol, premium."
+			},
+			"dim": {
+				"label": "Gedimd",
+				"description": "Blauwgrijs op halve verzadiging met zachtere tekst – het palet met weinig contrast."
+			},
+			"warm": {
+				"label": "Warm",
+				"description": "Ivoor, zandkleur en bruin met een kleioranje accent – het Claude-palet."
+			},
+			"void": {
+				"label": "Leegte",
+				"description": "Monochroom van wit tot echt zwart – zonder randen, veel contrast, à la Vercel."
+			}
+		},
+		"mode": {
+			"light": {
+				"label": "Licht",
+				"description": "Alles licht – een lichtgrijs kader met een wit paneel erop."
+			},
+			"medium": {
+				"label": "Middel",
+				"description": "Zacht donker – donkere structuur, de vlakken opgetild naar middengrijs en de tekst een stap gedimd."
+			},
+			"dark": {
+				"label": "Donker",
+				"description": "Alles donker, het kader een stap donkerder dan het paneel."
+			},
+			"system": {
+				"label": "Systeem",
+				"description": "Volgt het besturingssysteem tussen licht en donker."
+			}
+		}
+	},
+	"atlas": {
+		"empty": {
+			"title": "Dit plan heeft nog geen kaarten.",
+			"hint": "De atlas tekent wat het plan bevat – schrijf een kaart en er verschijnt een gebouw."
+		},
+		"canvasLabel": {
+			"one": "Architectuuratlas – {count} kaart als stad",
+			"other": "Architectuuratlas – {count} kaarten als stad"
+		},
+		"lens": {
+			"label": "Lens",
+			"status": {
+				"label": "Status",
+				"hint": "Kleur op status: – waar elke kaart in haar levenscyclus staat."
+			},
+			"degree": {
+				"label": "Verbindingen",
+				"hint": "Hoogte op aantal verbonden kaarten. Hubs zijn torens."
+			},
+			"drift": {
+				"label": "Drift",
+				"hint": "Gekoppelde code die veranderd is sinds de kaart werd geverifieerd. Steigers = afgedreven."
+			},
+			"recency": {
+				"label": "Recentheid",
+				"hint": "Hoogte op hoe recent de kaart is gewijzigd. Hoog = vers."
+			},
+			"size": {
+				"label": "Codeomvang",
+				"hint": "Hoogte op regels gekoppelde code. Vereist FILE-koppelingen."
+			}
+		},
+		"engine": {
+			"group": "Weergavestijl",
+			"flat": {
+				"label": "Plat",
+				"title": "Plattegrond – van bovenaf gezien, met de straten waarlangs data loopt"
+			},
+			"lit": {
+				"label": "3D",
+				"title": "Hetzelfde plan als 3D-stad van blokken"
+			}
+		},
+		"control": {
+			"zoomIn": "Inzoomen",
+			"zoomOut": "Uitzoomen",
+			"fit": "Hele stad in beeld",
+			"export": "PNG van de atlas downloaden"
+		},
+		"inside": {
+			"back": "← Weer naar buiten"
+		},
+		"legend": "→ naar binnen · ← naar buiten · sleep om te pannen · scroll om te zoomen · hover om te lezen",
+		"readout": {
+			"parts": {
+				"one": "{count} onderdeel · {names}",
+				"other": "{count} onderdelen · {names}"
+			},
+			"partsMore": {
+				"one": "{count} onderdeel · {names}…",
+				"other": "{count} onderdelen · {names}…"
+			},
+			"drifted": "afgedreven sinds verificatie",
+			"driftedWithParts": "afgedreven sinds verificatie · {parts}"
+		},
+		"trace": {
+			"region": "Flow volgen",
+			"close": "Stoppen met volgen",
+			"prev": "Vorige stap",
+			"next": "Volgende stap",
+			"play": "Afspelen",
+			"pause": "Pauze",
+			"step": "{step}/{total}",
+			"at": "bij {handle}"
+		}
+	},
+	"board": {
+		"label": "Featurebord",
+		"empty": {
+			"title": "Nog geen FEATURE-kaarten",
+			"description": "Een FEATURE bundelt een samenhangend deel van toekomstig werk. Maak er een aan in {path}, verbind de kaarten die het raakt, en het komt op dit bord."
+		},
+		"column": {
+			"planned": {
+				"title": "Gepland",
+				"empty": "Niets in de wachtrij."
+			},
+			"building": {
+				"title": "Bezig",
+				"empty": "Niets onderhanden."
+			},
+			"built": {
+				"title": "Gebouwd",
+				"empty": "Nog niets gebouwd."
+			},
+			"verified": {
+				"title": "Geverifieerd",
+				"empty": "Nog niets geverifieerd."
+			},
+			"emptyFallback": "Nog niets hier."
+		},
+		"overflow": {
+			"one": "+{count} geverifieerde kaart meer",
+			"other": "+{count} geverifieerde kaarten meer"
+		},
+		"kanban": {
+			"defaultLabel": "Bord"
+		},
+		"tasks": {
+			"title": "Taken",
+			"tab": {
+				"board": "Bord",
+				"list": "Lijst"
+			},
+			"blurb": {
+				"board": "Elke FEATURE-kaart op {field} – een kaart verschuift van kolom als de status verandert. Alleen-lezen.",
+				"list": "Elke FEATURE-kaart naar wat eraan komt en wat al is uitgebracht, met de release waarin het zit."
+			}
+		},
+		"dialog": {
+			"close": "Voorbeeld sluiten",
+			"noBody": "Deze kaart heeft nog geen inhoud.",
+			"connections": "Verbindingen",
+			"connectionCount": {
+				"one": "{count} verbinding",
+				"other": "{count} verbindingen"
+			},
+			"openCard": "Volledige kaart openen →",
+			"notFound": "{handle} staat niet in dit plan."
+		}
+	},
+	"card": {
+		"page": {
+			"delete": "verwijderen",
+			"kindPlaceholder": "+ kind",
+			"bodyPlaceholder": "+ schrijf iets"
+		},
+		"section": {
+			"fields": "Velden",
+			"connections": "Verbindingen"
+		},
+		"fields": {
+			"add": "+ veld",
+			"addPlaceholder": "sleutel: waarde",
+			"invalidYaml": "ongeldige YAML – niet opgeslagen"
+		},
+		"connections": {
+			"add": "+ verbinden",
+			"addPlaceholder": "HANDLE…",
+			"unknownTarget": "{handle} is geen bestaande kaart",
+			"removeTitle": "verbinding verwijderen",
+			"removeLabel": "Verbinding met {handle} verwijderen"
+		},
+		"notFound": {
+			"title": "Kaart niet gevonden",
+			"description": "{handle} staat niet in dit plan.",
+			"descriptionNoHandle": "Deze kaart staat niet in dit plan."
+		},
+		"unknownType": "Onbekend type: {folder}",
+		"typeIntro": {
+			"hint": "Kies een kaart in de lijst om hem te bekijken.",
+			"count": {
+				"one": "{count} kaart",
+				"other": "{count} kaarten"
+			}
+		},
+		"list": {
+			"filterPlaceholder": "Filteren…",
+			"new": "+ nieuw: {type}",
+			"noMatches": "Geen resultaten",
+			"empty": "Nog niets hier"
+		},
+		"create": {
+			"title": "Nieuwe kaart: {type}",
+			"titleNoType": "Nieuwe kaart",
+			"description": "Handles zijn in hoofdletters. Het typeprefix ligt vast door de map waarin je zit.",
+			"handleLabel": "Handle",
+			"handlePlaceholder": "TICKETS",
+			"nameLabel": "Naam",
+			"optional": "optioneel",
+			"namePlaceholder": "Wat deze kaart is",
+			"preview": "Maakt {handle} aan",
+			"submit": "Kaart aanmaken",
+			"errorEmpty": "Vul een handle in.",
+			"errorInvalid": "Handles bestaan alleen uit A–Z, 0–9 en streepjes.",
+			"errorFailed": "Kan de kaart niet aanmaken."
+		},
+		"delete": {
+			"title": "{handle} verwijderen?",
+			"titleNoHandle": "Kaart verwijderen?",
+			"confirm": "Kaart verwijderen",
+			"referenced": {
+				"single": "Verwijdert {handle}. {handles} verwijst ernaar – die verbinding wijst dan nergens meer heen.",
+				"multiple": "Verwijdert {handle}. {handles} verwijzen ernaar – die verbindingen wijzen dan nergens meer heen."
+			},
+			"referencedAt": {
+				"single": "Verwijdert {handle} ({path}). {handles} verwijst ernaar – die verbinding wijst dan nergens meer heen.",
+				"multiple": "Verwijdert {handle} ({path}). {handles} verwijzen ernaar – die verbindingen wijzen dan nergens meer heen."
+			},
+			"unreferenced": "Verwijdert {handle}. Niets anders in het plan verwijst ernaar.",
+			"unreferencedAt": "Verwijdert {handle} ({path}). Niets anders in het plan verwijst ernaar.",
+			"done": "{handle} verwijderd.",
+			"doneDangling": {
+				"single": "{handle} verwijderd – {handles} verwijst nu nergens meer naar.",
+				"multiple": "{handle} verwijderd – {handles} verwijzen nu nergens meer naar."
+			}
+		}
+	},
+	"docs": {
+		"eyebrow": "Documentatie",
+		"defaultTitle": "Documentatie",
+		"imprint": "v{version} · {date}",
+		"card": {
+			"openSource": "{handle} openen"
+		},
+		"toc": {
+			"heading": "Inhoud",
+			"navLabel": "Inhoudsopgave van de documentatie",
+			"jumpLabel": "Naar een sectie springen",
+			"jumpPlaceholder": "Inhoud…",
+			"wholeDocument": "← Heel document",
+			"empty": "Nog geen kaart heeft een {field}."
+		},
+		"empty": {
+			"title": "Nog geen documentatie",
+			"description": "Geef een kaart een {field}-slug en ze komt in dit document. Zet de slugs op volgorde op {handle} als {listField} om ze een naam te geven en te bepalen hoe ze lezen.",
+			"unknownTitle": "Sectie niet gevonden",
+			"unknownSection": "Geen kaart declareert {field} {section}."
+		},
+		"export": {
+			"button": "Exporteren als pdf",
+			"blockedTitle": "Pop-up geblokkeerd",
+			"blockedMessage": "Sta pop-ups toe voor deze site, of druk op {shortcut} en kies “Opslaan als pdf”."
+		},
+		"print": {
+			"action": "Afdrukken",
+			"preparing": "Voorbereiden…",
+			"windowTitle": "Afdrukken",
+			"empty": "Nog niets om af te drukken – geen kaart heeft een {field}-slug.",
+			"hint": {
+				"waiting": "De diagrammen worden gerenderd – het document is zo klaar.",
+				"ready": "Kies “Opslaan als pdf” als bestemming in het afdrukvenster.",
+				"partial": "Sommige diagrammen zijn niet gerenderd. Druk toch af, of laad het venster opnieuw."
+			}
+		}
+	},
+	"edit": {
+		"hint": "⌘↩ opslaan · esc annuleren",
+		"emptyPlaceholder": "leeg – klik om te bewerken",
+		"clickToEdit": "Klik om te bewerken",
+		"toast": {
+			"stale": "Kaart gewijzigd op schijf – opnieuw geladen",
+			"readonly": "De viewer is alleen-lezen",
+			"saveFailed": "Opslaan mislukt",
+			"syncPoint": "Syncpunt gezet op {sha}"
+		}
+	},
+	"features": {
+		"empty": "Nog geen FEATURE-kaarten. Een FEATURE bundelt een samenhangend deel van toekomstig werk – maak er een aan in {path}, verbind de kaarten die het raakt, en het verschijnt hier.",
+		"sectionEmpty": "Nog niets hier.",
+		"section": {
+			"upNext": "Hierna",
+			"shipped": "Uitgebracht"
+		},
+		"pr": {
+			"link": "PR ↗",
+			"number": "PR {pr}"
+		}
+	},
+	"graph": {
+		"empty": {
+			"title": "Dit plan heeft nog geen kaarten."
+		},
+		"canvasLabel": {
+			"one": "Constellation-graaf – {count} kaart. Gebruik het zoekveld om een knooppunt te vinden; sleep om te pannen; scroll om te zoomen; Escape wist de selectie.",
+			"other": "Constellation-graaf – {count} kaarten. Gebruik het zoekveld om een knooppunt te vinden; sleep om te pannen; scroll om te zoomen; Escape wist de selectie."
+		},
+		"search": {
+			"placeholder": "Knooppunten zoeken…",
+			"label": "Knooppunten in de graaf zoeken"
+		},
+		"control": {
+			"zoomIn": "Inzoomen",
+			"zoomOut": "Uitzoomen",
+			"fit": "Passend maken",
+			"reset": "Herstellen",
+			"resetLabel": "Weergave herstellen"
+		},
+		"panel": {
+			"open": "Kaart openen →"
+		},
+		"tabs": {
+			"group": "Constellation-weergave",
+			"graph": {
+				"label": "Graaf",
+				"hint": "Geclusterde knooppunten – wat met wat verbonden is"
+			},
+			"atlas": {
+				"label": "Atlas",
+				"hint": "Een isometrische stad – welke vorm het systeem heeft"
+			}
+		}
+	},
+	"home": {
+		"noPlan": "Nog geen {file} – voer `{command}` uit.",
+		"countValue": "{count}",
+		"health": {
+			"lastSynced": "laatst gesynct {when}",
+			"noSyncPoint": "nog geen syncpunt",
+			"sinceMarker": "{commits} / {changes} sindsdien",
+			"codeCommits": {
+				"one": "{count} codecommit",
+				"other": "{count} codecommits"
+			},
+			"planChanges": {
+				"one": "{count} planwijziging",
+				"other": "{count} planwijzigingen"
+			},
+			"planDirty": "niet-gecommitte planwijzigingen",
+			"setSyncPoint": "Syncpunt zetten",
+			"updateSyncPoint": "Syncpunt bijwerken",
+			"chip": {
+				"cards": "kaarten",
+				"connections": "verbindingen",
+				"errors": {
+					"one": "{count} fout",
+					"other": "{count} fouten"
+				},
+				"warnings": {
+					"one": "{count} waarschuwing",
+					"other": "{count} waarschuwingen"
+				},
+				"clean": "schoon",
+				"integrity": "integriteit",
+				"drifted": "afgedreven",
+				"untracked": "niet gevolgd",
+				"noDrift": "geen drift",
+				"code": "code"
+			}
+		},
+		"releases": {
+			"title": "Releases",
+			"latestTag": "{tag} getagd",
+			"packageVersion": "{version} in {file}",
+			"noTags": "nog geen tags",
+			"empty": "Nog geen RELEASE-kaarten – een RELEASE markeert een versiemijlpaal; FEATURE-kaarten wijzen ernaar via {releaseField} en worden gegroepeerd op {changeField}.",
+			"tagged": "getagd",
+			"breakingCount": {
+				"one": "{count} breaking",
+				"other": "{count} breaking"
+			},
+			"noFeatures": "Nog geen FEATURE-kaarten voor deze release.",
+			"open": "{handle} openen →",
+			"summary": {
+				"shipped": "uitgebracht",
+				"noFeatures": "nog geen features",
+				"features": {
+					"one": "{count} feature",
+					"other": "{count} features"
+				},
+				"progress": {
+					"one": "{shipped} van {count} feature uitgebracht",
+					"other": "{shipped} van {count} features uitgebracht"
+				}
+			},
+			"group": {
+				"breaking": "Breaking changes",
+				"feature": "Features",
+				"fix": "Fixes",
+				"chore": "Onderhoud"
+			}
+		},
+		"activity": {
+			"title": "Activiteit",
+			"kind": {
+				"plan": "plan",
+				"code": "code"
+			},
+			"syncTag": "sync",
+			"moreCards": "+{count}",
+			"empty": "Nog geen commits – activiteit verschijnt zodra de repo geschiedenis heeft."
+		},
+		"drift": {
+			"title": "Codedrift",
+			"nothingTracked": "nog niets gevolgd",
+			"claimsHold": {
+				"one": "{count} bewering klopt nog",
+				"other": "{count} beweringen kloppen nog"
+			},
+			"claimsDrifted": {
+				"one": "{drifted} van {count} bewering afgedreven",
+				"other": "{drifted} van {count} beweringen afgedreven"
+			},
+			"filesChanged": {
+				"one": "{count} bestand gewijzigd",
+				"other": "{count} bestanden gewijzigd"
+			},
+			"baseline": {
+				"verified": "sinds verificatie",
+				"cardCommit": "sinds de laatste commit van de kaart",
+				"syncMarker": "sinds syncpunt",
+				"argument": "sinds basis",
+				"fallback": "sinds referentiepunt"
+			},
+			"overflow": {
+				"one": "+{count} verouderde kaart meer",
+				"other": "+{count} verouderde kaarten meer"
+			},
+			"untracked": {
+				"one": "{count} bewering zonder referentiepunt – {hint}",
+				"other": "{count} beweringen zonder referentiepunt – {hint}"
+			},
+			"untrackedHint": "commit ze, of markeer ze met {tool}, om hun code te volgen"
+		},
+		"notes": {
+			"title": "Notities",
+			"kind": {
+				"decision": "besluit",
+				"gotcha": "valkuil",
+				"state": "stand",
+				"deviation": "afwijking",
+				"verified": "geverifieerd"
+			},
+			"empty": "Nog geen notities – {tool} schrijft blijvende beslissingen en valkuilen op kaarten; de nieuwste komen hier."
+		},
+		"repos": {
+			"title": "Gekoppelde repo’s",
+			"hint": "Aparte plannen, elk een eigen werkruimte – open er hier een of via de wisselaar bovenaan de zijbalk.",
+			"current": "Deze werkruimte",
+			"cardCount": {
+				"one": "{count} kaart",
+				"other": "{count} kaarten"
+			},
+			"notServed": "Niet beschikbaar in deze viewer"
+		}
+	},
+	"nav": {
+		"planLabel": "Plannavigatie",
+		"overview": "Overzicht",
+		"tasks": "Taken",
+		"docs": "Documentatie",
+		"constellation": "Constellation",
+		"styleGuide": "Stijlgids",
+		"drawer": {
+			"title": "Navigatie",
+			"close": "Navigatie sluiten"
+		}
+	},
+	"palette": {
+		"label": "Opdrachtenpalet",
+		"placeholder": "Zoek kaarten, pagina’s en acties…",
+		"empty": "Niets gevonden.",
+		"page": {
+			"tasksBoard": "Taken – Bord",
+			"tasksList": "Taken – Lijst",
+			"graph": "Constellation – Graaf",
+			"atlas": "Constellation – Atlas"
+		},
+		"group": {
+			"goTo": "Ga naar",
+			"scheme": "Kleurenschema"
+		},
+		"hint": {
+			"active": "Actief"
+		},
+		"keyword": {
+			"page": "pagina"
+		}
+	},
+	"shell": {
+		"header": {
+			"openNav": "Navigatie openen",
+			"searchLabel": "Kaarten, pagina’s en acties zoeken",
+			"searchPlaceholder": "Zoeken…",
+			"openRepo": "Repository openen op GitHub"
+		}
+	},
+	"status": {
+		"planned": "gepland",
+		"building": "bezig",
+		"built": "gebouwd",
+		"verified": "geverifieerd",
+		"none": "geen status"
+	},
+	"style": {
+		"guide": {
+			"title": "Stijlgids",
+			"emptyTitle": "Nog geen STYLE-kaarten",
+			"emptyDescription": "Voeg onder style/ een kaart toe met een category en een tokens-lijst – kleuren, lettertypen, een typeschaal, witruimte, radii of schaduwen – en die verschijnt hier."
+		},
+		"fontStyles": "Letterstijlen",
+		"specimen": {
+			"uppercase": "Hoofdletters",
+			"lowercase": "Kleine letters",
+			"numbers": "Cijfers",
+			"characters": "Tekens"
+		},
+		"typeScale": {
+			"sample": "Pa’s wijze lynx bezag vroom het fikse aquaduct"
+		}
+	},
+	"sync": {
+		"state": {
+			"inSync": "In sync",
+			"drifted": "Afgedreven",
+			"dirty": "Niet gecommit",
+			"neverSynced": "Nooit gesynct"
+		},
+		"badge": {
+			"title": "Actualiteit van het plan – live afgeleid uit git. Klik voor het activiteitendashboard.",
+			"markerUnreachable": "marker onbereikbaar",
+			"commitsBehind": {
+				"one": "{count} commit achter",
+				"other": "{count} commits achter"
+			},
+			"cardsAhead": {
+				"one": "{count} kaart voor",
+				"other": "{count} kaarten voor"
+			}
+		}
+	},
+	"time": {
+		"justNow": "zojuist"
+	},
+	"types": {
+		"plan": {
+			"name": "Plannen",
+			"single": "plan"
+		},
+		"feature": {
+			"name": "Features",
+			"single": "feature"
+		},
+		"release": {
+			"name": "Releases",
+			"single": "release"
+		},
+		"diagram": {
+			"name": "Architectuur",
+			"single": "diagram"
+		},
+		"doc": {
+			"name": "Documenten",
+			"single": "document"
+		},
+		"decision": {
+			"name": "Beslissingen",
+			"single": "beslissing"
+		},
+		"agent": {
+			"name": "Agentregels",
+			"single": "agentregel"
+		},
+		"api": {
+			"name": "API-endpoints",
+			"single": "API-endpoint"
+		},
+		"db": {
+			"name": "Database",
+			"single": "databasetabel"
+		},
+		"datatype": {
+			"name": "Datatypes",
+			"single": "datatype"
+		},
+		"event": {
+			"name": "Events",
+			"single": "event"
+		},
+		"job": {
+			"name": "Jobs",
+			"single": "job"
+		},
+		"flow": {
+			"name": "Flows",
+			"single": "flow"
+		},
+		"state": {
+			"name": "Toestandsmachines",
+			"single": "toestandsmachine"
+		},
+		"role": {
+			"name": "Rollen",
+			"single": "rol"
+		},
+		"external": {
+			"name": "Externe diensten",
+			"single": "externe dienst"
+		},
+		"page": {
+			"name": "Pagina’s",
+			"single": "pagina"
+		},
+		"component": {
+			"name": "Componenten",
+			"single": "component"
+		},
+		"style": {
+			"name": "Stijlgids",
+			"single": "stijl"
+		},
+		"file": {
+			"name": "Repobestanden",
+			"single": "repobestand"
+		},
+		"test": {
+			"name": "Tests",
+			"single": "test"
+		},
+		"group": {
+			"overview": "Overzicht",
+			"system": "Systeem",
+			"interface": "Interface",
+			"code": "Code & tests"
+		}
+	},
+	"ui": {
+		"sidebar": {
+			"defaultLabel": "Hoofd",
+			"expand": "Zijbalk uitklappen",
+			"collapse": "Zijbalk inklappen"
+		},
+		"command": {
+			"label": "Opdrachtenpalet",
+			"placeholder": "Typ een opdracht of zoek…",
+			"empty": "Geen resultaten gevonden."
+		},
+		"search": {
+			"placeholder": "Zoeken…",
+			"clear": "Zoekopdracht wissen"
+		},
+		"select": {
+			"placeholder": "Kies…"
+		},
+		"alertDialog": {
+			"confirm": "Doorgaan"
+		},
+		"toaster": {
+			"label": "Meldingen"
+		},
+		"splitPanel": {
+			"resize": "Formaat van panelen wijzigen"
+		}
+	},
+	"workspace": {
+		"listLabel": "Werkruimtes",
+		"group": {
+			"self": "Deze repo",
+			"connected": "Gekoppelde repo’s"
+		},
+		"unavailable": "Niet beschikbaar",
+		"fallbackName": "Plan"
+	}
+}
