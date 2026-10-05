@@ -1,6 +1,6 @@
 ---
 name: Viewer in eleven languages
-status: built
+status: verified
 release: RELEASE-V1-1-0
 change: feature
 branch: feat/viewer-i18n
@@ -22,6 +22,14 @@ connections:
   - COMPONENT-SYNC-BADGE
   - COMPONENT-STATUS-SELECT
   - COMPONENT-EDITABLE
+verified_at: '2026-10-05T00:02:43.606Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+notes:
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 ---
 
 Every label the viewer shows is translated, in eleven languages, on Puzzle 0.8's built-in i18n. The plan itself is never translated.

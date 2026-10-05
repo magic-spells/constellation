@@ -44,8 +44,8 @@ connections:
   - STYLE-FONTS
 section: design-system
 order: 20
-verified_at: '2026-10-04T22:03:30.324Z'
-verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-05T00:02:43.606Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 notes:
   - kind: verified
     text: >-
@@ -57,6 +57,11 @@ notes:
       1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
       (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
     sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 ---
 
 Seven steps. Heading steps are **numbered to match the element they set** —

@@ -1,6 +1,6 @@
 ---
 name: Viewer shell on puzzle 0.8
-status: built
+status: verified
 release: RELEASE-V1-1-0
 change: feature
 branch: feat/viewer-shell-1-1
@@ -26,6 +26,14 @@ connections:
   - STYLE-UTILITY-COLORS
   - COMPONENT-SYNC-BADGE
   - FEATURE-PUZZLE-VIEWER
+verified_at: '2026-10-05T00:02:43.606Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+notes:
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 ---
 
 Move the viewer onto puzzle 0.8 and puzzle-pieces 0.8, and rebuild the shell around it: one framed work panel, a search that grows into the palette, a three-mode appearance picker, and a phone layout.

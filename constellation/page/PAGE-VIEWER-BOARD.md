@@ -12,8 +12,8 @@ connections:
   - FILE-SERVE
   - COMPONENT-STATUS-SELECT
   - PAGE-VIEWER-FEATURES
-verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
-verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+verified_at: '2026-10-05T00:02:43.606Z'
 notes:
   - kind: verified
     text: >-
@@ -43,6 +43,11 @@ notes:
       instead of the piece's fixed `w-72`, so longer translated titles fit
       ([[FEATURE-VIEWER-I18N]]). The board scrolls sideways only when it is too narrow for four
       `min-w-52` columns. A re-merge of the registry piece must keep this.
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 section: viewer
 order: 20
 ---

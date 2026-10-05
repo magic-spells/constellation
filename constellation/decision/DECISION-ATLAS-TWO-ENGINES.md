@@ -7,8 +7,14 @@ order: 30
 connections:
   - PAGE-VIEWER-ATLAS
   - FILE-ATLAS-SCENE
-verified_at: '2026-08-18T17:56:52.325Z'
-verified_sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+verified_at: '2026-10-05T00:02:43.606Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+notes:
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 ---
 
 The atlas ships **both** a canvas-2D isometric renderer and a lit three.js one,

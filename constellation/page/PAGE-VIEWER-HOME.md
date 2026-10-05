@@ -6,8 +6,8 @@ code_refs:
   - viewer/app/views/Home.pzl
   - viewer/app/lib/dashboard.js
   - viewer/app/lib/icons.js
-verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
-verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+verified_at: '2026-10-05T00:02:43.606Z'
 notes:
   - kind: verified
     text: >-
@@ -31,6 +31,11 @@ notes:
       (`grid-cols-activity`, `grid-cols-notes` in `styles.css`), so the date and kind columns are as
       wide as their widest entry in the active language; a note kind stops at 8rem and truncates.
       The health strip's verdict line keeps its width and the chips wrap below it as a group.
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 section: viewer
 order: 10
 ---

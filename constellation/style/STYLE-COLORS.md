@@ -1,7 +1,7 @@
 ---
 name: Colors
 kind: tokens
-status: built
+status: verified
 category: color
 code_refs:
   - viewer/app/styles/schemes.css
@@ -59,6 +59,14 @@ connections:
   - STYLE-CARD-TYPES
 section: design-system
 order: 30
+verified_at: '2026-10-05T00:02:43.606Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+notes:
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 ---
 
 The base palette: four text steps, six surfaces, two borders, one brand.

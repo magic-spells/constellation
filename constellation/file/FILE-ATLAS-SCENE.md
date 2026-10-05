@@ -9,14 +9,19 @@ section: viewer
 order: 42
 connections:
   - PAGE-VIEWER-ATLAS
-verified_at: '2026-08-18T17:56:52.716Z'
-verified_sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+verified_at: '2026-10-05T00:02:43.606Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 notes:
   - kind: verified
     text: >-
       Verified deterministic handle ordering and the 0.35–3-cell lens-height clamp against
       atlas-scene.js.
     sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 ---
 
 The whole atlas layout, and the contract both renderers consume. Pure — no DOM,
