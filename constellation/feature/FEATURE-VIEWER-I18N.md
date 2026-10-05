@@ -9,6 +9,7 @@ code_refs:
   - viewer/app/locales/en.json
   - viewer/app/lib/i18n.js
   - viewer/app/lib/locale.js
+  - viewer/app/components/LanguageSwitcher.pzl
   - viewer/puzzle.config.js
   - scripts/check-i18n.mjs
 connections:
@@ -32,9 +33,9 @@ The ask, verbatim:
 ## Scope
 
 - **Config.** `i18n` in `viewer/puzzle.config.js`: `en es de fr it ja zh-Hans pt-BR pt-PT nl ko`, default `en`. The build emits one hashed table per locale; the browser fetches only the active one.
-- **Tables.** `viewer/app/locales/<tag>.json`: 370 keys nested by area (`home.releases.empty`), `{placeholders}` inside whole sentences, counts as CLDR plural objects with `{count}` in every form. `context/en.json` has translator notes; `locales/README.md` has the conventions, glossary and tone.
+- **Tables.** `viewer/app/locales/<tag>.json`: 371 keys nested by area (`home.releases.empty`), `{placeholders}` inside whole sentences, counts as CLDR plural objects with `{count}` in every form. `context/en.json` has translator notes; `locales/README.md` has the conventions, glossary and tone.
 - **Calls.** Templates use Puzzle's `t()`; plain JS (`data()`, `lib/`, toasts, canvas labels) uses `t` / `tParts` from `lib/i18n.js`. `tParts` keeps a sentence with a `<code>` span in it as one value. Type words come from `typeLabel` / `typeSingular` / `groupLabel`, status words from `statusLabel`. Dates, numbers and "ago" go through Intl in the active locale.
-- **Picker.** A Language select in the Appearance popover, below scheme and mode, each language in its own name (`LANGUAGES` in `lib/locale.js`). A pick calls `setLocale`: no reload, `<html lang>` updated, remembered in `localStorage.__puzzleLocale`. With no saved choice the browser's languages pick (`pt` → `pt-BR`, `zh` → `zh-Hans`), else English.
+- **Picker.** A globe button in the header, between the appearance trigger and GitHub (`LanguageSwitcher.pzl`), opens a listbox of the eleven languages, each in its own name with `lang` on its row (`LANGUAGES` in `lib/locale.js`) and a check on the active one. A pick calls `setLocale`: no reload, `<html lang>` updated, remembered in `localStorage.__puzzleLocale`, focus back on the globe. With no saved choice the browser's languages pick (`pt` → `pt-BR`, `zh` → `zh-Hans`), else English.
 - **Pseudo-locale, development builds only.** `/?pseudo=1#/` renders every string accented, ~35% longer and bracketed, so missed English and clipping stand out; `?pseudo=0` turns it off.
 - **Layout for long and CJK text.** The Overview's Activity and Notes rows are subgrids (`grid-cols-activity`, `grid-cols-notes`), so their label columns size to the widest entry in the active language. The Tasks board's four columns share the width ([[PAGE-VIEWER-BOARD]]). The header title never shrinks; the sync badge truncates instead ([[COMPONENT-SYNC-BADGE]]), and the health strip wraps its chips below the verdict as a group.
 - **Tests** ([[TEST-SUITE]]). `tests/viewer/i18n-locales.test.js`: every `t()` key exists, every dynamic prefix resolves, no key is unused, every plural form prints `{count}`, each locale matches `en.json`'s keys and placeholders, and the picker list matches the config. `i18n-hardcoded.test.js` runs `scripts/check-i18n.mjs`, which fails on hard-coded English; `i18n-ok: <reason>` on a line marks a genuine exception.
@@ -54,5 +55,5 @@ Same tags as Pyramid. `lib/i18n.js`, `lib/locale.js`, `scripts/check-i18n.mjs` a
 
 ## Decisions
 
-- **The picker lives in the Appearance popover, not a Settings page.** The viewer has no Settings page, and language is a per-device display choice like scheme and mode. Its list opens upward, because the popover scrolls and would clip a downward list.
+- **Language has its own globe button, kept separate from Appearance.** The user chose this over a settings gear. It first shipped inside the Appearance popover, which is now scheme and mode only.
 - **The pseudo-locale wraps the live service, not a generated file.** It always covers the current `en.json`, never appears in the picker, and sits behind `__PUZZLE_DEV__`, so production builds do not contain it.
