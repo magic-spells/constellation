@@ -90,6 +90,7 @@
 
       <div class="flex shrink-0 items-center justify-end gap-1 sm:min-w-0 sm:flex-1 sm:basis-0">
         <AppearanceSwitcher/>
+        <LanguageSwitcher/>
         <!-- Last in the row on purpose: "out to the repo" belongs in the corner. -->
         {#if repoUrl}
           <a
@@ -152,6 +153,7 @@ import CreateCardDialog from '../components/CreateCardDialog.pzl';
 import WorkspaceSwitcher from '../components/WorkspaceSwitcher.pzl';
 import SyncBadge from '../components/SyncBadge.pzl';
 import AppearanceSwitcher from '../components/AppearanceSwitcher.pzl';
+import LanguageSwitcher from '../components/LanguageSwitcher.pzl';
 import NavDrawer from '../components/NavDrawer.pzl';
 import { NARROW } from '../lib/narrow.js';
 import { planIndex } from '../lib/plan-index.js';

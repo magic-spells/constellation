@@ -16,15 +16,13 @@
 	},
 	"appearance": {
 		"trigger": {
-			"title": "Darstellung – Farbschema, Modus und Sprache",
+			"title": "Darstellung – Farbschema und Modus",
 			"srLabel": "Darstellung: {scheme}, {mode}"
 		},
 		"title": "Darstellung",
 		"summary": "{scheme} · {mode}",
 		"schemeLegend": "Farbschema",
 		"modeLegend": "Modus",
-		"languageLabel": "Sprache",
-		"languageError": "Die Sprache konnte nicht gewechselt werden. Versuch es noch einmal.",
 		"scheme": {
 			"observatory": {
 				"label": "Observatorium",
@@ -541,6 +539,11 @@
 			"searchLabel": "Karten, Seiten und Aktionen suchen",
 			"searchPlaceholder": "Suchen…",
 			"openRepo": "Repository auf GitHub öffnen"
+		},
+		"language": {
+			"trigger": "Sprache: {language}",
+			"listLabel": "Sprache",
+			"error": "Die Sprache konnte nicht gewechselt werden. Versuch es noch einmal."
 		}
 	},
 	"status": {

@@ -16,15 +16,13 @@
 	},
 	"appearance": {
 		"trigger": {
-			"title": "Aparência — esquema, modo e idioma",
+			"title": "Aparência — esquema e modo",
 			"srLabel": "Aparência: {scheme}, {mode}"
 		},
 		"title": "Aparência",
 		"summary": "{scheme} · {mode}",
 		"schemeLegend": "Esquema",
 		"modeLegend": "Modo",
-		"languageLabel": "Idioma",
-		"languageError": "Não foi possível trocar o idioma. Tente de novo.",
 		"scheme": {
 			"observatory": {
 				"label": "Observatório",
@@ -561,6 +559,11 @@
 			"searchLabel": "Buscar cartões, páginas e ações",
 			"searchPlaceholder": "Buscar…",
 			"openRepo": "Abrir o repositório no GitHub"
+		},
+		"language": {
+			"trigger": "Idioma: {language}",
+			"listLabel": "Idioma",
+			"error": "Não foi possível trocar o idioma. Tente de novo."
 		}
 	},
 	"status": {

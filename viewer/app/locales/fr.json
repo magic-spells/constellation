@@ -16,15 +16,13 @@
 	},
 	"appearance": {
 		"trigger": {
-			"title": "Apparence : palette, mode et langue",
+			"title": "Apparence : palette et mode",
 			"srLabel": "Apparence : {scheme}, {mode}"
 		},
 		"title": "Apparence",
 		"summary": "{scheme} · {mode}",
 		"schemeLegend": "Palette",
 		"modeLegend": "Mode",
-		"languageLabel": "Langue",
-		"languageError": "Impossible de changer de langue. Réessayez.",
 		"scheme": {
 			"observatory": {
 				"label": "Observatoire",
@@ -561,6 +559,11 @@
 			"searchLabel": "Rechercher cartes, pages et actions",
 			"searchPlaceholder": "Rechercher…",
 			"openRepo": "Ouvrir le dépôt sur GitHub"
+		},
+		"language": {
+			"trigger": "Langue : {language}",
+			"listLabel": "Langue",
+			"error": "Impossible de changer de langue. Réessayez."
 		}
 	},
 	"status": {

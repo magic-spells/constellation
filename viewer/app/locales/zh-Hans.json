@@ -16,15 +16,13 @@
 	},
 	"appearance": {
 		"trigger": {
-			"title": "外观：配色、模式和语言",
+			"title": "外观：配色和模式",
 			"srLabel": "外观：{scheme}，{mode}"
 		},
 		"title": "外观",
 		"summary": "{scheme} · {mode}",
 		"schemeLegend": "配色",
 		"modeLegend": "模式",
-		"languageLabel": "语言",
-		"languageError": "无法切换语言，请重试。",
 		"scheme": {
 			"observatory": {
 				"label": "天文台",
@@ -521,6 +519,11 @@
 			"searchLabel": "搜索卡片、页面和操作",
 			"searchPlaceholder": "搜索…",
 			"openRepo": "在 GitHub 上打开仓库"
+		},
+		"language": {
+			"trigger": "语言：{language}",
+			"listLabel": "语言",
+			"error": "无法切换语言，请重试。"
 		}
 	},
 	"status": {

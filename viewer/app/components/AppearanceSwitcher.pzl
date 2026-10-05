@@ -54,24 +54,6 @@
           schemeLegend={ t('appearance.schemeLegend') }
           modeLegend={ t('appearance.modeLegend') }
           @change={ applyChoice }/>
-        <!-- LANGUAGE, below scheme and mode. Each language is listed in its own
-             name (lib/locale.js), never translated; a pick applies at once —
-             Puzzle fetches the table and rebuilds the page in place. The list
-             opens upward: the popover scrolls, so a downward list would be
-             clipped by its bottom edge. -->
-        <div class="mt-5" data-language-setting>
-          <p class="mb-2 text-sm font-medium text-ink" aria-hidden="true">{ t('appearance.languageLabel') }</p>
-          <Select
-            label={ t('appearance.languageLabel') }
-            options={ languages }
-            value={ language }
-            indicator="chevrons"
-            position="up"
-            @change={ pickLanguage }/>
-          {#if languageError}
-            <p class="mt-2 text-xs text-danger" role="alert">{ t('appearance.languageError') }</p>
-          {/if}
-        </div>
       </section>
     {/if}
   </div>
@@ -80,13 +62,12 @@
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
 import AppearancePicker from './ui/AppearancePicker.pzl';
-import Select from './ui/Select.pzl';
 import { MODES, SCHEMES, current, set, subscribe } from '../lib/appearance.js';
 import { t } from '../lib/i18n.js';
-import { LANGUAGES, current as currentLanguage, setLanguage } from '../lib/locale.js';
 
 // AppearanceSwitcher — the header's appearance trigger, opening the
-// AppearancePicker piece in a popover, with the Language menu under it. It
+// AppearancePicker piece in a popover. (Language has its own globe beside it:
+// LanguageSwitcher.pzl.) It
 // replaces 1.0's ThemeControls (a scheme Select plus a system/light/dark
 // toggle): the picker covers both axes, adds pieces 0.8's third mode (medium),
 // and previews every scheme as a live miniature of the shell.
@@ -134,9 +115,6 @@ export default class AppearanceSwitcher extends PuzzleView {
       mode: live.mode,
       schemeLabel: t(scheme.labelKey),
       modeLabel: t(mode ? mode.labelKey : 'appearance.mode.system.label'),
-      languages: LANGUAGES,
-      language: currentLanguage(),
-      languageError: !!this.getData()?.languageError,
     };
   }
 
@@ -152,28 +130,17 @@ export default class AppearanceSwitcher extends PuzzleView {
   events = {
     toggle: () => {
       const open = !this.getData().open;
-      this.setData({ open, languageError: false });
+      this.setData({ open });
       this.refresh();
       if (open) requestAnimationFrame(() => this.refs.panel?.focus());
     },
-    close: (event) => {
+    close: () => {
       if (!this.getData().open) return;
-      // Escape inside the open Language menu closes only the menu: Select
-      // marks the key handled, and the popover leaves it alone.
-      if (event?.type === 'keydown' && event.defaultPrevented) return;
       this.setData({ open: false });
       this.refresh();
       this.refs.trigger?.focus();
     },
     applyChoice: (choice) => set(choice),
-    // setLocale rebuilds the whole page — this popover included — so success
-    // needs nothing here. A failed fetch leaves the old language up and says so.
-    pickLanguage: (tag) => {
-      setLanguage(tag).catch(() => {
-        this.setData({ languageError: true });
-        this.refresh();
-      });
-    },
   };
 }
 </script>

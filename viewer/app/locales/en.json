@@ -16,15 +16,13 @@
 	},
 	"appearance": {
 		"trigger": {
-			"title": "Appearance — scheme, mode and language",
+			"title": "Appearance — scheme and mode",
 			"srLabel": "Appearance: {scheme}, {mode}"
 		},
 		"title": "Appearance",
 		"summary": "{scheme} · {mode}",
 		"schemeLegend": "Scheme",
 		"modeLegend": "Mode",
-		"languageLabel": "Language",
-		"languageError": "Couldn't switch the language. Try again.",
 		"scheme": {
 			"observatory": {
 				"label": "Observatory",
@@ -541,6 +539,11 @@
 			"searchLabel": "Search cards, pages and actions",
 			"searchPlaceholder": "Search…",
 			"openRepo": "Open the repository on GitHub"
+		},
+		"language": {
+			"trigger": "Language: {language}",
+			"listLabel": "Language",
+			"error": "Couldn't switch the language. Try again."
 		}
 	},
 	"status": {

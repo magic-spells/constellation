@@ -163,5 +163,5 @@ what a placeholder holds). Read it before translating a key it mentions.
 - Pseudo-locale, development builds only: open the viewer with `?pseudo=1` before the `#`
   (`/?pseudo=1#/`) and every string renders accented, ~35% longer and bracketed, so untranslated
   English and clipping stand out; `?pseudo=0` turns it off.
-- The language picker is in the Appearance popover; the list is `LANGUAGES` in `lib/locale.js`,
+- The language picker is the header's globe (`components/LanguageSwitcher.pzl`); the list is `LANGUAGES` in `lib/locale.js`,
   kept in step with `i18n.locales` in `viewer/puzzle.config.js`.

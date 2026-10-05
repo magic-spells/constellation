@@ -16,15 +16,13 @@
 	},
 	"appearance": {
 		"trigger": {
-			"title": "Weergave – kleurenschema, modus en taal",
+			"title": "Weergave – kleurenschema en modus",
 			"srLabel": "Weergave: {scheme}, {mode}"
 		},
 		"title": "Weergave",
 		"summary": "{scheme} · {mode}",
 		"schemeLegend": "Kleurenschema",
 		"modeLegend": "Modus",
-		"languageLabel": "Taal",
-		"languageError": "Kan de taal niet wijzigen. Probeer het opnieuw.",
 		"scheme": {
 			"observatory": {
 				"label": "Observatorium",
@@ -541,6 +539,11 @@
 			"searchLabel": "Kaarten, pagina’s en acties zoeken",
 			"searchPlaceholder": "Zoeken…",
 			"openRepo": "Repository openen op GitHub"
+		},
+		"language": {
+			"trigger": "Taal: {language}",
+			"listLabel": "Taal",
+			"error": "Kan de taal niet wijzigen. Probeer het opnieuw."
 		}
 	},
 	"status": {

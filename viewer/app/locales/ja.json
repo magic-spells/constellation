@@ -16,15 +16,13 @@
 	},
 	"appearance": {
 		"trigger": {
-			"title": "外観（配色・モード・言語）",
+			"title": "外観（配色・モード）",
 			"srLabel": "外観：{scheme}、{mode}"
 		},
 		"title": "外観",
 		"summary": "{scheme}・{mode}",
 		"schemeLegend": "配色",
 		"modeLegend": "モード",
-		"languageLabel": "言語",
-		"languageError": "言語を切り替えられませんでした。もう一度お試しください。",
 		"scheme": {
 			"observatory": {
 				"label": "オブザーバトリー",
@@ -521,6 +519,11 @@
 			"searchLabel": "カード、ページ、アクションを検索",
 			"searchPlaceholder": "検索…",
 			"openRepo": "GitHubでリポジトリを開く"
+		},
+		"language": {
+			"trigger": "言語：{language}",
+			"listLabel": "言語",
+			"error": "言語を切り替えられませんでした。もう一度お試しください。"
 		}
 	},
 	"status": {

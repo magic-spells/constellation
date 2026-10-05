@@ -1,6 +1,5 @@
 {
 	"api.error.requestFailed": "Error shown when the server rejected a request without its own message. {status} is the HTTP status code, e.g. 500.",
-	"appearance.languageLabel": "Label of the language menu. The menu lists every language in its own name and is never translated.",
 	"appearance.mode.dark.label": "Mode segment. Very short.",
 	"appearance.mode.light.label": "One segment of a four-way switch (Light / Medium / Dark / System) in a narrow popover. Very short.",
 	"appearance.mode.medium.label": "Mode segment: soft dark. Very short.",
@@ -245,6 +244,8 @@
 	"shell.header.openRepo": "Accessible name of the GitHub icon link in the header. GitHub is a brand name.",
 	"shell.header.searchLabel": "Accessible name of the header's search button, which opens the command palette.",
 	"shell.header.searchPlaceholder": "Placeholder-like text inside the header search button (truncates; about 25 characters fit).",
+	"shell.language.listLabel": "Accessible name of the language list. The list shows every language in its own name and is never translated.",
+	"shell.language.trigger": "Tooltip and accessible name of the header's globe button, which opens the language list. {language} is the current language's name in that language (English, Deutsch, 日本語…), never translated. Use the same word for 'Language' as shell.language.listLabel.",
 	"status.building": "A card's status: work in progress. Short, one word.",
 	"status.built": "A card's status: implemented. Short, one word.",
 	"status.none": "Option in the status menu that clears a card's status.",

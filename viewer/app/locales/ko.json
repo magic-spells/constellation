@@ -16,15 +16,13 @@
 	},
 	"appearance": {
 		"trigger": {
-			"title": "모양 — 색 구성, 모드, 언어",
+			"title": "모양 — 색 구성과 모드",
 			"srLabel": "모양: {scheme}, {mode}"
 		},
 		"title": "모양",
 		"summary": "{scheme} · {mode}",
 		"schemeLegend": "색 구성",
 		"modeLegend": "모드",
-		"languageLabel": "언어",
-		"languageError": "언어를 바꾸지 못했어요. 다시 시도해 주세요.",
 		"scheme": {
 			"observatory": {
 				"label": "천문대",
@@ -521,6 +519,11 @@
 			"searchLabel": "카드, 페이지, 동작 검색",
 			"searchPlaceholder": "검색…",
 			"openRepo": "GitHub에서 저장소 열기"
+		},
+		"language": {
+			"trigger": "언어: {language}",
+			"listLabel": "언어",
+			"error": "언어를 바꾸지 못했어요. 다시 시도해 주세요."
 		}
 	},
 	"status": {
