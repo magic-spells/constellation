@@ -1,7 +1,7 @@
 ---
 name: Viewer in eleven languages
 status: verified
-release: RELEASE-V1-1-0
+release: RELEASE-V1-2-0
 change: feature
 branch: feat/viewer-i18n
 pr: '#46'

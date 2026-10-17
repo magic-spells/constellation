@@ -1,7 +1,7 @@
 ---
 name: Workspace switcher across connected repos
 status: verified
-release: RELEASE-V1-1-0
+release: RELEASE-V1-2-0
 change: feature
 branch: feat/workspace-switcher
 pr: '#43'

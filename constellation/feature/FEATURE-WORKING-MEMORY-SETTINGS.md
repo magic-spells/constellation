@@ -1,7 +1,7 @@
 ---
 name: Working memory settings and the .constellation/ ignore rule
 status: built
-release: RELEASE-V1-1-0
+release: RELEASE-V1-2-0
 change: feature
 branch: feat/working-config
 pr: '#44'

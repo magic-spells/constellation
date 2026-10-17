@@ -1,7 +1,7 @@
 ---
-name: v1.1.0 — the viewer on puzzle 0.8
+name: v1.2.0 — the viewer on puzzle 0.8, diagrams by Pele
 status: building
-version: 1.1.0
+version: 1.2.0
 connections:
   - RELEASE-V1-0-2
 ---
@@ -10,8 +10,16 @@ Theme: the viewer catches up with puzzle 0.8 — a framed shell, a search that g
 
 ## Upgrade notes
 
-Minor. The plan format is unchanged.
 
+Minor. The plan format is unchanged. (1.1.0 was branched and prepared but never
+tagged or published; everything it carried ships here.)
+
+- **Diagrams are drawn by Pele, not mermaid** ([[DECISION-PELE-RENDERER]]). Card
+  files are unchanged — still ```mermaid fences with Mermaid syntax — and the
+  package shrinks by about 9 MB. `click … href` inside a fence is now inert, edge
+  labels lose their painted background box, and `%%{init}%%` directives are ignored.
+  Pele also renders pie, xychart, radar, sankey and treemap, but GitHub's Mermaid
+  does not, so stay on the shared subset in plans meant to be read there.
 - **Security fixes.** Through 1.0.x any web page open in the same browser could write cards (a cross-site form POST, or DNS rebinding); `serve` now requires a loopback `Host` on every request and a same-server `Origin` on every write ([[DECISION-SERVE-REQUEST-GUARD]], #43). A cloned repo could also steer reads and writes outside itself through `code_root` or committed symlinks; `code_root` is now bounded to the repo and working memory never follows a link (#45, [[FEATURE-WORKING-MEMORY-SETTINGS]]).
 - **Viewing through a proxy or a forwarded port** (`puzzle dev`, `ssh -L`, VS Code) now needs `serve --dev-origin http://localhost:<port>`; without it those requests get 403.
 - **An out-of-repo `code_root` is ignored.** If PLAN-PROJECT's `code_root` realpaths outside the plan's git repo, the default root (the folder holding `constellation/`) is used instead, and working memory refuses with `UNSAFE_PATH`.

@@ -1,7 +1,7 @@
 ---
 name: Viewer shell on puzzle 0.8
 status: verified
-release: RELEASE-V1-1-0
+release: RELEASE-V1-2-0
 change: feature
 branch: feat/viewer-shell-1-1
 pr: '#42'
