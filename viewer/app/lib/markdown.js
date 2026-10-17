@@ -174,16 +174,18 @@ const importByUrl = (url) => import(url);
  * lazy entry on first use; pele then fetches only the chunk for each diagram
  * type actually rendered. The URL lives in a variable so esbuild treats the
  * import() as an opaque runtime expression and leaves it to the browser.
- * `importModule` is a test seam; only the real importer is cached.
+ * `importModule` is a test seam; each importer's load is cached until it fails.
  */
-let peleLoader = null;
+const peleLoaders = new Map();
 export function loadPele(importModule = importByUrl) {
-  if (importModule === importByUrl && peleLoader) return peleLoader;
-  const loading = importModule(PELE_URL).catch((err) => {
-    if (importModule === importByUrl) peleLoader = null;
-    throw new Error(`failed to load ${PELE_URL}: ${err.message}`);
-  });
-  if (importModule === importByUrl) peleLoader = loading;
+  let loading = peleLoaders.get(importModule);
+  if (!loading) {
+    loading = importModule(PELE_URL).catch((err) => {
+      peleLoaders.delete(importModule);
+      throw new Error(`failed to load ${PELE_URL}: ${err.message}`);
+    });
+    peleLoaders.set(importModule, loading);
+  }
   return loading;
 }
 
@@ -199,14 +201,19 @@ export async function renderMermaidBlocks(container, importModule) {
   const blocks = container.querySelectorAll('.mermaid-block');
   if (blocks.length === 0) return;
 
+  // Measure every empty placeholder up front: reading layout after the first
+  // svg lands would force a reflow per block.
+  const widths = [...blocks].map((el) => {
+    const style = getComputedStyle(el);
+    const inner = el.clientWidth - parseFloat(style.paddingLeft || '0') - parseFloat(style.paddingRight || '0');
+    return inner > 0 ? inner : undefined;
+  });
   const pele = await loadPele(importModule);
-  for (const el of blocks) {
+  for (const [i, el] of blocks.entries()) {
     const src = decodeURIComponent(el.dataset.src ?? '');
     try {
-      const style = getComputedStyle(el);
-      const inner = el.clientWidth - parseFloat(style.paddingLeft || '0') - parseFloat(style.paddingRight || '0');
       const { svg } = await pele.renderAsync(src, {
-        maxWidth: inner > 0 ? inner : undefined,
+        maxWidth: widths[i],
         fontFamily: DIAGRAM_FONT,
         links: false,
         images: false,
