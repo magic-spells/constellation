@@ -55,7 +55,7 @@
     "dev:viewer": "npm run copy:vendor && cd viewer && puzzle dev --port 3000 --strict-port",
     "serve:examples": "tsx src/cli/index.ts serve examples --no-open --dev-origin http://localhost:3000",
     "serve:multi": "tsx src/cli/index.ts serve --no-open",
-    "copy:vendor": "node scripts/copy-mermaid.mjs && node scripts/copy-three.mjs",
+    "copy:vendor": "node scripts/copy-pele.mjs && node scripts/copy-three.mjs",
     "compare:renderers": "node scripts/compare-renderers/serve.mjs"
   },
   "dependencies": {

@@ -64,7 +64,7 @@
 	 * would be missing from `:root` in the DEFAULT scheme while every
 	 * `data-scheme` block still declares it — an invisible scheme-dependent
 	 * hole for anything reading tokens through `getComputedStyle` (the canvas
-	 * graph, mermaid tinting) or through an alias. Referencing all 71 pieces
+	 * graph, diagram tinting) or through an alias. Referencing all 71 pieces
 	 * tokens once keeps the palette emitted whole.
 	 */
 	:root {
@@ -265,18 +265,48 @@
 }
 
 /*
+ * DIAGRAMS. Pele (lib/markdown.js) draws every ```mermaid fence as an SVG whose
+ * colours are all `var(--pele-*)`, so mapping them to the scheme tokens here is
+ * the whole theme: a scheme, light/dark or paper switch restyles the drawn
+ * diagram without re-rendering it. The fill/border/cluster mixes are the chip
+ * aesthetic the old renderer computed in JS — a faint brand tint, a
+ * brand-leaning border. The font is passed to pele as an option (it measures
+ * text with it), so `--pele-font` is deliberately left unset.
+ */
+.mermaid-block {
+	--pele-bg: var(--color-surface);
+	--pele-fg: var(--color-ink);
+	--pele-muted: var(--color-muted);
+	--pele-line: var(--color-muted);
+	--pele-surface: color-mix(in srgb, var(--color-brand) 15%, var(--color-surface));
+	--pele-surface-alt: color-mix(in srgb, var(--color-brand) 6%, var(--color-surface));
+	--pele-border: color-mix(in srgb, var(--color-brand) 55%, var(--color-surface));
+	--pele-accent: var(--color-brand);
+	--pele-critical: var(--color-danger);
+	--pele-error: var(--color-danger);
+	--pele-radius: 6px;
+	--pele-series-1: var(--t-DOC);
+	--pele-series-2: var(--t-TEST);
+	--pele-series-3: var(--t-DIAGRAM);
+	--pele-series-4: var(--t-DB);
+	--pele-series-5: var(--t-DATATYPE);
+	--pele-series-6: var(--t-EXTERNAL);
+	--pele-series-7: var(--t-FLOW);
+	--pele-series-8: var(--t-API);
+}
+
+/*
  * PAPER, ON SCREEN.
  *
  * `data-paper` on <html> is the print window (views/DocsPrint.pzl) saying "this
  * window is a sheet of paper": white page, black ink, whatever scheme the app
  * is wearing. It is what makes the preview show what the printer will produce.
  *
- * It has to sit on the ROOT rather than on the sheet element, because the
- * things that most need to agree with the paper don't read CSS at all — the
- * mermaid tinting in lib/markdown.js resolves `--color-surface`, `--color-ink`
- * and the `--t-*` hues off document.documentElement and bakes them into the
- * SVG. Scoped to the sheet, every diagram would come out dressed for a dark app
- * and print unreadable.
+ * It has to sit on the ROOT rather than on the sheet element, because some
+ * readers of these tokens don't sit inside the sheet — the diagram tint pass in
+ * lib/markdown.js checks the `--t-*` hues off document.documentElement, and the
+ * canvas views resolve their colours there too. Scoped to the sheet, those
+ * would come out dressed for a dark app and print unreadable.
  *
  * The same values appear again in the @media print block below, which covers
  * printing any route from the app itself. A media query and an attribute cannot

@@ -50,7 +50,7 @@ import { t } from '../lib/i18n.js';
 // app, and `data-paper` (styles/styles.css) turns the whole window white —
 // including for the diagram tinting, which reads its colours off the root.
 //
-// DIAGRAMS DECIDE WHEN THIS IS READY. Mermaid renders asynchronously, off the
+// DIAGRAMS DECIDE WHEN THIS IS READY. Pele renders asynchronously, off the
 // vendored bundle, well after the markdown lands; print before it settles and
 // every diagram comes out an empty box, which is the one failure that would
 // make the whole feature worthless. So the Print button stays pending until
@@ -63,7 +63,7 @@ import { t } from '../lib/i18n.js';
 const POLL_MS = 120;
 
 /**
- * When to stop waiting. Reaching this means mermaid never loaded (a failed
+ * When to stop waiting. Reaching this means pele never loaded (a failed
  * render still fills its box with the source), and a button that is disabled
  * forever is worse than one that prints a document with gaps in it.
  */

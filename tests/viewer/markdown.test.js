@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { renderMarkdown } from '../../viewer/app/lib/markdown.js';
+// @vitest-environment jsdom
+import { describe, expect, it, vi } from 'vitest';
+import {
+  PELE_URL,
+  renderMarkdown,
+  renderMermaidBlocks,
+} from '../../viewer/app/lib/markdown.js';
 
 describe('viewer markdown rendering', () => {
   it('renders [[API-TICKETS]] as a hash wikilink', () => {
@@ -75,5 +80,43 @@ describe('viewer color helpers', () => {
     expect(luminance('#ffffff')).toBe(1);
     expect(luminance('#000000')).toBe(0);
     expect(luminance('bogus')).toBe(0);
+  });
+});
+
+describe('viewer diagram rendering', () => {
+  // The real lazy entry stands in for the vendored copy the browser fetches.
+  const realPele = () => import('pele/lazy');
+
+  it('loads pele from the vendored path and tints handle nodes by type', async () => {
+    document.documentElement.style.setProperty('--t-API', '#e0635d');
+    const host = document.createElement('div');
+    host.innerHTML = renderMarkdown('```mermaid\nflowchart LR\n  API-TICKETS --> X[Plain]\n```');
+    const importModule = vi.fn(realPele);
+
+    await renderMermaidBlocks(host, importModule);
+
+    expect(PELE_URL).toBe('/vendor/pele/lazy.js');
+    expect(importModule).toHaveBeenCalledWith('/vendor/pele/lazy.js');
+    expect(host.querySelector('.mermaid-block svg.pele')).not.toBeNull();
+    const api = host.querySelector('g.pele-node[data-id="API-TICKETS"] rect');
+    expect(api.style.getPropertyValue('stroke')).toBe('var(--t-API)');
+    expect(api.style.getPropertyValue('fill')).toContain('var(--t-API)');
+    expect(host.querySelector('g.pele-node[data-id="X"] rect').style.getPropertyValue('fill')).toBe('');
+  });
+
+  it('falls back to the escaped source when the diagram does not parse', async () => {
+    const host = document.createElement('div');
+    host.innerHTML = renderMarkdown('```mermaid\nflowchart LR\n  A -->\n  <b>\n```');
+    await renderMermaidBlocks(host, realPele);
+    expect(host.querySelector('.mermaid-block pre.code')).not.toBeNull();
+    expect(host.querySelector('.mermaid-block').innerHTML).toContain('&lt;b&gt;');
+  });
+
+  it('reports the vendored path when the bundle fails to load', async () => {
+    const host = document.createElement('div');
+    host.innerHTML = renderMarkdown('```mermaid\ngraph LR\nA-->B\n```');
+    await expect(
+      renderMermaidBlocks(host, () => Promise.reject(new Error('404'))),
+    ).rejects.toThrow('failed to load /vendor/pele/lazy.js: 404');
   });
 });

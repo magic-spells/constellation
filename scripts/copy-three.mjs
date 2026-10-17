@@ -1,6 +1,6 @@
 // Vendors three's ESM build into the viewer's public/ dir so it ships in
 // viewer/dist as a static asset instead of being inlined into app.js — the same
-// reason and the same shape as scripts/copy-mermaid.mjs (puzzle build does not
+// reason and the same shape as scripts/copy-pele.mjs (puzzle build does not
 // split dynamic imports).
 //
 // Measured, which is why this exists: importing three through the bundler took

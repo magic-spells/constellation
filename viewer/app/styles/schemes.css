@@ -222,7 +222,7 @@
 
 /* ───────────────────── card-type hues (scheme-independent) ─────────────────────
  * Copied verbatim from the Svelte viewer (`viewer/src/app.css`). Chips, the
- * constellation canvas, and mermaid node tinting all read these; they sit on
+ * constellation canvas, and diagram node tinting all read these; they sit on
  * `:root` because they are identity colours for the 21 card types, not palette.
  */
 :root {
