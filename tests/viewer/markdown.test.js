@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   PELE_URL,
+  loadPele,
   renderMarkdown,
   renderMermaidBlocks,
 } from '../../viewer/app/lib/markdown.js';
@@ -86,6 +87,13 @@ describe('viewer color helpers', () => {
 describe('viewer diagram rendering', () => {
   // The real lazy entry stands in for the vendored copy the browser fetches.
   const realPele = () => import('pele/lazy');
+  // A stand-in pele that returns a fixed svg, to aim the tint pass at shapes
+  // the real renderer only produces for exotic diagrams.
+  const fakePele = (svg) => async () => ({ renderAsync: async () => ({ svg }) });
+
+  afterEach(() => {
+    document.documentElement.style.removeProperty('--t-API');
+  });
 
   it('loads pele from the vendored path and tints handle nodes by type', async () => {
     document.documentElement.style.setProperty('--t-API', '#e0635d');
@@ -110,6 +118,59 @@ describe('viewer diagram rendering', () => {
     await renderMermaidBlocks(host, realPele);
     expect(host.querySelector('.mermaid-block pre.code')).not.toBeNull();
     expect(host.querySelector('.mermaid-block').innerHTML).toContain('&lt;b&gt;');
+  });
+
+  it('renders hostile labels as text, never markup', async () => {
+    const host = document.createElement('div');
+    host.innerHTML = renderMarkdown(
+      '```mermaid\nflowchart LR\n  A["<script>alert(1)</script>"] --> B["<img src=x onerror=alert(1)>"]\n```',
+    );
+    await renderMermaidBlocks(host, realPele);
+    const block = host.querySelector('.mermaid-block');
+    expect(block.querySelector('svg')).not.toBeNull();
+    expect(block.innerHTML).not.toMatch(/<script/i);
+    expect(block.querySelector('script, img, foreignObject')).toBeNull();
+    const handlers = [...block.querySelectorAll('*')].flatMap((el) =>
+      [...el.attributes].map((attr) => attr.name).filter((name) => /^on/i.test(name)),
+    );
+    expect(handlers).toEqual([]);
+    // Pele strips tags from labels; what is left is inert text.
+    expect(block.textContent).toContain('alert(1)');
+  });
+
+  it('tints only a node\'s own shapes, and skips prefixes with no hue', async () => {
+    document.documentElement.style.setProperty('--t-API', '#e0635d');
+    const host = document.createElement('div');
+    host.innerHTML = renderMarkdown('```mermaid\ngraph LR\nA-->B\n```');
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg">
+      <g class="pele-node" data-id="API-OUTER"><rect id="outer"/>
+        <g class="pele-node" data-id="PLAIN"><rect id="nested"/></g>
+        <g class="pele-icon"><path id="icon"/></g>
+      </g>
+      <g class="pele-node" data-id="ZZZ-UNKNOWN"><rect id="unknown"/></g>
+    </svg>`;
+    await renderMermaidBlocks(host, fakePele(svg));
+    const fill = (id) => host.querySelector(`#${id}`).style.getPropertyValue('fill');
+    expect(fill('outer')).toContain('var(--t-API)');
+    expect(fill('nested')).toBe('');
+    expect(fill('icon')).toBe('');
+    expect(fill('unknown')).toBe('');
+  });
+
+  it('loadPele caches a successful load and retries after a failed one', async () => {
+    const module = { renderAsync: async () => ({ svg: '<svg></svg>' }) };
+    const ok = vi.fn(async () => module);
+    expect(await loadPele(ok)).toBe(module);
+    expect(await loadPele(ok)).toBe(module);
+    expect(ok).toHaveBeenCalledTimes(1);
+
+    const flaky = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(module);
+    await expect(loadPele(flaky)).rejects.toThrow('failed to load /vendor/pele/lazy.js: offline');
+    expect(await loadPele(flaky)).toBe(module);
+    expect(flaky).toHaveBeenCalledTimes(2);
   });
 
   it('reports the vendored path when the bundle fails to load', async () => {
