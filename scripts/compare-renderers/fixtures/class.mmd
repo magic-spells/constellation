@@ -1,0 +1,11 @@
+classDiagram
+  class API-TICKETS {
+    +createTicket(ownerId) Ticket
+    +closeTicket(id) void
+  }
+  class DATATYPE-TICKET {
+    +String id
+    +String status
+  }
+  API-TICKETS --> DATATYPE-TICKET : creates
+  note for API-TICKETS "Checks the owner first"

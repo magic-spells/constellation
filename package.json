@@ -55,7 +55,8 @@
     "dev:viewer": "npm run copy:vendor && cd viewer && puzzle dev --port 3000 --strict-port",
     "serve:examples": "tsx src/cli/index.ts serve examples --no-open --dev-origin http://localhost:3000",
     "serve:multi": "tsx src/cli/index.ts serve --no-open",
-    "copy:vendor": "node scripts/copy-mermaid.mjs && node scripts/copy-three.mjs"
+    "copy:vendor": "node scripts/copy-mermaid.mjs && node scripts/copy-three.mjs",
+    "compare:renderers": "node scripts/compare-renderers/serve.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -77,6 +78,7 @@
     "jsdom": "^29.1.1",
     "marked": "^18.0.5",
     "mermaid": "^11.15.0",
+    "pele": "^1.6.0",
     "tailwindcss": "^4.3.1",
     "three": "^0.185.1",
     "tsx": "^4.22.0",
