@@ -7,6 +7,13 @@ connections:
   - DOC-FILE-FORMAT
 section: format
 order: 40
+notes:
+  - kind: state
+    text: >-
+      Since 1.2.0 the viewer draws ```mermaid fences with Pele, not the mermaid package
+      ([[DECISION-PELE-RENDERER]]). Syntax in the files is unchanged — still Mermaid — so authors
+      should stay on the subset GitHub's Mermaid also accepts; Pele additionally renders pie,
+      xychart, radar, sankey and treemap, but those will not render on GitHub.
 ---
 
 # Diagrams and flows

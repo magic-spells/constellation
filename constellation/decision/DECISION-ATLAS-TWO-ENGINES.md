@@ -15,6 +15,11 @@ notes:
       Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
       language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
     sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+  - kind: state
+    text: >-
+      The "mermaid already uses this trick" precedent now reads "pele": the diagram renderer was
+      swapped in 1.2.0 ([[DECISION-PELE-RENDERER]]) but is vendored and imported through a variable
+      URL exactly the same way.
 ---
 
 The atlas ships **both** a canvas-2D isometric renderer and a lit three.js one,

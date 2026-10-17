@@ -1,0 +1,16 @@
+flowchart TB
+  subgraph FEATURE-INTAKE[Ticket intake]
+    PAGE-INBOX[PAGE-INBOX] -->|create ticket| API-TICKETS(API-TICKETS)
+    API-TICKETS --> STATE-VALID{STATE-VALID}
+  end
+  subgraph FEATURE-STORAGE[Ticket storage]
+    DB-USERS[(DB-USERS)]
+    DB-TICKETS[(DB-TICKETS)]
+  end
+  STATE-VALID -->|valid| DB-TICKETS
+  DB-USERS -.->|owner| DB-TICKETS
+  STATE-VALID -->|reject| EVENT-ERROR((EVENT-ERROR))
+  EVENT-ERROR --> JOB-NOTIFY>JOB-NOTIFY]
+  classDef emphasis stroke-width:3px,stroke-dasharray:5 3
+  class API-TICKETS emphasis
+  style JOB-NOTIFY stroke-width:4px

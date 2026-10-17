@@ -1,7 +1,7 @@
 /**
  * Shared hex-color math. Extracted verbatim from the old Svelte
- * `ConstellationView.svelte` so the canvas graph and the mermaid tinting in
- * `markdown.js` agree on how colors are parsed, blended and measured.
+ * `ConstellationView.svelte` so the canvas views agree on how colors are
+ * parsed, blended and measured.
  */
 
 /** Parse `#rgb` / `#rrggbb` into `[r, g, b]`; null if unparseable. */
@@ -85,8 +85,7 @@ function computedHex(value) {
  * palette token — all of them `light-dark(light, dark)` pairs — comes back from
  * `getComputedStyle().getPropertyValue()` as the literal string
  * `light-dark(#0c0e18,#0c0e18)`. That string is not a color: `parseHex` rejects
- * it, canvas `fillStyle` ignores it, and mermaid logs
- * `Unsupported color format` for it. So let the browser resolve it — assign the
+ * it and canvas `fillStyle` ignores it. So let the browser resolve it — assign the
  * var to a hidden probe element's `color` and read the computed value back,
  * which lands as `rgb(r, g, b)` with `light-dark()` already collapsed against
  * the active `color-scheme`.

@@ -97,7 +97,7 @@ export function countDiagrams(body) {
 /**
  * How many of `root`'s diagram placeholders have been drawn.
  *
- * Mermaid runs asynchronously off a vendored bundle (lib/markdown.js) and fills
+ * Pele runs asynchronously off a vendored bundle (lib/markdown.js) and fills
  * each `.mermaid-block` with an <svg> — or, when the diagram itself is bad,
  * with the source in a <pre>. Either way the box now has a child, so "has a
  * child" is "settled", whichever way it ended.

@@ -15,6 +15,11 @@ notes:
       50 .pzl components, zero .svelte files left, 175 vendored mermaid chunks, both theme axes live
       in schemes.css. Read/write API and themes exercised directly in the running viewer.
     sha: 1412fee1bb2d1876dcade3acefe4b2202b35aaca
+  - kind: state
+    text: >-
+      The "vendored mermaid chunks" wording in this card is history: from 1.2.0 the diagram renderer
+      is Pele, vendored the same way into `viewer/app/public/vendor/pele/` (~1 MB, replacing
+      mermaid's 11 MB / 291 chunks). See [[DECISION-PELE-RENDERER]].
 ---
 
 # Puzzle viewer rebuild

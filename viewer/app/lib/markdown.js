@@ -1,5 +1,5 @@
 import { Marked } from 'marked';
-import { cssColor } from './colors.js';
+import { cssVar } from './colors.js';
 import { hrefForHandle } from './types.js';
 
 const HANDLE_LINK = /^\[\[([A-Z][A-Z0-9]*-[A-Z0-9][A-Z0-9-]*)\]\]/;
@@ -107,7 +107,7 @@ export function renderDocMarkdown(md, handles, base = '/docs') {
  * FLOW cards: split the body around its first top-level ordered list so the
  * viewer can render the steps as a visual stepper. Returns null when the body
  * has no top-level ordered list. `before`/`after` are RAW markdown slices
- * (MarkdownBlock renders them as usual, mermaid included); each step is
+ * (MarkdownBlock renders them as usual, diagrams included); each step is
  * pre-rendered HTML through this same pipeline (wikilinks, sanitized links),
  * with `branches` holding the step's nested bullet items — the edge-case
  * annotations ("invalid → 422") that render as dim lines inside the step box.
@@ -133,132 +133,96 @@ export function extractFlowSteps(md) {
   return { before: rawSlice(tokens.slice(0, idx)), steps, after: rawSlice(tokens.slice(idx + 1)) };
 }
 
-let mermaidCounter = 0;
-
-/**
- * Local hex helpers for mermaid tinting. Kept separate from `colors.js` on
- * purpose: these are lenient (they accept unprefixed hex and fall back to the
- * first color rather than a grey) and the mermaid palette depends on that.
- */
-
-/** Parse #rgb / #rrggbb into [r,g,b]; null if unparseable. */
-function parseHex(hex) {
-  const h = hex.replace('#', '').trim();
-  if (h.length === 3) return [0, 1, 2].map((i) => parseInt(h[i] + h[i], 16));
-  if (h.length === 6) return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
-  return null;
-}
-
-/** Linear blend: `t` is the fraction of `b` mixed into `a`. */
-function mix(a, b, t) {
-  const pa = parseHex(a);
-  const pb = parseHex(b);
-  if (!pa || !pb) return a;
-  const c = pa.map((n, i) => Math.round(n + (pb[i] - n) * t));
-  return `#${c.map((n) => n.toString(16).padStart(2, '0')).join('')}`;
-}
+let diagramCounter = 0;
 
 const NODE_HANDLE = /^[A-Z][A-Z0-9]*-[A-Z0-9][A-Z0-9-]*$/;
 
 /**
  * Tint each diagram node by its card type, using the same `--t-<TYPE>` palette as
- * the chips. Diagram node IDs are handles, so the node's text is the handle —
- * derive the type from its prefix and recolor the shape. Non-handle nodes keep
- * mermaid's default fill.
+ * the chips. Diagram node IDs are handles, and pele stamps the source ID on the
+ * node as `data-id` — derive the type from its prefix and recolor the node's own
+ * shapes (never a nested node's, never an icon). The colours are `color-mix()`
+ * over live tokens, so a scheme or theme change restyles them without a
+ * re-render. Non-handle nodes keep the `--pele-surface` fill from styles.css.
  */
-function colorNodesByType(svg, panel) {
-  for (const node of svg.querySelectorAll('g.node')) {
-    const handle = (node.textContent ?? '').trim();
+function colorNodesByType(svg) {
+  for (const node of svg.querySelectorAll('g.pele-node[data-id]')) {
+    const handle = node.getAttribute('data-id');
     if (!NODE_HANDLE.test(handle)) continue;
-    const color = cssColor(`--t-${handle.slice(0, handle.indexOf('-'))}`);
-    if (!color) continue;
-    const fill = mix(panel, color, 0.35);
+    const hue = `--t-${handle.slice(0, handle.indexOf('-'))}`;
+    // An unknown prefix has no hue; color-mix() over a missing var would
+    // compute to black, so leave that node untinted.
+    if (!cssVar(hue)) continue;
     for (const shape of node.querySelectorAll('rect, polygon, circle, ellipse, path')) {
-      shape.style.fill = fill;
-      shape.style.stroke = color;
+      if (shape.closest('g.pele-node') !== node || shape.closest('.pele-icon')) continue;
+      shape.style.setProperty('fill', `color-mix(in srgb, var(${hue}) 35%, var(--pele-bg))`);
+      shape.style.setProperty('stroke', `var(${hue})`);
     }
   }
 }
 
+/** Where `scripts/copy-pele.mjs` puts pele's lazy entry (served from dist/ as-is). */
+export const PELE_URL = '/vendor/pele/lazy.js';
+
+const importByUrl = (url) => import(url);
+
 /**
- * Load mermaid lazily as a static asset rather than a bundled import. The
- * puzzle build emits a single app.js (no dynamic-import splitting), so a
- * bundled `import('mermaid')` would inline ~3 MB of mermaid+KaTeX that most
- * page loads never use. Instead `scripts/copy-mermaid.mjs` vendors mermaid's
- * chunked ESM build into app/public/vendor/mermaid/ (copied verbatim into
- * dist/), and this imports the 28KB entry on first use; mermaid then lazily
- * fetches only the chunks for the diagram types actually rendered. The URL
- * lives in a variable so esbuild treats the import() as an opaque runtime
- * expression and leaves it to the browser.
+ * Load pele lazily as a static asset rather than a bundled import. The puzzle
+ * build emits a single app.js (no dynamic-import splitting), so a bundled
+ * import would ship the renderer to every reader. Instead `scripts/copy-pele.mjs`
+ * vendors pele's ESM build into app/public/vendor/pele/, and this imports the
+ * lazy entry on first use; pele then fetches only the chunk for each diagram
+ * type actually rendered. The URL lives in a variable so esbuild treats the
+ * import() as an opaque runtime expression and leaves it to the browser.
+ * `importModule` is a test seam; each importer's load is cached until it fails.
  */
-let mermaidLoader = null;
-function loadMermaid() {
-  if (!mermaidLoader) {
-    const url = '/vendor/mermaid/mermaid.esm.min.mjs';
-    mermaidLoader = import(url).then(
-      (mod) => mod.default,
-      (err) => {
-        mermaidLoader = null;
-        throw new Error(`failed to load ${url}: ${err.message}`);
-      },
-    );
+const peleLoaders = new Map();
+export function loadPele(importModule = importByUrl) {
+  let loading = peleLoaders.get(importModule);
+  if (!loading) {
+    loading = importModule(PELE_URL).catch((err) => {
+      peleLoaders.delete(importModule);
+      throw new Error(`failed to load ${PELE_URL}: ${err.message}`);
+    });
+    peleLoaders.set(importModule, loading);
   }
-  return mermaidLoader;
+  return loading;
 }
 
-/** Render all .mermaid-block placeholders inside a container, tinted to the active theme. */
-export async function renderMermaidBlocks(container) {
+/** The diagram font: the same mono stack as `code` in the card body. */
+const DIAGRAM_FONT = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'; // i18n-ok: font stack
+
+/**
+ * Render all .mermaid-block placeholders inside a container. The fence stays
+ * Mermaid syntax; pele draws it. Colours come from the `--pele-*` tokens that
+ * styles.css sets on `.mermaid-block`, so retheming needs no re-render.
+ */
+export async function renderMermaidBlocks(container, importModule) {
   const blocks = container.querySelectorAll('.mermaid-block');
   if (blocks.length === 0) return;
 
-  // Pieces palette tokens — NOT the old Svelte viewer's `--accent` / `--bg-panel`
-  // names, which no longer exist (reading them handed mermaid empty strings and
-  // it logged `Unsupported color format: ""` for every themeVariable).
-  const accent = cssColor('--color-brand', '#5c7cfa');
-  const panel = cssColor('--color-surface', '#101013');
-  const inset = cssColor('--color-surface-sunken', '#18181c');
-  const text = cssColor('--color-ink', '#f4f4f5');
-  const muted = cssColor('--color-muted', '#7f7f88');
-  const border = cssColor('--color-border-strong', '#3a3a42');
-  const bg = parseHex(cssColor('--color-page', '#09090b'));
-  const isDark = bg ? (0.299 * bg[0] + 0.587 * bg[1] + 0.114 * bg[2]) / 255 < 0.5 : false;
-
-  // chip aesthetic: a faint accent tint for the fill, accent-leaning border, theme text
-  const fill = mix(panel, accent, 0.15);
-  const nodeBorder = mix(panel, accent, 0.55);
-
-  const mermaid = await loadMermaid();
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: 'base',
-    securityLevel: 'strict',
-    fontFamily: 'ui-monospace, SF Mono, Menlo, monospace', // i18n-ok: font stack
-    themeVariables: {
-      darkMode: isDark,
-      background: 'transparent',
-      primaryColor: fill,
-      primaryBorderColor: nodeBorder,
-      primaryTextColor: text,
-      mainBkg: fill,
-      nodeBorder,
-      secondaryColor: mix(panel, accent, 0.08),
-      tertiaryColor: inset,
-      lineColor: muted,
-      textColor: text,
-      titleColor: text,
-      clusterBkg: mix(panel, accent, 0.06),
-      clusterBorder: border,
-      edgeLabelBackground: panel,
-      nodeTextColor: text,
-    },
+  // Measure every empty placeholder up front: reading layout after the first
+  // svg lands would force a reflow per block.
+  const widths = [...blocks].map((el) => {
+    const style = getComputedStyle(el);
+    const inner = el.clientWidth - parseFloat(style.paddingLeft || '0') - parseFloat(style.paddingRight || '0');
+    return inner > 0 ? inner : undefined;
   });
-  for (const el of blocks) {
+  const pele = await loadPele(importModule);
+  for (const [i, el] of blocks.entries()) {
     const src = decodeURIComponent(el.dataset.src ?? '');
     try {
-      const { svg } = await mermaid.render(`mmd-${mermaidCounter++}`, src);
+      const { svg } = await pele.renderAsync(src, {
+        maxWidth: widths[i],
+        fontFamily: DIAGRAM_FONT,
+        links: false,
+        images: false,
+        autoDirection: false,
+        idPrefix: `dgm-${diagramCounter++}-`,
+      });
       el.innerHTML = svg;
       const svgEl = el.querySelector('svg');
-      if (svgEl) colorNodesByType(svgEl, panel);
+      if (svgEl) colorNodesByType(svgEl);
     } catch {
       el.innerHTML = `<pre class="code"><code>${escapeHtml(src)}</code></pre>`; // i18n-ok: markup
     }

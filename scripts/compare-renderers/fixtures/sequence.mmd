@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant PAGE-INBOX
+  participant API-TICKETS
+  participant DB-USERS
+  PAGE-INBOX->>+API-TICKETS: POST /tickets
+  API-TICKETS->>+DB-USERS: Find owner
+  DB-USERS-->>-API-TICKETS: Owner record
+  Note over API-TICKETS,DB-USERS: Validate ownership
+  alt Owner found
+    API-TICKETS-->>PAGE-INBOX: 201 Created
+  else No owner
+    API-TICKETS-->>PAGE-INBOX: 404 Not found
+  end
+  deactivate API-TICKETS

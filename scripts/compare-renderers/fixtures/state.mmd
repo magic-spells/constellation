@@ -1,0 +1,17 @@
+stateDiagram-v2
+  state "STATE-OPEN" as open
+  state "STATE-CLOSED" as closed
+  [*] --> open
+  open --> active: assign agent
+  state "STATE-ACTIVE" as active {
+    state "STATE-ASSIGNED" as assigned
+    state "STATE-RESOLVED" as resolved
+    [*] --> assigned
+    assigned --> resolved: agent resolves
+    resolved --> [*]
+  }
+  note right of open
+    Waiting for an agent
+  end note
+  active --> closed: requester confirms
+  closed --> [*]

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mermaid / Pele · Constellation</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script type="module" src="/app.mjs"></script>
+  </head>
+  <body>
+    <header>
+      <div><h1>Mermaid / Pele</h1><p>Constellation’s diagrams, rendered side by side.</p></div>
+      <div class="controls">
+        <button id="download-results" type="button" disabled>Download results</button>
+        <button id="theme-toggle" type="button" disabled>Switch to light</button>
+      </div>
+    </header>
+    <main>
+      <p id="status" role="status">Loading renderers and collecting diagrams…</p>
+      <p id="bytes">Transferred: measuring…</p>
+      <p class="explanation">Times include parsing, rendering, SVG insertion and handle tinting; first-use module fetches are excluded. Transfer totals include lazy modules. Expand a source to inspect it.</p>
+      <div id="comparisons"></div>
+    </main>
+  </body>
+</html>

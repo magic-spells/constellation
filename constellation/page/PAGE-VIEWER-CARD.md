@@ -27,6 +27,14 @@ notes:
       Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
       language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
     sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+  - kind: state
+    text: >-
+      Diagram rendering moved from mermaid to Pele in 1.2.0 ([[DECISION-PELE-RENDERER]]):
+      `renderMermaidBlocks` in `viewer/app/lib/markdown.js` lazy-imports `/vendor/pele/lazy.js`,
+      tints handle nodes via `g.pele-node[data-id]` with color-mix on `--t-*` tokens (by node id,
+      not label text), and `.mermaid-block { --pele-* }` in styles.css carries theme colours so
+      scheme/theme switches restyle without a re-render. `.mermaid-block` placeholder and the
+      Editable ignore list are unchanged.
 section: viewer
 order: 40
 ---
