@@ -10,7 +10,6 @@ connections:
   - DECISION-ATLAS-TWO-ENGINES
 ---
 
-
 The viewer renders ```mermaid fences with **Pele** (Obsidian's Mermaid-syntax renderer,
 `pele` on npm, MIT) instead of the `mermaid` package. Shipped in 1.2.0.
 
@@ -25,6 +24,7 @@ renderer for that syntax, not a dialect, and it rejects the same inputs Mermaid 
 
 ## Why
 
+
 Measured with `scripts/compare-renderers/` on every fence in this plan, the examples
 and the skill plus 15 fixtures (flowchart, state, sequence, class, ER, gantt, gitGraph,
 mindmap, pie, xychart, quadrant, timeline):
@@ -34,7 +34,8 @@ mindmap, pie, xychart, quadrant, timeline):
 - Bytes fetched for a flowchart + state page: 907 KB → 167 KB. `viewer/dist`:
   11.8 MB / 310 files → 2.4 MB / 142 files, because mermaid's 291 chunked ESM files
   (11 MB) are replaced by pele's ~1 MB tree.
-- Render time per plan diagram: 20–80 ms → 1–12 ms, synchronous.
+- Render time per plan diagram: 20–80 ms → 1–12 ms. Pele's render step is synchronous;
+  the viewer still goes through `renderAsync` so each diagram type loads on first use.
 - Zero runtime dependencies (mermaid pulled d3, dagre, KaTeX).
 
 ## How it is wired

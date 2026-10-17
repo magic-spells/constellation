@@ -81,6 +81,7 @@ column, and the column's width and centre do not move either way.
 
 ## Print
 
+
 Printing is the PDF export — no separate pipeline. Chrome is dropped, `@page`
 margins applied, a page break before every section, and a cover page (project
 name, package version, date). It applies on **every** route, not just here: a
@@ -92,6 +93,7 @@ no scheme's light half is paper white, medium blocks set literal values, and
 the print window's `data-paper` both force `color-scheme: light !important` and
 reset every token a medium block sets — two blocks in `styles.css`, kept in step.
 
-Known rough edge: mermaid SVG fills are baked at render time from computed
-tokens and don't re-render on the print media change, so diagrams print in their
-screen colours. Legible, but not paper-tuned.
+Diagrams follow those resets: since 1.2.0 their colours are live `--pele-*` and
+`--t-*` variables on the drawn SVG ([[DECISION-PELE-RENDERER]]), so a diagram
+prints in paper colours without re-rendering. (Before that, mermaid baked its
+fills at render time and diagrams printed in screen colours.)
