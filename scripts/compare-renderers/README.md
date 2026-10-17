@@ -2,6 +2,9 @@
 
 Dev-only, outside the viewer build and npm package. No production imports change.
 
+The viewer now renders with Pele and `mermaid` is no longer a dependency, so
+install it first to run this harness: `npm install --no-save mermaid@11`.
+
 ```sh
 npm run compare:renderers
 node scripts/compare-renderers/collect.mjs
