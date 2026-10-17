@@ -1,20 +1,41 @@
 import { execFile } from 'node:child_process';
 import {
   access,
-  appendFile,
   mkdir,
   readFile,
+  lstat,
   readdir,
   realpath,
+  rm,
   stat,
+  writeFile,
 } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { currentBranch, headSha, planRootsFor } from './git.js';
-import { codeRootFor } from './repos.js';
+import { codeRootFor, resolveCodeRoot } from './repos.js';
 import { findPlanUp, findRepoRoot, resolvePlanDir } from './resolve.js';
 import { workingClaudeMd } from './scaffold.js';
-import { withFileLock, writeAtomic } from './writer.js';
+import {
+  appendNoFollow,
+  assertNotLink,
+  lstatOrNull,
+  readNoFollow,
+  showPath,
+  UnsafePathError,
+  writeNoFollow,
+} from './no-follow.js';
+import {
+  DEFAULT_WORKING_CONFIG,
+  WORKING_CONFIG_FILE,
+  readWorkingConfigAt,
+  writeWorkingConfigAt,
+  type NewSessionMode,
+  type WorkingConfig,
+  type WorkingConfigRead,
+} from './working-config.js';
+import { LockBusyError, withWriteLock as withCrossProcessLock } from './working-lock.js';
+import { renameWithRetry, withFileLock, writeAtomic } from './writer.js';
 
 const exec = promisify(execFile);
 
@@ -38,8 +59,20 @@ export const WORKING_FILE = 'working.md';
 export const WORKING_LOG_DIR = 'log';
 export const WORKING_CLAUDE_FILE = 'CLAUDE.md';
 
-/** The `.gitignore` lines that keep the scratchpad local but ship the rules. */
-export const GITIGNORE_LINES = ['.constellation/*', '!.constellation/CLAUDE.md'];
+/**
+ * The `.gitignore` line that keeps the whole folder local. `constellation/` is the
+ * tracked long-term plan; `.constellation/` is conversational memory and is never
+ * tracked — its CLAUDE.md included (a fresh clone has no folder, which is fine).
+ */
+export const GITIGNORE_LINE = '.constellation/';
+export const GITIGNORE_LINES = [GITIGNORE_LINE];
+/** The pre-1.1 pair (rules file committed), migrated in place to GITIGNORE_LINE. */
+export const LEGACY_GITIGNORE_LINES = ['.constellation/*', '!.constellation/CLAUDE.md'];
+const GITIGNORE_COMMENT = '# Constellation working memory (local conversational memory; never tracked)';
+const LEGACY_GITIGNORE_COMMENT =
+  '# Constellation working memory (local scratchpad; the rules file is committed)';
+/** Lines that already ignore the whole folder from the code root. */
+const EQUIVALENT_LINES = new Set(['.constellation/', '.constellation', '/.constellation/', '/.constellation']);
 
 /** What the SessionStart hook runs. Matched verbatim to stay idempotent. */
 // `2>/dev/null || true`: the hook is installed per repo but Claude Code runs it in
@@ -107,14 +140,14 @@ export class WorkingError extends Error {
 export function noWorkingRoot(from: string): WorkingError {
   return new WorkingError(
     'NO_WORKING_ROOT',
-    `Working memory needs a git repository or a Constellation plan; found neither at or above ${from}.`,
+    `Working memory needs a git repository or a Constellation plan; found neither at or above ${showPath(from)}.`,
   );
 }
 
 function noFolder(dir: string): WorkingError {
   return new WorkingError(
     'NO_WORKING_FOLDER',
-    `No working memory at ${dir}. Call working_init (or \`constellation working install-hook\`) to create it.`,
+    `No working memory at ${showPath(dir)}. Call working_init (or \`constellation working install-hook\`) to create it.`,
   );
 }
 
@@ -254,7 +287,233 @@ export interface WorkingPaths {
   exists: boolean;
 }
 
+/* ── safety ─────────────────────────────────────────────────────────────── */
+
+/**
+ * `.constellation/` sits inside a repo, and `.gitignore` only keeps UNTRACKED
+ * files out — so a cloned repo can commit anything there: links, a working.md
+ * written to steer an agent, a config.json that sets `new_session: clear`. Two
+ * rules keep that out:
+ *
+ * - Nothing is read, written or deleted through a symbolic link. The folder and
+ *   every name working memory uses in it are checked with lstat, and the log and
+ *   working.md are opened with O_NOFOLLOW (no-follow.ts).
+ * - A folder git TRACKS anything in (but CLAUDE.md, which 1.0 committed on
+ *   purpose) came with the repo, so it is not this machine's memory: nothing in
+ *   it is read into an agent's context or changed.
+ *
+ * Every read and write goes through workingPaths, which enforces both.
+ */
+
+/** The names under `.constellation/` that working memory opens; none may be a link. */
+const GUARDED_NAMES = [WORKING_FILE, WORKING_LOG_DIR, WORKING_CONFIG_FILE, `${WORKING_FILE}.lock`];
+
+function unsafePath(file: string, what?: string): WorkingError {
+  return new WorkingError('UNSAFE_PATH', new UnsafePathError(file, what).message);
+}
+
+/** Up to five tracked names, shown only when they are plain path characters. */
+function describeTracked(tracked: string[]): string {
+  const plain = tracked.filter((f) => f.length <= 80 && /^[\w./-]+$/.test(f));
+  const shown = plain.slice(0, 5);
+  const rest = tracked.length - shown.length;
+  return [...shown, ...(rest > 0 ? [`${rest} other file${rest > 1 ? 's' : ''}`] : [])].join(', ');
+}
+
+/**
+ * Why working memory refuses this folder, or null when it is safe to use. Links
+ * first (cheap lstats), then one `git ls-files`. An absent folder is fine.
+ */
+export async function workingFolderProblem(target: WorkingTarget): Promise<WorkingError | null> {
+  const { dir, plan } = await toAnchor(target);
+  if (plan) {
+    // The anchor already fell back to the default root, but a code_root that
+    // tried to leave the repo is a repo trying to steer this: say so and stop.
+    const { escape } = await resolveCodeRoot(plan);
+    if (escape) {
+      return new WorkingError(
+        'UNSAFE_PATH',
+        `working memory not loaded: ${showPath(escape)}. Working memory never puts .constellation/ ` +
+          'or a .gitignore line outside the repository. Fix code_root in plan.md and retry.',
+      );
+    }
+  }
+  const st = await lstatOrNull(dir);
+  if (!st) return null;
+  if (st.isSymbolicLink()) return unsafePath(dir);
+  if (!st.isDirectory()) return unsafePath(dir, 'not a folder');
+  for (const name of GUARDED_NAMES) {
+    const file = path.join(dir, name);
+    if ((await lstatOrNull(file))?.isSymbolicLink()) return unsafePath(file);
+  }
+  const parent = path.dirname(dir);
+  const found = await shippedUnder(dir);
+  if ('error' in found) {
+    return new WorkingError(
+      'UNTRUSTED_WORKING',
+      `working memory not loaded: could not ask git what it tracks under ${showPath(dir)} (${showPath(found.error)}), ` +
+        'so the folder is treated as one the repo shipped. Fix git here and retry.',
+    );
+  }
+  if (found.shipped.length === 0) return null;
+  return new WorkingError(
+    'UNTRUSTED_WORKING',
+    `working memory not loaded: git tracks ${describeTracked(found.shipped)} under ${showPath(dir)}. ` +
+      'Files a repo ships are not this machine\'s memory, so nothing there is read or changed. ' +
+      `If they are yours, run \`git rm --cached -r ${WORKING_DIR}\` in ${showPath(parent)} and commit (the files stay on disk).`,
+  );
+}
+
+/**
+ * git for the trust check, unable to be steered by the repo or the caller: no
+ * inherited GIT_* overrides (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE…), no
+ * fsmonitor command, no hooks, no optional index lock, unquoted paths, and
+ * paths exactly as committed (no precomposing NFD to NFC on macOS).
+ */
+const TRUST_GIT_CONFIG = [
+  '-c', 'core.fsmonitor=false',
+  '-c', 'core.hooksPath=/dev/null',
+  '-c', 'core.quotePath=false',
+  '-c', 'core.precomposeUnicode=false',
+];
+
+function trustGitEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!key.startsWith('GIT_')) env[key] = value;
+  }
+  env.GIT_OPTIONAL_LOCKS = '0';
+  return env;
+}
+
+/** Run git for the trust check; stdout as raw bytes, so no name is mangled by decoding. */
+async function trustGit(cwd: string, args: string[]): Promise<Buffer> {
+  const { stdout } = (await exec('git', [...TRUST_GIT_CONFIG, ...args], {
+    cwd,
+    env: trustGitEnv(),
+    timeout: 10_000,
+    maxBuffer: 256 * 1024 * 1024,
+    encoding: 'buffer',
+  })) as unknown as { stdout: Buffer };
+  return stdout;
+}
+
+/** Regular-file modes: a tracked CLAUDE.md is only harmless as one of these. */
+const REGULAR_MODES = new Set(['100644', '100755']);
+const SLASH = 0x2f;
+const TAB = 0x09;
+
+/**
+ * Every index entry at or under `dir` that the repo shipped: anything but a
+ * regular-file `CLAUDE.md` directly inside it (the 1.0 layout). Fail-closed:
+ * inside a git repo any git or filesystem failure is an `error`, never
+ * "nothing tracked". Outside git (no `.git` above) nothing can be tracked.
+ *
+ * Matched by what the disk resolves, never by spelling. A case-insensitive or
+ * normalization-insensitive disk (APFS, NTFS) treats `.Constellation`,
+ * `.conſtellation` or an NFD `pkgé/` as this very folder, and no pathspec or
+ * string fold covers every such spelling. So git lists the whole index, as raw
+ * bytes (`-z`, quotePath and precomposeUnicode off, `--full-name` from the
+ * top). Entries are grouped by their first N path segments, N being `dir`'s depth
+ * below the top, and each distinct prefix is lstat'ed once. A prefix whose
+ * dev+ino is `dir`'s is this folder however it is spelled. `-s` gives each
+ * entry's mode, so a CLAUDE.md that is a link or a submodule counts as shipped.
+ */
+async function shippedUnder(dir: string): Promise<{ shipped: string[] } | { error: string }> {
+  if (!(await findRepoRoot(dir))) return { shipped: [] };
+  try {
+    const topRaw = await trustGit(path.dirname(dir), ['rev-parse', '--show-toplevel']);
+    const top = topRaw.subarray(0, topRaw.length - (topRaw.at(-1) === 0x0a ? 1 : 0));
+    const rel = path.relative(await realpath(top.toString('utf8')), await realpath(dir));
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+      return { error: 'the folder is not inside the repository git reports' };
+    }
+    const depth = rel.split(path.sep).length;
+    const own = await lstat(dir, { bigint: true });
+    const index = await trustGit(top.toString('utf8'), ['ls-files', '-s', '-z', '--full-name']);
+
+    // Group entries by their first `depth` path segments, as byte-exact keys.
+    // One pass over the raw buffer; a name is only decoded once it matched.
+    const groups = new Map<string, { prefix: Buffer; records: Buffer[] }>();
+    for (let start = 0; start < index.length; ) {
+      let end = index.indexOf(0, start);
+      if (end === -1) end = index.length;
+      const record = index.subarray(start, end);
+      start = end + 1;
+      if (record.length === 0) continue;
+      const tab = record.indexOf(TAB);
+      if (tab <= 0) return { error: 'unreadable git ls-files output' };
+      // The end of the `depth`-th segment: the depth-th slash after the tab, or the name's end.
+      let cut = tab;
+      let seen = 0;
+      while (seen < depth) {
+        const slash = record.indexOf(SLASH, cut + 1);
+        if (slash === -1) {
+          cut = seen === depth - 1 ? record.length : -1;
+          seen = depth;
+        } else {
+          cut = slash;
+          seen += 1;
+        }
+      }
+      if (cut === -1) continue; // fewer segments than `dir` has: not under it
+      const key = record.toString('latin1', tab + 1, cut);
+      let group = groups.get(key);
+      if (!group) groups.set(key, (group = { prefix: record.subarray(tab + 1, cut), records: [] }));
+      group.records.push(record);
+    }
+
+    const shipped: string[] = [];
+    const keys = [...groups.keys()];
+    for (let i = 0; i < keys.length; i += 64) {
+      const batch = keys.slice(i, i + 64).map((k) => groups.get(k)!);
+      const hits = await Promise.all(
+        batch.map(async (group) => {
+          const at = Buffer.concat([top, Buffer.from('/'), group.prefix]);
+          const st = await lstat(at, { bigint: true }).catch((err: NodeJS.ErrnoException) => {
+            // Tracked but not on disk (deleted, or a sparse checkout): not this folder.
+            if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return null;
+            throw err;
+          });
+          return st !== null && st.dev === own.dev && st.ino === own.ino;
+        }),
+      );
+      batch.forEach((group, j) => {
+        if (!hits[j]) return;
+        for (const record of group.records) {
+          const tab = record.indexOf(TAB);
+          const mode = record.toString('latin1', 0, tab).split(' ')[0];
+          const name = record.toString('utf8', tab + 1);
+          const rest = record.toString('utf8', tab + 1 + group.prefix.length);
+          const claudeOnly = rest === `/${WORKING_CLAUDE_FILE}` && REGULAR_MODES.has(mode);
+          if (!claudeOnly) shipped.push(name);
+        }
+      });
+    }
+    return { shipped };
+  } catch (err) {
+    const message = err instanceof Error ? err.message.split('\n')[0] : String(err);
+    return { error: message || 'git failed' };
+  }
+}
+
+/** Throw workingFolderProblem's refusal, if any. */
+async function guardWorking(target: WorkingTarget): Promise<void> {
+  const problem = await workingFolderProblem(target);
+  if (problem) throw problem;
+}
+
+/** Turn a no-follow refusal from a helper into the tool error contract. */
+function asWorkingError(err: unknown): unknown {
+  return err instanceof UnsafePathError ? new WorkingError('UNSAFE_PATH', err.message) : err;
+}
+
+/**
+ * The folder's paths, after workingFolderProblem has passed: it throws
+ * UNSAFE_PATH or UNTRUSTED_WORKING instead of handing back a path to use.
+ */
 export async function workingPaths(target: WorkingTarget): Promise<WorkingPaths> {
+  await guardWorking(target);
   const { dir } = await toAnchor(target);
   let exists = true;
   try {
@@ -478,7 +737,7 @@ export interface WorkingSet {
 async function readDoc(file: string): Promise<WorkingDoc> {
   let raw = '';
   try {
-    raw = await readFile(file, 'utf8');
+    raw = await readNoFollow(file);
   } catch {
     raw = '';
   }
@@ -508,7 +767,7 @@ export async function readWorkingRaw(target: WorkingTarget): Promise<{
   const paths = await workingPaths(target);
   if (!paths.exists) return null;
   try {
-    return { path: paths.file, text: await readFile(paths.file, 'utf8') };
+    return { path: paths.file, text: await readNoFollow(paths.file) };
   } catch {
     return null;
   }
@@ -533,12 +792,22 @@ export async function appendLog(
 async function appendLogAt(logDir: string, text: string): Promise<{ path: string }> {
   const flat = text.replace(/\s*\n+\s*/g, ' ').trim();
   const file = logPathFor(logDir);
-  await mkdir(logDir, { recursive: true });
-  await withFileLock(file, async () => {
-    await appendFile(file, `- ${localTime()} ${flat}\n`, 'utf8');
-  });
+  try {
+    await assertNotLink(logDir);
+    await mkdir(logDir, { recursive: true });
+    await withFileLock(file, async () => {
+      // Never through a link: a committed `log/<today>.md -> ~/.bashrc` would
+      // otherwise take an item's text as a line of somebody's shell startup.
+      await appendNoFollow(file, `- ${localTime()} ${flat}\n`);
+    });
+  } catch (err) {
+    throw asWorkingError(err);
+  }
   return { path: file };
 }
+
+/** A log file's name: one day. Nothing else in log/ is read. */
+const LOG_NAME_RE = /^\d{4}-\d{2}-\d{2}\.md$/;
 
 /**
  * Log lines: `"today"` is today's file; a number is the last N lines across the
@@ -553,7 +822,7 @@ export async function readLog(
   if (!paths.exists) throw noFolder(paths.dir);
   let files: string[];
   try {
-    files = (await readdir(paths.logDir)).filter((f) => f.endsWith('.md')).sort();
+    files = (await readdir(paths.logDir)).filter((f) => LOG_NAME_RE.test(f)).sort();
   } catch {
     return [];
   }
@@ -566,7 +835,8 @@ export async function readLog(
   if (limit === 0) return [];
   const lines: string[] = [];
   for (const name of files.slice(spec === 'today' ? 0 : -8)) {
-    const text = await readFile(path.join(paths.logDir, name), 'utf8').catch(() => '');
+    // A log file that is a link is skipped, never read through.
+    const text = await readNoFollow(path.join(paths.logDir, name)).catch(() => '');
     for (const line of text.split('\n')) if (line.trim()) lines.push(line);
   }
   return Number.isFinite(limit) ? lines.slice(-limit) : lines;
@@ -619,27 +889,86 @@ function validateText(text: string): string {
   return text.trim();
 }
 
+/** Optimistic retries when working.md changes under a write (a writer outside the lock). */
+const MAX_WRITE_ATTEMPTS = 5;
+
+/** The cross-process lock (working-lock.ts), with BUSY mapped onto the tool error contract. */
+async function withWriteLock<T>(file: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await withCrossProcessLock(file, fn);
+  } catch (err) {
+    if (err instanceof LockBusyError) throw new WorkingError('BUSY', err.message);
+    throw asWorkingError(err);
+  }
+}
+
+async function readRaw(file: string): Promise<string> {
+  try {
+    return await readNoFollow(file);
+  } catch {
+    return '';
+  }
+}
+
+/** What a mutation hands back: its result, the log lines it owes, and whether to write at all. */
+interface Mutation<T> {
+  result: T;
+  logs?: string[];
+  write?: boolean;
+}
+
 /**
- * Run a read→modify→write against `working.md` under the per-file lock. The log
- * dir comes back with the result so callers append AFTER the write lands — a log
- * line for a write that then failed would be a lie in the one place that is
- * supposed to be the history.
+ * The one read→modify→write path for `working.md`, shared by every writer (MCP,
+ * the hook's clear). Locked in-process and across processes; then optimistic on
+ * top, for writers that do not take the lock (a hand edit, an older server): the
+ * new content goes to a temp file, and only if `working.md` is still exactly what
+ * was read is the log written and the temp renamed over it — otherwise re-read
+ * and redo, up to MAX_WRITE_ATTEMPTS, then fail CONFLICT. `fn` may run more than
+ * once, so it must keep its state inside what it returns.
+ *
+ * The log goes first: a crash between the two leaves a logged change that never
+ * landed, never a change with no history — and only the attempt that wins logs.
  */
 async function mutate<T>(
   target: WorkingTarget,
-  fn: (doc: WorkingDoc) => Promise<T> | T,
-): Promise<{ result: T; header: WorkingHeader; doc: WorkingDoc; logDir: string }> {
+  fn: (doc: WorkingDoc) => Promise<Mutation<T>> | Mutation<T>,
+): Promise<{ result: T; header: WorkingHeader; doc: WorkingDoc }> {
   const anchor = await toAnchor(target);
   const paths = await workingPaths(anchor);
   if (!paths.exists) throw noFolder(paths.dir);
   const fields = await freshHeaderFields(anchor.from);
-  return withFileLock(paths.file, async () => {
-    const doc = await readDoc(paths.file);
-    const result = await fn(doc);
-    Object.assign(doc.header, fields);
-    await writeAtomic(paths.file, serializeWorking(doc));
-    return { result, header: doc.header, doc, logDir: paths.logDir };
-  });
+  return withFileLock(paths.file, () =>
+    withWriteLock(paths.file, async () => {
+      for (let attempt = 0; attempt < MAX_WRITE_ATTEMPTS; attempt++) {
+        const before = await readRaw(paths.file);
+        const doc = parseWorking(before);
+        const { result, logs = [], write = true } = await fn(doc);
+        if (!write) return { result, header: doc.header, doc };
+        Object.assign(doc.header, fields);
+        const tmp = `${paths.file}.${process.pid}.${attempt}.${Date.now().toString(36)}.tmp`;
+        await writeFile(tmp, serializeWorking(doc), 'utf8');
+        try {
+          if ((await readRaw(paths.file)) !== before) continue;
+          for (const line of logs) await appendLogAt(paths.logDir, line);
+          try {
+            await renameWithRetry(tmp, paths.file);
+          } catch (err) {
+            // The log already says it happened; say it did not, so the history stays true.
+            const reason = err instanceof Error ? err.message : String(err);
+            if (logs.length > 0) await appendLogAt(paths.logDir, `abort — ${reason}`);
+            throw err;
+          }
+        } finally {
+          await rm(tmp, { force: true });
+        }
+        return { result, header: doc.header, doc };
+      }
+      throw new WorkingError(
+        'CONFLICT',
+        `working.md kept changing under this write (${MAX_WRITE_ATTEMPTS} attempts); nothing was written. Retry.`,
+      );
+    }),
+  );
 }
 
 export interface WorkingSetResult {
@@ -662,10 +991,9 @@ export async function setItems(
   if (!Array.isArray(items) || items.length === 0) {
     throw new WorkingError('BAD_ITEMS', 'Pass at least one item.');
   }
-  const superseded: string[] = [];
-  const supersedeLogs: string[] = [];
-
-  const { result, header, logDir } = await mutate(target, async (doc) => {
+  const { result, header } = await mutate(target, async (doc) => {
+    const superseded: string[] = [];
+    const supersedeLogs: string[] = [];
     const byId = new Map<string, { line: Line; section: Section }>();
     for (const section of doc.sections) {
       for (const line of section.lines) {
@@ -758,11 +1086,13 @@ export async function setItems(
       touched.push(item);
     }
 
-    return { ids, warnings: warningsFor(doc, touched) };
+    return {
+      result: { ids, warnings: warningsFor(doc, touched), superseded },
+      logs: supersedeLogs,
+    };
   });
 
-  for (const text of supersedeLogs) await appendLogAt(logDir, text);
-  return { ids: result.ids, header, warnings: result.warnings, superseded };
+  return { ids: result.ids, header, warnings: result.warnings, superseded: result.superseded };
 }
 
 export interface WorkingDropResult {
@@ -787,7 +1117,7 @@ export async function dropItems(
     }
   }
 
-  const { result, header, logDir } = await mutate(target, async (doc) => {
+  const { result, header } = await mutate(target, async (doc) => {
     const present = new Set(docItems(doc).map((i) => i.id));
     const missing = wanted.filter((id) => !present.has(id));
     if (missing.length > 0) {
@@ -808,21 +1138,122 @@ export async function dropItems(
       });
     }
     const logged = Boolean(reason && reason.trim());
-    return { dropped, logged };
+    return {
+      result: { dropped, logged },
+      logs: logged ? [`drop ${dropped.join(', ')} — ${(reason as string).trim()}`] : [],
+    };
   });
 
-  if (result.logged) {
-    await appendLogAt(logDir, `drop ${result.dropped.join(', ')} — ${(reason as string).trim()}`);
-  }
   return { dropped: result.dropped, header, logged: result.logged };
+}
+
+/* ── new session ────────────────────────────────────────────────────────── */
+
+/**
+ * `new_session: "clear"` on a fresh session: drop every item except CONSTRAINT
+ * lines — the user's stated rules outlive any one stretch of work. Same locked
+ * path as dropItems, and each dropped item goes to the log with its text, so
+ * nothing is lost: the log is the history. Callers decide WHEN (startup / clear,
+ * never compact or resume); this only does it. No folder or nothing to drop →
+ * no write at all, so hooks firing at once log each drop exactly once.
+ *
+ * Never from a linked worktree: the folder resolves through the main checkout,
+ * so one list is shared by every session in the repo, and a session in a
+ * worktree is parallel work by definition — clearing there would wipe the
+ * main session's state mid-flight.
+ */
+export async function clearForNewSession(
+  target: WorkingTarget,
+): Promise<{ dropped: string[]; skipped?: 'linked-worktree' }> {
+  const anchor = await toAnchor(target);
+  if (await isLinkedWorktree(anchor.from)) return { dropped: [], skipped: 'linked-worktree' };
+  if (!(await workingPaths(anchor)).exists) return { dropped: [] };
+  const { result } = await mutate(anchor, (doc) => {
+    const dropped: WorkingItem[] = [];
+    for (const section of doc.sections) {
+      section.lines = section.lines.filter((line) => {
+        if (line.item && line.item.type !== 'C') {
+          dropped.push(line.item);
+          return false;
+        }
+        return true;
+      });
+    }
+    return {
+      result: dropped.map((i) => i.id),
+      logs: dropped.map((i) => `drop ${i.id} — new session · [${i.importance}] ${i.text}`),
+      write: dropped.length > 0,
+    };
+  });
+  return { dropped: result };
+}
+
+/** True inside a linked worktree (its git dir is not the common one). False outside git. */
+export async function isLinkedWorktree(from: string): Promise<boolean> {
+  try {
+    const { stdout } = await exec('git', ['rev-parse', '--git-dir', '--git-common-dir'], {
+      cwd: from,
+    });
+    const [gitDir, commonDir] = stdout.trim().split('\n');
+    if (!gitDir || !commonDir) return false;
+    const real = (p: string) => realpath(path.resolve(from, p)).catch(() => path.resolve(from, p));
+    return (await real(gitDir)) !== (await real(commonDir));
+  } catch {
+    return false;
+  }
+}
+
+/* ── settings ───────────────────────────────────────────────────────────── */
+
+/** The effective `.constellation/config.json` for an anchor. Never throws. */
+export async function readWorkingConfig(target: WorkingTarget): Promise<WorkingConfigRead> {
+  return readWorkingConfigAt((await toAnchor(target)).dir);
+}
+
+/**
+ * Change settings (the CLI's `working on|off|new-session`). The file is local, so
+ * the ignore line is ensured and verified alongside — a config.json that shows
+ * up in `git status` would be a setting about to be committed by accident.
+ */
+export async function setWorkingConfig(
+  target: WorkingTarget,
+  patch: Partial<WorkingConfig>,
+): Promise<{ config: WorkingConfig; path: string; warnings: string[] } & GitignoreReport> {
+  const anchor = await toAnchor(target);
+  await guardWorking(anchor);
+  const written = await writeWorkingConfigAt(anchor.dir, patch).catch((err) => {
+    throw asWorkingError(err);
+  });
+  const ignore = await ensureIgnored(anchor);
+  return {
+    config: written.config,
+    path: written.path,
+    ...ignore,
+    warnings: [...written.warnings, ...ignore.warnings],
+  };
 }
 
 /* ── init ───────────────────────────────────────────────────────────────── */
 
-export interface WorkingInitResult {
+export interface WorkingInitOptions {
+  hook?: boolean;
+  /** The user's answer to "use working memory on this repo?" — only used when config.json is new. */
+  enabled?: boolean;
+  /** The user's answer to "clear it with every new session?" — only used when config.json is new. */
+  new_session?: NewSessionMode;
+}
+
+export interface WorkingInitResult extends GitignoreReport {
   dir: string;
   created: string[];
-  gitignore: 'added' | 'present';
+  /** The settings in force after this call. */
+  config: WorkingConfig;
+  /** True when this call wrote config.json (it never overwrites one). */
+  config_created: boolean;
+  /** Settings filled from defaults because no answer was passed — mention them to the user. */
+  defaults_applied?: Array<keyof WorkingConfig>;
+  /** Answers that were passed but not applied because config.json already existed. */
+  config_unchanged?: string;
   hook?: 'installed' | 'present' | 'skipped';
 }
 
@@ -842,14 +1273,18 @@ async function emptyWorkingFile(from: string): Promise<string> {
 }
 
 /**
- * Create the working folder, its rules file, an empty `working.md` and the two
- * `.gitignore` lines. Idempotent: run it twice and the second run creates
- * nothing. The SessionStart hook is opt-in — editing a user's settings.json is
- * invasive enough to be asked for, and it is reported either way.
+ * Create the working folder: config.json (the user's two answers, or the
+ * defaults spelled out), its rules file, an empty `working.md`, `log/`, and the
+ * `.constellation/` ignore line — verified with `git check-ignore`. Idempotent:
+ * run it twice and the second run creates nothing, and an existing config.json
+ * is never overwritten. When working memory is off (answered no now, or already
+ * off in config.json) only config.json and the ignore line are written. The
+ * SessionStart hook is opt-in — editing a user's settings.json is invasive
+ * enough to be asked for, and it is reported either way.
  */
 export async function initWorking(
   target: WorkingTarget,
-  opts: { hook?: boolean } = {},
+  opts: WorkingInitOptions = {},
 ): Promise<WorkingInitResult> {
   // The scratchpad resolves through the MAIN checkout (one per plan or repo), but
   // the two TRACKED files do not: .gitignore and .claude/settings.json belong to
@@ -857,49 +1292,294 @@ export async function initWorking(
   // files. .gitignore sits at the code root (it ignores a sibling of the plan);
   // settings.json sits at the git root, which is where Claude Code reads it.
   // Without a plan both are the calling checkout's git root.
-  const { dir, codeRoot, gitRoot, from } = await toAnchor(target);
+  const anchor = await toAnchor(target);
+  await guardWorking(anchor);
+  const { dir, gitRoot, from } = anchor;
   const created: string[] = [];
 
   await mkdir(dir, { recursive: true });
-  await mkdir(path.join(dir, WORKING_LOG_DIR), { recursive: true });
 
-  const claudeFile = path.join(dir, WORKING_CLAUDE_FILE);
-  if (!(await fileExists(claudeFile))) {
-    await writeAtomic(claudeFile, workingClaudeMd());
-    created.push(claudeFile);
+  const answers: Partial<WorkingConfig> = {};
+  if (opts.enabled !== undefined) answers.enabled = opts.enabled;
+  if (opts.new_session !== undefined) answers.new_session = opts.new_session;
+  const answered = Object.keys(answers).length > 0;
+  // Only a real answer is saved. Unanswered (non-TTY, or the agent omitted them)
+  // leaves no file: a missing file already means on + keep, and it keeps the
+  // question open for the next real setup.
+  const existing = await readWorkingConfigAt(dir);
+  const written = answered
+    ? await writeWorkingConfigAt(dir, { ...DEFAULT_WORKING_CONFIG, ...answers }, { ifMissing: true })
+    : { ...existing, created: false };
+  if (written.created) created.push(written.path);
+  const config = written.config;
+
+  // An explicit "no" never creates the scratchpad, whatever an older config says.
+  const enabled = config.enabled && opts.enabled !== false;
+  if (enabled) {
+    await mkdir(path.join(dir, WORKING_LOG_DIR), { recursive: true });
+    const claudeFile = path.join(dir, WORKING_CLAUDE_FILE);
+    if (!(await fileExists(claudeFile))) {
+      await writeAtomic(claudeFile, workingClaudeMd());
+      created.push(claudeFile);
+    }
+    const workingFile = path.join(dir, WORKING_FILE);
+    if (!(await fileExists(workingFile))) {
+      await writeAtomic(workingFile, await emptyWorkingFile(from));
+      created.push(workingFile);
+    }
   }
 
-  const workingFile = path.join(dir, WORKING_FILE);
-  if (!(await fileExists(workingFile))) {
-    await writeAtomic(workingFile, await emptyWorkingFile(from));
-    created.push(workingFile);
+  const ignore = await ensureIgnored(anchor);
+  const result: WorkingInitResult = {
+    dir,
+    created,
+    config,
+    config_created: written.created,
+    ...ignore,
+  };
+  if (written.created || !existing.exists) {
+    const defaults = (['enabled', 'new_session'] as const).filter((k) => answers[k] === undefined);
+    if (defaults.length > 0) result.defaults_applied = defaults;
+  } else if (answered) {
+    result.config_unchanged =
+      `config.json already exists, so the answers passed were not applied (in force: enabled ${config.enabled}, ` +
+      `new_session ${config.new_session}). Only the user changes it: constellation working on|off|new-session.`;
   }
-
-  const gitignore = await ensureGitignore(codeRoot);
-  const result: WorkingInitResult = { dir, created, gitignore };
-  if (opts.hook) result.hook = await installHook(gitRoot);
+  result.warnings = [...written.warnings, ...ignore.warnings];
+  if (opts.hook && enabled) result.hook = await installHook(gitRoot);
   return result;
 }
 
-/** Add the two ignore lines to `<codeRoot>/.gitignore`, once. */
-export async function ensureGitignore(codeRoot: string): Promise<'added' | 'present'> {
+/**
+ * Ensure `.constellation/` is in `<codeRoot>/.gitignore`, once. An old two-line
+ * form (`.constellation/*` + `!.constellation/CLAUDE.md`) is migrated in place:
+ * the first of its lines becomes `.constellation/`, the rest go, nothing is
+ * duplicated. An equivalent line already there (`/.constellation`, …) counts.
+ */
+/**
+ * `.gitignore` is repo content too: a committed `.gitignore -> ../victim/secret.env`
+ * must never be read (its text would be copied back into the repo) or replaced.
+ * A linked one is refused with UNSAFE_PATH; a missing one reads as empty.
+ */
+async function readGitignore(file: string): Promise<string> {
+  try {
+    return await readNoFollow(file);
+  } catch (err) {
+    if (err instanceof UnsafePathError) throw asWorkingError(err);
+    return '';
+  }
+}
+
+async function writeGitignore(file: string, text: string): Promise<void> {
+  await writeNoFollow(file, text).catch((err: unknown) => {
+    throw asWorkingError(err);
+  });
+}
+
+export async function ensureGitignore(
+  codeRoot: string,
+): Promise<'added' | 'present' | 'migrated'> {
   const file = path.join(codeRoot, '.gitignore');
   return withFileLock(file, async () => {
-    let raw = '';
-    try {
-      raw = await readFile(file, 'utf8');
-    } catch {
-      raw = '';
+    const raw = await readGitignore(file);
+    const lines = raw === '' ? [] : raw.replace(/\n$/, '').split('\n');
+    const trimmed = lines.map((l) => l.trim());
+    const present = trimmed.some((l) => EQUIVALENT_LINES.has(l));
+    const legacy = trimmed.some((l) => LEGACY_GITIGNORE_LINES.includes(l));
+
+    if (legacy) {
+      const out: string[] = [];
+      let placed = present;
+      for (const [i, line] of lines.entries()) {
+        const t = trimmed[i];
+        if (t === LEGACY_GITIGNORE_COMMENT) {
+          out.push(GITIGNORE_COMMENT);
+        } else if (LEGACY_GITIGNORE_LINES.includes(t)) {
+          if (!placed) {
+            out.push(GITIGNORE_LINE);
+            placed = true;
+          }
+        } else {
+          out.push(line);
+        }
+      }
+      await writeGitignore(file, `${out.join('\n')}\n`);
+      return 'migrated' as const;
     }
-    const present = new Set(raw.split('\n').map((l) => l.trim()));
-    const missing = GITIGNORE_LINES.filter((l) => !present.has(l));
-    if (missing.length === 0) return 'present' as const;
+    if (present) return 'present' as const;
     const prefix = raw === '' || raw.endsWith('\n') ? '' : '\n';
-    const block = `${prefix}${raw === '' ? '' : '\n'}# Constellation working memory (local scratchpad; the rules file is committed)\n${missing.join('\n')}\n`;
-    await writeAtomic(file, raw + block);
+    const block = `${prefix}${raw === '' ? '' : '\n'}${GITIGNORE_COMMENT}\n${GITIGNORE_LINE}\n`;
+    await writeGitignore(file, raw + block);
     return 'added' as const;
   });
 }
+
+/* ── gitignore: checked, not assumed ────────────────────────────────────── */
+
+export interface GitignoreReport {
+  /** What happened to the `.constellation/` line in .gitignore. */
+  gitignore: 'added' | 'present' | 'migrated';
+  /**
+   * `git check-ignore` on the folder and everything in it: ok, fixed (our line
+   * was moved to the end of .gitignore so no later rule un-ignores it), failed
+   * (still not ignored — named in warnings), or skipped (not a git checkout).
+   */
+  gitignore_check: 'ok' | 'fixed' | 'failed' | 'skipped';
+  /** Files under .constellation/ that git already tracks — .gitignore cannot untrack them. */
+  tracked?: string[];
+  warnings: string[];
+}
+
+async function insideGit(cwd: string): Promise<boolean> {
+  try {
+    const { stdout } = await exec('git', ['rev-parse', '--is-inside-work-tree'], { cwd });
+    return stdout.trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/** Paths under `.constellation/` (relative to codeRoot) that the rules leave un-ignored. */
+async function notIgnored(codeRoot: string): Promise<string[]> {
+  const folder = path.join(codeRoot, WORKING_DIR);
+  const candidates = new Set([
+    `${WORKING_DIR}/`,
+    `${WORKING_DIR}/${WORKING_CLAUDE_FILE}`,
+    `${WORKING_DIR}/${WORKING_FILE}`,
+    `${WORKING_DIR}/config.json`,
+    `${WORKING_DIR}/${WORKING_LOG_DIR}/`,
+  ]);
+  try {
+    for (const entry of await readdir(folder, { withFileTypes: true })) {
+      candidates.add(`${WORKING_DIR}/${entry.name}${entry.isDirectory() ? '/' : ''}`);
+    }
+  } catch {
+    // No folder in this checkout (a linked worktree, or not created yet): the
+    // fixed names above are still checked — git matches paths that do not exist.
+  }
+  // -z needs --stdin; NUL-separated both ways so no path is ever quoted.
+  const stdout = await new Promise<string>((resolve, reject) => {
+    const child = execFile(
+      'git',
+      ['check-ignore', '--no-index', '--stdin', '-z', '-v', '-n'],
+      { cwd: codeRoot },
+      (err, out) => {
+        // Exit 1 just means "nothing ignored"; the -n -v output is still complete.
+        if (err && (err as { code?: unknown }).code !== 1) reject(err);
+        else resolve(String(out));
+      },
+    );
+    child.stdin?.end([...candidates].join('\0') + '\0');
+  });
+  const fields = stdout.split('\0');
+  const bad: string[] = [];
+  for (let i = 0; i + 3 < fields.length; i += 4) {
+    const pattern = fields[i + 2];
+    const file = fields[i + 3];
+    if (!pattern || pattern.startsWith('!')) bad.push(file);
+  }
+  return bad;
+}
+
+/** Files under `<codeRoot>/.constellation/` in git's index. */
+async function trackedUnder(codeRoot: string): Promise<string[]> {
+  try {
+    const { stdout } = await exec('git', ['ls-files', '-z', '--', WORKING_DIR], { cwd: codeRoot });
+    return stdout.split('\0').filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * One line. A 1.0 repo tracks `.constellation/CLAUDE.md` on purpose under the
+ * legacy `!` line; untracking it before the ignore line is migrated would leave
+ * it untracked but not ignored. So while the legacy lines are still there, the
+ * migration step comes first.
+ */
+function trackedWarning(tracked: string[], codeRoot: string, legacy: boolean): string {
+  const names = describeTracked(tracked);
+  const first = legacy
+    ? 'first migrate .gitignore to `.constellation/` (`constellation working install-hook` or working_init), then '
+    : '';
+  return (
+    `tracked by git: ${names} — ${first}run \`git rm --cached -r ${WORKING_DIR}\` in ${showPath(codeRoot)} ` +
+    'and commit (the files stay on disk).'
+  );
+}
+
+/** Does `<codeRoot>/.gitignore` still carry the pre-1.1 pair? */
+async function hasLegacyIgnore(codeRoot: string): Promise<boolean> {
+  const raw = await readGitignore(path.join(codeRoot, '.gitignore'));
+  return raw.split('\n').some((l) => LEGACY_GITIGNORE_LINES.includes(l.trim()));
+}
+
+/** Move our ignore line to the end of .gitignore, so it is the last rule that matches. */
+async function moveIgnoreLineLast(codeRoot: string): Promise<void> {
+  const file = path.join(codeRoot, '.gitignore');
+  await withFileLock(file, async () => {
+    const raw = await readGitignore(file);
+    const kept = raw
+      .replace(/\n$/, '')
+      .split('\n')
+      .filter((l) => l.trim() !== GITIGNORE_LINE && l.trim() !== GITIGNORE_COMMENT);
+    while (kept.length > 0 && kept[kept.length - 1].trim() === '') kept.pop();
+    const head = kept.length > 0 ? `${kept.join('\n')}\n\n` : '';
+    await writeGitignore(file, `${head}${GITIGNORE_COMMENT}\n${GITIGNORE_LINE}\n`);
+  });
+}
+
+/**
+ * Write the ignore line, then prove it took: `git check-ignore` must say every
+ * path under `.constellation/` is ignored. When a later rule un-ignores it (a
+ * `!.constellation` line after ours), our line is moved to the end of the code
+ * root's .gitignore — the closest file, whose last match wins over every parent
+ * .gitignore, info/exclude and the global excludes file. Files already tracked
+ * are reported with the `git rm --cached` command, never untracked here. Outside
+ * git the check is skipped quietly.
+ */
+export async function ensureIgnored(target: WorkingTarget): Promise<GitignoreReport> {
+  const { codeRoot } = await toAnchor(target);
+  const gitignore = await ensureGitignore(codeRoot);
+  if (!(await insideGit(codeRoot))) {
+    return { gitignore, gitignore_check: 'skipped', warnings: [] };
+  }
+  const warnings: string[] = [];
+  let check: GitignoreReport['gitignore_check'] = 'ok';
+  try {
+    if ((await notIgnored(codeRoot)).length > 0) {
+      await moveIgnoreLineLast(codeRoot);
+      const still = await notIgnored(codeRoot);
+      check = still.length > 0 ? 'failed' : 'fixed';
+      if (still.length > 0) {
+        warnings.push(
+          `still not ignored after moving ${GITIGNORE_LINE} to the end of .gitignore: ${showPath(still.join(', '))} — check the git ignore rules by hand`,
+        );
+      }
+    }
+  } catch {
+    check = 'skipped';
+  }
+  const report: GitignoreReport = { gitignore, gitignore_check: check, warnings };
+  const tracked = await trackedUnder(codeRoot);
+  if (tracked.length > 0) {
+    report.tracked = tracked;
+    warnings.push(trackedWarning(tracked, codeRoot, await hasLegacyIgnore(codeRoot)));
+  }
+  return report;
+}
+
+/**
+ * The cheap read-side check for orient / working_list: one `git ls-files` on the
+ * working folder. Null when nothing there is tracked (or there is no git).
+ */
+export async function trackedWorkingWarning(target: WorkingTarget): Promise<string | null> {
+  const { dir } = await toAnchor(target);
+  const parent = path.dirname(dir);
+  const tracked = await trackedUnder(parent);
+  return tracked.length > 0 ? trackedWarning(tracked, parent, await hasLegacyIgnore(parent)) : null;
+}
+
 
 interface HookEntry {
   matcher?: string;
@@ -921,12 +1601,18 @@ export async function installHook(
 ): Promise<'installed' | 'present' | 'skipped'> {
   const dir = path.join(gitRoot, '.claude');
   const file = path.join(dir, 'settings.json');
+  // A repo can commit `.claude -> ~/.claude`: never read or write through a link,
+  // or this would edit the user's global settings instead of the repo's.
+  for (const p of [dir, file]) {
+    if ((await lstatOrNull(p))?.isSymbolicLink()) throw unsafePath(p);
+  }
   return withFileLock(file, async () => {
     let settings: Record<string, unknown> = {};
     let raw: string | null = null;
     try {
-      raw = await readFile(file, 'utf8');
-    } catch {
+      raw = await readNoFollow(file);
+    } catch (err) {
+      if (err instanceof UnsafePathError) throw asWorkingError(err);
       raw = null;
     }
     if (raw !== null && raw.trim()) {
@@ -960,12 +1646,14 @@ export async function installHook(
     });
     settings.hooks = { ...hooks, SessionStart: sessionStart };
     await mkdir(dir, { recursive: true });
-    await writeAtomic(file, `${JSON.stringify(settings, null, 2)}\n`);
+    await writeNoFollow(file, `${JSON.stringify(settings, null, 2)}\n`).catch((err) => {
+      throw asWorkingError(err);
+    });
     return 'installed' as const;
   });
 }
 
 /** The one-line preamble the CLI prints above the file. */
 export function workingPreamble(file: string): string {
-  return `Working memory · ${file} · authoritative for what is in flight; verify against git/worktrees before acting`;
+  return `Working memory · ${showPath(file)} · authoritative for what is in flight; verify against git/worktrees before acting`;
 }

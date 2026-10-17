@@ -1,4 +1,4 @@
-import { link, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as yaml from 'js-yaml';
 import { TYPE_FOLDERS, typeForHandle } from './handles.js';
@@ -191,12 +191,32 @@ function tmpPathFor(filePath: string): string {
   return `${filePath}.${process.pid}.${(tmpSeq++).toString(36)}.tmp`;
 }
 
+/** Rename errors that mean another program (an editor, antivirus, an indexer) holds the file. */
+const RENAME_RETRY_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
+
+/**
+ * rename, retried with a short backoff when the target is momentarily held open —
+ * routine on Windows, where an editor or virus scanner can block a replace.
+ */
+export async function renameWithRetry(from: string, to: string, attempts = 5): Promise<void> {
+  for (let i = 0; ; i++) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code ?? '';
+      if (!RENAME_RETRY_CODES.has(code) || i >= attempts - 1) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 20 * 2 ** i));
+    }
+  }
+}
+
 /** Write via temp file + rename so a crash can never leave a half-written card. */
 export async function writeAtomic(filePath: string, data: string): Promise<void> {
   const tmp = tmpPathFor(filePath);
   await writeFile(tmp, data, 'utf8');
   try {
-    await rename(tmp, filePath);
+    await renameWithRetry(tmp, filePath);
   } catch (err) {
     await rm(tmp, { force: true });
     throw err;
@@ -250,8 +270,29 @@ export async function createCardFile(
   const relPath = relPathForHandle(handle);
   const filePath = path.join(planRoot, relPath);
   await mkdir(path.dirname(filePath), { recursive: true });
+  await assertInsidePlan(planRoot, path.dirname(filePath));
   await writeAtomicExclusive(filePath, composeCard(fm, body));
   return relPath;
+}
+
+/** A write whose real target lies outside the plan folder (a symlinked type folder). */
+export class PathEscapeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PathEscapeError';
+  }
+}
+
+/**
+ * Refuse to write through a symlinked type folder: the folder's REAL path must
+ * sit inside the plan root's real path. The indexer already skips symlinked
+ * entries, so this is only reachable for a new card in such a folder.
+ */
+async function assertInsidePlan(planRoot: string, dir: string): Promise<void> {
+  const [realRoot, realDir] = await Promise.all([realpath(planRoot), realpath(dir)]);
+  if (realDir !== realRoot && !realDir.startsWith(realRoot + path.sep)) {
+    throw new PathEscapeError(`${path.relative(planRoot, dir)} resolves outside the plan folder`);
+  }
 }
 
 /**
@@ -267,6 +308,7 @@ export async function createRawCardFile(
   const relPath = relPathForHandle(handle);
   const filePath = path.join(planRoot, relPath);
   await mkdir(path.dirname(filePath), { recursive: true });
+  await assertInsidePlan(planRoot, path.dirname(filePath));
   await writeAtomicExclusive(filePath, raw);
   return relPath;
 }

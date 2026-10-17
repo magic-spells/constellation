@@ -1,6 +1,6 @@
 ---
 name: v1.0.0 — working memory
-status: building
+status: built
 version: 1.0.0
 connections:
   - FEATURE-WORKING-MEMORY

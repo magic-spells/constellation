@@ -1,5 +1,5 @@
 <puzzle-view>
-  <div class="cn-tabs" role="group" aria-label="Constellation view">
+  <div class="cn-tabs" role="group" aria-label={ t('graph.tabs.group') }>
     {#for tab in tabs}
       <button
         type="button"
@@ -14,6 +14,7 @@
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
+import { t } from '../lib/i18n.js';
 
 // ConstellationTabs — the Graph/Atlas switch shared by the two canvas views.
 //
@@ -41,10 +42,8 @@ import { PuzzleView } from '@magic-spells/puzzle';
 // Props
 //   active  'graph' | 'atlas' — which button reads as selected
 
-const TABS = [
-	{ value: 'graph', label: 'Graph', hint: 'Force-clustered nodes — what connects to what' },
-	{ value: 'atlas', label: 'Atlas', hint: 'An isometric city — what shape the system is' },
-];
+// Words are locale keys (`graph.tabs.<value>.label` / `.hint`), translated in data().
+const TABS = ['graph', 'atlas'];
 
 const PATH = {
 	graph: '/constellation/graph',
@@ -56,7 +55,12 @@ export default class ConstellationTabs extends PuzzleView {
 		const active = props.active === 'atlas' ? 'atlas' : 'graph';
 		return {
 			active,
-			tabs: TABS.map((t) => ({ ...t, active: t.value === active })),
+			tabs: TABS.map((value) => ({
+				value,
+				label: t(`graph.tabs.${value}.label`),
+				hint: t(`graph.tabs.${value}.hint`),
+				active: value === active,
+			})),
 		};
 	}
 

@@ -19,32 +19,14 @@
  */
 const FLAT = 0.8;
 
+// Words are locale keys, translated where the lens picker shows them:
+// `atlas.lens.<id>.label` / `atlas.lens.<id>.hint`.
 export const LENSES = [
-	{
-		id: 'status',
-		label: 'Status',
-		hint: 'Colour by status: — where each card is in its life.',
-	},
-	{
-		id: 'degree',
-		label: 'Connections',
-		hint: 'Height by how many cards connect. Hubs are towers.',
-	},
-	{
-		id: 'drift',
-		label: 'Drift',
-		hint: 'Bound code that moved since the card was verified. Scaffolded = drifted.',
-	},
-	{
-		id: 'recency',
-		label: 'Recency',
-		hint: 'Height by how recently the card changed. Tall = fresh.',
-	},
-	{
-		id: 'size',
-		label: 'Code size',
-		hint: 'Height by lines of bound code. Needs FILE bindings.',
-	},
+	{ id: 'status', labelKey: 'atlas.lens.status.label', hintKey: 'atlas.lens.status.hint' },
+	{ id: 'degree', labelKey: 'atlas.lens.degree.label', hintKey: 'atlas.lens.degree.hint' },
+	{ id: 'drift', labelKey: 'atlas.lens.drift.label', hintKey: 'atlas.lens.drift.hint' },
+	{ id: 'recency', labelKey: 'atlas.lens.recency.label', hintKey: 'atlas.lens.recency.hint' },
+	{ id: 'size', labelKey: 'atlas.lens.size.label', hintKey: 'atlas.lens.size.hint' },
 ];
 
 const LENS_IDS = new Set(LENSES.map((l) => l.id));

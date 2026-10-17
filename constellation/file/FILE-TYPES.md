@@ -4,8 +4,14 @@ status: verified
 path: src/core/types.ts
 language: typescript
 summary: Core domain types + TYPE_NAMES (the 21 types)
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:11:32.460Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
+notes:
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 `Card`, `Connection`, `PlanIndex`, `Issue`, `CardRefs`, `ConnectedRepo`, and `TYPE_NAMES`. One of the four places a type addition must touch.

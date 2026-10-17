@@ -26,9 +26,14 @@ notes:
       and the print sheet renders the same markup — including STYLE cards' tokens, added this
       release.
     sha: 2790152d9503b921ee03c26f14a5f9e31b0b70f1
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 branch: feat/doc-sections
-verified_at: '2026-08-24T21:11:25.448Z'
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 DOC cards are a flat pile: one folder, alphabetical, no order and no grouping.
@@ -169,14 +174,13 @@ Settled while building:
   `section: Getting Started` shows up in the document where you can see and fix
   it, rather than silently vanishing. W002 is what says it isn't a slug.
 - **Per-plan.** `/docs` does not span connected repos.
+- **The card.json tension.** card.json holds two kinds of cross-type key:
+  tool-managed provenance and authored placement (`section`/`order`). The schema
+  descriptions, [[DOC-FILE-FORMAT]] and the `CLAUDE.md` invariant all name both.
 
 Still open:
 
 - **`doc_title` on PLAN-PROJECT** — not shipped; the H1 is the project name.
-- **The card.json tension is real and unresolved.** `section`/`order` are
-  *authored*, while every other cross-type key there is tool-managed provenance.
-  The schema descriptions distinguish them and so does [[DOC-FILE-FORMAT]], but
-  the invariant in `CLAUDE.md` still calls card.json tool-managed wholesale.
 
 ## Acceptance
 

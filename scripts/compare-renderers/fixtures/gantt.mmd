@@ -1,0 +1,10 @@
+gantt
+  title Ticket release
+  dateFormat YYYY-MM-DD
+  axisFormat %b %d
+  section Build
+  API-TICKETS :done, api, 2026-10-01, 3d
+  DB-USERS :active, db, after api, 2d
+  section Ship
+  PAGE-INBOX :crit, page, after db, 2d
+  RELEASE-LAUNCH :milestone, launch, after page, 0d

@@ -1,10 +1,11 @@
 ---
 name: Connected repos (multi-repo)
 kind: spec
-status: built
+status: verified
 connections:
   - FILE-REPOS
   - FILE-RESOLVE
+  - FILE-SERVE
 section: format
 order: 50
 notes:
@@ -13,6 +14,13 @@ notes:
       repo: on a connected_repos name whose path has no plan is UNREACHABLE_REPO (lists the declared
       path, points at list_connected_repos reachable:false). UNKNOWN_REPO is only for names that
       were never declared.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 # Connected repos (multi-repo)
@@ -37,6 +45,10 @@ siblings sit ([[DECISION-MONOREPO-CODE-ROOT]]).
 sibling. **Plan resolution still never crosses a repo boundary** on its own ([[FILE-RESOLVE]])
 — a sibling is reached only when explicitly named. Management tools: `list_connected_repos`,
 `add_connected_repo` (`reciprocate` writes the reverse link too), `remove_connected_repo`.
+
+The viewer serves them too: `constellation serve` adds the launching repo's connected repos as
+workspaces in the rail's switcher ([[FEATURE-WORKSPACE-SWITCHER]], [[FILE-SERVE]]) — one level
+deep, fixed at startup, unreachable ones listed as unavailable with the reason.
 
 The same mechanism also routes *inside* one repo: a monorepo root carries a signpost `plan.md`
 whose `connected_repos` names the package plans, so `repo:` reaches a package without a full

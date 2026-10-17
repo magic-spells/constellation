@@ -196,7 +196,7 @@ function comparePlans(a: DiscoveredPlan, b: DiscoveredPlan): number {
   return a.relPath.localeCompare(b.relPath);
 }
 
-function slugify(value: string): string {
+export function slugify(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')
@@ -204,7 +204,7 @@ function slugify(value: string): string {
     .replace(/^-|-$/g, '');
 }
 
-function uniqueKey(base: string, used: Set<string>): string {
+export function uniqueKey(base: string, used: Set<string>): string {
   let key = base;
   let suffix = 2;
   while (used.has(key)) {

@@ -8,3 +8,4 @@ viewer/.puzzle/
 .playwright-mcp/
 viewer/app/public/vendor/
 .claude/worktrees/
+notes/

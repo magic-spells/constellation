@@ -7,8 +7,8 @@ summary: Scored full-text search
 connections:
   - FILE-MCP-SERVER
   - DOC-MCP-SERVER
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:13:22.370Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
 notes:
   - kind: gotcha
     text: >-
@@ -16,6 +16,11 @@ notes:
       filtered search reports a term as absent from the plan when it is merely absent from the
       filtered types — which coaches an agent to drop its most discriminating word. Caught in
       review, not by a failing test.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 Matching is **AND first**: every significant term must appear on the card, so a

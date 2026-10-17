@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { discoverPlans } from '../src/core/resolve.js';
 import { startServer, type RunningServer } from '../src/serve/server.js';
+import { sameOrigin } from './same-origin.js';
 
 const GOLDEN = fileURLToPath(new URL('../examples/constellation', import.meta.url));
 
@@ -25,7 +26,7 @@ let running: RunningServer;
 let readonlyServer: RunningServer;
 
 function api(route: string, init?: RequestInit): Promise<Response> {
-  return fetch(`http://localhost:${running.port}${route}`, init);
+  return fetch(`http://localhost:${running.port}${route}`, sameOrigin(running.port, init));
 }
 
 async function write(rel: string, content: string | Buffer): Promise<void> {
@@ -89,6 +90,7 @@ describe('multi-plan HTTP serving', () => {
       'alpha',
       'beta',
     ]);
+    const selfRepo = { name: path.basename(repo), path: '.', root: repo, kind: 'self' };
     expect(data.plans).toEqual([
       {
         id: 'root',
@@ -98,6 +100,8 @@ describe('multi-plan HTTP serving', () => {
         plan_path: 'constellation',
         cards: 1,
         default: false,
+        available: true,
+        repo: selfRepo,
       },
       {
         id: 'alpha',
@@ -107,6 +111,8 @@ describe('multi-plan HTTP serving', () => {
         plan_path: 'packages/alpha/constellation',
         cards: 26,
         default: false,
+        available: true,
+        repo: selfRepo,
       },
       {
         id: 'beta',
@@ -116,6 +122,8 @@ describe('multi-plan HTTP serving', () => {
         plan_path: 'packages/beta/constellation',
         cards: 1,
         default: true,
+        available: true,
+        repo: selfRepo,
       },
     ]);
   });
@@ -215,11 +223,11 @@ describe('multi-plan HTTP serving', () => {
     const before = await readFile(betaPlan, 'utf8');
     const rejected = await fetch(
       `http://localhost:${readonlyServer.port}/api/p/beta/card/PLAN-PROJECT`,
-      {
+      sameOrigin(readonlyServer.port, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ body: 'must not write' }),
-      },
+      }),
     );
     expect(rejected.status).toBe(405);
     expect((await rejected.json()).error.code).toBe('READONLY');

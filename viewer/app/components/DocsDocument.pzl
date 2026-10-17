@@ -4,7 +4,7 @@
       <!-- The eyebrow shares its line with whatever the host puts in the slot —
            on `/docs` the export button, in the print window nothing. -->
       <div class="docs-cover-top">
-        <p class="docs-eyebrow">Documentation</p>
+        <p class="docs-eyebrow">{ t('docs.eyebrow') }</p>
         <Slot/>
       </div>
       <h1 class="docs-title">{ title }</h1>
@@ -13,8 +13,8 @@
 
     <!-- The printed contents page. Same tree as the rail's TOC, no scroll-spy
          and no links to follow — on paper it is a map, not a control. -->
-    <nav class="docs-paper-toc" aria-label="Contents">
-      <h2>Contents</h2>
+    <nav class="docs-paper-toc" aria-label={ t('docs.toc.heading') }>
+      <h2>{ t('docs.toc.heading') }</h2>
       {#for section in sections}
         <div key={ section.id } class="ptoc-group">
           <p class="ptoc-section">{ section.name }</p>
@@ -32,7 +32,7 @@
 
         {#for card in section.cards}
           <article key={ card.handle } id={ card.handle } data-doc-anchor={ card.handle } class="docs-card">
-            <a class="docs-card-source card-handle card-handle--sm" style={ card.typeStyle } href="{ card.cardHref | link }" title={ card.sourceTitle }>{ card.handle }</a>
+            <a class="docs-card-source card-handle card-handle--sm" style={ card.typeStyle } href="{ link(card.cardHref) }" title={ card.sourceTitle }>{ card.handle }</a>
             <h3 class="docs-card-title">{ card.name }</h3>
             <!-- A STYLE card's swatches and specimens come BEFORE its prose: the
                  tokens are what the card is, and the prose explains them. -->

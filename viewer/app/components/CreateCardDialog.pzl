@@ -4,18 +4,18 @@
       open={ open }
       size="sm"
       title={ title }
-      description="Handles are uppercase. The type prefix is fixed by the folder you are in."
+      description={ t('card.create.description') }
       @close={ requestClose }>
 
       <label class="cd-field">
-        <span class="cd-label">Handle</span>
+        <span class="cd-label">{ t('card.create.handleLabel') }</span>
         <span class="cd-handle">
           <span class="cd-prefix">{ prefix }</span>
           <input
             ref="suffix"
             class="cd-input cd-mono"
             value={ suffix }
-            placeholder="TICKETS"
+            placeholder={ t('card.create.handlePlaceholder') }
             spellcheck="false"
             autocomplete="off"
             @input={ onSuffix(event) }
@@ -24,11 +24,11 @@
       </label>
 
       <label class="cd-field">
-        <span class="cd-label">Name <span class="cd-hint">optional</span></span>
+        <span class="cd-label">{ t('card.create.nameLabel') } <span class="cd-hint">{ t('card.create.optional') }</span></span>
         <input
           class="cd-input"
           value={ name }
-          placeholder="What this card is"
+          placeholder={ t('card.create.namePlaceholder') }
           @input={ onName(event) }
           @keydown={ onKey(event) }/>
       </label>
@@ -36,11 +36,11 @@
       {#if error}
         <p class="cd-error" role="alert">{ error }</p>
       {:else}
-        <p class="cd-preview">Creates <b>{ preview }</b></p>
+        <p class="cd-preview">{#for p in previewParts}<span>{#if p.name}<b>{ p.value }</b>{:else}{ p.text }{/if}</span>{/for}</p>
       {/if}
 
-      <Button slot="footer" variant="ghost" @press={ requestClose }>Cancel</Button>
-      <Button slot="footer" loading={ busy } @press={ submit }>Create card</Button>
+      <Button slot="footer" variant="ghost" @press={ requestClose }>{ t('common.action.cancel') }</Button>
+      <Button slot="footer" loading={ busy } @press={ submit }>{ t('card.create.submit') }</Button>
     </Dialog>
   </span>
 </puzzle-view>
@@ -50,7 +50,8 @@ import { PuzzleView } from '@magic-spells/puzzle';
 import Button from './ui/Button.pzl';
 import Dialog from './ui/Dialog.pzl';
 import { saveNewCard } from '../lib/edit.js';
-import { hrefForHandle, TYPE_META } from '../lib/types.js';
+import { t, tParts } from '../lib/i18n.js';
+import { hrefForHandle, typeSingular } from '../lib/types.js';
 
 // CreateCardDialog — "+ new <type>" from the card list. The TYPE is fixed by
 // the list you opened it from (a card's type is its handle prefix, so the type
@@ -103,19 +104,22 @@ export default class CreateCardDialog extends PuzzleView {
 		}
 		this._wasOpen = open;
 
-		const label = TYPE_META[type]?.label ?? type;
 		const suffix = normalizeSuffix(this._suffix);
 
 		return {
 			open,
 			type,
 			prefix: type ? `${type}-` : '',
-			title: type ? `New ${label.toLowerCase().replace(/s$/, '')} card` : 'New card',
+			title: type
+				? t('card.create.title', { type: typeSingular(type) })
+				: t('card.create.titleNoType'),
 			suffix: this._suffix,
 			name: this._name,
 			error: this._error,
 			busy: this._busy,
-			preview: suffix ? `${type}-${suffix}` : `${type}-…`,
+			previewParts: tParts('card.create.preview', {
+				handle: suffix ? `${type}-${suffix}` : `${type}-…`,
+			}),
 		};
 	}
 
@@ -137,9 +141,9 @@ export default class CreateCardDialog extends PuzzleView {
 		const suffix = normalizeSuffix(this._suffix);
 
 		if (!type) return;
-		if (!suffix) return this._fail('Enter a handle.');
+		if (!suffix) return this._fail(t('card.create.errorEmpty'));
 		if (!HANDLE_PART.test(suffix)) {
-			return this._fail('Handles use A–Z, 0–9 and dashes only.');
+			return this._fail(t('card.create.errorInvalid'));
 		}
 
 		const handle = `${type}-${suffix}`;
@@ -155,7 +159,7 @@ export default class CreateCardDialog extends PuzzleView {
 		this._busy = false;
 
 		if (!result.ok) {
-			return this._fail(result.error?.message || 'Could not create the card.');
+			return this._fail(result.error?.message || t('card.create.errorFailed'));
 		}
 
 		this._error = '';

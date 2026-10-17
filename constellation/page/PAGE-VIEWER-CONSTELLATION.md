@@ -9,8 +9,14 @@ connections:
   - FILE-SERVE
   - FEATURE-PUZZLE-VIEWER
   - PAGE-VIEWER-ATLAS
-verified_at: '2026-08-24T21:11:31.259Z'
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+notes:
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 The force-clustered node view: **what connects to what**. One of two readings of
@@ -50,7 +56,10 @@ Canvas 2D, on-demand: one `requestAnimationFrame` is scheduled only while a twee
 is running or a draw was requested, so a settled graph costs nothing. Two passes —
 world space for edges and card rects, then screen space for labels, so text never
 inherits the zoom. Per-type colour comes from the `--t-<TYPE>` custom properties,
-resolved once per theme change rather than per frame.
+and the ground is `--color-surface-panel` (the work panel), all resolved once per
+appearance change rather than per frame. `cssColor` in `lib/colors.js` turns a
+`color-mix()` token into hex by probing `color-mix(in srgb, var(x), var(x))` — no
+canvas readback, which anti-fingerprinting noises.
 
 The camera, easing and frame scheduler live in `canvas-camera.js`, shared with the
 atlas so the two canvases cannot drift apart.

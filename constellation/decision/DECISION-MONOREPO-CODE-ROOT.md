@@ -1,6 +1,6 @@
 ---
 name: 'Plans can live below the git root: the code root'
-status: built
+status: verified
 connections:
   - FILE-CODE
   - FILE-STALE
@@ -25,6 +25,20 @@ notes:
       installed 0.6.0 and the patched build — exact no-op. Suite 656/656, build + lint:examples
       clean, existing tests unedited except the intentional orient-shape and skip-reason-string
       assertions.
+  - kind: state
+    text: >-
+      1.1.0: code_root is bounded. resolveCodeRoot (src/core/repos.ts) accepts it only when its real
+      path stays inside the plan's git repo (outside git: inside the folder holding the plan);
+      otherwise codeRootFor falls back to dirname(planRoot) and reports the escape. A cloned plan.md
+      cannot steer .constellation/, the .gitignore write or code reads into another project. Serve
+      refuses a connected plan whose code_root escapes, as an unavailable roster row.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 # Plans can live below the git root: the code root

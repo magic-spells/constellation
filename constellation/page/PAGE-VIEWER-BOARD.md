@@ -12,8 +12,8 @@ connections:
   - FILE-SERVE
   - COMPONENT-STATUS-SELECT
   - PAGE-VIEWER-FEATURES
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:11:28.291Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+verified_at: '2026-10-05T00:02:43.606Z'
 notes:
   - kind: verified
     text: >-
@@ -32,6 +32,22 @@ notes:
       Verified the 20-card Verified cap, verified_at ordering with fallbacks, total badge, overflow
       link, preview route, and read-only drag state.
     sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+  - kind: state
+    text: >-
+      The four columns share the board's width (`flex-1 basis-0 min-w-52 max-w-96` in `Kanban.pzl`)
+      instead of the piece's fixed `w-72`, so longer translated titles fit
+      ([[FEATURE-VIEWER-I18N]]). The board scrolls sideways only when it is too narrow for four
+      `min-w-52` columns. A re-merge of the registry piece must keep this.
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 section: viewer
 order: 20
 ---

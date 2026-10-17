@@ -5,8 +5,29 @@ import {
 	eventsUrlFor,
 	planFromHash,
 	routerBaseFor,
+	scopeHash,
 	setActivePlanId,
 } from '../../viewer/app/lib/plans.js';
+
+// The boot canonicalizer's rewrite: once a repo is multi-plan (one reachable
+// connected repo is enough), a pre-workspace deep link must keep its route.
+describe('scopeHash', () => {
+	it('keeps the route of an unscoped deep link', () => {
+		expect(scopeHash('#/api/API-TICKETS', 'root')).toBe('#/p/root/api/API-TICKETS');
+		expect(scopeHash('#/docs#DOC-X', 'root')).toBe('#/p/root/docs#DOC-X');
+	});
+
+	it('re-scopes an alias or unknown id, keeping the route', () => {
+		expect(scopeHash('#/p/packages-puzzle/api/X', 'puzzle')).toBe('#/p/puzzle/api/X');
+		expect(scopeHash('#/p/gone', 'root')).toBe('#/p/root/');
+	});
+
+	it('lands an empty fragment on the plan root', () => {
+		expect(scopeHash('', 'root')).toBe('#/p/root/');
+		expect(scopeHash('#', 'root')).toBe('#/p/root/');
+		expect(scopeHash('#/', 'root')).toBe('#/p/root/');
+	});
+});
 
 // Plan addressing is the one part of multi-plan serving that has to agree with
 // three different encoders at once — the router's hash base, the API prefix and

@@ -1,5 +1,5 @@
 <puzzle-view>
-  <a class={ rootClass } href="{ href | link }" data-kb-card={ cardId } data-puzzle-morph={ morphId }>
+  <a class={ rootClass } href="{ link(href) }" data-kb-card={ cardId } data-puzzle-morph={ morphId }>
     {#if handle}
       <span class="block font-mono text-[0.7rem] font-semibold tracking-wide" style={ accentStyle }>{ handle }</span>
     {/if}

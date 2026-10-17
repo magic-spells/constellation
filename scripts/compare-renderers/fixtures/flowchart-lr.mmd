@@ -1,0 +1,11 @@
+flowchart LR
+  subgraph FEATURE-UI[User interface]
+    direction TB
+    PAGE-INBOX[PAGE-INBOX] --> COMPONENT-FORM(COMPONENT-FORM)
+  end
+  COMPONENT-FORM -->|POST /tickets| API-TICKETS[API-TICKETS]
+  API-TICKETS -->|insert| DB-TICKETS[(DB-TICKETS)]
+  API-TICKETS -->|emit| EVENT-CREATED((EVENT-CREATED))
+  classDef selected fill:#263653,stroke:#8ab4ff,stroke-width:3px
+  class API-TICKETS selected
+  style EVENT-CREATED fill:#433158,stroke:#e07fae,stroke-width:3px

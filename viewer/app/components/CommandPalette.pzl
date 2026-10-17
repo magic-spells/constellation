@@ -1,25 +1,26 @@
 <puzzle-view>
-  <div class="contents" @input={ onQuery(event) }>
-    <Command
-      open={ open }
-      items={ items }
-      label="Command palette"
-      placeholder="Search cards, pages and actions…"
-      emptyText="Nothing matches that."
-      @select={ run }
-      @close={ close }/>
-  </div>
+  <Command
+    open={ open }
+    morphSource={ morphSource }
+    items={ items }
+    label={ t('palette.label') }
+    placeholder={ t('palette.placeholder') }
+    emptyText={ t('palette.empty') }
+    @input={ onQuery }
+    @select={ run }
+    @close={ close }/>
 </puzzle-view>
 
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
 import Command from './ui/Command.pzl';
 import { planIndex } from '../lib/plan-index.js';
-import { GROUPS, hrefForHandle, TYPE_META } from '../lib/types.js';
-import { schemes, getScheme, setScheme } from '../lib/theme.js';
+import { GROUPS, hrefForHandle, TYPE_META, typeLabel } from '../lib/types.js';
+import { t } from '../lib/i18n.js';
+import { SCHEMES, current as currentAppearance, set as setAppearance } from '../lib/appearance.js';
 
 // CommandPalette — everything in the plan, one ⌘K away: every card (grouped by
-// type), the four standing pages, and the five schemes.
+// type), the standing pages, and the five schemes.
 //
 // CONTROLLED BY THE SHELL. AppShell owns `open` (it binds the global hotkey and
 // the topbar's Search button) and this component owns what is IN the palette.
@@ -27,40 +28,51 @@ import { schemes, getScheme, setScheme } from '../lib/theme.js';
 // filtering — see components/ui/Command.pzl.
 //
 // Props
-//   open   whether the dialog is showing
+//   open         whether the dialog is showing
+//   morphSource  the element the palette grows out of (the header's search
+//                button when it was clicked); defaults to the
+//                `[data-morph-source="search"]` selector, which is what ⌘K uses.
+//                Command skips the morph under prefers-reduced-motion.
 // Callbacks
 //   @close()  asked for on Escape, a backdrop click, or any activation
 //
-// WHY WE MIRROR THE QUERY. Command filters internally and never reports the
-// query out, so the "at most 8 rows per type" cap could not be applied to the
-// items we hand it — capping an unfiltered list would make the 9th API card
-// permanently unsearchable. Instead we listen for the input event bubbling out
-// of the dialog (it is a plain DOM child of this root), filter the cards
-// ourselves with the same substring rule Command uses, and cap each type at
-// PER_GROUP. Command then re-filters a list that already matches, which is a
-// no-op, and does the ranking and grouping.
+// WHY WE MIRROR THE QUERY. The "at most 8 rows per type" cap can't be applied
+// to an unfiltered list — capping it would make the 9th API card permanently
+// unsearchable. So Command reports each keystroke through `@input`, we filter
+// the cards ourselves with the same substring rule Command uses, and cap each
+// type at PER_GROUP. Command then re-filters a list that already matches, which
+// is a no-op, and does the ranking and grouping.
 //
 // Item values are `kind:arg` strings so one `select` handler covers all three
 // kinds of row; a card's label is its name with the handle as the right-hand
 // hint, and the handle also rides along in `keywords` so typing "API-TIC"
 // matches a card whose name says nothing of the sort.
+//
+// Labels are locale keys, translated in data(). Command matches label +
+// keywords, so the label already matches in the reader's language; the
+// English keywords stay, and each row also carries its translated kind word
+// ("page", "scheme") so those searches work in the reader's language too.
 
 const PER_GROUP = 8;
 
+// The header's search button carries this attribute (layouts/AppShell.pzl). It
+// is the morph's fallback source when no clicked element is handed over (⌘K).
+const SEARCH_SOURCE = '[data-morph-source="search"]';
+
 const PAGES = [
-	{ path: '/', label: 'Overview' },
+	{ path: '/', labelKey: 'nav.overview' },
 	// Both Tasks views are listed rather than the destination alone: the palette
 	// is a jump-to, and "list" is the word someone reaches for when they want the
 	// shipped/ahead reading. Unconditional, matching the sidebar's Tasks row —
 	// the empty state is what teaches FEATURE cards.
-	{ path: '/tasks/board', label: 'Tasks — Board' },
-	{ path: '/tasks/list', label: 'Tasks — List' },
+	{ path: '/tasks/board', labelKey: 'palette.page.tasksBoard' },
+	{ path: '/tasks/list', labelKey: 'palette.page.tasksList' },
 	// Both readings, for the same reason as Tasks: "atlas" and "graph" are the
 	// words people reach for, not the destination name.
-	{ path: '/constellation/graph', label: 'Constellation — Graph' },
-	{ path: '/constellation/atlas', label: 'Constellation — Atlas' },
+	{ path: '/constellation/graph', labelKey: 'palette.page.graph' },
+	{ path: '/constellation/atlas', labelKey: 'palette.page.atlas' },
 	// Shown only when the plan has cards behind them, exactly like the sidebar.
-	{ path: '/style-guide', label: 'Style guide', needs: 'STYLE' },
+	{ path: '/style-guide', labelKey: 'nav.styleGuide', needs: 'STYLE' },
 ];
 
 // Types in sidebar order: group by group, and within a group the order they are
@@ -81,16 +93,19 @@ export default class CommandPalette extends PuzzleView {
 		const q = query.trim().toLowerCase();
 		const index = planIndex(this.ctx.store);
 		const items = [];
+		const goTo = t('palette.group.goTo');
+		const pageWord = t('palette.keyword.page');
+		const schemeGroup = t('palette.group.scheme');
 
 		for (const page of PAGES) {
 			if (page.needs && !(index.byType.get(page.needs)?.length > 0)) continue;
 			items.push({
 				value: `page:${page.path}`,
-				label: page.label,
+				label: t(page.labelKey),
 				// Not "Pages": that is the PAGE type's own label, and two groups of
 				// the same name would merge into one list.
-				group: 'Go to',
-				keywords: ['page', page.path],
+				group: goTo,
+				keywords: ['page', page.path, pageWord],
 			});
 		}
 
@@ -107,24 +122,24 @@ export default class CommandPalette extends PuzzleView {
 					value: `card:${card.handle}`,
 					label: card.name || card.handle,
 					hint: card.handle,
-					group: TYPE_META[type].label,
+					group: typeLabel(type),
 					keywords: [card.handle],
 				});
 			}
 		}
 
-		const scheme = getScheme();
-		for (const option of schemes()) {
+		const scheme = currentAppearance().scheme;
+		for (const option of SCHEMES) {
 			items.push({
-				value: `scheme:${option.id}`,
-				label: option.label,
-				group: 'Scheme',
-				hint: option.id === scheme ? 'Active' : '',
-				keywords: ['scheme', 'theme', 'palette', option.id],
+				value: `scheme:${option.value}`,
+				label: t(option.labelKey),
+				group: schemeGroup,
+				hint: option.value === scheme ? t('palette.hint.active') : '',
+				keywords: ['scheme', 'theme', 'palette', 'appearance', option.value, schemeGroup, t('appearance.title')],
 			});
 		}
 
-		return { open, items };
+		return { open, items, morphSource: props.morphSource || SEARCH_SOURCE };
 	}
 
 	_matches(card, q) {
@@ -150,11 +165,9 @@ export default class CommandPalette extends PuzzleView {
 	}
 
 	events = {
-		onQuery: (event) => {
-			const target = event.target;
-			if (!target || target.tagName !== 'INPUT') return;
-			if (this.getData().query === target.value) return;
-			this.setData('query', target.value);
+		onQuery: (query) => {
+			if (this.getData().query === query) return;
+			this.setData('query', query);
 			this.refresh();
 		},
 
@@ -170,7 +183,7 @@ export default class CommandPalette extends PuzzleView {
 
 			if (kind === 'card') this.ctx.router.push(hrefForHandle(arg));
 			else if (kind === 'page') this.ctx.router.push(arg);
-			else if (kind === 'scheme') setScheme(arg);
+			else if (kind === 'scheme') setAppearance({ scheme: arg });
 		},
 
 		close: () => this.props.close?.(),

@@ -1,4 +1,5 @@
 import { activePlanId, apiBaseFor, eventsUrlFor, setActivePlanId } from './plans.js';
+import { t } from './i18n.js';
 
 // Where this page's API lives. Two module constants rather than a prefix
 // threaded through every call site: the plan is fixed for the life of the page
@@ -55,7 +56,9 @@ async function request(url, init) {
 
 	if (!response.ok) {
 		const code = body?.error?.code ?? `HTTP_${response.status}`;
-		const message = body?.error?.message ?? `Request failed with status ${response.status}`;
+		// The server's own message is shown as it comes; only our fallback is translated.
+		const message =
+			body?.error?.message ?? t('api.error.requestFailed', { status: String(response.status) });
 		throw new ApiError(code, message, response.status);
 	}
 

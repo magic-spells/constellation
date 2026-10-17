@@ -6,8 +6,8 @@ code_refs:
   - viewer/app/views/FeaturesPanel.pzl
 connections:
   - FILE-SERVE
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:11:32.683Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+verified_at: '2026-10-05T00:02:43.606Z'
 notes:
   - kind: verified
     text: >-
@@ -20,6 +20,16 @@ notes:
       Only change since the last stamp is the dropped star glyph and its orphaned .feat-title rules
       — the heading moved to TasksHeader when the views merged. Nothing this card claims changed.
     sha: ee8384873bdb280e2f7c9b6cf6790bb217af19f7
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 section: viewer
 order: 30
 ---

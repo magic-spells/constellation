@@ -6,8 +6,8 @@ code_refs:
   - viewer/app/views/Home.pzl
   - viewer/app/lib/dashboard.js
   - viewer/app/lib/icons.js
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:11:33.279Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+verified_at: '2026-10-05T00:02:43.606Z'
 notes:
   - kind: verified
     text: >-
@@ -19,17 +19,34 @@ notes:
     text: >-
       The topbar's GitHub link moved to last in the `ml-auto` group, so it sits in the actual
       top-right corner after the appearance controls. Still conditional on `repo_url`.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+  - kind: state
+    text: >-
+      Layout for longer languages ([[FEATURE-VIEWER-I18N]]): the header's page title never shrinks,
+      and the sync badge beside it truncates instead. Activity and Notes rows are subgrids
+      (`grid-cols-activity`, `grid-cols-notes` in `styles.css`), so the date and kind columns are as
+      wide as their widest entry in the active language; a note kind stops at 8rem and truncates.
+      The health strip's verdict line keeps its width and the chips wrap below it as a group.
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 section: viewer
 order: 10
 ---
 
 The viewer landing page: a status board for the plan. Served by [[FILE-SERVE]].
 
-The shell around it (`viewer/app/layouts/AppShell.pzl`) owns the topbar every route shares: the plan's name (a switcher between plans when the server hosts more than one — [[DECISION-MULTI-PLAN-SERVE]]), [[COMPONENT-SYNC-BADGE]], the ⌘K palette button, appearance controls, and — when [[FILE-SERVE]] reports a `repo_url` — a GitHub link out to the repo. No remote means no link rather than a dead icon.
+The shell around it (`viewer/app/layouts/AppShell.pzl`) is one frame — the icon rail and the window share `surface-frame` — holding a work panel inset 12px with all corners rounded. The rail's top row is the workspace switcher: project monogram and name, opening a popover when there is more than one plan to switch to ([[FEATURE-WORKSPACE-SWITCHER]], [[DECISION-MULTI-PLAN-SERVE]]); the collapsed rail keeps the monogram. The header across the panel's top is shared by every route: the page title (the rail row that owns the route) and [[COMPONENT-SYNC-BADGE]] from `sm` up, a centred search that morph-opens the ⌘K palette, then on the right the appearance popover, the language globe ([[FEATURE-VIEWER-I18N]]) and — when [[FILE-SERVE]] reports a `repo_url` — a GitHub link in the far corner. No remote means no link rather than a dead icon. The tab reads `<project> · <page>`; there is no product wordmark. Below `md` the rail and inset go and a menu button opens the nav drawer, headed by the same switcher ([[FEATURE-VIEWER-SHELL-1-1]]).
 
-Four blocks, in order: the **health strip**, the **panel grid**, the `PLAN-PROJECT` body (editable in place), and connected repos. The page widens to 96rem for a two-column panel grid (one column under 900px) while the prose stays capped at 70rem so its left edge lines up with the panels.
+Four blocks, in order: the **health strip**, the **panel grid**, the `PLAN-PROJECT` body (editable in place), and connected repos — each a link into its workspace when this server serves it, otherwise an inert row showing why. The page widens to 96rem for a two-column panel grid (one column under 900px) while the prose stays capped at 70rem so its left edge lines up with the panels.
 
-**Health strip** — the freshness verdict ([[COMPONENT-SYNC-BADGE]] says the same thing in the topbar), the counts that qualify it (cards, connections, integrity, warnings, drift) and the one action that changes it: a **Set sync point** button that POSTs `/api/sync-point`. Stamping the marker is what gives every claim card a drift baseline, so it is the fix the drift panel points at. The strip replaced both the old sync panel and the standalone stat row — the numbers only mean something next to the verdict. A `no-git` plan keeps the counts and loses the verdict and the button.
+**Health strip** — the freshness verdict ([[COMPONENT-SYNC-BADGE]] says the same thing in the header), the counts that qualify it (cards, connections, integrity, warnings, drift) and the one action that changes it: a **Set sync point** button that POSTs `/api/sync-point`. Stamping the marker is what gives every claim card a drift baseline, so it is the fix the drift panel points at. The strip replaced both the old sync panel and the standalone stat row — the numbers only mean something next to the verdict. A `no-git` plan keeps the counts and loses the verdict and the button.
 
 **Panels** — presentational, one `model` prop each, all built in `viewer/app/lib/dashboard.js` from the `/api/sync` payload plus the store:
 

@@ -1,0 +1,201 @@
+<puzzle-view>
+  <!-- The wrapper is the "inside" for both dismiss paths: keys while focus is
+       within, and pointerdown anywhere else. -->
+  <div class="relative" @keydown={ onKey(event) } @pointerdown:outside={ dismiss }>
+    <button
+      type="button"
+      ref="trigger"
+      class={ triggerClass }
+      title={ triggerLabel }
+      aria-label={ triggerLabel }
+      aria-haspopup="listbox"
+      aria-expanded={ open ? 'true' : 'false' }
+      aria-controls={ panelId }
+      data-language-trigger
+      @click={ toggle }>
+      <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>
+      </svg>
+    </button>
+
+    {#if open}
+      <!-- NOT A MODAL, like the appearance popover: fixed to the right gutter on
+           a phone, anchored under the trigger from sm up. Each row names its
+           language in that language, so `lang` tells a screen reader how to say
+           it and the browser which CJK face to use. -->
+      <div
+        id={ panelId }
+        ref="panel"
+        class="fixed right-4 top-16 z-50 w-56 max-h-appearance-h overflow-y-auto rounded-xl border border-border bg-surface-raised p-1.5 text-body shadow-popover sm:absolute sm:right-0 sm:top-full sm:mt-2">
+        <div role="listbox" aria-label={ listLabel }>
+          {#for item in languages}
+            <div
+              key={ item.value }
+              role="option"
+              tabindex="-1"
+              lang={ item.value }
+              data-language-item
+              data-tag={ item.value }
+              aria-selected={ item.active ? 'true' : 'false' }
+              class="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-ink outline-none select-none hover:bg-surface-sunken focus:bg-surface-sunken"
+              @click={ pick(item.value) }>
+              <span class="min-w-0 flex-1 truncate">{ item.label }</span>
+              {#if item.active}
+                <svg class="size-4 shrink-0 text-brand" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M5 10l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              {:else}
+                <span class="size-4 shrink-0" aria-hidden="true"></span>
+              {/if}
+            </div>
+          {/for}
+        </div>
+        {#if failed}
+          <p class="px-2 pb-1 pt-2 text-xs text-danger" role="alert">{ t('shell.language.error') }</p>
+        {/if}
+      </div>
+    {/if}
+  </div>
+</puzzle-view>
+
+<script>
+import { PuzzleView } from '@magic-spells/puzzle';
+import { t } from '../lib/i18n.js';
+import { LANGUAGES, current, setLanguage } from '../lib/locale.js';
+
+// LanguageSwitcher — the header's globe, between the appearance trigger and
+// GitHub, opening the list of every language the viewer speaks (LANGUAGES in
+// lib/locale.js, each in its own name, never translated). A pick switches at
+// once with no reload: Puzzle fetches the table and rebuilds the page in
+// place, this popover included.
+//
+// Keyboard follows WorkspaceSwitcher's listbox: ↑↓ move, Home/End jump,
+// Enter/Space pick, Escape closes back onto the trigger, Tab closes.
+let uid = 0;
+
+// The rebuild after a pick destroys this view, so focus would fall to <body>.
+// The new instance reads this once and puts focus back on the globe.
+let refocusAfterSwitch = false;
+
+// Same classes as AppearanceSwitcher's trigger and the GitHub link beside it.
+const TRIGGER =
+  'grid size-8 shrink-0 cursor-pointer place-items-center rounded-md text-muted transition-colors ' +
+  'hover:bg-surface-sunken hover:text-ink outline-ring focus-visible:outline-2 focus-visible:outline-offset-2';
+// Exactly one of idle/open: same-specificity utilities resolve by stylesheet
+// order, not class order.
+const TRIGGER_OPEN = 'bg-surface-sunken text-ink';
+
+export default class LanguageSwitcher extends PuzzleView {
+  _id = `language-${++uid}`;
+
+  data() {
+    const tag = current();
+    const active = LANGUAGES.find((l) => l.value === tag) ?? LANGUAGES[0];
+    const open = this.getData()?.open === true;
+    return {
+      open,
+      failed: open && this.getData()?.failed === true,
+      panelId: `${this._id}-panel`,
+      triggerClass: [TRIGGER, open ? TRIGGER_OPEN : ''].join(' '),
+      triggerLabel: t('shell.language.trigger', { language: active.label }),
+      listLabel: t('shell.language.listLabel'),
+      languages: LANGUAGES.map((l) => ({ ...l, active: l.value === active.value })),
+    };
+  }
+
+  mounted() {
+    if (refocusAfterSwitch) {
+      refocusAfterSwitch = false;
+      requestAnimationFrame(() => this.refs.trigger?.focus());
+    }
+  }
+
+  _items() {
+    return [...(this.refs.panel?.querySelectorAll('[data-language-item]') ?? [])];
+  }
+
+  _open() {
+    this.setData({ open: true, failed: false });
+    this.refresh();
+    requestAnimationFrame(() => {
+      const items = this._items();
+      (items.find((el) => el.getAttribute('aria-selected') === 'true') ?? items[0])?.focus();
+    });
+  }
+
+  _close(refocus) {
+    if (!this.getData()?.open) return;
+    this.setData({ open: false });
+    this.refresh();
+    if (refocus) this.refs.trigger?.focus();
+  }
+
+  _move(event, step) {
+    event.preventDefault();
+    const items = this._items();
+    if (items.length === 0) return;
+    const at = items.indexOf(document.activeElement);
+    const next =
+      step === 'first' ? 0 : step === 'last' ? items.length - 1 : (at + step + items.length) % items.length;
+    items[at === -1 && step === -1 ? items.length - 1 : next]?.focus();
+  }
+
+  events = {
+    toggle: () => (this.getData()?.open ? this._close(false) : this._open()),
+    dismiss: () => this._close(false),
+
+    onKey: (event) => {
+      const open = this.getData()?.open === true;
+      if (!open) {
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          if (!event.target.closest?.('[data-language-trigger]')) return;
+          event.preventDefault();
+          this._open();
+        }
+        return;
+      }
+      switch (event.key) {
+        case 'Escape':
+          event.preventDefault();
+          event.stopPropagation();
+          this._close(true);
+          return;
+        case 'ArrowDown':
+          return this._move(event, 1);
+        case 'ArrowUp':
+          return this._move(event, -1);
+        case 'Home':
+          return this._move(event, 'first');
+        case 'End':
+          return this._move(event, 'last');
+        case 'Enter':
+        case ' ': {
+          const tag = event.target.closest?.('[data-language-item]')?.dataset?.tag;
+          if (!tag) return;
+          event.preventDefault();
+          this.events.pick(tag);
+          return;
+        }
+        case 'Tab':
+          this._close(false);
+          return;
+      }
+    },
+
+    // Close at once, then switch: the rebuild that follows replaces this
+    // view, and the flag hands focus to the new globe. A failed fetch leaves
+    // the old language up and reopens the list to say so.
+    pick: (tag) => {
+      this._close(true);
+      if (tag === current()) return;
+      refocusAfterSwitch = true;
+      setLanguage(tag).catch(() => {
+        refocusAfterSwitch = false;
+        this.setData({ open: true, failed: true });
+        this.refresh();
+      });
+    },
+  };
+}
+</script>

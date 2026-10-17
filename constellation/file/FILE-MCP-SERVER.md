@@ -10,8 +10,8 @@ connections:
   - FILE-WRITER
   - FILE-SYNC
   - FILE-STALE
-verified_at: '2026-08-24T21:13:21.665Z'
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 notes:
   - kind: state
     text: >-
@@ -35,6 +35,11 @@ notes:
       refs (structuredReferrers) not graph neighbors; if_mtime checked inside mutateCardFile's lock;
       reciprocate target-write failures return reciprocated.ok:false instead of INTERNAL after the
       home write; INSTRUCTIONS leftover-edge cleanup is a field patch not edit_section.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 `constellation mcp` (stdio). Registers every tool, embeds the agent-facing `INSTRUCTIONS` string (one of the three guidance copies), and resolves the target plan — the home plan or, when `repo` is passed, a connected sibling. The server handshake version is the package version (same source as the CLI), not a hardcoded leftover.
@@ -45,6 +50,6 @@ Card text has the same discipline, in one place: a per-response `Hydrator` ledge
 
 `orient` is the session-start read: it composes the index, `computeStaleCards`, the note streams and [[FILE-SYNC]]'s `packageVersion` into one unhydrated briefing, and compares that workspace version against the server's own `PACKAGE_VERSION` to flag a published-server-vs-unreleased-tree mismatch. Note ordering is by card-file mtime then append order, because notes carry no timestamp.
 
-The handshake `instructions` are computed per boot, not fixed: `createServer` resolves the plan first and `bootInstructions` appends the one-time upgrade-review paragraph when that plan carries no `format_review` stamp ([[FILE-GIT]]). The exported `INSTRUCTIONS` constant is unchanged by this — it stays the static 55-line budget the guidance test pins ([[AGENT-GUIDANCE]]) — and no plan, or any error resolving one, falls back to it. `orient` repeats the same condition as `upgrade_review_pending` + a one-line hint, because a host that truncates the handshake would otherwise swallow the notice.
+The handshake `instructions` are computed per boot, not fixed: `createServer` resolves the plan first and `bootInstructions` appends the one-time upgrade-review paragraph when that plan carries no `format_review` stamp ([[FILE-GIT]]). With working memory off for the repo (`workingEnabledAtBoot`, read once because the tool list is fixed at the handshake), it also drops the working-memory paragraph and unregisters the `working_*` tools ([[FEATURE-WORKING-MEMORY-SETTINGS]]). The exported `INSTRUCTIONS` constant is unchanged by either — it stays the full 68-line text the guidance test pins ([[AGENT-GUIDANCE]]) — and no plan, or any error resolving one, falls back to it. `orient` repeats the review condition as `upgrade_review_pending` + a one-line hint, because a host that truncates the handshake would otherwise swallow the notice.
 
 `delete_card` refuses `PLAN-PROJECT` (`plan.md` is the plan root). `set_verified` takes `handles:` for a sweep — one sha resolution, one dirty check over the union of bound paths, one lint — with unknown handles and write failures reported per item in `failed` instead of failing the batch; the single-`handle` response shape is unchanged. Its dirty-tree warning uses the same directory-overlap rule as [[FILE-STALE]] — a bound folder lights up when a file under it is uncommitted. `assemble` units treat a folder binding as overlapping every path inside it, so fan-out cannot hand the same files to two agents.

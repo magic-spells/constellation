@@ -1,6 +1,6 @@
 <puzzle-view>
   <header class="mb-5">
-    <h2 class="mb-1 text-[1.3rem] text-ink">Tasks</h2>
+    <h2 class="mb-1 text-[1.3rem] text-ink">{ t('board.tasks.title') }</h2>
     <p class="mb-4 text-sm text-muted">{ blurb }</p>
     <!-- Bare reference, not `go(value)`: a callback prop's own arguments are not
          identifiers the template expression can name, so the call form would
@@ -12,6 +12,7 @@
 <script>
 import { PuzzleView } from '@magic-spells/puzzle';
 import Tabs from './ui/Tabs.pzl';
+import { t } from '../lib/i18n.js';
 
 // TasksHeader — the title + view switcher shared by the two Tasks views.
 //
@@ -39,16 +40,8 @@ import Tabs from './ui/Tabs.pzl';
 // Props
 //   active  'board' | 'list' — which tab reads as selected
 
-const TABS = [
-	{ value: 'board', label: 'Board' },
-	{ value: 'list', label: 'List' },
-];
-
-const BLURB = {
-	board:
-		'Every FEATURE card by status: — a card moves column when its status does. Read-only.',
-	list: 'Every FEATURE card by what is ahead and what has shipped, with release provenance.',
-};
+// Tab label and blurb per value: `board.tasks.tab.<value>` / `board.tasks.blurb.<value>`.
+const TABS = ['board', 'list'];
 
 const PATH = {
 	board: '/tasks/board',
@@ -58,7 +51,11 @@ const PATH = {
 export default class TasksHeader extends PuzzleView {
 	data(params, props) {
 		const active = props.active === 'list' ? 'list' : 'board';
-		return { active, tabs: TABS, blurb: BLURB[active] };
+		return {
+			active,
+			tabs: TABS.map((value) => ({ value, label: t(`board.tasks.tab.${value}`) })),
+			blurb: t(`board.tasks.blurb.${active}`, { field: 'status:' }),
+		};
 	}
 
 	events = {

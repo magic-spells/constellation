@@ -8,8 +8,8 @@ connections:
   - FILE-LINT
   - FILE-INDEXER
   - FILE-MCP-SERVER
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:13:29.741Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+verified_at: '2026-10-05T00:02:43.606Z'
 notes:
   - kind: verified
     text: >-
@@ -38,8 +38,20 @@ notes:
       monorepo, so 12 viewer test files failed to LOAD and the suite still reported green — 162
       tests silently not running. A `.pzl` import failure is quiet; check the file/test counts
       against the last verified note before trusting a green run.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 ---
 
-The vitest suite (600+ tests): core unit tests, MCP integration via an in-memory client, and git-backed drift/security tests. The golden plan `examples/constellation/` doubles as a fixture and must lint clean (0 errors). Exercises [[FILE-LINT]], [[FILE-INDEXER]], [[FILE-MCP-SERVER]].
+The vitest suite (900+ tests, 70+ files): core unit tests, MCP integration via an in-memory client, git-backed drift/security tests, serve HTTP tests (request guard, symlink containment, connected workspaces — writes send an Origin via `tests/same-origin.ts`), and working-memory tests including settings, hostile repos, the git trust check and a cross-process lock stress test that spawns `tests/lock-worker.ts`. The golden plan `examples/constellation/` doubles as a fixture and must lint clean (0 errors). Exercises [[FILE-LINT]], [[FILE-INDEXER]], [[FILE-MCP-SERVER]].
 
 `tests/viewer/` covers the Puzzle viewer: plain-JS lib tests plus a `.pzl` component lane — `tests/viewer/pzl-vitest-plugin.js` runs the local Puzzle checkout's `pzlc` compiler through Go for each imported `.pzl`. The lane therefore requires both Go and that checkout (`PUZZLE_REPO` overrides its location); without the compiler the plugin is inert and `.pzl` imports fail at load time — not as red tests.
+
+Every viewer suite runs under the real English table: `vitest.config.ts` aliases `@magic-spells/puzzle/testing` and its setup file binds `lib/i18n.js`, so assertions read English text. Two suites guard the translations ([[FEATURE-VIEWER-I18N]]): `i18n-locales.test.js` (key and placeholder parity across all eleven locales, `{count}` in every plural form, no unused keys, picker list = config) and `i18n-hardcoded.test.js`, which runs `scripts/check-i18n.mjs` against hard-coded English.

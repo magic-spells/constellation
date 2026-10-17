@@ -19,8 +19,23 @@ notes:
       STYLE cards render their tokens inline in the document — the same StyleTokens the style guide
       uses, above the card's prose. A palette described in words is not a palette, so DocCard now
       carries `frontmatter` and not just `body`.
-verified_at: '2026-08-24T21:11:31.970Z'
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+  - kind: verified
+    text: >-
+      Pele renderer swap merged into release/1.2.0 (#47, 31e8c15); checked against markdown.js,
+      copy-pele.mjs, styles.css and the Opus review of that diff.
+    sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
+verified_at: '2026-10-17T23:06:59.192Z'
+verified_sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
 ---
 
 Every sectioned card compiled into ONE ordered document — the answer to "what is
@@ -71,15 +86,19 @@ column, and the column's width and centre do not move either way.
 
 ## Print
 
+
 Printing is the PDF export — no separate pipeline. Chrome is dropped, `@page`
 margins applied, a page break before every section, and a cover page (project
 name, package version, date). It applies on **every** route, not just here: a
 chrome-free print of a card page beats a cropped screenshot.
 
-Print redeclares the colour tokens rather than trusting `color-scheme: light`,
-because observatory carries the same dark value in both halves of every
-`light-dark()` pair — without the override it prints a black page.
+Print redeclares the colour tokens rather than trusting `color-scheme: light`:
+no scheme's light half is paper white, medium blocks set literal values, and
+`appearance.js` writes `color-scheme` inline on `<html>`. So `@media print` and
+the print window's `data-paper` both force `color-scheme: light !important` and
+reset every token a medium block sets — two blocks in `styles.css`, kept in step.
 
-Known rough edge: mermaid SVG fills are baked at render time from computed
-tokens and don't re-render on the print media change, so diagrams print in their
-screen colours. Legible, but not paper-tuned.
+Diagrams follow those resets: since 1.2.0 their colours are live `--pele-*` and
+`--t-*` variables on the drawn SVG ([[DECISION-PELE-RENDERER]]), so a diagram
+prints in paper colours without re-rendering. (Before that, mermaid baked its
+fills at render time and diagrams printed in screen colours.)

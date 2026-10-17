@@ -10,8 +10,8 @@ connections:
   - FILE-MCP-SERVER
   - DOC-MCP-UPGRADES
   - FLOW-SYNC-PLAN
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:13:29.267Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
 section: agents
 order: 30
 notes:
@@ -24,17 +24,27 @@ notes:
     text: >-
       All three copies now carry the monorepo model (per DECISION-MONOREPO-CODE-ROOT /
       DECISION-MULTI-PLAN-SERVE): packages keep their own plans, paths are code-root-relative, a
-      monorepo root holds at most a signpost plan.md, serve hosts every plan behind a dropdown.
-      NOT_TOOLS in the consistency test gained 'code_root'. Budget alert: INSTRUCTIONS is at 54/55
-      lines and SKILL.md at exactly 340/340 — the next SKILL.md addition must trim something first.
+      monorepo root holds at most a signpost plan.md, serve hosts every plan behind a switcher.
+      NOT_TOOLS in the consistency test gained 'code_root'.
   - kind: state
     text: >-
       2026-09-16: the always-on budgets moved for working memory — INSTRUCTIONS 55 → 68 lines,
       SKILL.md 340 → 400 (tests/guidance-consistency.test.ts). The INSTRUCTIONS paragraph carries
       the read/write rhythm plus the eight types in one line each, because an agent with the
       working_* tools but not the rules writes a to-do list instead of memory.
-      skill/working-memory.md is a topical reference like atlas.md, NOT a fourth canonical copy; the
-      body of DOC-MCP-SERVER still says "capped at 55 lines". See FEATURE-WORKING-MEMORY.
+      skill/working-memory.md is a topical reference like atlas.md, NOT a fourth canonical copy. See
+      FEATURE-WORKING-MEMORY.
+  - kind: state
+    text: >-
+      1.1.0 (PR #44): a new three-copy rule — at first setup ask the user "use working memory on
+      this repo?" and "clear it every new session?", pass the answers, and never change either
+      setting yourself. NOT_TOOLS gained new_session and defaults_applied. Budget: INSTRUCTIONS
+      still 68/68, SKILL.md 396/400 — trim before adding. See FEATURE-WORKING-MEMORY-SETTINGS.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 # Agent guidance
@@ -45,9 +55,11 @@ that must stay consistent**: the MCP `INSTRUCTIONS` string ([[FILE-MCP-SERVER]])
 agent should use the plan must land in all three.
 
 Each copy has one job. `INSTRUCTIONS` is **always on**, so it is capped at 68 lines — the rules
-an agent needs without asking. The constant is fixed; the handshake string it produces is not —
-the server appends the one-time format-upgrade paragraph to it at boot when the plan carries no
-`format_review` stamp ([[DOC-CHANGE-TRACKING]]), which is why the cap applies to the constant. `SKILL.md` is the **pointer**: the same rules with their
+an agent needs without asking. It is the full text, joined from three constants (head, the
+working-memory paragraph, tail); the handshake a repo gets varies: `instructionsFor` drops the
+working paragraph when the repo has working memory switched off, and the server appends the
+one-time format-upgrade paragraph at boot when the plan carries no `format_review` stamp
+([[DOC-CHANGE-TRACKING]]) — which is why the cap applies to `INSTRUCTIONS`. `SKILL.md` is the **pointer**: the same rules with their
 mechanics, deferring type schemas to `describe_type` rather than restating them.
 `methodology.md` is the **long pass** — building or auditing a whole plan from a codebase — and
 also backs the MCP `bootstrap_plan` / `audit_plan` prompts.

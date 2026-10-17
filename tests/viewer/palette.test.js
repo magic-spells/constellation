@@ -125,9 +125,9 @@ describe('CommandPalette', () => {
 			'Tickets table DB-TICKETS',
 			'Observatory Active',
 			'Default',
+			'Dim',
 			'Warm',
 			'Void',
-			'Dim',
 		]);
 		view.destroy();
 	});

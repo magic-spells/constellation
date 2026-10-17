@@ -49,13 +49,37 @@ Dropping with a reason writes the reason to `log/YYYY-MM-DD.md`, which is the hi
   update (give `id`). Batch several changes in one call; every write returns the new header.
 - `working_drop { ids, reason? }` — remove items. This is "check it off". Give the reason.
 - `working_log { text }` — append one line to today's log. The only write sub-agents make.
-- `working_init { hook? }` — create the folder; `init_plan` does it for new plans, and
-  with no plan it goes at the git root. `hook: true` installs the SessionStart hook that
-  re-prints the file into context after every compaction (see *After compaction*).
+- `working_init { hook?, enabled?, new_session? }` — create the folder; `init_plan` does
+  it for new plans, and with no plan it goes at the git root. `hook: true` installs the
+  SessionStart hook that re-prints the file into context after every compaction (see
+  *After compaction*).
 
 Errors: `NO_WORKING_FOLDER` (call `working_init`), `NO_WORKING_ROOT` (no plan and no git
-repo), `NOT_FOUND`, `TYPE_IMMUTABLE`, `BAD_ID`, `BAD_TYPE`, `BAD_TEXT` (a newline). Long
-lines and crowded sets come back as `warnings`, not errors.
+repo), `WORKING_DISABLED` (the user switched it off for that repo), `NOT_FOUND`,
+`TYPE_IMMUTABLE`, `BAD_ID`, `BAD_TYPE`, `BAD_TEXT` (a newline), `UNSAFE_PATH` (something in
+`.constellation/` is a symbolic link), `UNTRUSTED_WORKING` (git tracks files there, so the
+repo shipped them). Relay the last two to the user and never work around them. Long lines
+and crowded sets come back as `warnings`, not errors.
+
+## Settings
+
+`.constellation/config.json` holds two settings: `enabled` (false: no `working_*` tools, no
+`orient.working`, a silent hook) and `new_session` (`keep`, or `clear`: a fresh session —
+startup or `/clear`, never a compaction or resume — drops every item except CONSTRAINT
+lines and logs each with the reason "new session"). `clear` resets the one list every
+session in this repo shares, so it suits one session at a time; a linked worktree never
+clears. A missing file means `true` / `keep`, and nothing is saved until someone answers.
+
+The first time working memory is set up in a repo, ask the user "Do you want to use
+working memory on this repo?" and "Do you want to clear the working memory with every new
+session?", and pass the answers to `working_init` (or `init_plan`). Can't ask? Omit them;
+the defaults (on, keep) apply and `defaults_applied` lists them for the user. After that
+never change either setting yourself; the user does (`constellation working
+on|off|new-session`).
+
+`.constellation/` is local and never tracked (CLAUDE.md and config.json included);
+`working_init` ignores and verifies it. Relay its warnings, e.g. tracked files and the
+`git rm --cached` fix; never run the fix yourself.
 
 ## You infer it; nobody dictates it
 
@@ -91,6 +115,13 @@ user rule (C line, verbatim), a step blocked on the user (Q line). A research or
 verification agent returning with nothing changed is not a state change; do not touch the
 file for it. If you would put it in a compaction summary, put it in working memory now —
 you do not know when compaction will fire. Batch with `items: [...]`.
+
+**At every checkpoint.** A commit, a PR opened or merged, a change of topic, the start of
+a new plan or feature: sweep before you write. Run every keep test, drop what fails with a
+reason, and only then add the new items. A new plan is the clearest case — the old goal,
+plan, focus, tasks and ideas almost all fail their keep tests, so drop them (promote a
+lasting decision to a card first), keep the user's constraints, then write the new G and P.
+Clear, then write; never stack the new plan on top of the old one.
 
 **Sub-agents.** Worktrees do not carry gitignored files, but the tools resolve to the main
 checkout, so agents may call `working_log` and `working_list` from anywhere. Put the
@@ -190,9 +221,12 @@ achieved.
 
 ## Keep the set clean
 
-Every live item is text you read again after every compaction. Sweep the set at session
-start, after compaction, and whenever you close work: run each keep test and drop what
-fails. Close what you finished in the same turn the work lands, not later. An answered
+Every live item is text you read again after every compaction, and a stale one steers
+the next context wrong. Your instinct will be to add and never remove; on a long task that
+is how the set fills with lines about work that landed hours ago. Pruning is half the job.
+Sweep at session start, after compaction, at every commit and every PR opened or merged,
+when the topic changes, and when a new plan or feature starts: run each keep test and drop
+what fails. Close what you finished in the same turn the work lands, not later. An answered
 question is a dropped question; never rewrite a line to report its own status. Never add an
 item for something already there; update that item instead. When unsure about a
 user-stated constraint, keep it. When unsure about anything else, ask whether its absence

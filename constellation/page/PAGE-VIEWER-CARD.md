@@ -8,8 +8,8 @@ connections:
   - FILE-SERVE
   - COMPONENT-EDITABLE
   - COMPONENT-STATUS-SELECT
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:11:28.343Z'
+verified_sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
+verified_at: '2026-10-17T23:06:59.192Z'
 notes:
   - kind: verified
     text: >-
@@ -17,6 +17,29 @@ notes:
       since routes moved to #/folder/HANDLE. Now documents the real shape plus CardPage's folder
       canonicalisation, and the redirect that keeps old links alive.
     sha: 6f66e728480fbcdf6d43f359c23c7c9732269fdd
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+  - kind: state
+    text: >-
+      Diagram rendering moved from mermaid to Pele in 1.2.0 ([[DECISION-PELE-RENDERER]]):
+      `renderMermaidBlocks` in `viewer/app/lib/markdown.js` lazy-imports `/vendor/pele/lazy.js`,
+      tints handle nodes via `g.pele-node[data-id]` with color-mix on `--t-*` tokens (by node id,
+      not label text), and `.mermaid-block { --pele-* }` in styles.css carries theme colours so
+      scheme/theme switches restyle without a re-render. `.mermaid-block` placeholder and the
+      Editable ignore list are unchanged.
+  - kind: verified
+    text: >-
+      Pele renderer swap merged into release/1.2.0 (#47, 31e8c15); checked against markdown.js,
+      copy-pele.mjs, styles.css and the Opus review of that diff.
+    sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
 section: viewer
 order: 40
 ---
@@ -24,3 +47,5 @@ order: 40
 A single card at `#/<folder>/<HANDLE>` — the URL mirrors the file on disk, so `constellation/api/API-TICKETS.md` is `#/api/API-TICKETS`. The folder segment is decoration as far as matching goes (the handle alone identifies the card), so the view *canonicalises* a wrong one back to the card's real folder with `replace()` semantics, keeping the bad URL out of history. `#/card/<HANDLE>` still resolves as a legacy redirect, so older bookmarks and pasted links keep working.
 
 Frontmatter fields, rendered markdown + mermaid body, connection chips in both directions (no neighborhood diagram — it duplicated the chips), and inline editing of the name, status, frontmatter fields and connections via [[COMPONENT-EDITABLE]] / [[COMPONENT-STATUS-SELECT]]. Served by [[FILE-SERVE]]; every edit affordance is gated on the plan's `editable` flag (`serve --readonly` hides them all). [[PAGE-VIEWER-BOARD]]'s preview dialog links here for the editing the dialog itself does not do.
+
+From `md` up the card sits beside its folder's card list in a resizable split. Below `md` there is no split: a folder route shows only the list and a card route only the card, so `TypeIntro` stops auto-opening the first card there and opens it once the window widens past `md`.

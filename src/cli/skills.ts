@@ -260,7 +260,7 @@ async function promptSkillTargets(targets: SkillTarget[]): Promise<SkillTarget[]
   });
 }
 
-async function confirm(question: string, fallback: boolean): Promise<boolean> {
+export async function confirm(question: string, fallback: boolean): Promise<boolean> {
   if (!process.stdin.isTTY) return fallback;
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {

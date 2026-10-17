@@ -25,12 +25,12 @@ notes:
       working_list (the set, plus log: "today" | N), working_set (batch items[], create without id /
       replace with id, type immutable, FOCUS supersedes), working_drop (batch ids[] + reason, which
       is how you check something off — there is no status field), working_log (the sub-agent write,
-      one line to log/YYYY-MM-DD.md) and working_init (folder, CLAUDE.md, .gitignore lines, opt-in
-      SessionStart hook). Every write returns the new header. orient embeds {header, items} under
-      `working` only when the folder exists, so it stays non-hydrating; init_plan gained working?:
-      boolean (default true, never the hook). Logic is src/core/working.ts, errors are
-      NO_WORKING_FOLDER / NOT_FOUND / TYPE_IMMUTABLE / BAD_ID / BAD_TEXT / BAD_TYPE, and nothing in
-      .constellation/ ever reaches the index, lint, diff_plan or the viewer. See
+      one line to log/YYYY-MM-DD.md) and working_init (folder, CLAUDE.md, the .constellation/ ignore
+      rule, opt-in SessionStart hook). Every write returns the new header. orient embeds {header,
+      items} under `working` only when the folder exists, so it stays non-hydrating; init_plan
+      gained working?: boolean (default true, never the hook). Logic is src/core/working.ts, errors
+      are NO_WORKING_FOLDER / NOT_FOUND / TYPE_IMMUTABLE / BAD_ID / BAD_TEXT / BAD_TYPE, and nothing
+      in .constellation/ ever reaches the index, lint, diff_plan or the viewer. See
       FEATURE-WORKING-MEMORY and DECISION-WORKING-MEMORY-FOLDER.
   - kind: state
     text: >-
@@ -47,6 +47,11 @@ notes:
       deleted card is reported in remaining_sources and its E005 in issues. delete_card itself still
       rewrites nothing (PR #37).
     sha: 08b5e5c
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 connections:
   - FILE-MCP-SERVER
   - AGENT-GUIDANCE
@@ -55,8 +60,8 @@ connections:
   - DOC-CHANGE-TRACKING
 section: agents
 order: 10
-verified_at: '2026-08-24T21:13:24.303Z'
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 # MCP server
@@ -75,7 +80,9 @@ resolves the plan and, when it carries no `format_review` stamp ([[DOC-CHANGE-TR
 appends one paragraph: 0.5.0 stopped treating prose as an edge, so an older plan should get a
 one-time review — promote real relationships into `connections:`, reconnect unintentional
 orphans, compact bloated cards — closed out with `set_sync_point format_review: true`. `orient`
-repeats it as `upgrade_review_pending` for hosts that truncate instructions.
+repeats it as `upgrade_review_pending` for hosts that truncate instructions. When the repo's
+`.constellation/config.json` says `enabled: false`, the handshake also drops the working-memory
+paragraph and the `working_*` tools are removed before the client lists them.
 
 ## Hydrated retrieval
 
@@ -106,8 +113,8 @@ times over:
   `package.json` (`version_mismatch` + a one-line warning catches "a published server is
   answering for an unreleased tree"). It replaces the five-tool opening ritual, so it stays
   counts-and-handles: never card bodies. When a `.constellation/` folder exists beside the
-  plan it also carries `working` — the working-memory set, `{header, items}` and nothing
-  more ([[FEATURE-WORKING-MEMORY]]).
+  plan and working memory is enabled, it also carries `working` — `{header, items}`, plus
+  `warnings` for a malformed config or tracked files ([[FEATURE-WORKING-MEMORY]]).
 - **Read** — `get_card` (+ `code: none|paths|direct`, notes filters), `list_cards`,
   `list_notes` (cross-card notes query by kind/handles), `search` (over bodies, notes **and**
   the binding frontmatter — `summary`, `path`, `code_refs`; AND is the first pass, and when
@@ -146,7 +153,10 @@ times over:
   the file's *current* content, so concurrent small updates compose instead of clobbering.
 - **Working memory** — `working_list`, `working_set`, `working_drop`, `working_log`,
   `working_init`: the session scratchpad in `.constellation/`, never cards and never part of
-  the index, lint, `diff_plan` or the viewer. See [[FEATURE-WORKING-MEMORY]].
+  the index, lint, `diff_plan` or the viewer. `working_init { enabled, new_session }` and
+  `init_plan { working_enabled, new_session }` save the user's two setup answers to
+  `config.json` once; a `repo:` call into a repo with it switched off fails
+  `WORKING_DISABLED` ([[FEATURE-WORKING-MEMORY-SETTINGS]]).
 - **Git** — `diff_plan`, `plan_log`, `set_sync_point` (+ `format_review: true`, the one-time
   format-upgrade review), `stale_report`, `check_sync`, `check_integrity`
   (see [[DOC-CHANGE-TRACKING]]).

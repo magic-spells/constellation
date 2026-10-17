@@ -1,5 +1,5 @@
 import { watch } from 'node:fs';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,11 +12,14 @@ import { isHandleShaped, typeForHandle } from '../core/handles.js';
 import { structuredReferrers } from '../core/indexer.js';
 import { lintPlan } from '../core/lint.js';
 import { parseFile } from '../core/parse.js';
-import { codeRootFor } from '../core/repos.js';
+import { codeRootFor, discoverConnectedWorkspaces } from '../core/repos.js';
 import {
   countPlanCards,
   identifyPlans,
+  slugify,
+  uniqueKey,
   type DiscoveredPlan,
+  type IdentifiedPlan,
 } from '../core/resolve.js';
 import { computeSyncStatus } from '../core/sync.js';
 import type { Card, Issue } from '../core/types.js';
@@ -26,6 +29,7 @@ import {
   deleteCardFile,
   mutateCardFile,
   reservedFieldKeys,
+  PathEscapeError,
   StaleWriteError,
   type CardPatch,
 } from '../core/writer.js';
@@ -50,6 +54,28 @@ const MIME: Record<string, string> = {
   '.otf': 'font/otf',
   '.ico': 'image/x-icon',
 };
+
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+/** The Host values a loopback server on `port` answers to. */
+function loopbackHosts(port: number): string[] {
+  return [`localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`];
+}
+
+/** A `--dev-origin` as the Host values it allows; loopback http only. */
+function devOriginHosts(origin: string): string[] {
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    throw new Error(`Invalid dev origin "${origin}"`);
+  }
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'http:' || !loopback || !url.port) {
+    throw new Error(`Dev origin must be http://localhost:<port> (got "${origin}")`);
+  }
+  return loopbackHosts(Number(url.port));
+}
 
 // Font files a STYLE card may bind to via a token's `src:` path.
 const FONT_EXT = new Set(['.woff2', '.woff', '.ttf', '.otf']);
@@ -92,6 +118,14 @@ function issuesForFile(issues: Issue[], relPath: string): Issue[] {
 export type ServeOptions = {
   port: number;
   readonly?: boolean;
+  /**
+   * Extra loopback origins allowed past the Host/Origin guard — the Host
+   * (`localhost:<p>`, `127.0.0.1:<p>`, `[::1]:<p>`) for reads and the Origin
+   * for writes. For a forwarded port (`ssh -L 8080:localhost:4747`, VS Code)
+   * or the `puzzle dev` proxy, which forward the browser's Host and Origin
+   * unchanged. Loopback http origins only.
+   */
+  devOrigins?: string[];
 } & (
   | {
       planRoot: string;
@@ -107,6 +141,20 @@ export type ServeOptions = {
     }
 );
 
+/**
+ * The repo a served plan belongs to. `self` is the repo serve was launched in;
+ * `connected` is one of its PLAN-PROJECT `connected_repos` (one level only).
+ */
+export interface PlanRepo {
+  name: string;
+  /** As declared in `connected_repos`; `.` for the launching repo. */
+  path: string;
+  /** Absolute directory the repo's plans were discovered from. */
+  root: string;
+  kind: 'self' | 'connected';
+  description?: string;
+}
+
 export interface ServedPlan {
   id: string;
   aliases: string[];
@@ -114,18 +162,32 @@ export interface ServedPlan {
   codeRoot: string;
   relPath: string;
   name: string;
+  repo: PlanRepo;
+}
+
+/** A declared connected repo that could not be served, and why. */
+export interface UnavailableWorkspace {
+  id: string;
+  repo: PlanRepo;
+  reason: string;
 }
 
 export interface RunningServer {
   server: http.Server;
   port: number;
   plans: ServedPlan[];
+  /** Connected repos that are listed in the roster but not served. */
+  unavailable: UnavailableWorkspace[];
   defaultPlan: string;
   multi: boolean;
   close: () => Promise<void>;
 }
 
 interface PlanState extends ServedPlan {
+  /** Plan paths in the roster are relative to this (its repo's scan root). */
+  scanRoot: string;
+  /** Style-asset fallback when the code root misses: its repo's git/scan root. */
+  assetRoot: string;
   repoUrl: string | null | undefined;
   codePrefix: string | undefined;
   metrics: { at: number; data: Record<string, CodeMetric> } | null;
@@ -153,8 +215,10 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
 
   const normalized = await normalizePlans(options);
   const plans = normalized.plans;
+  const unavailable = normalized.unavailable;
+  const rosterOrder = normalized.order;
   const defaultPlan = normalized.defaultPlan;
-  const multi = plans.length > 1;
+  let multi = plans.length > 1;
   const scanRoot = normalized.scanRoot;
 
   // SECURITY INVARIANT: a request's plan id is a Map lookup built at startup —
@@ -167,6 +231,18 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
   }
   const defaultState = planById.get(defaultPlan);
   if (!defaultState) throw new Error(`Unknown default plan "${defaultPlan}"`);
+
+  /** Take a connected plan out of service, keeping its roster slot as unavailable. */
+  function dropConnectedPlan(plan: PlanState, reason: string): void {
+    plan.watcher?.close();
+    plan.watcher = null;
+    plans.splice(plans.indexOf(plan), 1);
+    for (const key of [plan.id, ...plan.aliases]) planById.delete(key);
+    const down: UnavailableWorkspace = { id: plan.id, repo: plan.repo, reason };
+    unavailable.push(down);
+    rosterOrder.splice(rosterOrder.indexOf(plan), 1, down);
+    multi = plans.length > 1;
+  }
 
   function json(res: http.ServerResponse, status: number, data: unknown): void {
     res.writeHead(status, { 'content-type': MIME['.json'] });
@@ -182,17 +258,37 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     json(res, status, { error: { code, message } });
   }
 
+  // Every plan and every unavailable connected repo, in workspace order: this
+  // repo's plans first, then each connected repo in declaration order. Paths
+  // are relative to the plan's OWN repo, which `repo` names.
   async function handleGetPlans(res: http.ServerResponse): Promise<void> {
     const roster = await Promise.all(
-      plans.map(async (plan) => ({
-        id: plan.id,
-        aliases: plan.aliases,
-        name: plan.name,
-        code_path: plan.relPath,
-        plan_path: toPosix(path.relative(scanRoot, plan.root)),
-        cards: await cardCountFor(plan),
-        default: plan.id === defaultPlan,
-      })),
+      rosterOrder.map(async (entry) =>
+        'reason' in entry
+          ? {
+              id: entry.id,
+              aliases: [],
+              name: entry.repo.name,
+              code_path: '',
+              plan_path: '',
+              cards: 0,
+              default: false,
+              available: false,
+              reason: entry.reason,
+              repo: entry.repo,
+            }
+          : {
+              id: entry.id,
+              aliases: entry.aliases,
+              name: entry.name,
+              code_path: entry.relPath,
+              plan_path: toPosix(path.relative(entry.scanRoot, entry.root)),
+              cards: await cardCountFor(entry),
+              default: entry.id === defaultPlan,
+              available: true,
+              repo: entry.repo,
+            },
+      ),
     );
     json(res, 200, {
       multi,
@@ -208,7 +304,8 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
   ): Promise<void> {
     if (!plan.metrics || Date.now() - plan.metrics.at > METRICS_TTL_MS) {
       const lint = await lintPlan(plan.root);
-      plan.metrics = { at: Date.now(), data: await codeMetrics(lint.index) };
+      const bound = plan.repo.kind === 'connected' ? plan.assetRoot : undefined;
+      plan.metrics = { at: Date.now(), data: await codeMetrics(lint.index, { bound }) };
     }
     json(res, 200, plan.metrics.data);
   }
@@ -262,7 +359,8 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
   }
 
   // Read-only: hands the viewer real font bytes so STYLE specimens can @font-face.
-  // Resolve against the plan's code root first, then the scan/git root for shared assets.
+  // Resolve against the plan's code root first, then its OWN repo's scan/git
+  // root for shared assets — never the launching repo's, for a connected plan.
   async function handleStyleAsset(
     plan: PlanState,
     url: URL,
@@ -278,34 +376,18 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
         'path must be a repo-relative font file (woff2/woff/ttf/otf)',
       );
     }
-    const codeAsset = containedPath(plan.codeRoot, rel);
-    if (!codeAsset) {
-      return failure(res, 403, 'FORBIDDEN', 'path escapes the repository');
-    }
-    try {
-      const content = await readFile(codeAsset);
+    const roots = [plan.codeRoot];
+    if (path.resolve(plan.codeRoot) !== plan.assetRoot) roots.push(plan.assetRoot);
+    // A connected repo's code_root is its own untrusted say-so (discovery
+    // already refuses one outside the repo); bound every read by the repo too.
+    const bound = plan.repo.kind === 'connected' ? plan.assetRoot : undefined;
+    for (const root of roots) {
+      const found = await readContained(root, rel, bound);
+      if (found === 'escape') return failure(res, 403, 'FORBIDDEN', 'path escapes the repository');
+      if (found === 'missing') continue;
       res.writeHead(200, { 'content-type': MIME[ext], 'cache-control': 'no-cache' });
-      res.end(content);
+      res.end(found);
       return;
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-        return failure(res, 404, 'NOT_FOUND', `No file at ${rel}`);
-      }
-    }
-
-    if (path.resolve(plan.codeRoot) !== scanRoot) {
-      const sharedAsset = containedPath(scanRoot, rel);
-      if (!sharedAsset) {
-        return failure(res, 403, 'FORBIDDEN', 'path escapes the repository');
-      }
-      try {
-        const content = await readFile(sharedAsset);
-        res.writeHead(200, { 'content-type': MIME[ext], 'cache-control': 'no-cache' });
-        res.end(content);
-        return;
-      } catch {
-        // Fall through to the stable not-found response below.
-      }
     }
     failure(res, 404, 'NOT_FOUND', `No file at ${rel}`);
   }
@@ -486,9 +568,37 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     req.on('close', () => plan.sse.delete(res));
   }
 
+  // THE REQUEST GUARD. The server listens on loopback, but a web page in the
+  // same browser can still reach it: a cross-site form POST (text/plain needs
+  // no preflight) or a DNS-rebound hostname. So every request must name this
+  // server in Host — a rebound name never does — and every write must carry a
+  // same-server Origin, which browsers send on every non-GET request and a
+  // cross-site page cannot forge.
+  const devHosts = (options.devOrigins ?? []).flatMap(devOriginHosts);
+  function guard(req: http.IncomingMessage, method: string): string | null {
+    const hosts = new Set([...loopbackHosts(boundPort()), ...devHosts]);
+    const host = (req.headers.host ?? '').toLowerCase();
+    if (!hosts.has(host)) return `Host "${host}" is not this server`;
+    if (WRITE_METHODS.has(method)) {
+      const origin = (req.headers.origin ?? '').toLowerCase();
+      if (!origin) return 'Writes need an Origin header';
+      if (![...hosts].some((h) => origin === `http://${h}`)) {
+        return `Origin "${origin}" may not write to this server`;
+      }
+    }
+    return null;
+  }
+  function boundPort(): number {
+    const address = server.address();
+    return typeof address === 'object' && address ? address.port : options.port;
+  }
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     const method = req.method ?? 'GET';
+
+    const refused = guard(req, method);
+    if (refused) return failure(res, 403, 'FORBIDDEN', refused);
 
     try {
       // Exact-match the roster first. The prefix regex below requires /api/p/
@@ -573,6 +683,9 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
       }
       await serveStatic(route, res);
     } catch (err) {
+      if (err instanceof PathEscapeError) {
+        return failure(res, 403, 'FORBIDDEN', err.message);
+      }
       if (err instanceof RequestBodyError) {
         return failure(res, err.status, err.code, err.message);
       }
@@ -585,8 +698,9 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     server.listen(options.port, '127.0.0.1', () => resolve());
   });
   try {
-    for (const plan of plans) {
-      plan.watcher = watch(plan.root, { recursive: true }, () => {
+    for (const plan of [...plans]) {
+      try {
+        plan.watcher = watch(plan.root, { recursive: true }, () => {
         plan.metrics = null;
         plan.cardCount = null;
         if (plan.debounce) clearTimeout(plan.debounce);
@@ -598,6 +712,13 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
       plan.watcher.on('error', (err) => {
         console.error(`constellation serve: file watcher error: ${err.message}`);
       });
+      } catch (err) {
+        // This repo's own plans must watch or serve fails, as before. A
+        // connected repo that can't be watched (EMFILE, EACCES) becomes an
+        // unavailable row rather than taking the whole server down.
+        if (plan.repo.kind !== 'connected') throw err;
+        dropConnectedPlan(plan, `Cannot watch ${plan.repo.path}: ${errMessage(err)}`);
+      }
     }
   } catch (err) {
     for (const plan of plans) plan.watcher?.close();
@@ -611,6 +732,7 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
     server,
     port,
     plans: plans.map(publicPlan),
+    unavailable,
     defaultPlan,
     multi,
     close: async () => {
@@ -629,6 +751,8 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
 
 async function normalizePlans(options: ServeOptions): Promise<{
   plans: PlanState[];
+  unavailable: UnavailableWorkspace[];
+  order: Array<PlanState | UnavailableWorkspace>;
   defaultPlan: string;
   scanRoot: string;
 }> {
@@ -652,20 +776,14 @@ async function normalizePlans(options: ServeOptions): Promise<{
       : identifyPlans(discovered);
   if (identified.length === 0) throw new Error('Cannot serve an empty plan set');
 
+  const selfRepo: PlanRepo = {
+    name: path.basename(scanRoot) || scanRoot,
+    path: '.',
+    root: scanRoot,
+    kind: 'self',
+  };
   const plans = await Promise.all(
-    identified.map(async (plan): Promise<PlanState> => ({
-      ...plan,
-      root: path.resolve(plan.root),
-      codeRoot: path.resolve(plan.codeRoot),
-      name: await planName(plan.root, path.basename(plan.codeRoot)),
-      repoUrl: undefined,
-      codePrefix: undefined,
-      metrics: null,
-      cardCount: await countPlanCards(plan.root),
-      sse: new Set(),
-      watcher: null,
-      debounce: null,
-    })),
+    identified.map((plan) => planState(plan, selfRepo, scanRoot, scanRoot)),
   );
   const requestedDefault = singlePlanRoot === undefined ? options.defaultPlan : 'root';
   let defaultState: PlanState;
@@ -682,7 +800,126 @@ async function normalizePlans(options: ServeOptions): Promise<{
   } else {
     defaultState = plans.find((plan) => plan.id === 'root') ?? plans[0];
   }
-  return { plans, defaultPlan: defaultState.id, scanRoot };
+  // Connected repos come from the launching repo's root plan (else the default
+  // plan), read once at startup — so the workspace set is the same whichever
+  // workspace the viewer is in.
+  const home = plans.find((plan) => plan.id === 'root') ?? defaultState;
+  const connected = await connectedPlans(home.root, plans);
+  return {
+    plans: [...plans, ...connected.plans],
+    unavailable: connected.unavailable,
+    order: [...plans, ...connected.order],
+    defaultPlan: defaultState.id,
+    scanRoot,
+  };
+}
+
+async function planState(
+  plan: IdentifiedPlan,
+  repo: PlanRepo,
+  scanRoot: string,
+  assetRoot: string,
+): Promise<PlanState> {
+  return {
+    ...plan,
+    root: path.resolve(plan.root),
+    codeRoot: path.resolve(plan.codeRoot),
+    name: await planName(plan.root, path.basename(plan.codeRoot)),
+    repo,
+    scanRoot: path.resolve(scanRoot),
+    assetRoot: path.resolve(assetRoot),
+    repoUrl: undefined,
+    codePrefix: undefined,
+    metrics: null,
+    cardCount: await countPlanCards(plan.root),
+    sse: new Set(),
+    watcher: null,
+    debounce: null,
+  };
+}
+
+/**
+ * The connected repos' plans, one level deep. Ids derive from the
+ * `connected_repos` name — `<name>` for a repo's root plan, `<name>-<id>` for a
+ * nested one — and never take an id or alias this repo's plans already hold;
+ * a clash gets `-2`, `-3` in declaration order. An unavailable repo still
+ * reserves its id, so a repo coming back never shifts its neighbours' ids. A
+ * plan already served (a connected path inside this repo) is not served twice.
+ */
+async function connectedPlans(
+  homeRoot: string,
+  selfPlans: PlanState[],
+): Promise<{
+  plans: PlanState[];
+  unavailable: UnavailableWorkspace[];
+  order: Array<PlanState | UnavailableWorkspace>;
+}> {
+  const used = new Set<string>(['root']);
+  for (const plan of selfPlans) {
+    used.add(plan.id);
+    for (const alias of plan.aliases) used.add(alias);
+  }
+  const seen = new Set(await Promise.all(selfPlans.map((plan) => realOr(plan.root))));
+  const plans: PlanState[] = [];
+  const unavailable: UnavailableWorkspace[] = [];
+  const order: Array<PlanState | UnavailableWorkspace> = [];
+
+  for (const ws of await discoverConnectedWorkspaces(homeRoot)) {
+    const base = slugify(ws.repo.name) || 'repo';
+    const repo: PlanRepo = {
+      name: ws.repo.name,
+      path: ws.repo.path,
+      root: ws.available ? ws.scanRoot : ws.abs,
+      kind: 'connected',
+      ...(ws.repo.description ? { description: ws.repo.description } : {}),
+    };
+    if (!ws.available) {
+      const down = { id: uniqueKey(base, used), repo, reason: ws.reason };
+      unavailable.push(down);
+      order.push(down);
+      continue;
+    }
+    // Ids come from the whole set, refused plans included, so fixing a bad
+    // code_root never renumbers its neighbours.
+    const refused = new Map(ws.rejected.map((r) => [path.resolve(r.plan.root), r.reason]));
+    for (const plan of identifyPlans([...ws.plans, ...ws.rejected.map((r) => r.plan)])) {
+      const real = await realOr(plan.root);
+      if (seen.has(real)) continue;
+      seen.add(real);
+      const id = uniqueKey(plan.id === 'root' ? base : `${base}-${plan.id}`, used);
+      const aliases = plan.aliases
+        .map((alias) => `${base}-${alias}`)
+        .filter((alias) => !used.has(alias));
+      for (const alias of aliases) used.add(alias);
+      const reason = refused.get(path.resolve(plan.root));
+      if (reason) {
+        const down = { id, repo, reason };
+        unavailable.push(down);
+        order.push(down);
+        continue;
+      }
+      try {
+        const state = await planState({ ...plan, id, aliases }, repo, ws.scanRoot, ws.gitRoot);
+        plans.push(state);
+        order.push(state);
+      } catch (err) {
+        // An unreadable plan (EACCES on a card folder) costs its own row, never
+        // the server start.
+        const down = { id, repo, reason: `Cannot read ${repo.path}: ${errMessage(err)}` };
+        unavailable.push(down);
+        order.push(down);
+      }
+    }
+  }
+  return { plans, unavailable, order };
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+async function realOr(p: string): Promise<string> {
+  return realpath(p).catch(() => path.resolve(p));
 }
 
 async function planName(planRoot: string, fallback: string): Promise<string> {
@@ -706,6 +943,41 @@ function containedPath(root: string, rel: string): string | null {
   return abs === resolvedRoot || abs.startsWith(resolvedRoot + path.sep) ? abs : null;
 }
 
+/**
+ * Read `rel` under `root`, refusing anything that leaves it — lexically
+ * (`../`, absolute paths) or through a symlink, which a lexical check alone
+ * would follow: the file's REAL path must sit inside the root's real path.
+ * `missing` lets the caller try its next root; any other read failure is
+ * reported as missing too, never as content. With `bound`, the real path must
+ * also sit inside that directory's real path.
+ */
+async function readContained(
+  root: string,
+  rel: string,
+  bound?: string,
+): Promise<Buffer | 'missing' | 'escape'> {
+  const candidate = containedPath(root, rel);
+  if (!candidate) return 'escape';
+  let real: string;
+  let realRoots: string[];
+  try {
+    [real, ...realRoots] = await Promise.all([
+      realpath(candidate),
+      realpath(root),
+      ...(bound ? [realpath(bound)] : []),
+    ]);
+  } catch {
+    return 'missing';
+  }
+  const inside = (r: string) => real === r || real.startsWith(r + path.sep);
+  if (!realRoots.every(inside)) return 'escape';
+  try {
+    return await readFile(real);
+  } catch {
+    return 'missing';
+  }
+}
+
 function publicPlan(plan: PlanState): ServedPlan {
   return {
     id: plan.id,
@@ -714,6 +986,7 @@ function publicPlan(plan: PlanState): ServedPlan {
     codeRoot: plan.codeRoot,
     relPath: plan.relPath,
     name: plan.name,
+    repo: plan.repo,
   };
 }
 

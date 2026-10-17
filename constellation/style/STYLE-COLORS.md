@@ -1,10 +1,15 @@
 ---
 name: Colors
 kind: tokens
-status: built
+status: verified
 category: color
 code_refs:
   - viewer/app/styles/schemes.css
+  - viewer/app/styles/pieces.css
+  - viewer/app/styles/themes/dim.css
+  - viewer/app/styles/themes/warm.css
+  - viewer/app/styles/themes/void.css
+  - viewer/app/lib/appearance.js
 tokens:
   - name: ink
     value: '#e6e8f2'
@@ -19,19 +24,28 @@ tokens:
     value: '#5a5f78'
     description: Placeholders, disabled, quiet meta
   - name: page
-    value: '#07080f'
-    description: The page behind everything
-  - name: surface
-    value: '#0c0e18'
-    description: Panels, cards, the topbar
+    value: '#03040a'
+    description: The page behind everything — the darkest layer
+  - name: surface-frame
+    value: '#03040a'
+    description: The window frame — rail and the margin around the work panel; the page in dark
   - name: surface-sunken
-    value: '#11131f'
-    description: Inset wells — board columns, code blocks
+    value: '#07080f'
+    description: The card-list pane and inset wells — board columns, code blocks
+  - name: surface-panel
+    value: '#0a0c15'
+    description: The work panel's ground (= surface-base); canvases paint it
+  - name: surface
+    value: '#0e101b'
+    description: Panels and cards
+  - name: surface-raised
+    value: '#121522'
+    description: The top step, above cards
   - name: border
-    value: '#3a3936'
+    value: '#1b1e30'
     description: Default hairline
   - name: border-strong
-    value: '#4c4b47'
+    value: '#2a2e48'
     description: Hover and emphasis borders
   - name: brand
     value: '#8ab4ff'
@@ -45,22 +59,44 @@ connections:
   - STYLE-CARD-TYPES
 section: design-system
 order: 30
+verified_at: '2026-10-05T00:02:43.606Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+notes:
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 ---
 
-The base palette: four text steps, three surfaces, two borders, one brand.
+The base palette: four text steps, six surfaces, two borders, one brand.
 Values shown are **observatory dark**, the default scheme.
+
+## Depth order
+
+Dark follows the pieces default order, every step on the navy axis: frame/page
+`#03040a` < sunken `#07080f` < panel/base `#0a0c15` < surface/card `#0e101b` <
+raised `#121522`. `bar-hover` is `color-mix(#03040a 85%, #8d93ad)`. In 1.0 the
+work panel was the page, the darkest layer, so the content read as a hole; 1.1
+changed the dark `page` value (it was `#07080f`). Light is unchanged. Medium
+keeps 1.0's aliases: `surface-panel: var(--color-page)` and
+`surface-raised: var(--color-surface)`.
 
 ## Two axes, not one
 
-Theming is `data-scheme` (observatory, default, warm, void, dim) × `data-theme`
-(light / dark / system), both stamped pre-paint by an inline script in the shell
-so nothing flashes. Every token is a `light-dark()` pair, so a scheme declares
-both halves once and the theme toggle picks a side.
+Theming is `data-scheme` (observatory, default, dim, warm, void) × `data-theme`
+(light / medium / dark, or unset to follow the OS), applied by `lib/appearance.js`
+and stamped pre-paint by an inline script in `index.html` so nothing flashes.
+Every token is a `light-dark()` pair; medium takes the dark half and each scheme
+adds a medium block that lifts the grounds.
 
-That has a consequence worth knowing before touching print or export:
-**observatory carries dark values in *both* halves**, so flipping
-`color-scheme: light` does not lighten it. Paper has to redeclare the tokens
-outright — see [[PAGE-VIEWER-DOCS]].
+Observatory is ours (`schemes.css`), scoped to `[data-scheme='observatory']`
+rather than `:root` so the picker can preview it on a card, and it restates all
+71 tokens for the same reason. The default palette is `pieces.css`; dim, warm and
+void are registry copies in `styles/themes/`, changed only by `puzzle add theme`.
+
+No scheme's light half is paper white, and medium blocks set literals, so print
+redeclares the tokens outright — see [[PAGE-VIEWER-DOCS]].
 
 ## Rules
 
@@ -69,9 +105,10 @@ Four text steps exist so quiet things can be quiet without inventing a grey.
 `muted` to "soften" a paragraph is how a page ends up with no hierarchy at all.
 
 Backgrounds mark state, borders do not: a selected row is `brand-tint`, never a
-coloured border. `brand` means *you can click this* — it carries no meaning
-about what something **is**. That job belongs to [[STYLE-UTILITY-COLORS]] and
-[[STYLE-CARD-TYPES]].
+coloured border. The one exception is the rail's active row in Observatory light,
+a near-white raised chip, because the tint sat too close to the grey frame.
+`brand` means *you can click this* — it carries no meaning about what something
+**is**. That job belongs to [[STYLE-UTILITY-COLORS]] and [[STYLE-CARD-TYPES]].
 
 Deliberately absent: an `info` token. A neutral notice uses `muted` on
 `surface-sunken`; adding a blue for it would collide with `brand` and teach

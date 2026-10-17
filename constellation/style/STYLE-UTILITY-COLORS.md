@@ -1,10 +1,14 @@
 ---
 name: Utility colors
 kind: tokens
-status: built
+status: verified
 category: color
 code_refs:
   - viewer/app/styles/schemes.css
+  - viewer/app/styles/pieces.css
+  - viewer/app/styles/themes/dim.css
+  - viewer/app/styles/themes/warm.css
+  - viewer/app/styles/themes/void.css
 tokens:
   - name: success
     value: '#66b35c'
@@ -33,6 +37,26 @@ connections:
   - PAGE-VIEWER-BOARD
 section: design-system
 order: 40
+notes:
+  - kind: state
+    text: >-
+      The token values above are Observatory's dark halves (`schemes.css`). Observatory light
+      deepens each hue (success #45803d, warning #8f6a1a, danger #c04840, pale tints), medium mixes
+      its tints toward the hue, and default/dim/warm/void use the pieces palettes' own status
+      colours (pieces.css, themes/*.css), so the borrowing from `--t-API` / `--t-DB` / `--t-TEST`
+      holds only in Observatory dark.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+verified_at: '2026-10-05T00:02:43.606Z'
+verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
 ---
 
 The three colours that carry meaning, each with a tint for backgrounds.
@@ -49,9 +73,11 @@ is `--t-TEST` — which is why status and type never clash on the same screen.
 
 ## The one that looks like a mistake
 
-`danger-ink` is **dark**, not white. On a salmon red that light, white text
-reaches only about 3.3:1 while `#1a0e0f` reaches 5.9:1. Any "fix" that makes it
-white for consistency is a contrast regression.
+`danger-ink` is **dark**, not white, in dark mode. On a salmon red that light,
+white text reaches only about 3.3:1 while `#1a0e0f` reaches 5.9:1. Any "fix" that
+makes it white for consistency is a contrast regression. Light mode deepens the
+red to `#c04840`, where white is the right ink and is what it uses.
 
-Tints are each hue at roughly 12% over the page, so they stay legible without
-becoming a second surface colour.
+Tints are each hue at 12% over `#07080f` — 1.0's dark page, which is
+`surface-sunken` since the 1.1 depth retune ([[STYLE-COLORS]]) — so they stay
+legible without becoming a second surface colour. The retune left them as they were.

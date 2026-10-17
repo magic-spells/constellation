@@ -36,7 +36,7 @@
 // three/ (copied verbatim into dist/) and this imports it on first use. The URL
 // lives in a variable so esbuild treats the import() as an opaque runtime
 // expression and leaves it to the browser — same trick, same reason, as
-// markdown.js does for mermaid.
+// markdown.js does for pele.
 
 /** Set by `loadThree`. Module-scoped so the class can stay `new ThreeRenderer(canvas)`. */
 let THREE = null;

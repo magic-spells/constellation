@@ -1,6 +1,6 @@
 ---
 name: Working memory (.constellation/)
-status: building
+status: verified
 change: feature
 branch: feat/working-memory
 connections:
@@ -32,7 +32,14 @@ notes:
       main's folder; .gitignore and .claude/settings.json go in the calling checkout); no plan and
       no git → reads quiet, init fails NO_WORKING_ROOT. Agents must not init_plan just to get
       working memory.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 release: RELEASE-V1-0-0
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 # Working memory (`.constellation/`)
@@ -87,10 +94,13 @@ header is rewritten on every write; every other line is byte-preserved.
 
 - The SessionStart hook prints the set at startup, resume, compact and clear; `orient`
   returns the same `{header, items}` for MCP-only clients when a plan exists, and omits
-  the key when the folder does not exist.
+  the key when the folder does not exist or working memory is off.
 - `working_set` returns the allocated IDs and the new header; `working_drop` with a
   reason removes the lines and writes one log line.
 - `working_log` called from a linked worktree lands in the main checkout's log.
 - `constellation working` prints nothing and exits 0 where there is no folder, so the
   hook is safe to install globally.
 - `constellation lint` and the viewer are unaffected by anything in `.constellation/`.
+
+1.1.0 added the user's settings, the clear-on-new-session mode, the whole-folder ignore
+rule and the cross-process lock: [[FEATURE-WORKING-MEMORY-SETTINGS]].

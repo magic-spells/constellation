@@ -8,12 +8,51 @@
  *
  * Keys arriving from the server are snake_case (that is the wire shape); every
  * key leaving these functions is camelCase (that is the template shape).
+ *
+ * Every word a builder returns is already translated (lib/i18n.js): the views
+ * call these from data(), which re-runs on a language switch.
  */
 
-import { relTime, SYNC_META } from './format.js';
+import { relTime, syncLabel } from './format.js';
+import { formatNumber, t, tParts } from './i18n.js';
 import { CHANGE_ICON, STATE_ICON } from './icons.js';
-import { SHIPPED, statusMeta } from './status.js';
+import { SHIPPED, statusLabel, statusMeta } from './status.js';
 import { hrefForHandle } from './types.js';
+
+/* ── counted text ───────────────────────────────────────────────────────── */
+
+/**
+ * A plural sentence whose number is styled on its own (a bold count, a stat
+ * chip). `tParts` cuts out named values but never `count` — it must stay a
+ * number to pick the plural form — so the count is found afterwards, printed
+ * by the same formatter `{count}` uses (`home.countValue` is just "{count}").
+ * Returns tParts-shaped parts with the count as `{ name: 'count', value }`.
+ */
+export function countParts(key, vars) {
+	const num = t('home.countValue', { count: vars.count });
+	const out = [];
+	let found = false;
+	for (const part of tParts(key, vars)) {
+		const i = !found && 'text' in part ? part.text.indexOf(num) : -1;
+		if (i < 0) {
+			out.push(part);
+			continue;
+		}
+		found = true;
+		if (i > 0) out.push({ text: part.text.slice(0, i) });
+		out.push({ name: 'count', value: num });
+		if (i + num.length < part.text.length) out.push({ text: part.text.slice(i + num.length) });
+	}
+	return out;
+}
+
+/** The words of a counted label without the number, for a chip that shows the number itself. */
+function countLabel(key, count) {
+	return countParts(key, { count })
+		.map((part) => ('text' in part ? part.text : ''))
+		.join('')
+		.trim();
+}
 
 /* ── health ─────────────────────────────────────────────────────────────── */
 
@@ -23,20 +62,28 @@ import { hrefForHandle } from './types.js';
  */
 export function syncMetaLine(sync) {
 	if (!sync) return '';
-	let line = sync.marker ? `last synced ${relTime(sync.marker.synced_at)}` : 'no sync point yet';
+	const parts = [
+		sync.marker
+			? t('home.health.lastSynced', { when: relTime(sync.marker.synced_at) })
+			: t('home.health.noSyncPoint'),
+	];
 
 	if (sync.state === 'drifted') {
 		if (sync.marker_error) {
-			line += ` · ${sync.marker_error}`;
+			// Server text, shown as sent.
+			parts.push(sync.marker_error);
 		} else {
-			const commits = sync.code_commits_since_marker ?? 0;
-			const changes = sync.plan_changes_since_marker ?? 0;
-			line += ` · ${commits} code commit${commits === 1 ? '' : 's'} / ${changes} plan change${changes === 1 ? '' : 's'} since`;
+			parts.push(
+				t('home.health.sinceMarker', {
+					commits: t('home.health.codeCommits', { count: sync.code_commits_since_marker ?? 0 }),
+					changes: t('home.health.planChanges', { count: sync.plan_changes_since_marker ?? 0 }),
+				}),
+			);
 		}
 	}
 
-	if (sync.plan_dirty) line += ' · uncommitted plan edits';
-	return line;
+	if (sync.plan_dirty) parts.push(t('home.health.planDirty'));
+	return parts.join(' · ');
 }
 
 /**
@@ -58,18 +105,30 @@ export function healthModel(index, sync, options = {}) {
 	// counted, the tone says whether the number is good news. Read together they
 	// answer "is this plan healthy" without reading a single label.
 	const chips = [
-		{ key: 'cards', icon: 'layers', value: index?.byHandle?.size ?? 0, label: 'cards', tone: '' },
-		{ key: 'connections', icon: 'link', value: index?.connections?.length ?? 0, label: 'connections', tone: '' },
+		{ key: 'cards', icon: 'layers', value: index?.byHandle?.size ?? 0, label: t('home.health.chip.cards'), tone: '' },
+		{
+			key: 'connections',
+			icon: 'link',
+			value: index?.connections?.length ?? 0,
+			label: t('home.health.chip.connections'),
+			tone: '',
+		},
 		errors > 0
-			? { key: 'integrity', icon: 'alert', value: errors, label: errors === 1 ? 'error' : 'errors', tone: 'bad' }
-			: { key: 'integrity', icon: 'shield', value: 'clean', label: 'integrity', tone: 'good' },
+			? { key: 'integrity', icon: 'alert', value: errors, label: countLabel('home.health.chip.errors', errors), tone: 'bad' }
+			: {
+					key: 'integrity',
+					icon: 'shield',
+					value: t('home.health.chip.clean'),
+					label: t('home.health.chip.integrity'),
+					tone: 'good',
+				},
 	];
 	if (warnings > 0) {
 		chips.push({
 			key: 'warnings',
 			icon: 'alert',
 			value: warnings,
-			label: warnings === 1 ? 'warning' : 'warnings',
+			label: countLabel('home.health.chip.warnings', warnings),
 			tone: 'warn',
 		});
 	}
@@ -81,11 +140,17 @@ export function healthModel(index, sync, options = {}) {
 		const drifted = stale.stale?.length ?? 0;
 		const untracked = stale.no_baseline?.length ?? 0;
 		if (drifted > 0) {
-			chips.push({ key: 'drift', icon: 'pulse', value: drifted, label: 'drifted', tone: 'warn' });
+			chips.push({ key: 'drift', icon: 'pulse', value: drifted, label: t('home.health.chip.drifted'), tone: 'warn' });
 		} else if (untracked > 0) {
-			chips.push({ key: 'drift', icon: 'target', value: untracked, label: 'untracked', tone: 'muted' });
+			chips.push({ key: 'drift', icon: 'target', value: untracked, label: t('home.health.chip.untracked'), tone: 'muted' });
 		} else {
-			chips.push({ key: 'drift', icon: 'check', value: 'no drift', label: 'code', tone: 'good' });
+			chips.push({
+				key: 'drift',
+				icon: 'check',
+				value: t('home.health.chip.noDrift'),
+				label: t('home.health.chip.code'),
+				tone: 'good',
+			});
 		}
 	}
 
@@ -94,7 +159,7 @@ export function healthModel(index, sync, options = {}) {
 	return {
 		hasGit,
 		state: state ?? '',
-		stateLabel: hasGit ? (SYNC_META[state]?.label ?? '') : '',
+		stateLabel: hasGit ? syncLabel(state) : '',
 		stateIcon: hasGit ? stateIcon.icon : '',
 		stateTone: hasGit ? stateIcon.tone : '',
 		stateClass: hasGit ? `hs-state ${stateIcon.tone}` : 'hs-state',
@@ -103,7 +168,7 @@ export function healthModel(index, sync, options = {}) {
 		// Stamping the marker is a write — a --readonly server hides the button
 		// rather than offering an action that 405s.
 		canSync: hasGit && options.editable !== false,
-		syncLabel: state === 'never-synced' ? 'Set sync point' : 'Update sync point',
+		syncLabel: state === 'never-synced' ? t('home.health.setSyncPoint') : t('home.health.updateSyncPoint'),
 	};
 }
 
@@ -142,11 +207,9 @@ export function driftModel(sync) {
 		headline:
 			count === 0
 				? tracked === 0
-					? 'nothing tracked yet'
-					: tracked === 1
-						? '1 claim still holds'
-						: `${tracked} claims still hold`
-				: `${count} of ${tracked} claim${tracked === 1 ? '' : 's'} drifted`,
+					? t('home.drift.nothingTracked')
+					: t('home.drift.claimsHold', { count: tracked })
+				: t('home.drift.claimsDrifted', { drifted: formatNumber(count), count: tracked }),
 		rows: stale.slice(0, DRIFT_ROW_CAP).map((entry) => {
 			const status = entry.status ?? '';
 			const meta = statusMeta(status);
@@ -155,6 +218,7 @@ export function driftModel(sync) {
 				path: hrefForHandle(entry.handle),
 				name: entry.name || entry.handle,
 				status,
+				statusText: status ? statusLabel(status) : '',
 				statusVariant: meta.variant,
 				statusTint: meta.tint,
 				// A card is stale when bound files changed *or* went missing, and
@@ -176,7 +240,7 @@ export function driftModel(sync) {
 						// Drift is card-relative now, so a claim only lands here when
 						// git has never seen its card file: commit it (or stamp it)
 						// and it gets a baseline.
-						hint: 'commit them, or stamp them with set_verified, to track their code',
+						hint: t('home.drift.untrackedHint', { tool: 'set_verified' }),
 					},
 	};
 }
@@ -204,10 +268,10 @@ function byVersionDesc(a, b) {
 // break me, what's new, what got fixed, what was housekeeping. Unset reads as
 // `feature` — the field is optional and most work is a feature.
 const CHANGE_GROUPS = [
-	{ key: 'breaking', label: 'Breaking' },
-	{ key: 'feature', label: 'Features' },
-	{ key: 'fix', label: 'Fixes' },
-	{ key: 'chore', label: 'Chores' },
+	{ key: 'breaking', labelKey: 'home.releases.group.breaking' },
+	{ key: 'feature', labelKey: 'home.releases.group.feature' },
+	{ key: 'fix', labelKey: 'home.releases.group.fix' },
+	{ key: 'chore', labelKey: 'home.releases.group.chore' },
 ];
 const CHANGE_KEYS = new Set(CHANGE_GROUPS.map((g) => g.key));
 
@@ -220,6 +284,7 @@ function featureRow(card) {
 		path: hrefForHandle(card.handle),
 		name: card.name || card.handle,
 		status,
+		statusText: status ? statusLabel(status) : '',
 		statusVariant: meta.variant,
 		statusTint: meta.tint,
 		change: CHANGE_KEYS.has(change) ? change : 'feature',
@@ -265,7 +330,8 @@ export function releasesModel(index, sync) {
 			// The tag is the repo's own word that this version actually went out.
 			tagged: !!version && !!latestTag && latestTag.replace(/^v/, '') === version,
 			groups: CHANGE_GROUPS.map((group) => ({
-				...group,
+				key: group.key,
+				label: t(group.labelKey),
 				icon: CHANGE_ICON[group.key] ?? 'sparkle',
 				// Breaking is the one group a reader scans for — it is the only one
 				// that carries a tone, so it stands out without shouting.
@@ -317,6 +383,7 @@ export function activityModel(sync, limit = 9) {
 			rows.push({
 				key: sha || `${kind}:${rows.length}`,
 				kind,
+				kindLabel: t(`home.activity.kind.${kind}`),
 				// A plan commit edits cards, a code commit edits code — the glyph
 				// carries that distinction so the tag can stay small and quiet.
 				icon: kind === 'plan' ? 'file' : 'commit',
@@ -331,7 +398,7 @@ export function activityModel(sync, limit = 9) {
 					handle,
 					path: hrefForHandle(handle),
 				})),
-				more: (commit.cards?.length ?? 0) > 2 ? `+${commit.cards.length - 2}` : '',
+				more: (commit.cards?.length ?? 0) > 2 ? t('home.activity.moreCards', { count: commit.cards.length - 2 }) : '',
 			});
 		}
 	}
@@ -381,6 +448,9 @@ export function notesModel(index, limit = 8) {
 			rows.push({
 				key: `${card.handle}:${i}`,
 				kind: note.kind ?? '',
+				// The five canonical kinds are translated; anything else is plan
+				// data and prints as written.
+				kindLabel: Object.hasOwn(NOTE_GLYPHS, note.kind ?? '') ? t(`home.notes.kind.${note.kind}`) : (note.kind ?? ''),
 				glyph: NOTE_GLYPHS[note.kind] ?? '·',
 				tone: NOTE_TONES[note.kind] ?? '',
 				text: note.text,

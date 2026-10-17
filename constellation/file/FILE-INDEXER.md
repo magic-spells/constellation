@@ -12,13 +12,18 @@ connections:
   - FILE-LINT
   - FILE-MCP-SERVER
   - FILE-SERVE
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:12:50.118Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
 notes:
   - kind: state
     text: >-
       structuredReferrers(index, handle) lists cards whose connections: or handle-shaped frontmatter
       still names that handle — leftover E005s after delete. Not the undirected neighbor set.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 Reads every card, dedupes handles, resolves references, builds the undirected connection set, and collects structural issues (E001–E006, W001, W004). The single source of the derived graph — recomputed on every load, never stored.

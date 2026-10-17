@@ -5,10 +5,16 @@ status: verified
 connections:
   - FILE-GIT
   - DOC-CHANGE-TRACKING
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
-verified_at: '2026-08-24T21:11:02.033Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
+verified_at: '2026-10-04T22:03:30.324Z'
 section: plan-and-code
 order: 20
+notes:
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 "Sync the plan to the code" brings CODE up to a changed plan — the plan is the source of truth, so behavior changes in the plan first.

@@ -7,8 +7,24 @@ order: 30
 connections:
   - PAGE-VIEWER-ATLAS
   - FILE-ATLAS-SCENE
-verified_at: '2026-08-18T17:56:52.325Z'
-verified_sha: 206a3734a4bc0e73c9806610d88e5311571e17f4
+verified_at: '2026-10-17T23:06:59.192Z'
+verified_sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
+notes:
+  - kind: verified
+    text: >-
+      Re-checked after viewer i18n (#46), the Observatory dark retune (bbbf885) and the header
+      language globe (e2004a4); card fixes in f457fd1 and 3ad1a1e.
+    sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+  - kind: state
+    text: >-
+      The "mermaid already uses this trick" precedent now reads "pele": the diagram renderer was
+      swapped in 1.2.0 ([[DECISION-PELE-RENDERER]]) but is vendored and imported through a variable
+      URL exactly the same way.
+  - kind: verified
+    text: >-
+      Pele renderer swap merged into release/1.2.0 (#47, 31e8c15); checked against markdown.js,
+      copy-pele.mjs, styles.css and the Opus review of that diff.
+    sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
 ---
 
 The atlas ships **both** a canvas-2D isometric renderer and a lit three.js one,
@@ -41,7 +57,8 @@ reader would have paid for a view most never open.
 
 `scripts/copy-three.mjs` copies three's ESM build into the viewer's `public/`
 and `loadThree()` imports it through a variable URL, so esbuild leaves the import
-alone and the browser fetches it on the first switch. `app.js` is 458 KB. This is
+alone and the browser fetches it on the first switch. `app.js` was 458 KB when
+this shipped (0.6.0); it has grown since, but three is still not in it. This is
 exactly the trick mermaid already uses, and it is the reason the precedent was
 worth following rather than reinventing.
 

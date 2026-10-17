@@ -318,8 +318,8 @@ describe('DocsPrint', () => {
 	it('paints the whole window as paper while it is open, and cleans up after', async () => {
 		const view = await mountDocs(DocsPrint);
 
-		// On the ROOT, not the sheet: the mermaid tinting reads its colours off
-		// documentElement, so a diagram bound for white paper has to see white.
+		// On the ROOT, not the sheet: the diagram tint pass and the canvas views
+		// read tokens off documentElement, so paper has to be set there.
 		expect(document.documentElement.hasAttribute('data-paper')).toBe(true);
 
 		view.destroy();

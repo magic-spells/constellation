@@ -7,7 +7,7 @@
         indicator="caret"
         @change={ pick }/>
     {:else if status}
-      <Badge variant={ variant } class={ tint }>{ status }</Badge>
+      <Badge variant={ variant } class={ tint }>{ statusText }</Badge>
     {/if}
   </span>
 </puzzle-view>
@@ -17,6 +17,7 @@ import { PuzzleView } from '@magic-spells/puzzle';
 import Badge from './ui/Badge.pzl';
 import Select from './ui/Select.pzl';
 import { savePatch } from '../lib/edit.js';
+import { statusLabel } from '../lib/status.js';
 
 // StatusSelect — a card's `status:`, as a read-only Badge on a read-only plan
 // and a Select when the plan is editable. The four statuses are Constellation's
@@ -49,12 +50,13 @@ export default class StatusSelect extends PuzzleView {
 
 		return {
 			status,
+			statusText: statusLabel(status),
 			canEdit: this.ctx.store?.findOne('plan', 'plan')?.editable === true,
 			variant: badge.variant,
 			tint: badge.tint,
 			options: [
-				{ value: '', label: 'no status' },
-				...STATUSES.map((value) => ({ value, label: value })),
+				{ value: '', label: statusLabel('') },
+				...STATUSES.map((value) => ({ value, label: statusLabel(value) })),
 			],
 		};
 	}

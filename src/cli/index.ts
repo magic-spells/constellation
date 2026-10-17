@@ -6,6 +6,7 @@ import process from 'node:process';
 import { Command } from 'commander';
 import pc from 'picocolors';
 import { lintPlan } from '../core/lint.js';
+import { showPath } from '../core/no-follow.js';
 import { listConnectedRepos } from '../core/repos.js';
 import {
   countPlanCards,
@@ -19,6 +20,8 @@ import {
   type DiscoveredPlan,
 } from '../core/resolve.js';
 import type { Issue } from '../core/types.js';
+import type { NewSessionMode } from '../core/working-config.js';
+import type { GitignoreReport, WorkingAnchor, WorkingInitResult } from '../core/working.js';
 import { notifyUpdate } from './update-check.js';
 
 const require = createRequire(import.meta.url);
@@ -169,22 +172,42 @@ program
     '-n, --name <name>',
     'project name shown as the viewer title (default: a title-cased folder name)',
   )
-  .description('Scaffold a constellation/ folder with a starter plan.md')
-  .action(async (target: string, opts: { name?: string }) => {
+  .option('--working', 'use working memory (.constellation/) on this repo (skips the question)')
+  .option('--no-working', 'do not use working memory on this repo')
+  .option('--new-session <mode>', 'keep | clear — clear keeps only CONSTRAINT items each new session')
+  .description('Scaffold a constellation/ folder with a starter plan.md and set up working memory')
+  .action(async (
+    target: string,
+    opts: { name?: string; working?: boolean; newSession?: string },
+  ) => {
+    parseNewSession(opts.newSession);
     const { initPlan } = await import('../core/scaffold.js');
+    let root: string;
     try {
-      const { root, name: projectName } = await initPlan(target, { name: opts.name });
+      const created = await initPlan(target, { name: opts.name });
+      root = created.root;
       console.log(pc.green('✓') + ` Created ${path.relative(process.cwd(), root)}/plan.md`);
       console.log(
-        `  Project name: ${pc.bold(projectName)} ${pc.dim('— edit the name: field in plan.md to change it')}`,
-      );
-      console.log(
-        '\nAdd cards as <type>/<HANDLE>.md (e.g. api/API-LIST-USERS.md),\nthen run `constellation lint` to validate.',
+        `  Project name: ${pc.bold(created.name)} ${pc.dim('— edit the name: field in plan.md to change it')}`,
       );
     } catch (err) {
       console.error(pc.red(err instanceof Error ? err.message : String(err)));
       process.exit(2);
     }
+    // constellation/ is the tracked plan; .constellation/ is local memory, gitignored
+    // here whatever the answers — init is the moment that must happen.
+    try {
+      const { anchorForPlan, initWorking } = await import('../core/working.js');
+      const anchor = await anchorForPlan(root);
+      printWorkingInit(await initWorking(anchor, await workingAnswers(anchor, opts)));
+    } catch (err) {
+      console.log(
+        pc.yellow(`  working memory not set up: ${err instanceof Error ? err.message : String(err)}`),
+      );
+    }
+    console.log(
+      '\nAdd cards as <type>/<HANDLE>.md (e.g. api/API-LIST-USERS.md),\nthen run `constellation lint` to validate.',
+    );
   });
 
 program
@@ -238,24 +261,139 @@ program
   });
 
 // `working` is what the SessionStart hook runs, so it must be silent and exit 0
-// wherever there is nothing to print — no working folder, or no plan and no git to
-// anchor one. A hook that errors on every unrelated repo gets uninstalled.
+// wherever there is nothing to print — no working folder, no plan and no git to
+// anchor one, or working memory switched off in .constellation/config.json. A hook
+// that errors on every unrelated repo gets uninstalled.
 // Working memory never reads a card: with no plan it anchors at the git root.
 const WORKING_PATH_HELP =
   'plan folder, a directory containing constellation/, or any directory in a git repo (default: cwd)';
+
+/** Resolve the working anchor or exit 2 — the settings and init commands need one. */
+async function requireWorkingAnchor(target: string | null | undefined): Promise<WorkingAnchor> {
+  const { resolveWorkingAnchor } = await import('../core/working.js');
+  const anchor = await resolveWorkingAnchor({ start: target ?? undefined });
+  if (!anchor) {
+    console.error(
+      pc.red('No git repo or plan here to anchor .constellation/') + ' — run `git init` first.',
+    );
+    process.exit(2);
+  }
+  return anchor;
+}
+
+function parseNewSession(value: string | undefined): NewSessionMode | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'keep' || value === 'clear') return value;
+  console.error(pc.red(`new session mode must be keep or clear, not "${value}".`));
+  process.exit(2);
+}
+
+/**
+ * The two working memory questions, asked once per repo: only on a TTY, only
+ * when config.json does not exist yet, and only for what no flag answered.
+ * Anything left unanswered falls to the defaults (on, keep).
+ */
+async function workingAnswers(
+  anchor: WorkingAnchor,
+  opts: { working?: boolean; newSession?: string },
+): Promise<{ enabled?: boolean; new_session?: NewSessionMode }> {
+  let enabled = opts.working;
+  let mode = parseNewSession(opts.newSession);
+  const { readWorkingConfig } = await import('../core/working.js');
+  if (process.stdin.isTTY && !(await readWorkingConfig(anchor)).exists) {
+    const { confirm } = await import('./skills.js');
+    if (enabled === undefined) {
+      enabled = await confirm('Use working memory on this repo? [Y/n] ', true);
+    }
+    if (mode === undefined && enabled !== false) {
+      const clear = await confirm(
+        'Clear the working memory with every new session? Constraints are kept; it resets the one list all sessions in this repo share, so it suits one session at a time. [y/N] ',
+        false,
+      );
+      mode = clear ? 'clear' : 'keep';
+    }
+  }
+  return {
+    ...(enabled !== undefined ? { enabled } : {}),
+    ...(mode !== undefined ? { new_session: mode } : {}),
+  };
+}
+
+function printGitignore(report: GitignoreReport): void {
+  console.log(pc.dim(`  .gitignore: ${report.gitignore} (check: ${report.gitignore_check})`));
+  for (const warning of report.warnings) console.log(pc.yellow(`  warning: ${warning}`));
+}
+
+function printWorkingInit(result: WorkingInitResult): void {
+  if (result.config.enabled) {
+    console.log(`${pc.green('✓')} Working memory at ${showPath(result.dir)}`);
+  } else {
+    console.log(`${pc.green('✓')} Working memory off ${pc.dim(`(${showPath(result.dir)}/config.json)`)}`);
+  }
+  for (const file of result.created) {
+    console.log(pc.dim(`  created ${showPath(path.relative(process.cwd(), file))}`));
+  }
+  console.log(
+    pc.dim(
+      `  settings: enabled ${result.config.enabled}, new_session ${result.config.new_session}` +
+        (result.defaults_applied ? ` (defaults: ${result.defaults_applied.join(', ')})` : ''),
+    ),
+  );
+  if (result.config_unchanged) console.log(pc.dim(`  ${result.config_unchanged}`));
+  printGitignore(result);
+}
 
 const working = program
   .command('working')
   .argument('[path]', WORKING_PATH_HELP)
   .description('Print the working memory set (.constellation/working.md)')
   .action(async (target: string | null | undefined) => {
-    const { readWorkingRaw, resolveWorkingAnchor, workingPreamble } = await import(
-      '../core/working.js'
-    );
+    const {
+      clearForNewSession,
+      readWorkingConfig,
+      readWorkingRaw,
+      resolveWorkingAnchor,
+      workingFolderProblem,
+      workingPreamble,
+    } = await import('../core/working.js');
     const anchor = await resolveWorkingAnchor({ start: target ?? undefined }).catch(() => null);
     if (!anchor) return;
+    // A folder the repo shipped, or one that is a link, is neither printed nor
+    // cleared — only the one line saying why goes into the session.
+    // Fail closed: a check that cannot finish is a refusal, never a pass.
+    const problem = await workingFolderProblem(anchor).catch(
+      (err: unknown) =>
+        new Error(
+          `working memory not loaded: its safety check failed (${showPath(err instanceof Error ? err.message.split('\n')[0] : String(err))}).`,
+        ),
+    );
+    if (problem) {
+      console.log(problem.message);
+      return;
+    }
+    const settings = await readWorkingConfig(anchor);
+    if (!settings.config.enabled) return;
+    let notice: string | null = null;
+    // stdin is read only when the user chose "clear": the default path stays
+    // exactly what it was, and a manual run on a TTY never waits for input.
+    // Compact and resume never clear — surviving those is the point of the set.
+    if (settings.config.new_session === 'clear') {
+      const { readHookSource } = await import('./hook-input.js');
+      const source = await readHookSource();
+      if (source === 'startup' || source === 'clear') {
+        await clearForNewSession(anchor).catch((err: unknown) => {
+          // Another writer held the list the whole wait: say so rather than
+          // leaving a stale set that looks freshly cleared.
+          const code = (err as { code?: string }).code;
+          if (code === 'BUSY' || code === 'CONFLICT') {
+            notice = 'working memory: list busy, not cleared this session';
+          }
+        });
+      }
+    }
     const found = await readWorkingRaw(anchor).catch(() => null);
     if (!found) return;
+    if (notice) console.log(notice);
     console.log(workingPreamble(found.path));
     console.log();
     console.log(found.text.trimEnd());
@@ -264,27 +402,94 @@ const working = program
 working
   .command('install-hook')
   .argument('[path]', WORKING_PATH_HELP)
+  .option('--working', 'use working memory on this repo (skips the question)')
+  .option('--no-working', 'do not use working memory on this repo')
+  .option('--new-session <mode>', 'keep | clear — clear keeps only CONSTRAINT items each new session')
   .description('Create .constellation/ and add the SessionStart hook to .claude/settings.json')
-  .action(async (target: string | null | undefined) => {
-    const { initWorking, resolveWorkingAnchor } = await import('../core/working.js');
-    const anchor = await resolveWorkingAnchor({ start: target ?? undefined });
-    if (!anchor) {
+  .action(async (
+    target: string | null | undefined,
+    opts: { working?: boolean; newSession?: string },
+  ) => {
+    const { initWorking, readWorkingConfig } = await import('../core/working.js');
+    const anchor = await requireWorkingAnchor(target);
+    const settings = await readWorkingConfig(anchor);
+    if (settings.exists && !settings.config.enabled) {
       console.error(
-        pc.red('No git repo or plan here to anchor .constellation/') + ' — run `git init` first.',
+        pc.yellow('Working memory is off for this repo') +
+          ` (${showPath(settings.path)}). Turn it on first: constellation working on`,
       );
       process.exit(2);
     }
-    const result = await initWorking(anchor, { hook: true });
-    console.log(`${pc.green('✓')} Working memory at ${result.dir}`);
-    for (const file of result.created) {
-      console.log(pc.dim(`  created ${path.relative(process.cwd(), file)}`));
-    }
-    console.log(pc.dim(`  .gitignore: ${result.gitignore}`));
+    const answers = await workingAnswers(anchor, opts);
+    const result = await initWorking(anchor, { hook: true, ...answers }).catch((err: unknown) => {
+      // UNSAFE_PATH (a linked .claude/ or .constellation/), UNTRUSTED_WORKING, …
+      console.error(pc.red(err instanceof Error ? err.message : String(err)));
+      process.exit(2);
+    });
+    printWorkingInit(result);
+    if (!result.config.enabled) return;
     console.log(
       result.hook === 'skipped'
         ? pc.yellow('  hook: skipped — .claude/settings.json is not readable JSON; add the hook by hand')
         : pc.dim(`  SessionStart hook: ${result.hook}`),
     );
+  });
+
+/** `working on|off|new-session`: the user changing a setting on purpose. */
+async function setWorking(
+  target: string | null | undefined,
+  patch: { enabled?: boolean; new_session?: NewSessionMode },
+): Promise<void> {
+  const { readWorkingRaw, setWorkingConfig } = await import('../core/working.js');
+  const anchor = await requireWorkingAnchor(target);
+  const result = await setWorkingConfig(anchor, patch);
+  console.log(
+    `${pc.green('✓')} Working memory ${result.config.enabled ? 'on' : 'off'}, new_session ${result.config.new_session} ${pc.dim(`(${showPath(result.path)})`)}`,
+  );
+  printGitignore(result);
+  if (result.config.enabled && !(await readWorkingRaw(anchor))) {
+    console.log(pc.dim('  no working.md yet — `constellation working install-hook` creates it'));
+  }
+}
+
+working
+  .command('on')
+  .argument('[path]', WORKING_PATH_HELP)
+  .description('Turn working memory on for this repo (.constellation/config.json)')
+  .action(async (target: string | null | undefined) => setWorking(target, { enabled: true }));
+
+working
+  .command('off')
+  .argument('[path]', WORKING_PATH_HELP)
+  .description('Turn working memory off for this repo: no working_* tools, a silent hook')
+  .action(async (target: string | null | undefined) => setWorking(target, { enabled: false }));
+
+working
+  .command('new-session')
+  .argument(
+    '<mode>',
+    'keep: the set carries over · clear: a new session keeps only CONSTRAINT items (one list shared by every session in the repo, so best for one session at a time)',
+  )
+  .argument('[path]', WORKING_PATH_HELP)
+  .description('Choose what a new session (startup or /clear) does to the working set')
+  .action(async (mode: string, target: string | null | undefined) =>
+    setWorking(target, { new_session: parseNewSession(mode) }),
+  );
+
+working
+  .command('config')
+  .argument('[path]', WORKING_PATH_HELP)
+  .description('Print the effective working memory settings')
+  .action(async (target: string | null | undefined) => {
+    const { readWorkingConfig } = await import('../core/working.js');
+    const anchor = await requireWorkingAnchor(target);
+    const settings = await readWorkingConfig(anchor);
+    console.log(
+      `Working memory settings · ${showPath(settings.path)}${settings.exists ? '' : pc.dim(' (no file — defaults)')}`,
+    );
+    console.log(`  enabled      ${settings.config.enabled}`);
+    console.log(`  new_session  ${settings.config.new_session}`);
+    for (const warning of settings.warnings) console.log(pc.yellow(`  warning: ${warning}`));
   });
 
 program
@@ -302,10 +507,15 @@ program
   .option('--plan <id>', 'set the default plan without filtering the served set')
   .option('--no-open', 'do not open the browser')
   .option('--readonly', 'disable editing from the browser')
+  .option(
+    '--dev-origin <origin>',
+    'view through a forwarded or proxied port (ssh -L, VS Code, the puzzle dev proxy): ' +
+      'also accept that loopback Host and Origin, e.g. http://localhost:8080',
+  )
   .description('Serve a website rendering the plan, editable in place')
   .action(async (
     target: string | null | undefined,
-    opts: { port: string; plan?: string; open: boolean; readonly?: boolean },
+    opts: { port: string; plan?: string; open: boolean; readonly?: boolean; devOrigin?: string },
   ) => {
     const explicit = target !== null && target !== undefined;
     let root: string;
@@ -380,6 +590,7 @@ program
               planRoot: root,
               port,
               readonly: opts.readonly ?? false,
+              devOrigins: opts.devOrigin ? [opts.devOrigin] : undefined,
             })
           : await startServer({
               plans: discovered as DiscoveredPlan[],
@@ -387,6 +598,7 @@ program
               defaultPlan,
               port,
               readonly: opts.readonly ?? false,
+              devOrigins: opts.devOrigin ? [opts.devOrigin] : undefined,
             });
       } catch (err) {
         const code = (err as NodeJS.ErrnoException)?.code;
@@ -458,12 +670,18 @@ program
           /* a watcher or concurrent edit can make banner garnish unavailable */
         }
         const mark = plan.id === running.defaultPlan ? '•' : ' ';
+        const from = plan.repo.kind === 'connected' ? pc.dim(`  ↳ ${plan.repo.path}`) : '';
         console.log(
-          `      ${mark} ${plan.id.padEnd(18)}${plan.name.padEnd(30)}${cards}`,
+          `      ${mark} ${plan.id.padEnd(18)}${plan.name.padEnd(30)}${String(cards).padEnd(6)}${from}`,
         );
       }
     } else {
       line('Plan:', planLabel);
+    }
+    // Declared connected repos that could not be served stay visible here and
+    // as disabled rows in the viewer's workspace switcher.
+    for (const down of running.unavailable) {
+      line('Skip:', pc.yellow(down.repo.name) + pc.dim(`  ${down.reason}`));
     }
     if (opts.readonly) line('Mode:', pc.dim('read-only (browser edits disabled)'));
 

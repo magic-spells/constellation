@@ -7,8 +7,8 @@ branch: fix/serve-port-and-upgrade
 connections:
   - FILE-CLI
   - FILE-SERVE
-verified_at: '2026-08-24T21:11:21.273Z'
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 notes:
   - kind: verified
     text: >-
@@ -17,6 +17,11 @@ notes:
       0.5.1. upgrade's --prefer-online confirmed against the timing that caused the report (0.5.1
       published 18:45:06Z, upgrade run inside npm's 5-minute packument cache window).
     sha: b68341fab1d50f297248b83eccc2f936ad6b9234
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 Three papercuts reported within an hour of 0.5.1 shipping. Each one had the CLI

@@ -45,14 +45,13 @@ const legacyBoard = () => '/tasks/board';
 const legacyFeatures = () => '/tasks/list';
 
 export default [
-	{ path: '/', name: 'home', view: Home, layout: AppShell, meta: { title: 'Constellation' } },
+	{ path: '/', name: 'home', view: Home, layout: AppShell },
 	{ path: '/tasks', name: 'tasks', view: BoardPage, guard: tasksIndex },
 	{
 		path: '/tasks/board',
 		name: 'tasks-board',
 		view: BoardPage,
 		layout: AppShell,
-		meta: { title: 'Constellation — Tasks' },
 		// The preview dialog is a CHILD route rendered in BoardPage's <Slot/>,
 		// not a `{#if}` toggle — that is the shape a shared-element morph needs
 		// (puzzle D55). The board, and with it the clicked card, stays mounted for
@@ -69,7 +68,6 @@ export default [
 		name: 'tasks-list',
 		view: FeaturesPanel,
 		layout: AppShell,
-		meta: { title: 'Constellation — Tasks' },
 	},
 	// The compiled document. `/docs/:section` must be declared before the
 	// `/:folder/:handle` catch-all below or that pair would swallow it.
@@ -78,26 +76,23 @@ export default [
 		name: 'docs',
 		view: DocsPage,
 		layout: AppShell,
-		meta: { title: 'Constellation — Documentation' },
 	},
 	{
 		path: '/docs/:section',
 		name: 'docs-section',
 		view: DocsPage,
 		layout: AppShell,
-		meta: { title: 'Constellation — Documentation' },
 	},
 	// The document on a page-width sheet, in a window of its own — what "Export
 	// as PDF" opens, and the only route with NO layout: the app's chrome is
 	// exactly what a printable page must not carry. It is a top-level path
 	// rather than `/docs/print` because that segment already holds a section
 	// slug, and a section called `print` would be unreachable behind it.
-	{ path: '/print', name: 'docs-print', view: DocsPrint, meta: { title: 'Constellation — Print' } },
+	{ path: '/print', name: 'docs-print', view: DocsPrint },
 	{
 		path: '/print/:section',
 		name: 'docs-print-section',
 		view: DocsPrint,
-		meta: { title: 'Constellation — Print' },
 	},
 	// Constellation is ONE destination with two readings of the same graph: the
 	// force-clustered node view, and the atlas — the same cards as an isometric
@@ -113,28 +108,24 @@ export default [
 		name: 'graph',
 		view: ConstellationView,
 		layout: AppShell,
-		meta: { title: 'Constellation — Graph' },
 	},
 	{
 		path: '/constellation/atlas',
 		name: 'atlas',
 		view: AtlasView,
 		layout: AppShell,
-		meta: { title: 'Constellation — Atlas' },
 	},
 	{
 		path: '/constellation/atlas/:handle',
 		name: 'atlas-card',
 		view: AtlasView,
 		layout: AppShell,
-		meta: { title: 'Constellation — Atlas' },
 	},
 	{
 		path: '/style-guide',
 		name: 'style-guide',
 		view: StyleGuide,
 		layout: AppShell,
-		meta: { title: 'Constellation — Style guide' },
 	},
 	// Legacy shapes. The guard always redirects, so the view never constructs —
 	// it is named only because a route needs something to point at.
@@ -147,13 +138,11 @@ export default [
 		name: 'type-list',
 		view: TypeIntro,
 		layout: AppShell,
-		meta: { title: 'Constellation' },
 	},
 	{
 		path: '/:folder/:handle',
 		name: 'card-page',
 		view: CardPage,
 		layout: AppShell,
-		meta: { title: 'Constellation' },
 	},
 ];

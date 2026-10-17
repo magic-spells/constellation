@@ -1,16 +1,16 @@
 <puzzle-view>
   <div class="style-guide">
-    <h1>Style Guide</h1>
+    <h1>{ t('style.guide.title') }</h1>
     {#if cards.length === 0}
       <Empty
-        title="No STYLE cards yet"
-        description="Add a card under style/ with a category and a tokens list — colors, fonts, a type scale, spacing, radii or shadows — and it renders here."
+        title={ t('style.guide.emptyTitle') }
+        description={ t('style.guide.emptyDescription') }
         class="min-h-[18rem]"
       />
     {:else}
       {#for entry in cards}
         <section key={ entry.handle } class="sg-section">
-          <h2><a href="{ entry.path | link }">{ entry.title }</a></h2>
+          <h2><a href="{ link(entry.path) }">{ entry.title }</a></h2>
           <StyleTokens card={ entry.card } />
           {#if entry.body}
             <div class="sg-body"><MarkdownBlock src={ entry.body } /></div>

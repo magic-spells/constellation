@@ -1,0 +1,11 @@
+erDiagram
+  DB-USERS ||--o{ DB-TICKETS : owns
+  DB-USERS {
+    uuid id PK
+    string email UK
+  }
+  DB-TICKETS {
+    uuid id PK
+    uuid owner_id FK
+    string status
+  }

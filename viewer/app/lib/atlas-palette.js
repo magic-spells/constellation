@@ -30,7 +30,9 @@ export function atlasPalette(types = []) {
 	// which is what `false` selects below.
 	const paper = false;
 
-	const page = cssColor('--color-page', '#111');
+	// The ground the map is drawn on: the work panel, which every scheme paints
+	// with surface-panel.
+	const page = cssColor('--color-surface-panel', cssColor('--color-page', '#111'));
 	const ink = cssColor('--color-ink', '#eee');
 	const muted = cssColor('--color-muted', '#888');
 	const border = cssColor('--color-border', '#444');
@@ -83,11 +85,11 @@ export function atlasPalette(types = []) {
 		routeDot: paper ? ink : cssColor('--t-FLOW', brand),
 		routeCasing: page,
 
-		districtFont: '700 11px ui-monospace, SFMono-Regular, Menlo, monospace',
-		buildingFont: '600 10px ui-monospace, SFMono-Regular, Menlo, monospace',
+		districtFont: '700 11px ui-monospace, SFMono-Regular, Menlo, monospace', // i18n-ok: canvas font shorthand
+		buildingFont: '600 10px ui-monospace, SFMono-Regular, Menlo, monospace', // i18n-ok: canvas font shorthand
 		// Literal stacks: a canvas font shorthand is not CSS and does not resolve
 		// var(), so a `var(--font-sans)` here would silently fall back to serif.
-		summaryFont: "400 11px 'Inter Variable', Inter, system-ui, sans-serif",
+		summaryFont: "400 11px 'Inter Variable', Inter, system-ui, sans-serif", // i18n-ok: canvas font shorthand
 
 		/**
 		 * A building's three faces plus its outline. `tone` from the lens wins over

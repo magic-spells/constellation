@@ -8,8 +8,8 @@ connections:
   - FILE-WRITER
   - FILE-SYNC
   - PAGE-VIEWER-HOME
-verified_at: '2026-08-24T21:13:23.783Z'
-verified_sha: fd006635cd65d9ffc79ddd45e8484c4ff9a18511
+verified_at: '2026-10-04T22:03:30.324Z'
+verified_sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 notes:
   - kind: verified
     text: >-
@@ -47,9 +47,18 @@ notes:
     text: >-
       PATCH if_mtime is checked inside mutateCardFile's lock (same StaleWriteError as MCP
       update_card). DELETE uses deleteCardFile + structuredReferrers, matching MCP delete_card.
+  - kind: verified
+    text: >-
+      1.1.0 card review: checked against the code at release/1.1.0 db754eb by three review agents
+      (core FILE cards, docs/flows/MCP, viewer); false claims fixed in db754eb.
+    sha: db754ebc084462684b8c0cd84b790679c3cc6e21
 ---
 
 Serves `viewer/dist`, a read API, and a PATCH/POST/DELETE write API (with `if_mtime` stale-write guard), watching files for live reload. Shares the byte-preserving writer with the MCP path. `DELETE /api/card/PLAN-PROJECT` is refused (400 `INVALID_HANDLE`) — same guard as MCP `delete_card`.
+
+**Every request passes the guard first** ([[DECISION-SERVE-REQUEST-GUARD]]): `Host` must name this loopback server, writes need a same-server `Origin`, and `devOrigins` (CLI `--dev-origin`) is the only widening; refusals are 403 `FORBIDDEN`. Containment is by realpath — style assets against the serving root's realpath, new cards never through a symlinked type folder, `.sync.json` replaced rather than written through.
+
+**Workspaces.** Beside the plans discovered in this repo, startup adds the plans of the root (else default) plan's `connected_repos` ([[FILE-REPOS]] `discoverConnectedWorkspaces`), one level deep and fixed until restart. `/api/plans` entries carry `available`, `reason` and `repo { name, path, root, kind, description? }`; an unreachable repo, or one that fails to read or watch, is an unavailable row that still reserves its id, never a crash. Each plan's git, sync, drift and style-asset fallback run from its own repo root; connected plans' code metrics are bounded by that repo's realpath. Ids and routing: [[DECISION-MULTI-PLAN-SERVE]].
 
 Specialized reads stay thin over the core modules: `GET /api/docs` compiles the ordered document and prepares body headings; `GET /api/atlas-metrics` returns [[FILE-CODE]]'s bound-code sizes; `GET /api/atlas-config` returns authored atlas placement; and `GET /api/style-asset` serves contained font files for STYLE specimens. Atlas metrics are cached for five seconds and invalidated immediately by the plan watcher, because code edits sit outside that watch root.
 

@@ -10,10 +10,11 @@
  * Scroll-spy crosses a component boundary: the document is the routed view, the
  * TOC sits in AppShell's split pane, and neither owns the other. So the page
  * PUBLISHES which anchor the viewport is on and the TOC subscribes — the same
- * shape as `theme.js`'s `onThemeChange`, and the reason neither has to know the
+ * shape as `appearance.js`'s `subscribe`, and the reason neither has to know the
  * other exists.
  */
 
+import { formatDateTime, t } from './i18n.js';
 import { activePlanId, routerBaseFor } from './plans.js';
 import { hrefForHandle, typeForHandle } from './types.js';
 
@@ -96,7 +97,7 @@ export function countDiagrams(body) {
 /**
  * How many of `root`'s diagram placeholders have been drawn.
  *
- * Mermaid runs asynchronously off a vendored bundle (lib/markdown.js) and fills
+ * Pele runs asynchronously off a vendored bundle (lib/markdown.js) and fills
  * each `.mermaid-block` with an <svg> — or, when the diagram itself is bad,
  * with the source in a <pre>. Either way the box now has a child, so "has a
  * child" is "settled", whichever way it ended.
@@ -116,7 +117,7 @@ export function diagramsDrawn(root) {
  * navigation.
  *
  * Being hand-encoded also makes it the ONE href in the app that the router's
- * plan base does not reach — every other one goes through `| link` or
+ * plan base does not reach — every other one goes through `link()` or
  * `router.push`. So it prefixes the base itself, read from the module constant
  * lib/plans.js pins at boot; that is `''` on a single-plan server, which is
  * what keeps this string unchanged there.
@@ -129,12 +130,12 @@ export function printHref(solo = '') {
 /** Cover line: what this document is OF, so a printed copy dates itself. */
 function imprintOf(plan) {
 	const version = plan?.sync?.package_version;
-	const today = new Date().toLocaleDateString(undefined, {
+	const today = formatDateTime(new Date(), {
 		year: 'numeric',
 		month: 'long',
 		day: 'numeric',
 	});
-	return version ? `v${version} · ${today}` : today;
+	return version ? t('docs.imprint', { version, date: today }) : today;
 }
 
 /**
@@ -158,7 +159,7 @@ export function docModel(store, solo = '') {
 	return {
 		solo,
 		base: solo ? `/docs/${solo}` : '/docs',
-		title: docs?.title || 'Documentation',
+		title: docs?.title || t('docs.defaultTitle'),
 		imprint: imprintOf(plan),
 		// In-document link targets are the handles actually RENDERED here: on
 		// `/docs/:section` a card in another section is not on this page, so a
@@ -174,7 +175,7 @@ export function docModel(store, solo = '') {
 				name: card.name,
 				body: card.body,
 				cardHref: hrefForHandle(card.handle),
-				sourceTitle: `Open ${card.handle}`,
+				sourceTitle: t('docs.card.openSource', { handle: card.handle }),
 				// Same per-type token the connection chips and the graph use, so a
 				// handle is one colour everywhere in the app.
 				typeStyle: `--c: var(--t-${typeForHandle(card.handle) ?? 'DOC'})`,
