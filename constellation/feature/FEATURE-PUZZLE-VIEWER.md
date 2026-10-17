@@ -6,8 +6,8 @@ connections:
   - PAGE-VIEWER-HOME
   - PAGE-VIEWER-CARD
   - PAGE-VIEWER-FEATURES
-verified_at: '2026-08-16T03:45:14.707Z'
-verified_sha: 1412fee1bb2d1876dcade3acefe4b2202b35aaca
+verified_at: '2026-10-17T23:06:59.192Z'
+verified_sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
 notes:
   - kind: verified
     text: >-
@@ -20,6 +20,11 @@ notes:
       The "vendored mermaid chunks" wording in this card is history: from 1.2.0 the diagram renderer
       is Pele, vendored the same way into `viewer/app/public/vendor/pele/` (~1 MB, replacing
       mermaid's 11 MB / 291 chunks). See [[DECISION-PELE-RENDERER]].
+  - kind: verified
+    text: >-
+      Pele renderer swap merged into release/1.2.0 (#47, 31e8c15); checked against markdown.js,
+      copy-pele.mjs, styles.css and the Opus review of that diff.
+    sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
 ---
 
 # Puzzle viewer rebuild

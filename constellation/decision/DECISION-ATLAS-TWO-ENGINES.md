@@ -7,8 +7,8 @@ order: 30
 connections:
   - PAGE-VIEWER-ATLAS
   - FILE-ATLAS-SCENE
-verified_at: '2026-10-05T00:02:43.606Z'
-verified_sha: 3ad1a1ec1e242169a4743bd17cc36b22e58b9a6c
+verified_at: '2026-10-17T23:06:59.192Z'
+verified_sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
 notes:
   - kind: verified
     text: >-
@@ -20,6 +20,11 @@ notes:
       The "mermaid already uses this trick" precedent now reads "pele": the diagram renderer was
       swapped in 1.2.0 ([[DECISION-PELE-RENDERER]]) but is vendored and imported through a variable
       URL exactly the same way.
+  - kind: verified
+    text: >-
+      Pele renderer swap merged into release/1.2.0 (#47, 31e8c15); checked against markdown.js,
+      copy-pele.mjs, styles.css and the Opus review of that diff.
+    sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
 ---
 
 The atlas ships **both** a canvas-2D isometric renderer and a lit three.js one,

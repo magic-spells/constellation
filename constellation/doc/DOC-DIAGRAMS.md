@@ -1,7 +1,7 @@
 ---
 name: Diagrams and flows
 kind: reference
-status: built
+status: verified
 connections:
   - FILE-EXTRACT
   - DOC-FILE-FORMAT
@@ -14,6 +14,13 @@ notes:
       ([[DECISION-PELE-RENDERER]]). Syntax in the files is unchanged — still Mermaid — so authors
       should stay on the subset GitHub's Mermaid also accepts; Pele additionally renders pie,
       xychart, radar, sankey and treemap, but those will not render on GitHub.
+  - kind: verified
+    text: >-
+      Pele renderer swap merged into release/1.2.0 (#47, 31e8c15); checked against markdown.js,
+      copy-pele.mjs, styles.css and the Opus review of that diff.
+    sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
+verified_at: '2026-10-17T23:06:59.192Z'
+verified_sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
 ---
 
 # Diagrams and flows

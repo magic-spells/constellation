@@ -1,13 +1,21 @@
 ---
 name: Pele draws the mermaid fences
 kind: decision
-status: building
+status: verified
 section: decisions
 order: 31
 connections:
   - PAGE-VIEWER-CARD
   - DOC-DIAGRAMS
   - DECISION-ATLAS-TWO-ENGINES
+verified_at: '2026-10-17T23:06:59.192Z'
+verified_sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
+notes:
+  - kind: verified
+    text: >-
+      Pele renderer swap merged into release/1.2.0 (#47, 31e8c15); checked against markdown.js,
+      copy-pele.mjs, styles.css and the Opus review of that diff.
+    sha: 31e8c158cf8d3e65de381e6fe4c145e912a7f670
 ---
 
 The viewer renders ```mermaid fences with **Pele** (Obsidian's Mermaid-syntax renderer,
